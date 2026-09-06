@@ -34,6 +34,14 @@ from crossing the text. Stadium, cylinder, and double-circle nodes use multiple 
 when their paint can be reproduced safely.
 
 Basic sequence diagrams export participants, lifelines, messages, notes, and activations.
+Self messages (`A->>A`, `A-->>A`) export as editable sampled connectors when the message is a
+single unfilled open path. Asynchronous messages (`A-)B`, `B--)A`, including self messages)
+use the bundled renderer's filled, notched **stealth** head, not an open arrow. Solid/dashed
+strokes and supported start/end heads (including bidirectional self messages) are preserved;
+simple Japanese and multiline message labels remain editable. Multiple subpaths, closed or
+filled message paths, unknown heads, cross ends, effects, and unsupported sequence decorations
+remain local pictures with their labels retained rather than rasterizing the supported diagram.
+
 Class diagrams export class compartments, unmarked associations, composition (`A *-- B`),
 directed associations (`A --> B`), dependencies (`A ..> B`), and multiplicities
 (`A "1" -- "many" B`). Composition uses a filled diamond; directed associations and dependencies

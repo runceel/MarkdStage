@@ -178,6 +178,7 @@ export function markerIdToArrow(value) {
   if (/(?:^|[-_])dependency(?:Start|End)(?:-margin)?$/i.test(marker)) return "stealth";
   if (/-arrowhead$/.test(marker)) return "triangle";
   if (/-openarrowhead$/.test(marker)) return "arrow";
+  if (/-filled-head$/.test(marker)) return "stealth";
   return "none";
 }
 
@@ -191,26 +192,30 @@ function distanceToSegment(point, start, end) {
 
 export function simplifyPolyline(points, tolerance = DEFAULT_MERMAID_SCENE_OPTIONS.simplifyTolerance) {
   const parsed = parsePoints(points);
-  let simplified = parsed.filter((point, index) => index === 0 || pointKey(point) !== pointKey(parsed[index - 1]));
+  const distinct = parsed.filter((point, index) => index === 0 || pointKey(point) !== pointKey(parsed[index - 1]));
+  if (distinct.length < 3) return distinct;
   const threshold = Math.max(0, finiteNumberOr(tolerance, DEFAULT_MERMAID_SCENE_OPTIONS.simplifyTolerance));
-  let changed = true;
-  while (changed && simplified.length > 2) {
-    changed = false;
-    const next = [simplified[0]];
-    for (let index = 1; index < simplified.length - 1; index += 1) {
-      const previous = next[next.length - 1];
-      const current = simplified[index];
-      const following = simplified[index + 1];
-      if (distanceToSegment(current, previous, following) <= threshold) {
-        changed = true;
-      } else {
-        next.push(current);
+  const keep = new Set([0, distinct.length - 1]);
+  const pending = [[0, distinct.length - 1]];
+  // Bound error against the original samples. Repeatedly deleting nearby points
+  // can otherwise collapse a scaled self-message's entire return into one line.
+  while (pending.length) {
+    const [start, end] = pending.pop();
+    let farthest = -1;
+    let distance = threshold;
+    for (let index = start + 1; index < end; index += 1) {
+      const candidate = distanceToSegment(distinct[index], distinct[start], distinct[end]);
+      if (candidate > distance) {
+        farthest = index;
+        distance = candidate;
       }
     }
-    next.push(simplified[simplified.length - 1]);
-    simplified = next;
+    if (farthest !== -1) {
+      keep.add(farthest);
+      pending.push([start, farthest], [farthest, end]);
+    }
   }
-  return simplified;
+  return distinct.filter((_, index) => keep.has(index));
 }
 
 function normalizeColor(value, resolveColor = (entry) => entry) {
@@ -546,21 +551,30 @@ function unsupportedVisualEffect(element, descendants = true) {
   });
 }
 
-function connectorArrow(value, element) {
+function connectorArrow(value, element, placement) {
   const id = markerReferenceId(value);
   const relation = /(?:^|[-_])(composition|dependency)(Start|End)(?:-margin)?$/i.exec(id);
-  if (!relation) return markerIdToArrow(value);
+  const sequenceHead = /-filled-head$/.test(id);
+  if (!relation && !sequenceHead) return markerIdToArrow(value);
   const marker = element.ownerSVGElement.querySelector(`#${CSS.escape(id)}`);
   const children = marker ? directChildren(marker) : [];
   if (localName(marker) !== "marker" || children.length !== 1 || localName(children[0]) !== "path" ||
       unsupportedVisualEffect(marker)) return "none";
+  // Mermaid 11.15.0 emits this forward-facing marker only at the end. Its
+  // concave filled geometry is a stealth head, not an open asynchronous head.
+  if (sequenceHead && (placement !== "end" || marker.getAttribute("orient") !== "auto" ||
+      (marker.getAttribute("markerUnits") || "strokeWidth") !== "strokeWidth" ||
+      marker.hasAttribute("viewBox") ||
+      [["refX", 15.5], ["refY", 7], ["markerWidth", 20], ["markerHeight", 28]]
+        .some(([name, value]) => Number(marker.getAttribute(name)) !== value))) return "none";
   const path = children[0];
   // The pinned class renderer uses a filled diamond or a concave (stealth) head,
   // not the hollow diamond/triangle used for aggregation and inheritance.
   const d = path.getAttribute("d") || "";
   if (d.replace(/[-+]?(?:\d*\.?\d+)(?:e[-+]?\d+)?|[\s,]/gi, "") !== "MLLLZ") return "none";
   const values = d.match(/[-+]?(?:\d*\.?\d+)(?:e[-+]?\d+)?/gi)?.map(Number) || [];
-  const expected = relation[1].toLowerCase() === "composition" ? [18, 7, 9, 13, 1, 7, 9, 1]
+  const expected = sequenceHead ? [18, 7, 9, 13, 14, 7, 9, 1]
+    : relation[1].toLowerCase() === "composition" ? [18, 7, 9, 13, 1, 7, 9, 1]
     : relation[2].toLowerCase() === "start" ? [5, 7, 9, 13, 1, 7, 9, 1] : [18, 7, 9, 13, 14, 7, 9, 1];
   if (values.length !== expected.length || values.some((value, index) => value !== expected[index])) return "none";
   const paint = getComputedStyle(path);
@@ -580,8 +594,8 @@ function connectorMarkers(element) {
   const style = getComputedStyle(element);
   const start = style.markerStart || element.getAttribute("marker-start");
   const end = style.markerEnd || element.getAttribute("marker-end");
-  const arrowStart = connectorArrow(start, element);
-  const arrowEnd = connectorArrow(end, element);
+  const arrowStart = connectorArrow(start, element, "start");
+  const arrowEnd = connectorArrow(end, element, "end");
   return {
     arrowStart,
     arrowEnd,
@@ -847,7 +861,7 @@ function screenPoint(svg, point, deck) {
   };
 }
 
-function sampledPathPoints(path, svg, deck, options) {
+function sampledPathPoints(path, deck, options) {
   const total = path.getTotalLength();
   const sampleCount = Math.max(2, Math.round(total / Math.max(1, options.sampleStep)) + 1);
   if (!Number.isFinite(total) || sampleCount > MAX_SCENE_NODES) throw new Error("path sampling limit exceeded");
@@ -862,24 +876,27 @@ function sampledPathPoints(path, svg, deck, options) {
   };
 }
 
-function connectorPath(path, sourceIndex, z, svg, deck, options, edgeLabels) {
+function connectorPath(path, sourcePath, z, deck, options) {
   try {
     const markers = connectorMarkers(path);
     if (unsupportedVisualEffect(path) || markers.unsupported) {
-      return fallbackNode(path, z, deck, "unsupported-mermaid-edge-style", `edges[${sourceIndex}]`);
+      return fallbackNode(path, z, deck, "unsupported-mermaid-edge-style", sourcePath);
     }
     // Sampling across multiple subpaths joins disconnected strokes with invented lines.
     const commands = (path.getAttribute("d") || "").match(/[a-df-z]/gi) || [];
     if (commands.filter((command) => command.toLowerCase() === "m").length !== 1 ||
         commands.some((command) => command.toLowerCase() === "z")) {
-      return fallbackNode(path, z, deck, "unsupported-mermaid-edge-path", `edges[${sourceIndex}]`);
+      return fallbackNode(path, z, deck, "unsupported-mermaid-edge-path", sourcePath);
     }
-    const points = sampledPathPoints(path, svg, deck, options);
+    const points = sampledPathPoints(path, deck, options);
+    if (points.simplified.length < 2 || pointKey(points.raw[0]) === pointKey(points.raw.at(-1))) {
+      return fallbackNode(path, z, deck, "unsupported-mermaid-edge-path", sourcePath);
+    }
     const id = path.getAttribute("data-id") || path.getAttribute("id") || "";
     return definedEntries({
       kind: "connector",
       id: path.getAttribute("id") || undefined,
-      sourcePath: `edges[${sourceIndex}]`,
+      sourcePath,
       z,
       points: points.simplified,
       style: computedSvgStyle(path, options),
@@ -895,7 +912,7 @@ function connectorPath(path, sourceIndex, z, svg, deck, options, edgeLabels) {
       },
     });
   } catch (error) {
-    return fallbackNode(path, z, deck, `unsupported-mermaid-edge-path: ${error?.message || "path sampling failed"}`, `edges[${sourceIndex}]`);
+    return fallbackNode(path, z, deck, `unsupported-mermaid-edge-path: ${error?.message || "path sampling failed"}`, sourcePath);
   }
 }
 
@@ -1059,6 +1076,12 @@ function sequenceScene(svg, deck, size, options) {
       nodes.push(measuredText(element, sourcePath, nodes.length, deck, options));
       return;
     }
+    if (tag === "path" && (hasClass(element, "messageLine0") || hasClass(element, "messageLine1"))) {
+      nodes.push(normalizeColor(getComputedStyle(element).fill)
+        ? fallbackNode(element, nodes.length, deck, "unsupported-mermaid-sequence-style", sourcePath)
+        : connectorPath(element, sourcePath, nodes.length, deck, options));
+      return;
+    }
     const markers = tag === "line" ? connectorMarkers(element) : null;
     if (tag === "line" && /^(?:actor-line|messageLine\d+)(?:\s|$)/.test(element.getAttribute("class") || "") &&
         !markers.unsupported) {
@@ -1116,7 +1139,7 @@ function classScene(svg, root, deck, size, options) {
     if (consumed.has(path.parentElement)) continue;
     consumed.add(path);
     options.sourceElements?.set(`edges[${index}]`, path);
-    nodes.push(connectorPath(path, index, nodes.length, svg, deck, options, new Map()));
+    nodes.push(connectorPath(path, `edges[${index}]`, nodes.length, deck, options));
   }
   appendEdgeLabels(nodes, readEdgeLabels(root, deck, options, consumed));
   for (const [index, group] of [...root.querySelectorAll(":scope > g.nodes > g.node")].entries()) {
@@ -1214,7 +1237,7 @@ function sceneFromSvg(svg, options) {
     if (consumed.has(path.parentElement)) continue;
     consumed.add(path);
     options.sourceElements?.set(`edges[${edgeIndex}]`, path);
-    nodes.push(connectorPath(path, edgeIndex, nodes.length, svg, deck, options, edgeLabels));
+    nodes.push(connectorPath(path, `edges[${edgeIndex}]`, nodes.length, deck, options));
   }
   appendEdgeLabels(nodes, edgeLabels);
   for (const [nodeIndex, node] of [...root.querySelectorAll(":scope > g.nodes > g.node")].entries()) {

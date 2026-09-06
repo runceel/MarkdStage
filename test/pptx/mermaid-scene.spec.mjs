@@ -52,6 +52,33 @@ async function updateFixture(page, update) {
   });
 }
 
+async function sampledConnectorErrors(page) {
+  return page.evaluate(async () => {
+    const { mermaidSvgToScene } = await import("./renderer/mermaid-scene.mjs");
+    const deck = document.querySelector("#fixture-deck");
+    const { scene, sourceElements } = mermaidSvgToScene(deck.querySelector("svg"), { deck, includeSourceElements: true });
+    const rect = deck.getBoundingClientRect();
+    return scene.nodes.flatMap((node) => {
+      const source = sourceElements.get(node.sourcePath);
+      if (node.kind !== "connector" || source.localName !== "path") return [];
+      const count = Math.max(2, Math.round(source.getTotalLength() / 4) + 1);
+      const raw = Array.from({ length: count }, (_, i) => {
+        const point = source.getPointAtLength(source.getTotalLength() * i / (count - 1));
+        const screen = new DOMPoint(point.x, point.y).matrixTransform(source.getScreenCTM());
+        return { x: Math.round((screen.x - rect.left) * 10) / 10, y: Math.round((screen.y - rect.top) * 10) / 10 };
+      });
+      const errors = raw.map((point) => Math.min(...node.points.slice(1).map((end, i) => {
+        const start = node.points[i];
+        const dx = end.x - start.x;
+        const dy = end.y - start.y;
+        const t = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / (dx * dx + dy * dy)));
+        return Math.hypot(point.x - start.x - t * dx, point.y - start.y - t * dy);
+      })));
+      return [{ path: node.sourcePath, maxError: Math.max(...errors) }];
+    });
+  });
+}
+
 test("preserves fallback paint order and keeps container effects from duplicating native descendants", async ({ page }) => {
   const harness = await startHarness({ slides: ["# Paint order"] });
   try {
@@ -119,7 +146,10 @@ test("converts fixed Mermaid SVG fixtures into validated scene and PPTX elements
       result.scene.nodes
         .filter((node) => node.kind === "connector")
         .map((node) => node.points.length),
-    ).toEqual([2, 2, 2, 2, 2]);
+    ).toEqual([2, 4, 4, 4, 3]);
+    for (const error of await sampledConnectorErrors(page)) {
+      expect(error.maxError, error.path).toBeLessThanOrEqual(2);
+    }
     expect(
       result.scene.nodes
         .filter((node) => node.kind === "connector")
@@ -202,6 +232,195 @@ test("extracts editable sequence participants, lifelines, messages, activation a
     const { elements, fallbacks } = sceneToPptxElements(scene);
     expect(fallbacks).toEqual([]);
     expect(inspectPptxPackage(buildPptxPackage({ slides: [{ elements }] })).valid).toBe(true);
+  } finally {
+    await harness.close();
+  }
+});
+
+test("exports pinned sequence self paths and asynchronous heads with exact ownership and scaled endpoints", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# Sequence paths"] });
+  try {
+    await page.goto(harness.url);
+    const { scene, diagnostics } = await sceneFromFixture(page, await readFixture("sequence-paths.svg"), "sequence-paths.svg");
+    validateScene(scene);
+    expect(diagnostics).toEqual([]);
+    const messages = scene.nodes.filter((node) => node.kind === "connector").slice(2);
+    expect(messages.map((node) => [node.arrowStart, node.arrowEnd, node.style.dash])).toEqual([
+      ["none", "triangle", "solid"], ["none", "triangle", "dash"],
+      ["none", "stealth", "solid"], ["none", "stealth", "dash"],
+      ["none", "stealth", "solid"], ["triangle", "triangle", "solid"], ["triangle", "triangle", "dash"],
+      ["none", "stealth", "dash"],
+    ]);
+    expect(messages.filter((node) => node.points.length > 2)).toHaveLength(5);
+    for (const self of messages.filter((node) => node.meta?.mermaid)) {
+      expect(self.meta.mermaid.rawPointCount).toBeGreaterThan(self.points.length);
+      expect(self.points[0].x).toBe(self.points.at(-1).x);
+      expect(self.points.at(-1).y).toBeGreaterThan(self.points[0].y);
+      expect(self.bounds.width).toBeGreaterThan(40);
+    }
+    const { elements, fallbacks } = sceneToPptxElements(scene);
+    expect(fallbacks).toEqual([]);
+    for (const message of messages) {
+      expect(elements.find((element) => element.path === message.sourcePath)).toMatchObject({
+        type: "connector", points: message.points, arrowStart: message.arrowStart, arrowEnd: message.arrowEnd,
+        stroke: message.style.stroke, strokeWidth: message.style.strokeWidth,
+        ...(message.style.dash === "dash" ? { dash: "dash" } : {}),
+      });
+    }
+    const buffer = buildPptxPackage({ slides: [{ elements }] });
+    expect(inspectPptxPackage(buffer).valid).toBe(true);
+    // The package stores XML uncompressed; assert the actual emitted arrow/segment semantics.
+    const xml = buffer.toString("utf8");
+    expect((xml.match(/<a:tailEnd type="stealth"\/>/g) || [])).toHaveLength(4);
+    expect((xml.match(/<a:headEnd type="triangle"\/>/g) || [])).toHaveLength(2);
+    expect((xml.match(/<a:tailEnd type="triangle"\/>/g) || [])).toHaveLength(4);
+    const svgHeads = await page.evaluate(async () => {
+      const { sceneToSvg } = await import("./renderer/scene-svg.mjs");
+      return [...sceneToSvg(window.__mermaidSceneResult.scene).querySelectorAll("marker > path")]
+        .map((path) => ({ d: path.getAttribute("d"), fill: path.getAttribute("fill") }));
+    });
+    expect(svgHeads.filter((head) => head.d === "M 0 0 L 10 5 L 0 10 L 3 5 Z"))
+      .toEqual(Array(4).fill({ d: "M 0 0 L 10 5 L 0 10 L 3 5 Z", fill: "rgb(51, 51, 51)" }));
+
+    await updateFixture(page, () => {
+      document.querySelector("#fixture-deck").style.cssText = "margin:23px 0 0 31px";
+      document.querySelector("svg").style.cssText = "width:400px;max-width:none;transform:translate(18px,12px) scale(1.25)";
+      for (const message of document.querySelectorAll('[data-et="message"]')) {
+        message.setAttribute("transform", "translate(11, 7) scale(0.8, 1.1)");
+        for (const end of ["start", "end"]) {
+          if (message.hasAttribute(`marker-${end}`)) {
+            message.style.setProperty(`marker-${end}`, message.getAttribute(`marker-${end}`));
+            message.removeAttribute(`marker-${end}`);
+          }
+        }
+      }
+    });
+    const positioned = await page.evaluate(async () => {
+      const { mermaidSvgToScene } = await import("./renderer/mermaid-scene.mjs");
+      const deck = document.querySelector("#fixture-deck");
+      const svg = deck.querySelector("svg");
+      const result = mermaidSvgToScene(svg, { deck, includeSourceElements: true });
+      const round = (value) => Math.round(value * 10) / 10;
+      const rect = deck.getBoundingClientRect();
+      return {
+        diagnostics: result.diagnostics,
+        ownership: result.scene.nodes.map((node) => result.sourceElements.has(node.sourcePath)),
+        z: result.scene.nodes.map((node) => node.z),
+        messages: result.scene.nodes.flatMap((node) => {
+          const source = result.sourceElements.get(node.sourcePath);
+          if (source.getAttribute("data-et") !== "message") return [];
+          const matrix = source.getScreenCTM();
+          const points = source.localName === "path"
+            ? [source.getPointAtLength(0), source.getPointAtLength(source.getTotalLength())]
+            : [1, 2].map((i) => ({ x: +source.getAttribute(`x${i}`), y: +source.getAttribute(`y${i}`) }));
+          return [{
+            id: source.getAttribute("data-id"), node,
+            endpoints: points.map((point) => {
+              const screen = new DOMPoint(point.x, point.y).matrixTransform(matrix);
+              return { x: round(screen.x - rect.left), y: round(screen.y - rect.top) };
+            }),
+            strokeWidth: parseFloat(getComputedStyle(source).strokeWidth) * Math.hypot(matrix.a, matrix.b),
+          }];
+        }),
+      };
+    });
+    expect(positioned.diagnostics).toEqual([]);
+    expect(positioned.ownership.every(Boolean)).toBe(true);
+    expect(positioned.z).toEqual(positioned.z.map((_, i) => i));
+    expect(positioned.messages.map((message) => message.id)).toEqual(["i0", "i1", "i2", "i3", "i4", "i5", "i6", "i7"]);
+    for (const { node, endpoints, strokeWidth } of positioned.messages) {
+      expect([node.points[0], node.points.at(-1)]).toEqual(endpoints);
+      expect(node.style.strokeWidth).toBe(Math.round(strokeWidth * 10) / 10);
+      expect(node.sourcePath).toMatch(/^sequence\[\d+\]$/);
+    }
+    for (const error of await sampledConnectorErrors(page)) {
+      expect(error.maxError, error.path).toBeLessThanOrEqual(2);
+    }
+  } finally {
+    await harness.close();
+  }
+});
+
+test("keeps unsupported sequence message paths local without joining strokes or losing labels", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# Sequence path boundaries"] });
+  try {
+    await page.goto(harness.url);
+    const fixture = await readFixture("sequence-paths.svg");
+    for (const mutate of [
+      () => { document.querySelector("path.messageLine0").setAttribute("d", "M76 117 L100 117 M100 137 L76 137"); },
+      () => { document.querySelector("path.messageLine0").setAttribute("d", "M76 117 L100 117 L76 137 Z"); },
+      () => { document.querySelector("path.messageLine0").setAttribute("d", "M76 117 L100 117 L76 117"); },
+      () => { document.querySelector("path.messageLine0").setAttribute("d", "M76 117"); },
+      () => { document.querySelector("path.messageLine0").setAttribute("d", ""); },
+      () => { document.querySelector("path.messageLine0").setAttribute("d", "M76 117 L100000 117"); },
+      () => { document.querySelector("path.messageLine0").style.fill = "red"; },
+      () => { document.querySelector("path.messageLine0").style.filter = "blur(1px)"; },
+      () => { document.querySelector("path.messageLine0").style.strokeOpacity = "0.5"; },
+      () => { document.querySelector("path.messageLine0").style.clipPath = "inset(1px)"; },
+      () => { document.querySelector("path.messageLine0").style.markerMid = "url(#fixture-sequence-paths-arrowhead)"; },
+      () => { document.querySelector("path.messageLine0").style.markerEnd = "url(#fixture-sequence-paths-crosshead)"; },
+      () => { document.querySelector("path.messageLine0").style.markerEnd = "url(#unknown-head)"; },
+      () => { document.querySelector("path.messageLine0").setAttribute("class", "messageLine2"); },
+    ]) {
+      await sceneFromFixture(page, fixture, "sequence-path-fallback.svg");
+      const result = await updateFixture(page, mutate);
+      const fallbacks = result.scene.nodes.filter((node) => node.kind === "fallback");
+      expect(fallbacks).toHaveLength(1);
+      expect(fallbacks[0].sourcePath).toBe("sequence[11]");
+      expect(fallbacks[0].reason).toMatch(/^unsupported-mermaid-/);
+      expect(result.sources).toContainEqual({ path: fallbacks[0].sourcePath, tag: "path", id: "" });
+      expect(result.diagnostics).toEqual([{ path: fallbacks[0].sourcePath, kind: "fallback", reason: fallbacks[0].reason }]);
+      expect(result.scene.nodes.filter((node) => node.kind === "connector")).toHaveLength(9);
+      expect(result.scene.nodes.filter((node) => node.kind === "text")).toHaveLength(12);
+      expect(sceneToPptxElements(result.scene).fallbacks.map((fallback) => fallback.sourcePath)).toEqual(["sequence[11]"]);
+    }
+  } finally {
+    await harness.close();
+  }
+});
+
+test("recognizes sequence filled-head by geometry and paint and rejects unsupported placements", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# Sequence marker boundaries"] });
+  try {
+    await page.goto(harness.url);
+    const fixture = await readFixture("sequence-paths.svg");
+    for (const mutate of [
+      () => { document.querySelector('[id$="-filled-head"] path').setAttribute("d", "M0 0 L10 5 L0 10 Z"); },
+      () => { document.querySelector('[id$="-filled-head"] path').style.fill = "none"; },
+      () => { document.querySelector('[id$="-filled-head"] path').style.fill = "red"; },
+      () => { document.querySelector('[id$="-filled-head"] path').style.stroke = "red"; },
+      () => { document.querySelector('[id$="-filled-head"] path').style.opacity = "0.5"; },
+      () => { document.querySelector('[id$="-filled-head"] path').style.transform = "rotate(20deg)"; },
+      () => { document.querySelector('[id$="-filled-head"]').style.filter = "blur(1px)"; },
+      () => { document.querySelector('[id$="-filled-head"]').insertAdjacentHTML("beforeend", '<circle r="5"/>'); },
+      () => { document.querySelector('[id$="-filled-head"]').setAttribute("orient", "90"); },
+      () => { document.querySelector('[id$="-filled-head"]').setAttribute("markerUnits", "userSpaceOnUse"); },
+      () => { document.querySelector('[id$="-filled-head"]').setAttribute("refX", "0"); },
+      () => { document.querySelector('[id$="-filled-head"]').setAttribute("viewBox", "0 0 10 10"); },
+      () => { document.querySelector('[id$="-filled-head"]').remove(); },
+    ]) {
+      await sceneFromFixture(page, fixture, "sequence-head-fallback.svg");
+      const result = await updateFixture(page, mutate);
+      const fallbacks = result.scene.nodes.filter((node) => node.kind === "fallback");
+      expect(fallbacks.map((node) => node.sourcePath)).toEqual(["sequence[15]", "sequence[17]", "sequence[19]", "sequence[25]"]);
+      expect(result.scene.nodes.filter((node) => node.kind === "connector")).toHaveLength(6);
+      expect(result.scene.nodes.filter((node) => node.kind === "text")).toHaveLength(12);
+      for (const fallback of fallbacks) {
+        expect(fallback.bounds.width).toBeGreaterThan(0);
+        expect(fallback.bounds.height).toBeGreaterThan(0);
+        expect(result.sources.some((source) => source.path === fallback.sourcePath)).toBe(true);
+        expect(result.diagnostics).toContainEqual({ path: fallback.sourcePath, kind: "fallback", reason: fallback.reason });
+      }
+    }
+    await sceneFromFixture(page, fixture, "sequence-start-head.svg");
+    const start = await updateFixture(page, () => {
+      const message = document.querySelector('[data-id="i2"]');
+      message.setAttribute("marker-start", message.getAttribute("marker-end"));
+      message.removeAttribute("marker-end");
+    });
+    expect(start.scene.nodes.filter((node) => node.kind === "fallback")).toMatchObject([
+      { sourcePath: "sequence[15]", reason: "unsupported-mermaid-sequence-element" },
+    ]);
   } finally {
     await harness.close();
   }
@@ -467,7 +686,7 @@ test("optionally maps scene paths back to exact source elements without putting 
   const harness = await startHarness({ slides: ["# Scene source mapping"] });
   try {
     await page.goto(harness.url);
-    for (const name of ["sequence", "class", "class-relations", "shapes-styled"]) {
+    for (const name of ["sequence", "sequence-paths", "class", "class-relations", "shapes-styled"]) {
       await sceneFromFixture(page, await readFixture(`${name}.svg`), `${name}.svg`);
       const result = await page.evaluate(async () => {
         const { mermaidSvgToScene } = await import("./renderer/mermaid-scene.mjs");
@@ -723,6 +942,76 @@ test("real renderer exports new Mermaid diagrams with exact native masks and par
 });
 
 for (const theme of ["dark", "light", "microsoft", "custom"]) {
+  test(`real renderer exports sequence self and asynchronous messages with local fallback masks (${theme})`, async ({ page }) => {
+    const diagram = (await readFixture("sequence-paths.mmd"))
+      .replace("Check", "\u78ba\u8a8d<br/>\u51e6\u7406")
+      .replace("Dispatch", "\u975e\u540c\u671f<br/>\u9001\u4fe1") +
+      "\nA-xA: Cancel self\nA-xB: Cancel remote\nloop Retry loop\nA->>A: Again\nend";
+    const harness = await startHarness({
+      slides: [`# Sequence paths\n\n\`\`\`mermaid\n${diagram}\n\`\`\``],
+      theme,
+      customThemeCss: theme === "custom" ? "--bg:#102030;--fg:#fefefe;--body:#e0e4e8;--accent:#ff6600;--surface:#203040;--border:#405060;" : "",
+    });
+    try {
+      await page.goto(`${harness.url}/?pptx=1&token=${encodeURIComponent(harness.printToken)}`);
+      await page.waitForFunction(() => document.documentElement.hasAttribute("data-pptx-ready") ||
+        document.documentElement.hasAttribute("data-pptx-error"), undefined, { timeout: 120_000 });
+      await expect(page.locator("html")).toHaveAttribute("data-pptx-ready", "true");
+      const slide = await page.evaluate(() => window.__presentationPptxModel.slides[0]);
+      const connectors = slide.elements.filter((element) => element.type === "connector" &&
+        element.path?.startsWith("mermaid[0].sequence["));
+      expect(connectors).toHaveLength(11);
+      expect(connectors.filter((element) => element.arrowEnd === "stealth")).toHaveLength(4);
+      expect(connectors.filter((element) => element.arrowStart === "triangle")).toHaveLength(2);
+      expect(connectors.filter((element) => element.points.length > 2)).toHaveLength(6);
+      const labels = slide.elements.filter((element) => element.type === "text" &&
+        element.path?.startsWith("mermaid[0].sequence["))
+        .map((element) => element.paragraphs.map((paragraph) => paragraph.runs.map((run) => run.text).join("")).join("\n"));
+      // The sequence renderer emits each line of a multiline message as a separate text element.
+      expect(labels).toEqual([
+        "Service", "Client", "Service", "Client", "\u78ba\u8a8d", "\u51e6\u7406", "Retry",
+        "\u975e\u540c\u671f", "\u9001\u4fe1", "Notify", "Schedule", "Exchange", "Recheck", "Reschedule",
+        "Cancel self", "Cancel remote", "Again",
+      ]);
+      const fallbacks = slide.fallbacks.filter((fallback) => fallback.type === "mermaid");
+      expect(fallbacks.length).toBeGreaterThan(2); // Cross heads and unsupported loop decorations stay local.
+      expect(fallbacks.every((fallback) => fallback.path.startsWith("mermaid[0].sequence[") && fallback.reason)).toBe(true);
+      const svg = page.locator("pre.mermaid > svg");
+      expect(await svg.getAttribute("data-pptx-fallback-ids")).toBeNull();
+      await expect(svg.locator("path[data-et=message][data-pptx-native=connector]")).toHaveCount(6);
+      await expect(svg.locator("line[data-et=message][data-pptx-native=connector]")).toHaveCount(3);
+      await expect(svg.locator("[data-et=message][data-pptx-fallback-ids]")).toHaveCount(2);
+      const masks = await svg.evaluate((svg) => ({
+        messages: [...svg.querySelectorAll("[data-et=message][data-pptx-native]")].map((message) => {
+          const style = getComputedStyle(message);
+          return { path: message.getAttribute("data-scene-source-path"), stroke: style.stroke,
+            start: style.markerStart, end: style.markerEnd };
+        }),
+        fallback: [...svg.querySelectorAll("[data-et=message][data-pptx-fallback-ids]")].map((message) => {
+          const style = getComputedStyle(message);
+          return { path: message.getAttribute("data-scene-source-path"), stroke: style.stroke, marker: style.markerEnd };
+        }),
+        labels: [...svg.querySelectorAll("text.messageText")].map((label) => ({
+          native: label.getAttribute("data-pptx-native"), fill: getComputedStyle(label).fill,
+        })),
+      }));
+      expect(masks.messages).toHaveLength(9);
+      for (const message of masks.messages) {
+        expect(message).toMatchObject({ stroke: "rgba(0, 0, 0, 0)", start: "none", end: "none" });
+        expect(connectors.some((connector) => connector.path === `mermaid[0].${message.path}`)).toBe(true);
+      }
+      for (const fallback of masks.fallback) {
+        expect(fallback.stroke).not.toBe("rgba(0, 0, 0, 0)");
+        expect(fallback.marker).toContain("crosshead");
+        expect(fallbacks.some((entry) => entry.path === `mermaid[0].${fallback.path}`)).toBe(true);
+        expect(connectors.some((connector) => connector.path === `mermaid[0].${fallback.path}`)).toBe(false);
+      }
+      expect(masks.labels).toEqual(Array(13).fill({ native: "text", fill: "rgba(0, 0, 0, 0)" }));
+    } finally {
+      await harness.close();
+    }
+  });
+
   test(`real renderer masks native class heads and multiplicities while preserving hollow heads (${theme})`, async ({ page }) => {
     const diagram = (await readFixture("class-relations.mmd"))
       .replace("contains", "\u5408\u6210<br/>\u95a2\u4fc2")
