@@ -618,16 +618,32 @@ function textGeometrySource(element) {
   return candidates.length === 1 ? candidates[0] : null;
 }
 
-function hasPerGlyphTransform(source) {
-  return [...source.querySelectorAll("*")].some((child) => {
+function hasUnsupportedCoordinateList(element, name) {
+  if (!element.hasAttribute(name)) return false;
+  const list = element[name]?.baseVal;
+  if (!list || !Number.isInteger(list.numberOfItems) || list.numberOfItems > 1) return true;
+  if (list.numberOfItems === 0) return element.getAttribute(name).trim() !== "";
+  const value = list.getItem(0)?.value;
+  return !Number.isFinite(value) || (name === "dx" && Math.abs(value) > 0.000001);
+}
+
+function hasUnsupportedTextSemantics(source) {
+  return [source, ...source.querySelectorAll("*")].some((child, index) => {
     const style = getComputedStyle(child);
     if (child.namespaceURI !== SVG_NS) {
       return [style.transform, style.rotate, style.scale, style.translate]
         .some((value) => value && value !== "none");
     }
-    return child.hasAttribute("transform") ||
+    if (localName(child) === "textPath" ||
+        child.hasAttribute("textLength") ||
+        child.hasAttribute("lengthAdjust") ||
+        String(child.getAttribute("rotate") || "").trim() ||
+        ["x", "y", "dx", "dy"].some((name) => hasUnsupportedCoordinateList(child, name))) {
+      return true;
+    }
+    return index > 0 && (child.hasAttribute("transform") ||
       [style.transform, style.rotate, style.scale, style.translate]
-        .some((value) => value && value !== "none");
+        .some((value) => value && value !== "none"));
   });
 }
 
@@ -635,7 +651,7 @@ function measuredTextGeometry(element, deck) {
   const source = textGeometrySource(element);
   const matrix = source?.getScreenCTM?.();
   const transform = decomposeSimpleSvgTransform(matrix);
-  if (!source || !transform || hasPerGlyphTransform(source)) return null;
+  if (!source || !transform || hasUnsupportedTextSemantics(source)) return null;
   if (transform.rotation === 0) return { bounds: boundsOf(element, deck) };
   const box = source.getBBox?.();
   if (!box || ![box.x, box.y, box.width, box.height].every(Number.isFinite) ||

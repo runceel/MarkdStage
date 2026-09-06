@@ -318,16 +318,52 @@ test("keeps skew, reflection, nonuniform scale, and per-glyph transforms local t
         },
       },
       {
-        name: "per-glyph",
+        name: "descendant-transform",
         mutate: () => {
           const text = document.querySelector("text.messageText");
           text.innerHTML = '<tspan transform="rotate(15)">Request</tspan>';
+        },
+      },
+      {
+        name: "source-rotate",
+        mutate: () => {
+          document.querySelector("text.messageText").setAttribute("rotate", "15");
+        },
+      },
+      {
+        name: "glyph-rotate-list",
+        mutate: () => {
+          const text = document.querySelector("text.messageText");
+          text.innerHTML = '<tspan rotate="10 20 30 40 50 60 70">Request</tspan>';
+        },
+      },
+      {
+        name: "text-length",
+        mutate: () => {
+          const text = document.querySelector("text.messageText");
+          text.setAttribute("textLength", "140");
+          text.setAttribute("lengthAdjust", "spacingAndGlyphs");
+        },
+      },
+      {
+        name: "glyph-dx",
+        mutate: () => {
+          const text = document.querySelector("text.messageText");
+          text.innerHTML = '<tspan dx="20">Request</tspan>';
+        },
+      },
+      {
+        name: "glyph-x-list",
+        mutate: () => {
+          const text = document.querySelector("text.messageText");
+          text.innerHTML = '<tspan x="10 20">Request</tspan>';
         },
       },
     ]) {
       await sceneFromFixture(page, fixture, `${entry.name}.svg`);
       const result = await updateFixture(page, entry.mutate);
       const fallbacks = result.scene.nodes.filter((node) => node.kind === "fallback");
+      expect(fallbacks, entry.name).toHaveLength(1);
       expect(fallbacks, entry.name).toMatchObject([{
         reason: "unsupported-mermaid-text-transform",
       }]);
@@ -340,6 +376,24 @@ test("keeps skew, reflection, nonuniform scale, and per-glyph transforms local t
       expect(result.scene.nodes.some((node) => node.text?.paragraphs.some((paragraph) =>
         paragraph.runs.some((run) => run.text === "Response"))), entry.name).toBe(true);
     }
+
+    await sceneFromFixture(page, fixture, "supported-multiline-tspan.svg");
+    const supported = await updateFixture(page, () => {
+      const text = document.querySelector("text.messageText");
+      const x = text.getAttribute("x");
+      text.innerHTML = `<tspan x="${x}" dy="-8">Upper</tspan><tspan x="${x}" dy="8">Lower</tspan>`;
+    });
+    expect(supported.scene.nodes.filter((node) => node.kind === "fallback")).toEqual([]);
+    const multiline = supported.scene.nodes.find((node) =>
+      node.text?.paragraphs.some((paragraph) =>
+        paragraph.runs.some((run) => run.text === "Upper")));
+    expect(multiline).toMatchObject({ kind: "text" });
+    expect(multiline.text.paragraphs.map((paragraph) =>
+      paragraph.runs.map((run) => run.text).join(""))).toEqual(["Upper", "Lower"]);
+    expect(supported.sources.find((source) => source.path === multiline.sourcePath))
+      .toMatchObject({ tag: "text" });
+    expect(supported.scene.nodes.filter((node) => node.kind === "connector")).toHaveLength(4);
+    expect(supported.scene.nodes.filter((node) => node.kind === "text")).toHaveLength(7);
   } finally {
     await harness.close();
   }
