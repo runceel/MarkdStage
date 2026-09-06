@@ -64,7 +64,10 @@ test("the compact controls and expanded disclosure have no WCAG A/AA violations"
     await page.goto(harness.url, { waitUntil: "load" });
     await waitForSlideReady(page);
 
-    const more = page.getByRole("button", { name: "More controls", exact: true });
+    const more = page.getByRole("button", {
+      name: "More controls (an option is active)",
+      exact: true,
+    });
     await more.focus();
     await page.keyboard.press("Enter");
     await expect(page.getByRole("group", { name: "More slide controls" })).toBeVisible();
