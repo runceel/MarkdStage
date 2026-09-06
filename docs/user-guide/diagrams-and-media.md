@@ -20,6 +20,10 @@ flowchart LR
 Mermaid is bundled and works offline. Use it for flowcharts, sequence diagrams, class diagrams, pie
 charts, and other automatically arranged diagrams.
 
+Mermaid diagrams pick up the slide's background, border, text, and accent colors automatically, so
+they blend into the deck's theme (including custom themes) instead of using one of Mermaid's own
+fixed color schemes.
+
 If Mermaid syntax is invalid, the slide shows an error while preserving the rest of the content.
 
 ## Use Architecture DSL for stable placement

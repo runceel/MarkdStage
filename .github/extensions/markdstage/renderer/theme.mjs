@@ -91,6 +91,60 @@ export function serializeThemeVariables(variables) {
     .join("");
 }
 
+// Mermaid's "base" theme accepts a `themeVariables` palette instead of one of
+// its built-in named themes (dark/default/neutral/forest). Deriving that
+// palette from the rendered deck's custom properties makes Mermaid diagrams
+// share the slide's background, border, and text colors instead of only
+// approximating the deck theme, and it reuses the same primary/secondary
+// roles as the Architecture DSL (nodes: surface+border+fg, groups:
+// accent-soft+accent-line+accent-strong) so both diagram types match.
+//
+// `secondaryColor`/`tertiaryColor` also back many categorical fills across
+// Mermaid's diagram types (pie slices, git graph nodes, venn/quadrant charts,
+// activation highlights, ...), so they must stay solid and clearly visible
+// against `--bg` rather than reusing the translucent `--accent-soft` wash or
+// `--bg` itself, which rendered those fills nearly invisible. `noteBkgColor`/
+// `noteBorderColor`/`noteTextColor` are hardcoded by Mermaid's base theme
+// (always a pale yellow) unless set explicitly, so sequence-diagram notes
+// need their own override to follow the deck theme too.
+export function mermaidThemeVariables(style) {
+  const read = (name) => style.getPropertyValue(name).trim();
+  const background = read("--bg");
+  const surface = read("--surface");
+  const border = read("--border");
+  const foreground = read("--fg");
+  const muted = read("--muted");
+  const accent = read("--accent");
+  const accentStrong = read("--accent-strong");
+  const accentSoft = read("--accent-soft");
+  const accentLine = read("--accent-line");
+
+  return {
+    background,
+    primaryColor: surface,
+    primaryTextColor: foreground,
+    primaryBorderColor: border,
+    secondaryColor: accentStrong,
+    secondaryTextColor: background,
+    secondaryBorderColor: accentLine,
+    tertiaryColor: muted,
+    tertiaryTextColor: background,
+    tertiaryBorderColor: border,
+    lineColor: accent,
+    textColor: foreground,
+    mainBkg: surface,
+    nodeBorder: border,
+    clusterBkg: accentSoft,
+    clusterBorder: accentLine,
+    titleColor: foreground,
+    edgeLabelBackground: background,
+    noteBkgColor: accentSoft,
+    noteBorderColor: accentLine,
+    noteTextColor: accentStrong,
+    pie1: accent,
+  };
+}
+
 function assertPlainObject(value, path) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error(`${path} must be an object`);

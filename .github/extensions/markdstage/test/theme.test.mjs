@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   DEFAULT_THEME,
   mapThemeMetadataAssets,
+  mermaidThemeVariables,
   normalizeTheme,
   parseThemeMetadata,
   parseThemeVariables,
@@ -35,6 +36,52 @@ test("theme CSS accepts custom properties and a root wrapper", () => {
   assert.equal(
     serializeThemeVariables(variables),
     "--bg:#101820;--accent:linear-gradient(90deg, #00a4ef, #7fba00);",
+  );
+});
+
+test("Mermaid colors are derived from the rendered slide theme", () => {
+  const colors = {
+    "--bg": "#101820",
+    "--surface": "#17232d",
+    "--border": "#31536b",
+    "--fg": "#ffffff",
+    "--muted": "#8ba2b4",
+    "--accent": "#42d3ff",
+    "--accent-strong": "#a6f36b",
+    "--accent-soft": "rgba(66, 211, 255, .14)",
+    "--accent-line": "rgba(66, 211, 255, .46)",
+  };
+
+  assert.deepEqual(
+    mermaidThemeVariables({
+      // Values come back with surrounding whitespace from getComputedStyle;
+      // the helper must trim them before handing them to Mermaid.
+      getPropertyValue: (name) => ` ${colors[name]} `,
+    }),
+    {
+      background: "#101820",
+      primaryColor: "#17232d",
+      primaryTextColor: "#ffffff",
+      primaryBorderColor: "#31536b",
+      secondaryColor: "#a6f36b",
+      secondaryTextColor: "#101820",
+      secondaryBorderColor: "rgba(66, 211, 255, .46)",
+      tertiaryColor: "#8ba2b4",
+      tertiaryTextColor: "#101820",
+      tertiaryBorderColor: "#31536b",
+      lineColor: "#42d3ff",
+      textColor: "#ffffff",
+      mainBkg: "#17232d",
+      nodeBorder: "#31536b",
+      clusterBkg: "rgba(66, 211, 255, .14)",
+      clusterBorder: "rgba(66, 211, 255, .46)",
+      titleColor: "#ffffff",
+      edgeLabelBackground: "#101820",
+      noteBkgColor: "rgba(66, 211, 255, .14)",
+      noteBorderColor: "rgba(66, 211, 255, .46)",
+      noteTextColor: "#a6f36b",
+      pie1: "#42d3ff",
+    },
   );
 });
 
