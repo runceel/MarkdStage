@@ -5,6 +5,7 @@ import {
   MAX_TEXT_PARAGRAPHS,
   MAX_TEXT_RUNS,
   createScene,
+  normalizeRotationAngle,
   normalizeScene,
   validateScene,
 } from "./scene-graph.mjs";
@@ -56,6 +57,33 @@ function nonEmptyStringOr(value, fallback) {
 
 function roundedMetric(value) {
   return Math.round((Number(value) || 0) * 10) / 10;
+}
+
+export function decomposeSimpleSvgTransform(matrix, tolerance = 0.001) {
+  if (!matrix || !["a", "b", "c", "d", "e", "f"].every((key) =>
+    typeof matrix[key] === "number" && Number.isFinite(matrix[key]))) return null;
+  const scaleX = Math.hypot(matrix.a, matrix.b);
+  const scaleY = Math.hypot(matrix.c, matrix.d);
+  const scale = (scaleX + scaleY) / 2;
+  const relativeTolerance = Math.max(0, finiteNumberOr(tolerance, 0.001));
+  const determinant = matrix.a * matrix.d - matrix.b * matrix.c;
+  const dot = matrix.a * matrix.c + matrix.b * matrix.d;
+  if (!(scale > 0) || determinant <= 0 ||
+      Math.abs(scaleX - scaleY) > relativeTolerance * Math.max(scaleX, scaleY) ||
+      Math.abs(dot) > relativeTolerance * scaleX * scaleY) return null;
+  const rotation = normalizeRotationAngle(Math.atan2(matrix.b, matrix.a) * 180 / Math.PI);
+  if (rotation === null) return null;
+  const radians = rotation * Math.PI / 180;
+  const cosine = Math.cos(radians) * scale;
+  const sine = Math.sin(radians) * scale;
+  const reconstructionTolerance = relativeTolerance * Math.max(1, scale);
+  if (Math.max(
+    Math.abs(matrix.a - cosine),
+    Math.abs(matrix.b - sine),
+    Math.abs(matrix.c + sine),
+    Math.abs(matrix.d - cosine),
+  ) > reconstructionTolerance) return null;
+  return { rotation, scale };
 }
 
 function definedEntries(object) {
@@ -581,13 +609,61 @@ function effectiveOpacity(element) {
   return opacity;
 }
 
+function textGeometrySource(element) {
+  if (!element) return null;
+  if (element.namespaceURI !== SVG_NS) return element.closest?.("foreignObject") || null;
+  if (localName(element) === "text" || localName(element) === "foreignObject") return element;
+  const candidates = [...element.querySelectorAll("text, foreignObject")]
+    .filter((candidate) => !candidate.parentElement?.closest("text, foreignObject"));
+  return candidates.length === 1 ? candidates[0] : null;
+}
+
+function hasPerGlyphTransform(source) {
+  return [...source.querySelectorAll("*")].some((child) => {
+    const style = getComputedStyle(child);
+    if (child.namespaceURI !== SVG_NS) {
+      return [style.transform, style.rotate, style.scale, style.translate]
+        .some((value) => value && value !== "none");
+    }
+    return child.hasAttribute("transform") ||
+      [style.transform, style.rotate, style.scale, style.translate]
+        .some((value) => value && value !== "none");
+  });
+}
+
+function measuredTextGeometry(element, deck) {
+  const source = textGeometrySource(element);
+  const matrix = source?.getScreenCTM?.();
+  const transform = decomposeSimpleSvgTransform(matrix);
+  if (!source || !transform || hasPerGlyphTransform(source)) return null;
+  if (transform.rotation === 0) return { bounds: boundsOf(element, deck) };
+  const box = source.getBBox?.();
+  if (!box || ![box.x, box.y, box.width, box.height].every(Number.isFinite) ||
+      !(box.width > 0) || !(box.height > 0)) return null;
+  const center = new DOMPoint(box.x + box.width / 2, box.y + box.height / 2).matrixTransform(matrix);
+  const deckRect = deck.getBoundingClientRect();
+  const width = box.width * transform.scale;
+  const height = box.height * transform.scale;
+  return {
+    bounds: {
+      x: roundedMetric(center.x - deckRect.left - width / 2),
+      y: roundedMetric(center.y - deckRect.top - height / 2),
+      width: roundedMetric(width),
+      height: roundedMetric(height),
+    },
+    rotation: transform.rotation,
+  };
+}
+
 function labelInfo(root, selector, deck, options) {
   const label = root.querySelector(selector);
   const text = label?.innerText?.trim() || label?.textContent?.trim() || "";
   if (!text) return null;
+  const geometry = measuredTextGeometry(label, deck);
   return {
     text: structuredLabelText(label, options),
-    bounds: boundsOf(label, deck),
+    element: label,
+    ...(geometry || { bounds: boundsOf(label, deck), unsupportedTransform: true }),
   };
 }
 
@@ -698,6 +774,12 @@ function shapePresetFor(shape) {
 
 function relativeBounds(bounds, origin) {
   return { ...bounds, x: bounds.x - origin.x, y: bounds.y - origin.y };
+}
+
+function relativeFallbackNode(element, z, deck, reason, sourcePath, origin) {
+  const fallback = fallbackNode(element, z, deck, reason, sourcePath);
+  fallback.bounds = relativeBounds(fallback.bounds, origin);
+  return fallback;
 }
 
 function unsupportedVisualEffect(element, descendants = true) {
@@ -1080,7 +1162,9 @@ function markedConnector(connector, markers, element, options) {
 function nodeText(group, deck, options) {
   const label = labelInfo(group, "span.nodeLabel, text", deck, options);
   return {
+    label,
     ...(label ? { text: label.text } : {}),
+    ...(label?.rotation !== undefined ? { rotation: label.rotation } : {}),
     textLayout: { alignment: "center", verticalAlignment: "middle", textWrap: "none" },
   };
 }
@@ -1138,11 +1222,16 @@ function stadiumParts(shape, group, sourcePath, z, deck, options) {
     points: [{ x: radius, y }, { x: bounds.width - radius, y }], style: { ...style, fill: null },
   });
   const label = labelInfo(group, "span.nodeLabel, text", deck, options);
+  if (label?.unsupportedTransform) {
+    return fallbackNode(group, z, deck, "unsupported-mermaid-node-label-transform", sourcePath);
+  }
   if (label) children.push({
     kind: "text", sourcePath: `${sourcePath}.label`, z: children.length,
     bounds: relativeBounds(label.bounds, bounds), text: label.text,
     textLayout: { alignment: "center", verticalAlignment: "middle", textWrap: "none" },
+    ...(label.rotation !== undefined ? { rotation: label.rotation } : {}),
   });
+  if (label) options.sourceElements.set(`${sourcePath}.label`, label.element);
   return compositeGroup(sourcePath, z, bounds, children, "stadium");
 }
 
@@ -1247,11 +1336,16 @@ function subroutineParts(shape, group, sourcePath, z, deck, options) {
     }
   }
   const label = labelInfo(group, "span.nodeLabel, text", deck, options);
+  if (label?.unsupportedTransform) {
+    return fallbackNode(group, z, deck, "unsupported-mermaid-node-label-transform", sourcePath);
+  }
   if (label) children.push({
     kind: "text", sourcePath: `${sourcePath}.label`, z: children.length,
     bounds: relativeBounds(label.bounds, bounds), text: label.text,
     textLayout: { alignment: "center", verticalAlignment: "middle", textWrap: "none" },
+    ...(label.rotation !== undefined ? { rotation: label.rotation } : {}),
   });
+  if (label) options.sourceElements.set(`${sourcePath}.label`, label.element);
   return compositeGroup(sourcePath, z, bounds, children, "subroutine");
 }
 
@@ -1292,11 +1386,16 @@ function cylinderParts(path, group, sourcePath, z, deck, options) {
   });
   addShape("ellipse", { x: 0, y: 0, width: bounds.width, height: capHeight }, style);
   const label = labelInfo(group, "span.nodeLabel, text", deck, options);
+  if (label?.unsupportedTransform) {
+    return fallbackNode(group, z, deck, "unsupported-mermaid-node-label-transform", sourcePath);
+  }
   if (label) children.push({
     kind: "text", sourcePath: `${sourcePath}.label`, z: children.length,
     bounds: relativeBounds(label.bounds, bounds), text: label.text,
     textLayout: { alignment: "center", verticalAlignment: "middle", textWrap: "none" },
+    ...(label.rotation !== undefined ? { rotation: label.rotation } : {}),
   });
+  if (label) options.sourceElements.set(`${sourcePath}.label`, label.element);
   return compositeGroup(sourcePath, z, bounds, children, "cylinder");
 }
 
@@ -1309,6 +1408,14 @@ function nodeShape(group, sourceIndex, z, deck, options) {
   if (!shape) return fallbackNode(group, z, deck, "unsupported-mermaid-node-structure", `nodes[${sourceIndex}]`);
   if (directChildren(group).some((child) => child !== shape && !hasClass(child, "label"))) {
     return fallbackNode(group, z, deck, "unsupported-mermaid-node-shape", sourcePath);
+  }
+  const initialPreset = shapePresetFor(shape);
+  if (["trapezoid", "invertedTrapezoid", "reverseParallelogram"].includes(initialPreset) &&
+      !hasUniformAxisAlignedScale(shape)) {
+    return fallbackNode(group, z, deck, "unsupported-mermaid-height-based-shape-transform", sourcePath);
+  }
+  if (unsupportedAxisAlignedTransform(shape)) {
+    return fallbackNode(group, z, deck, "unsupported-mermaid-node-transform", sourcePath);
   }
   if (localName(shape) === "path") {
     const cylinder = cylinderParts(shape, group, sourcePath, z, deck, options);
@@ -1323,12 +1430,31 @@ function nodeShape(group, sourceIndex, z, deck, options) {
     if (circles.length === 2 && directChildren(shape).length === 2 &&
         hasClass(circles[0], "outer-circle") && hasClass(circles[1], "inner-circle")) {
       const bounds = boundsOf(shape, deck);
-      return compositeGroup(sourcePath, z, bounds, circles.map((circle, index) => ({
+      const nodeLabel = nodeText(group, deck, options);
+      if (nodeLabel.label?.unsupportedTransform) {
+        return fallbackNode(group, z, deck, "unsupported-mermaid-node-label-transform", sourcePath);
+      }
+      const children = circles.map((circle, index) => ({
         kind: "shape", sourcePath: `${sourcePath}.circles[${index}]`, z: index,
         bounds: relativeBounds(boundsOf(circle, deck), bounds), preset: "ellipse",
         style: computedSvgStyle(circle, options),
-        ...(index === 1 ? nodeText(group, deck, options) : {}),
-      })), "double-circle");
+        ...(index === 1 && nodeLabel.label?.rotation === undefined
+          ? { text: nodeLabel.text, textLayout: nodeLabel.textLayout }
+          : {}),
+      }));
+      if (nodeLabel.label?.rotation !== undefined) {
+        children.push({
+          kind: "text",
+          sourcePath: `${sourcePath}.label`,
+          z: children.length,
+          bounds: relativeBounds(nodeLabel.label.bounds, bounds),
+          text: nodeLabel.text,
+          textLayout: nodeLabel.textLayout,
+          rotation: nodeLabel.label.rotation,
+        });
+        options.sourceElements.set(`${sourcePath}.label`, nodeLabel.label.element);
+      }
+      return compositeGroup(sourcePath, z, bounds, children, "double-circle");
     }
     const paths = directChildren(shape, "path");
     if (paths.length === 2 && directChildren(shape).length === 2 && isStadiumPath(paths[0]) &&
@@ -1336,21 +1462,62 @@ function nodeShape(group, sourceIndex, z, deck, options) {
       return stadiumParts(shape, group, sourcePath, z, deck, options);
     }
   }
-  const preset = shapePresetFor(shape);
+  const preset = initialPreset;
   if (!preset || directChildren(group).some((child) => child !== shape && !hasClass(child, "label"))) {
     return fallbackNode(group, z, deck, "unsupported-mermaid-node-shape", sourcePath);
   }
-  if (["trapezoid", "invertedTrapezoid", "reverseParallelogram"].includes(preset) &&
-      !hasUniformAxisAlignedScale(shape)) {
-    return fallbackNode(group, z, deck, "unsupported-mermaid-height-based-shape-transform", sourcePath);
-  }
   const label = labelInfo(group, "span.nodeLabel, text", deck, options);
+  const bounds = boundsOf(shape, deck);
+  if (label?.rotation !== undefined || label?.unsupportedTransform) {
+    const shapePath = `${sourcePath}.shape`;
+    const labelPath = `${sourcePath}.label`;
+    options.sourceElements.set(shapePath, shape);
+    options.sourceElements.set(labelPath, label.element);
+    const children = [{
+      kind: "shape",
+      id: group.getAttribute("id") || undefined,
+      sourcePath: shapePath,
+      z: 0,
+      bounds: { x: 0, y: 0, width: bounds.width, height: bounds.height },
+      preset,
+      style: computedSvgStyle(shape, options),
+      meta: {
+        mermaid: definedEntries({
+          kind: "node",
+          tag: localName(shape),
+          polygonSignature: localName(shape) === "polygon"
+            ? polygonPointsSignature(shape.getAttribute("points"))
+            : undefined,
+        }),
+      },
+    }];
+    children.push(label.unsupportedTransform
+      ? relativeFallbackNode(
+          label.element,
+          1,
+          deck,
+          "unsupported-mermaid-text-transform",
+          labelPath,
+          bounds,
+        )
+      : {
+          kind: "text",
+          sourcePath: labelPath,
+          z: 1,
+          bounds: relativeBounds(label.bounds, bounds),
+          text: label.text,
+          textLayout: { alignment: "center", verticalAlignment: "middle", textWrap: "none" },
+          rotation: label.rotation,
+          meta: { mermaid: { kind: "node-label" } },
+        });
+    return compositeGroup(sourcePath, z, bounds, children, localName(shape));
+  }
   return definedEntries({
     kind: "shape",
     id: group.getAttribute("id") || undefined,
     sourcePath: `nodes[${sourceIndex}]`,
     z,
-    bounds: boundsOf(shape, deck),
+    bounds,
     preset,
     style: computedSvgStyle(shape, options),
     text: label?.text,
@@ -1370,19 +1537,63 @@ function nodeShape(group, sourceIndex, z, deck, options) {
 }
 
 function clusterGroup(group, sourceIndex, z, deck, options) {
+  const sourcePath = `clusters[${sourceIndex}]`;
   const rect = directChildren(group, "rect")[0];
-  if (!rect) return fallbackNode(group, z, deck, "unsupported-mermaid-cluster-structure", `clusters[${sourceIndex}]`);
+  if (!rect) return fallbackNode(group, z, deck, "unsupported-mermaid-cluster-structure", sourcePath);
   if (unsupportedVisualEffect(group) || group.querySelector("img, image, svg, .katex, use") ||
       directChildren(group).some((child) => child !== rect && !hasClass(child, "cluster-label"))) {
-    return fallbackNode(group, z, deck, "unsupported-mermaid-cluster-content", `clusters[${sourceIndex}]`);
+    return fallbackNode(group, z, deck, "unsupported-mermaid-cluster-content", sourcePath);
+  }
+  if (!hasUniformAxisAlignedScale(rect)) {
+    return fallbackNode(group, z, deck, "unsupported-mermaid-cluster-transform", sourcePath);
   }
   const label = labelInfo(group, "span.nodeLabel", deck, options);
+  const bounds = boundsOf(rect, deck);
+  if (label?.rotation !== undefined || label?.unsupportedTransform) {
+    const labelPath = `${sourcePath}.label`;
+    options.sourceElements.set(sourcePath, rect);
+    options.sourceElements.set(labelPath, label.element);
+    return {
+      kind: "group",
+      id: group.getAttribute("id") || undefined,
+      sourcePath,
+      z,
+      bounds,
+      children: [
+        label.unsupportedTransform
+          ? relativeFallbackNode(
+              label.element,
+              0,
+              deck,
+              "unsupported-mermaid-text-transform",
+              labelPath,
+              bounds,
+            )
+          : {
+              kind: "text",
+              sourcePath: labelPath,
+              z: 0,
+              bounds: relativeBounds(label.bounds, bounds),
+              text: label.text,
+              textLayout: {
+                alignment: "center",
+                verticalAlignment: "middle",
+                textWrap: "none",
+              },
+              rotation: label.rotation,
+              meta: { mermaid: { kind: "cluster-label" } },
+            },
+      ],
+      style: computedSvgStyle(rect, options),
+      meta: { mermaid: { kind: "cluster" } },
+    };
+  }
   return definedEntries({
     kind: "group",
     id: group.getAttribute("id") || undefined,
-    sourcePath: `clusters[${sourceIndex}]`,
+    sourcePath,
     z,
-    bounds: boundsOf(rect, deck),
+    bounds,
     children: [],
     style: computedSvgStyle(rect, options),
     text: label?.text,
@@ -1426,6 +1637,9 @@ function connectorPath(path, sourcePath, z, deck, options) {
     const markers = connectorMarkers(path, deck, options);
     if (unsupportedVisualEffect(path) || markers.unsupported) {
       return fallbackNode(path, z, deck, "unsupported-mermaid-edge-style", sourcePath);
+    }
+    if (!supportsConnectorTransform(path)) {
+      return fallbackNode(path, z, deck, "unsupported-mermaid-edge-transform", sourcePath);
     }
     // Sampling across multiple subpaths joins disconnected strokes with invented lines.
     const commands = renderedPathData(path).match(/[a-df-z]/gi) || [];
@@ -1503,6 +1717,12 @@ function readEdgeLabels(root, deck, options, consumed, config = {}) {
         ? computedSvgStyle(background, options)
         : null;
       const opacity = background ? effectiveOpacity(background) : 1;
+      if (label.unsupportedTransform || (label.rotation !== undefined && fill)) {
+        labels.set(key, { fallback: fallbackNode(group, 0, deck,
+          "unsupported-mermaid-edge-label", sourcePath) });
+        continue;
+      }
+      if (label.rotation !== undefined) options.sourceElements?.set(sourcePath, label.element);
       labels.set(key, {
         ...label,
         sourcePath,
@@ -1563,7 +1783,15 @@ function collectUnexpectedVisuals(container, deck, startZ, sourcePath, consumed 
     if (!containsConsumed && isVisibleUnknown(element)) {
       const path = `${sourcePath}.unknown[${fallbacks.length}]`;
       options.sourceElements?.set(path, element);
-      fallbacks.push(fallbackNode(element, startZ + fallbacks.length, deck, "unsupported-mermaid-svg-element", path));
+      if (localName(element) === "text" && !element.querySelector(":not(tspan)") &&
+          !unsupportedVisualEffect(element)) {
+        fallbacks.push(measuredText(element, path, startZ + fallbacks.length, deck, options));
+      } else {
+        const reason = unsupportedAxisAlignedTransform(element, false)
+          ? "unsupported-mermaid-svg-element-transform"
+          : "unsupported-mermaid-svg-element";
+        fallbacks.push(fallbackNode(element, startZ + fallbacks.length, deck, reason, path));
+      }
       return;
     }
     for (const child of directChildren(element)) walk(child);
@@ -1575,13 +1803,22 @@ function collectUnexpectedVisuals(container, deck, startZ, sourcePath, consumed 
 function appendEdgeLabels(nodes, labels) {
   for (const [id, label] of labels) {
     if (label.fallback) nodes.push({ ...label.fallback, z: nodes.length });
-    else nodes.push({
-      kind: "shape", sourcePath: label.sourcePath, z: nodes.length,
-      bounds: label.bounds, preset: "rect", style: label.style,
-      text: label.text,
-      textLayout: { alignment: "center", verticalAlignment: "middle", textWrap: "none" },
-      meta: { mermaid: { kind: label.terminal ? "edge-terminal" : "edge-label", edgeId: id } },
-    });
+    else if (label.rotation !== undefined) {
+      nodes.push({
+        kind: "text", sourcePath: label.sourcePath, z: nodes.length,
+        bounds: label.bounds, text: label.text, rotation: label.rotation,
+        textLayout: { alignment: "center", verticalAlignment: "middle", textWrap: "none" },
+        meta: { mermaid: { kind: label.terminal ? "edge-terminal" : "edge-label", edgeId: id } },
+      });
+    } else {
+      nodes.push({
+        kind: "shape", sourcePath: label.sourcePath, z: nodes.length,
+        bounds: label.bounds, preset: "rect", style: label.style,
+        text: label.text,
+        textLayout: { alignment: "center", verticalAlignment: "middle", textWrap: "none" },
+        meta: { mermaid: { kind: label.terminal ? "edge-terminal" : "edge-label", edgeId: id } },
+      });
+    }
   }
 }
 
@@ -1599,11 +1836,17 @@ function diagramScene(svg, size, options, nodes) {
 function unsupportedContainers(root, deck, nodes, options) {
   const consumed = new Set();
   for (const [index, container] of directChildren(root, "g").entries()) {
-    if (!isKnownContainer(container) || !unsupportedVisualEffect(container, false)) continue;
+    if (!isKnownContainer(container)) continue;
+    const reason = unsupportedVisualEffect(container, false)
+      ? "unsupported-mermaid-container-style"
+      : isClassCollection(container) && !hasUniformAxisAlignedScale(container)
+        ? "unsupported-mermaid-container-transform"
+        : "";
+    if (!reason) continue;
     const sourcePath = `root.containers[${index}]`;
     consumed.add(container);
     options.sourceElements.set(sourcePath, container);
-    nodes.push(fallbackNode(container, nodes.length, deck, "unsupported-mermaid-container-style", sourcePath));
+    nodes.push(fallbackNode(container, nodes.length, deck, reason, sourcePath));
   }
   return consumed;
 }
@@ -1625,10 +1868,15 @@ function preservePaintOrder(nodes, sourceElements) {
 }
 
 function measuredText(element, sourcePath, z, deck, options, meta) {
+  const geometry = measuredTextGeometry(element, deck);
+  if (!geometry) {
+    return fallbackNode(element, z, deck, "unsupported-mermaid-text-transform", sourcePath);
+  }
   return definedEntries({
-    kind: "text", sourcePath, z, bounds: boundsOf(element, deck),
+    kind: "text", sourcePath, z, bounds: geometry.bounds,
     text: structuredLabelText(element, options),
     textLayout: { alignment: "center", verticalAlignment: "middle", textWrap: "none" },
+    rotation: geometry.rotation,
     meta,
   });
 }
@@ -1645,26 +1893,25 @@ function sameMetric(left, right, tolerance = 0.01) {
 }
 
 function hasUniformAxisAlignedScale(element) {
+  const transform = decomposeSimpleSvgTransform(element?.getScreenCTM?.());
+  return Boolean(transform) && transform.rotation === 0;
+}
+
+function supportsConnectorTransform(element) {
   const matrix = element?.getScreenCTM?.();
   return Boolean(matrix) &&
+    ["a", "b", "c", "d", "e", "f"].every((key) =>
+      typeof matrix[key] === "number" && Number.isFinite(matrix[key])) &&
     matrix.a > 0 &&
     matrix.d > 0 &&
     Math.abs(matrix.b) <= 0.001 &&
-    Math.abs(matrix.c) <= 0.001 &&
-    Math.abs(matrix.a - matrix.d) <= 0.001;
+    Math.abs(matrix.c) <= 0.001;
 }
 
-function unsupportedLocalTransform(element) {
-  return [element, ...element.querySelectorAll("*")].some((child) => {
+function unsupportedAxisAlignedTransform(element, descendants = true) {
+  return [element, ...(descendants ? element.querySelectorAll("*") : [])].some((child) => {
     if (child.namespaceURI !== SVG_NS || typeof child.getScreenCTM !== "function") return false;
-    const matrix = child.getScreenCTM();
-    return matrix && (
-      Math.abs(matrix.b) > 0.001 ||
-      Math.abs(matrix.c) > 0.001 ||
-      matrix.a <= 0 ||
-      matrix.d <= 0 ||
-      Math.abs(matrix.a - matrix.d) > 0.001
-    );
+    return !hasUniformAxisAlignedScale(child);
   });
 }
 
@@ -1682,7 +1929,8 @@ function sequenceActorInfo(group) {
     group.getAttribute("data-id") !== name
   )) return null;
   const children = directChildren(group);
-  if (!hasUniformAxisAlignedScale(group) || children.some((child) => !hasUniformAxisAlignedScale(child))) return null;
+  if (!hasUniformAxisAlignedScale(group) ||
+      children.some((child) => localName(child) !== "text" && !hasUniformAxisAlignedScale(child))) return null;
   const lines = children.filter((child) => localName(child) === "line");
   const circles = children.filter((child) => localName(child) === "circle");
   const labels = children.filter((child) => localName(child) === "text");
@@ -1732,6 +1980,9 @@ function sequenceActorInfo(group) {
 }
 
 function straightSequenceConnector(element, sourcePath, z, deck, options, meta, reason) {
+  if (!hasUniformAxisAlignedScale(element)) {
+    return fallbackNode(element, z, deck, reason, sourcePath);
+  }
   const coordinates = numericAttributes(element, ["x1", "y1", "x2", "y2"]);
   const markers = connectorMarkers(element, deck, options);
   if (!coordinates || markers.unsupported || markers.parts.length ||
@@ -1756,7 +2007,8 @@ function straightSequenceConnector(element, sourcePath, z, deck, options, meta, 
 function sequenceFrameInfo(group) {
   if (group.getAttribute("data-et") !== "control-structure") return null;
   const children = directChildren(group);
-  if (!hasUniformAxisAlignedScale(group) || children.some((child) => !hasUniformAxisAlignedScale(child))) return null;
+  if (!hasUniformAxisAlignedScale(group) ||
+      children.some((child) => localName(child) !== "text" && !hasUniformAxisAlignedScale(child))) return null;
   const lines = children.filter((child) => localName(child) === "line" && hasClass(child, "loopLine"));
   const tabs = children.filter((child) => localName(child) === "polygon" && hasClass(child, "labelBox"));
   const kindLabels = children.filter((child) => localName(child) === "text" && hasClass(child, "labelText"));
@@ -1809,7 +2061,9 @@ function sequenceBoxInfo(group, svg) {
   const backgrounds = children.filter((child) => localName(child) === "rect" && hasClass(child, "rect"));
   const titles = children.filter((child) => localName(child) === "text" && hasClass(child, "text"));
   if (backgrounds.length !== 1 || titles.length > 1 ||
-      children.length !== backgrounds.length + titles.length) return null;
+      children.length !== backgrounds.length + titles.length ||
+      !hasUniformAxisAlignedScale(group) ||
+      backgrounds.some((background) => !hasUniformAxisAlignedScale(background))) return null;
   return {
     parts: new Map([
       [backgrounds[0], "background"],
@@ -1921,7 +2175,18 @@ function sequenceScene(svg, deck, size, options) {
         }
         return;
       }
+      if (!hasUniformAxisAlignedScale(element)) {
+        nodes.push(fallbackNode(element, nodes.length, deck,
+          "unsupported-mermaid-sequence-transform", sourcePath));
+        return;
+      }
       for (const child of directChildren(element)) walk(child, context);
+      return;
+    }
+    if (["circle", "ellipse", "polygon", "rect"].includes(tag) &&
+        !hasUniformAxisAlignedScale(element)) {
+      nodes.push(fallbackNode(element, nodes.length, deck,
+        "unsupported-mermaid-sequence-element-transform", sourcePath));
       return;
     }
     if (context?.kind === "actor" && tag === "line") {
@@ -2052,6 +2317,11 @@ function sequenceScene(svg, deck, size, options) {
     const markers = tag === "line" ? connectorMarkers(element, deck, options) : null;
     if (tag === "line" && /^(?:actor-line|messageLine\d+)(?:\s|$)/.test(element.getAttribute("class") || "") &&
         !markers.unsupported) {
+      if (!supportsConnectorTransform(element)) {
+        nodes.push(fallbackNode(element, nodes.length, deck,
+          "unsupported-mermaid-edge-transform", sourcePath));
+        return;
+      }
       nodes.push(markedConnector({
         kind: "connector", sourcePath, z: nodes.length,
         points: [1, 2].map((index) => screenPoint(element, {
@@ -2063,8 +2333,15 @@ function sequenceScene(svg, deck, size, options) {
       }, markers, element, options));
       return;
     }
-    if (VISUAL_TAGS.has(tag)) nodes.push(fallbackNode(element, nodes.length, deck,
-      "unsupported-mermaid-sequence-element", sourcePath));
+    if (VISUAL_TAGS.has(tag)) nodes.push(fallbackNode(
+      element,
+      nodes.length,
+      deck,
+      unsupportedAxisAlignedTransform(element, false)
+        ? "unsupported-mermaid-sequence-element-transform"
+        : "unsupported-mermaid-sequence-element",
+      sourcePath,
+    ));
   };
   for (const child of directChildren(svg)) walk(child);
   return diagramScene(svg, size, options, nodes);
@@ -2158,8 +2435,6 @@ function safeClassLabel(element) {
           (normalizeColor(style.fill) || (normalizeColor(style.stroke) && parseMetric(style.strokeWidth) > 0))) return false;
     }
     if (child.namespaceURI !== SVG_NS && (
-      [style.transform, style.rotate, style.scale, style.translate]
-        .some((value) => value && value !== "none") ||
       normalizeColor(style.backgroundColor) ||
       style.textDecorationLine && style.textDecorationLine !== "none" ||
       style.boxShadow && style.boxShadow !== "none" ||
@@ -2247,12 +2522,18 @@ function unsupportedClassContainers(root, deck, nodes, options) {
   const blocked = new Set();
   const containers = [...root.querySelectorAll("g")].filter(isClassCollection);
   for (const [index, container] of containers.entries()) {
-    if (!unsupportedVisualEffect(container, false) || hasAncestorInSet(container.parentElement, blocked)) continue;
+    if (hasAncestorInSet(container.parentElement, blocked)) continue;
+    const reason = unsupportedVisualEffect(container, false)
+      ? "unsupported-mermaid-container-style"
+      : !hasUniformAxisAlignedScale(container)
+        ? "unsupported-mermaid-container-transform"
+        : "";
+    if (!reason) continue;
     const sourcePath = `root.containers[${index}]`;
     consumed.add(container);
     blocked.add(container);
     options.sourceElements.set(sourcePath, container);
-    nodes.push(fallbackNode(container, nodes.length, deck, "unsupported-mermaid-container-style", sourcePath));
+    nodes.push(fallbackNode(container, nodes.length, deck, reason, sourcePath));
   }
   return { consumed, blocked };
 }
@@ -2270,7 +2551,8 @@ function appendClassNamespaces(root, deck, nodes, options, consumed, blocked) {
         `unsupported-mermaid-class-namespace-depth: exceeds ${MAX_GROUP_DEPTH}`, sourcePath));
       continue;
     }
-    if (unsupportedLocalTransform(group)) {
+    if (!hasUniformAxisAlignedScale(group) ||
+        (frame && !hasUniformAxisAlignedScale(frame))) {
       consumed.add(group);
       blocked.add(group);
       options.sourceElements.set(sourcePath, group);
@@ -2353,7 +2635,8 @@ function classScene(svg, root, deck, size, options) {
     options.sourceElements?.set(sourcePath, group);
     if (note) {
       const parts = classNoteParts(group, options);
-      if (unsupportedLocalTransform(group)) {
+      if (!hasUniformAxisAlignedScale(group) ||
+          (parts && unsupportedAxisAlignedTransform(parts.outline))) {
         nodes.push(fallbackNode(group, nodes.length, deck,
           "unsupported-mermaid-class-note-transform", sourcePath));
         continue;
@@ -2381,7 +2664,9 @@ function classScene(svg, root, deck, size, options) {
     const outline = group.querySelector(":scope > g.label-container");
     const children = directChildren(group);
     const parts = outline && classParts(group, outline, options);
-    if (unsupportedLocalTransform(group)) {
+    if (!hasUniformAxisAlignedScale(group) ||
+        (parts && [...parts.paths, ...parts.dividers].some((part) =>
+          !hasUniformAxisAlignedScale(part)))) {
       nodes.push(fallbackNode(group, nodes.length, deck,
         "unsupported-mermaid-class-node-transform", sourcePath));
       continue;
@@ -2433,21 +2718,18 @@ function sceneFromSvg(svg, options) {
   const diagramType = svg.getAttribute("aria-roledescription");
   const nodes = [];
   const elements = svg.querySelectorAll("*");
-  if (elements.length > MAX_SCENE_NODES * 10 || [...elements].some((element) => {
-    if (!VISUAL_TAGS.has(localName(element)) || element.closest("defs, marker")) return false;
-    // Class notes, nodes, and namespace frames can fall back locally without
-    // forcing unrelated relations and labels into whole-diagram artwork.
-    if (diagramType === "class" && element.closest("g.cluster, g.node")) return false;
-    const matrix = element.getScreenCTM?.();
-    return matrix && (Math.abs(matrix.b) > 0.001 || Math.abs(matrix.c) > 0.001 || matrix.a <= 0 || matrix.d <= 0);
-  })) {
-    const reason = elements.length > MAX_SCENE_NODES * 10
-      ? "mermaid-scene-limit-exceeded: SVG element count" : "unsupported-mermaid-svg-transform";
+  if (elements.length > MAX_SCENE_NODES * 10) {
+    const reason = "mermaid-scene-limit-exceeded: SVG element count";
     return { scene: fallbackSceneForReason(createScene({ ...size, source: { kind: "mermaid", path: options.path } }), reason,
       boundsOf(svg, deck)), diagnostics: [{ path: "svg", kind: "fallback", reason }] };
   }
   const outerElements = [svg];
   for (let element = root; element && element !== svg; element = element.parentElement) outerElements.push(element);
+  if (outerElements.some((element) => !hasUniformAxisAlignedScale(element))) {
+    const reason = "unsupported-mermaid-svg-transform";
+    return { scene: fallbackSceneForReason(createScene({ ...size, source: { kind: "mermaid", path: options.path } }), reason,
+      boundsOf(svg, deck)), diagnostics: [{ path: "svg", kind: "fallback", reason }] };
+  }
   if (outerElements.some((element) => unsupportedVisualEffect(element, false))) {
     const reason = "unsupported-mermaid-svg-style";
     return { scene: fallbackSceneForReason(createScene({ ...size, source: { kind: "mermaid", path: options.path } }),

@@ -19,6 +19,9 @@ const NS_REL =
 const JAPANESE_FONT_FACE = "Yu Gothic";
 const HUNDREDTH_POINTS_PER_PIXEL = 75;
 const SLIDE_LAYOUT_ID_BASE = 2147500000;
+const DRAWINGML_ANGLE_UNITS_PER_DEGREE = 60000;
+const DRAWINGML_HALF_TURN = 180 * DRAWINGML_ANGLE_UNITS_PER_DEGREE;
+const DRAWINGML_FULL_TURN = 360 * DRAWINGML_ANGLE_UNITS_PER_DEGREE;
 
 const REL = {
   officeDocument: `${NS_R}/officeDocument`,
@@ -119,6 +122,17 @@ function optionalOwnUnitInterval(value, key, path, fallback = 1) {
   return optionalUnitInterval(value[key], `${path}.${key}`, fallback);
 }
 
+function optionalOwnRotationUnits(value, path) {
+  if (!Object.hasOwn(value, "rotation")) {
+    if ("rotation" in value) fail(`${path}.rotation must be an own property`);
+    return 0;
+  }
+  const rotation = finiteNumber(value.rotation, `${path}.rotation`);
+  let units = Math.round((((rotation % 360) + 360) % 360) * DRAWINGML_ANGLE_UNITS_PER_DEGREE);
+  if (units >= DRAWINGML_HALF_TURN) units -= DRAWINGML_FULL_TURN;
+  return units === 0 ? 0 : units;
+}
+
 function paintOpacities(element, path) {
   return {
     opacity: optionalOwnUnitInterval(element, "opacity", path),
@@ -143,8 +157,9 @@ function emu(value) {
   return Math.round(value * PPTX_DIMENSIONS.emusPerPx);
 }
 
-function xfrmXml(bounds, tag = "a:xfrm") {
-  return `<${tag}><a:off x="${emu(bounds.x)}" y="${emu(bounds.y)}"/><a:ext cx="${emu(bounds.width)}" cy="${emu(bounds.height)}"/></${tag}>`;
+function xfrmXml(bounds, tag = "a:xfrm", rotationUnits = 0) {
+  const rotation = rotationUnits ? ` rot="${rotationUnits}"` : "";
+  return `<${tag}${rotation}><a:off x="${emu(bounds.x)}" y="${emu(bounds.y)}"/><a:ext cx="${emu(bounds.width)}" cy="${emu(bounds.height)}"/></${tag}>`;
 }
 
 function parseChannel(value, path) {
@@ -573,12 +588,13 @@ function textBodyXml(
   return `<${tag}>${textBodyPropertiesXml(bodyOptions, bodyPath)}<a:lstStyle/>${paragraphs}</${tag}>`;
 }
 
-function shapeBase(id, name, bounds, properties, text = "") {
-  return `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${xmlEscape(name)}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr>${xfrmXml(bounds)}${properties}</p:spPr>${text}</p:sp>`;
+function shapeBase(id, name, bounds, properties, text = "", rotationUnits = 0) {
+  return `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${xmlEscape(name)}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr>${xfrmXml(bounds, "a:xfrm", rotationUnits)}${properties}</p:spPr>${text}</p:sp>`;
 }
 
 function textShapeXml(element, path, id, relationships) {
   const bounds = boundsOf(element, path);
+  const rotationUnits = optionalOwnRotationUnits(element, path);
   const text = { paragraphs: element.paragraphs };
   const paragraphs = Array.isArray(text.paragraphs) ? text.paragraphs : [];
   const bulletInsetPx = Math.max(
@@ -609,6 +625,7 @@ function textShapeXml(element, path, id, relationships) {
       path,
       bulletInsetPx,
     ),
+    rotationUnits,
   );
 }
 

@@ -61,6 +61,45 @@ test("maps exact Mermaid quadrilaterals through scene and DrawingML contracts", 
   assert.match(xml, /<a:pt x="rx" y="0"\/>/);
 });
 
+test("maps canonical text rotation and unrotated bounds through DrawingML", () => {
+  const scene = normalizeScene(createScene({
+    width: 200,
+    height: 100,
+    source: { kind: "mermaid", path: "rotated.svg" },
+    nodes: [{
+      kind: "text",
+      sourcePath: "labels[0]",
+      z: 0,
+      bounds: { x: 40, y: 30, width: 80, height: 20 },
+      text: richText("Rotated"),
+      textLayout: { verticalAlignment: "middle", textWrap: "none" },
+      rotation: 270,
+    }],
+  })).scene;
+  const { elements, fallbacks } = sceneToPptxElements(scene);
+  assert.deepEqual(fallbacks, []);
+  assert.deepEqual(
+    {
+      rotation: elements[0].rotation,
+      x: elements[0].x,
+      y: elements[0].y,
+      width: elements[0].width,
+      height: elements[0].height,
+      verticalAlignment: elements[0].verticalAlignment,
+    },
+    {
+      rotation: -90,
+      x: 40,
+      y: 30,
+      width: 80,
+      height: 20,
+      verticalAlignment: "middle",
+    },
+  );
+  const xml = buildPptxPackage({ slides: [{ elements }] }).toString("utf8");
+  assert.match(xml, /<a:xfrm rot="-5400000"><a:off x="381000" y="285750"\/><a:ext cx="762000" cy="190500"\/><\/a:xfrm>/);
+});
+
 function richText(text = "Text") {
   return {
     paragraphs: [

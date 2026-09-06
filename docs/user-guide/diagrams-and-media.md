@@ -46,6 +46,14 @@ overwrites the stroke value, or vice versa. This applies to supported flowchart 
 class frames, compartments, dividers, notes, namespaces and markers, and sequence actors, frames,
 backgrounds, messages, number backgrounds, and other native child paint.
 
+Effect-free text also stays editable when its rendered SVG transform is a translation plus a
+positive uniform scale and 2D rotation. The exporter uses the rendered CTM and local text bounds,
+so nested transforms and explicit rotation pivots retain the same center; equivalent angles are
+normalized deterministically to `[-180, 180)` before PowerPoint receives them. This covers
+supported flowchart, class, and sequence labels and the same axis, tick, or title text shape used
+by Mermaid charts. Skew, reflection, nonuniform distortion, per-glyph transforms, and text on a
+path remain local pictures of the affected label.
+
 Basic sequence diagrams export participant boxes, their mirrored lower boxes when Mermaid emits
 them, lifelines, messages, notes, and activations. Stick-figure actors export as editable head
 circles, body lines, and labels at both the top and mirrored bottom. Simple Japanese and multiline
@@ -101,6 +109,11 @@ or special-geometry class notes, namespace decoration with unknown children, nam
 unsupported transforms, and namespace hierarchies beyond the scene depth limit likewise fall back
 at the smallest safe note, decoration, label, or container. Supported class relations outside that
 local fallback are not consumed or dropped.
+An unsupported transform on one node, connector, label, marker, control frame, or unknown visual
+no longer forces supported siblings into whole-diagram artwork. A transformed composite remains
+one local picture when splitting it would change descendant overlap, marker paint, or label
+ownership; transformed roots and other whole-diagram effects can still require one diagram-level
+fallback.
 Opacity on an SVG group with multiple overlapping visual descendants keeps the existing
 conservative local fallback because group compositing is not equivalent to multiplying each
 descendant independently. Translucent stadium, cylinder, and subroutine decompositions likewise

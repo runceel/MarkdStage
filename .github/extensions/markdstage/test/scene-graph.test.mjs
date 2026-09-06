@@ -7,6 +7,7 @@ import {
   MAX_SCENE_NODES,
   SceneGraphError,
   createScene,
+  normalizeRotationAngle,
   normalizeScene,
   validateScene,
 } from "../renderer/scene-graph.mjs";
@@ -66,6 +67,7 @@ test("validates and normalizes independent fill and stroke opacity without seria
       },
     }],
   });
+
   validateScene(source);
   assert.deepEqual(JSON.parse(JSON.stringify(source)), source);
 
@@ -100,6 +102,75 @@ test("validates and normalizes independent fill and stroke opacity without seria
     inheritedScene.nodes[1].style = inheritedStyle;
     assert.throws(() => validateScene(inheritedScene), /must be an own property/);
   }
+});
+
+test("normalizes finite text rotations and rejects invalid or inherited values", () => {
+  assert.equal(normalizeRotationAngle(450), 90);
+  assert.equal(normalizeRotationAngle(-450), -90);
+  assert.equal(normalizeRotationAngle(720), 0);
+  assert.equal(normalizeRotationAngle(Number.NaN), null);
+
+  const source = validScene({
+    nodes: [{
+      kind: "text",
+      sourcePath: "rotated",
+      z: 0,
+      bounds: { x: 10, y: 20, width: 100, height: 30 },
+      text: richText("Rotated"),
+      rotation: 450,
+    }],
+  });
+  assert.throws(() => validateScene(source), /rotation must be normalized/);
+  const normalized = normalizeScene(source);
+  assert.deepEqual(normalized.diagnostics, []);
+  assert.equal(normalized.scene.nodes[0].rotation, 90);
+  assert.deepEqual(JSON.parse(JSON.stringify(normalized.scene)), normalized.scene);
+  validateScene(normalized.scene);
+  const signed = normalizeScene(validScene({
+    nodes: [{
+      kind: "text",
+      sourcePath: "off-canvas-rotation",
+      z: 0,
+      bounds: { x: -10.25, y: -5.75, width: 80, height: 20 },
+      text: richText("Off canvas"),
+      rotation: -45,
+    }],
+  })).scene;
+  assert.deepEqual(signed.nodes[0].bounds, {
+    x: -10.2,
+    y: -5.7,
+    width: 80,
+    height: 20,
+  });
+  validateScene(signed);
+
+  for (const invalid of [Number.NaN, Number.POSITIVE_INFINITY, "30", { valueOf: () => 30 }]) {
+    const result = normalizeScene(validScene({
+      nodes: [{
+        kind: "text",
+        sourcePath: "invalid-rotation",
+        z: 0,
+        bounds: { x: 10, y: 20, width: 100, height: 30 },
+        text: richText("Invalid"),
+        rotation: invalid,
+      }],
+    }));
+    assert.equal(result.scene.nodes[0].kind, "fallback");
+    assert.match(result.scene.nodes[0].reason, /rotation/);
+    validateScene(result.scene);
+  }
+
+  const inherited = Object.assign(Object.create({ rotation: 30 }), {
+    kind: "text",
+    sourcePath: "inherited-rotation",
+    z: 0,
+    bounds: { x: 10, y: 20, width: 100, height: 30 },
+    text: richText("Inherited"),
+  });
+  assert.throws(
+    () => validateScene(validScene({ nodes: [inherited] })),
+    /rotation must be an own property/,
+  );
 });
 
 function validScene(overrides = {}) {

@@ -41,6 +41,7 @@ total: 2
 | `mermaid/class-containers.mmd`, `mermaid/class-containers.svg` | Seeded attached/standalone class notes, nested namespaces, cross-namespace and nested-class relations, labels, multiplicities, and known markers plus fixed SVG generated with bundled Mermaid 11.15.0 (`theme: default`, `securityLevel: strict`, ID `fixture-class-containers`) |
 | `mermaid/sequence-decorations.mmd`, `mermaid/sequence-decorations.svg` | Sequence actors, mirrored participants, box/rect backgrounds, autonumber, and nested loop/alt/opt/par source plus fixed SVG generated with bundled Mermaid 11.15.0 (`theme: default`, `securityLevel: strict`, ID `fixture-sequence-decorations`) |
 | `mermaid/paint-alpha.mmd`, `mermaid/paint-alpha.svg` | Seeded Japanese/multiline flowchart source with independent color, element, fill, and stroke alpha plus fixed SVG generated with bundled Mermaid 11.15.0 (`theme: default`, `securityLevel: strict`, ID `fixture-paint-alpha`) |
+| `mermaid/rotated-text.mmd`, `mermaid/rotated-text.svg` | XY chart source with ordinary title/tick labels and a 270-degree y-axis title plus fixed SVG generated with bundled Mermaid 11.15.0 (`theme: default`, `securityLevel: strict`, ID `fixture-rotated-text`) |
 
 The PDF regression suite inserts `print-mixed.md` before the back cover in
 `architecture-visual.md`, then verifies print output with Mermaid and Architecture DSL together.

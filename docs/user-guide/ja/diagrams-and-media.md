@@ -46,6 +46,13 @@ Mermaid 11.15.0 の subroutine／framed rectangle（`[[...]]`、`subproc`、`sub
 class の枠・区画・区切り線・note・namespace・マーカー、sequence の actor・制御枠・背景・
 メッセージ・番号背景、およびその他のネイティブ子要素の塗りが含まれます。
 
+エフェクトのない文字は、描画後の SVG transform が平行移動、正の等方拡大縮小、2D 回転だけで
+構成される場合も編集可能です。描画済み CTM と文字のローカル境界を使うため、入れ子の transform
+や明示的な回転中心でも表示中心を保持し、同値な角度は PowerPoint へ渡す前に
+`[-180, 180)` へ決定的に正規化します。対応済み flowchart／class／sequence のラベルに加え、
+Mermaid chart が使う同じ形の軸・目盛り・タイトル文字にも適用できます。skew、反転、
+非等方変形、文字単位の transform、text path は、影響するラベルだけを局所画像にします。
+
 基本的な sequence 図では参加者のボックス、Mermaid が出力する下側のミラー表示ボックス、
 ライフライン、メッセージ、ノート、activation に対応します。actor の人型は、上側と下側のそれぞれで、
 頭の円、胴体・腕・脚の線、ラベルを編集可能なオブジェクトとして出力します。
@@ -98,6 +105,10 @@ source ownership を分離できる場合、対応済みの兄弟メッセージ
 未対応エフェクト・transform、scene の深さ上限を超える namespace 階層も、影響する note、装飾、
 ラベル、コンテナーの最小単位だけを画像にします。その局所フォールバック外にある対応済みの
 class 関係線は消費も欠落もしません。
+1 つの node、connector、label、marker、制御枠、未知の視覚要素に未対応 transform があっても、
+対応済みの兄弟要素まで図全体の画像にはしません。子要素の重なり、marker の描画、label の
+source ownership を分割すると変えてしまう複合要素は 1 つの局所画像として保持します。
+root の transform など局所化できない図全体の効果は、引き続き図単位のフォールバックになる場合があります。
 複数の視覚要素が重なる SVG group の opacity は、各子要素へ個別に乗算する場合と合成結果が
 異なるため、従来どおり保守的な局所フォールバックを維持します。半透明の stadium、cylinder、
 subroutine も、分解した編集可能部品の重なりで濃さが変わる場合は局所画像のままです。

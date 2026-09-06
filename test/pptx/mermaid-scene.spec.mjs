@@ -181,6 +181,240 @@ test("converts fixed Mermaid SVG fixtures into validated scene and PPTX elements
   }
 });
 
+test("derives rotated text bounds and centers from actual Mermaid CTMs", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# Rotated text geometry"] });
+  try {
+    await page.goto(harness.url);
+    const fixture = await readFixture("rotated-text.svg");
+    const cases = await page.evaluate(async (source) => {
+      const parsed = new DOMParser().parseFromString(source, "image/svg+xml").documentElement;
+      const style = parsed.querySelector("style").outerHTML;
+      const axis = [...parsed.querySelectorAll("text")].find((element) => element.textContent === "Revenue");
+      const transforms = [
+        "translate(5, 255) rotate(390 12 7)",
+        "translate(5, 255) rotate(-405 -4 6)",
+        "translate(5, 255) rotate(630)",
+      ];
+      const anchors = ["middle", "end", "start"];
+      const output = [];
+      for (const [caseIndex, transform] of transforms.entries()) {
+        document.body.innerHTML = [
+          "<style>body{margin:0}#fixture-deck{position:relative;width:900px;height:650px;margin:19px 0 0 31px}</style>",
+          `<div id="fixture-deck"><svg class="flowchart" aria-roledescription="flowchart-v2" viewBox="0 0 700 500"`,
+          ` style="width:560px;max-width:none;transform-origin:0 0;transform:translate(23px,17px) scale(1.15)">`,
+          style,
+          '<g class="root"><g class="clusters"></g><g class="edgePaths"></g><g class="edgeLabels"></g><g class="nodes"></g>',
+          `<g class="label" transform="translate(17 11) scale(1.2)">${axis.outerHTML}</g></g></svg></div>`,
+        ].join("");
+        const text = [...document.querySelectorAll("text")].find((element) => element.textContent === "Revenue");
+        text.setAttribute("transform", transform);
+        text.setAttribute("text-anchor", anchors[caseIndex]);
+        const deck = document.querySelector("#fixture-deck");
+        const { mermaidSvgToScene } = await import("./renderer/mermaid-scene.mjs");
+        const { sceneToSvg } = await import("./renderer/scene-svg.mjs");
+        const result = mermaidSvgToScene(deck.querySelector("svg"), {
+          deck,
+          includeSourceElements: true,
+        });
+        const node = result.scene.nodes.find((entry) =>
+          entry.text?.paragraphs.some((paragraph) =>
+            paragraph.runs.some((run) => run.text === "Revenue")));
+        const box = text.getBBox();
+        const matrix = text.getScreenCTM();
+        const computed = getComputedStyle(text);
+        const deckRect = deck.getBoundingClientRect();
+        const scale = Math.hypot(matrix.a, matrix.b);
+        const center = new DOMPoint(
+          box.x + box.width / 2,
+          box.y + box.height / 2,
+        ).matrixTransform(matrix);
+        const expected = {
+          x: center.x - deckRect.left - box.width * scale / 2,
+          y: center.y - deckRect.top - box.height * scale / 2,
+          width: box.width * scale,
+          height: box.height * scale,
+        };
+        const rendered = sceneToSvg(result.scene);
+        const renderedOwner = [...rendered.querySelectorAll("[data-scene-source-path]")]
+          .find((element) => element.getAttribute("data-scene-source-path") === node.sourcePath);
+        output.push({
+          transform,
+          diagnostics: result.diagnostics,
+          node,
+          expected,
+          expectedRun: {
+            fontFace: computed.fontFamily.split(",")[0].trim().replace(/^["']|["']$/g, ""),
+            color: computed.fill,
+            opacity: Number(computed.opacity) * Number(computed.fillOpacity),
+          },
+          sourceOwned: result.sourceElements.get(node.sourcePath) === text,
+          renderedTransform: renderedOwner.querySelector("g[transform]")?.getAttribute("transform"),
+        });
+      }
+      return output;
+    }, fixture);
+
+    expect(cases.map((entry) => entry.node.rotation)).toEqual([30, -45, -90]);
+    expect(cases.map((entry) => entry.node.text.paragraphs[0].alignment))
+      .toEqual(["center", "right", "left"]);
+    for (const entry of cases) {
+      expect(entry.diagnostics, entry.transform).toEqual([]);
+      expect(entry.sourceOwned, entry.transform).toBe(true);
+      expect(entry.node.kind, entry.transform).toBe("text");
+      expect(entry.node.z, entry.transform).toBe(0);
+      expect(entry.node.text.paragraphs[0].runs[0], entry.transform).toMatchObject({
+        text: "Revenue",
+        ...entry.expectedRun,
+      });
+      expect(entry.node.text.paragraphs[0].runs[0].fontSize, entry.transform).toBeGreaterThan(0);
+      expect(entry.renderedTransform, entry.transform).toBe(
+        `rotate(${entry.node.rotation} ${entry.node.bounds.x + entry.node.bounds.width / 2} ${entry.node.bounds.y + entry.node.bounds.height / 2})`,
+      );
+      for (const key of ["x", "y", "width", "height"]) {
+        expect(Math.abs(entry.node.bounds[key] - entry.expected[key]), `${entry.transform}: ${key}`)
+          .toBeLessThanOrEqual(0.11);
+      }
+    }
+    const mapped = sceneToPptxElements({
+      version: 1,
+      source: { kind: "mermaid", path: "rotated-text.svg" },
+      width: 900,
+      height: 650,
+      nodes: cases.map((entry, index) => ({ ...entry.node, z: index })),
+    });
+    expect(mapped.fallbacks).toEqual([]);
+    expect(mapped.elements.map((element) => element.rotation)).toEqual([30, -45, -90]);
+    const xml = buildPptxPackage({ slides: [{ elements: mapped.elements }] }).toString("utf8");
+    expect(xml).toContain('<a:xfrm rot="1800000">');
+    expect(xml).toContain('<a:xfrm rot="-2700000">');
+    expect(xml).toContain('<a:xfrm rot="-5400000">');
+  } finally {
+    await harness.close();
+  }
+});
+
+test("keeps skew, reflection, nonuniform scale, and per-glyph transforms local to text", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# Unsupported text transforms"] });
+  try {
+    await page.goto(harness.url);
+    const fixture = await readFixture("sequence.svg");
+    for (const entry of [
+      {
+        name: "skew",
+        mutate: () => {
+          document.querySelector("text.messageText").setAttribute("transform", "skewX(12)");
+        },
+      },
+      {
+        name: "reflection",
+        mutate: () => {
+          document.querySelector("text.messageText").setAttribute("transform", "scale(-1 1)");
+        },
+      },
+      {
+        name: "nonuniform",
+        mutate: () => {
+          document.querySelector("text.messageText").setAttribute("transform", "scale(1.2 .8)");
+        },
+      },
+      {
+        name: "per-glyph",
+        mutate: () => {
+          const text = document.querySelector("text.messageText");
+          text.innerHTML = '<tspan transform="rotate(15)">Request</tspan>';
+        },
+      },
+    ]) {
+      await sceneFromFixture(page, fixture, `${entry.name}.svg`);
+      const result = await updateFixture(page, entry.mutate);
+      const fallbacks = result.scene.nodes.filter((node) => node.kind === "fallback");
+      expect(fallbacks, entry.name).toMatchObject([{
+        reason: "unsupported-mermaid-text-transform",
+      }]);
+      expect(fallbacks[0].sourcePath, entry.name).toMatch(/^sequence\[\d+\]$/);
+      expect(result.sources.find((source) => source.path === fallbacks[0].sourcePath), entry.name)
+        .toMatchObject({ tag: "text" });
+      expect(result.scene.nodes.some((node) => node.sourcePath === "svg"), entry.name).toBe(false);
+      expect(result.scene.nodes.filter((node) => node.kind === "connector"), entry.name).toHaveLength(4);
+      expect(result.scene.nodes.filter((node) => node.kind === "text"), entry.name).toHaveLength(6);
+      expect(result.scene.nodes.some((node) => node.text?.paragraphs.some((paragraph) =>
+        paragraph.runs.some((run) => run.text === "Response"))), entry.name).toBe(true);
+    }
+  } finally {
+    await harness.close();
+  }
+});
+
+test("keeps simple rotated flowchart, class, and sequence labels editable", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# Rotated adapter labels"] });
+  try {
+    await page.goto(harness.url);
+    const cases = [
+      {
+        fixture: "flowchart.svg",
+        text: "Web",
+        lines: ["Web", "Client"],
+        rotation: 25,
+        source: (svg) => svg.replace("<p>Browser</p>", "<p>Web<br/>Client</p>"),
+        mutate: () => {
+          const label = document.querySelector("g.node > g.label");
+          label.setAttribute("transform", `${label.getAttribute("transform")} rotate(25)`);
+        },
+      },
+      {
+        fixture: "class.svg",
+        text: "Animal",
+        lines: ["Animal"],
+        rotation: -35,
+        mutate: () => {
+          const label = [...document.querySelectorAll("span.nodeLabel")]
+            .find((element) => element.textContent.trim() === "Animal");
+          const owner = label.closest("g");
+          owner.setAttribute("transform", `${owner.getAttribute("transform") || ""} rotate(-35)`);
+        },
+      },
+      {
+        fixture: "sequence.svg",
+        text: "Request",
+        lines: ["Request"],
+        rotation: 60,
+        mutate: () => {
+          const label = document.querySelector("text.messageText");
+          const box = label.getBBox();
+          label.setAttribute(
+            "transform",
+            `rotate(60 ${box.x + box.width / 2} ${box.y + box.height / 2})`,
+          );
+        },
+      },
+    ];
+    for (const entry of cases) {
+      const fixture = await readFixture(entry.fixture);
+      await sceneFromFixture(
+        page,
+        entry.source ? entry.source(fixture) : fixture,
+        `rotated-${entry.fixture}`,
+      );
+      const result = await updateFixture(page, entry.mutate);
+      const node = result.scene.nodes.find((candidate) =>
+        candidate.kind === "text" &&
+        candidate.text.paragraphs.some((paragraph) =>
+          paragraph.runs.some((run) => run.text === entry.text)));
+      expect(node, entry.fixture).toMatchObject({ rotation: entry.rotation });
+      expect(node.text.paragraphs.map((paragraph) =>
+        paragraph.runs.map((run) => run.text).join("")), entry.fixture).toEqual(entry.lines);
+      expect(result.scene.nodes.filter((candidate) => candidate.kind === "fallback"), entry.fixture)
+        .toEqual([]);
+      expect(result.sources.some((source) => source.path === node.sourcePath), entry.fixture).toBe(true);
+      const mapped = sceneToPptxElements(result.scene);
+      expect(mapped.elements.find((element) => element.path === node.sourcePath), entry.fixture)
+        .toMatchObject({ type: "text", rotation: entry.rotation });
+    }
+  } finally {
+    await harness.close();
+  }
+});
+
 test("extracts pinned color, element, fill, and stroke alpha independently into SVG and DrawingML", async ({ page }) => {
   const harness = await startHarness({ slides: ["# Paint alpha"] });
   try {
@@ -1631,6 +1865,46 @@ test("reads computed class overrides and SVG text fill rather than CSS color", a
   }
 });
 
+test("localizes unsupported transformed nodes, connectors, and unknown siblings", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# Local transform fallback"] });
+  try {
+    await page.goto(harness.url);
+    await sceneFromFixture(page, await readFixture("flowchart.svg"), "local-transform.svg");
+    const result = await updateFixture(page, () => {
+      document.querySelector("g.node").style.rotate = "15deg";
+      document.querySelectorAll("path.flowchart-link")[1].setAttribute("transform", "skewX(12)");
+      document.querySelector("g.root").insertAdjacentHTML(
+        "beforeend",
+        '<circle id="reflected-unknown" cx="620" cy="220" r="9" fill="red" transform="scale(-1 1)"/>',
+      );
+    });
+    const fallbacks = result.scene.nodes.filter((node) => node.kind === "fallback");
+    expect(fallbacks.map((node) => [node.sourcePath, node.reason])).toEqual([
+      ["edges[1]", "unsupported-mermaid-edge-transform"],
+      ["nodes[0]", "unsupported-mermaid-node-transform"],
+      ["root.unknown[0]", "unsupported-mermaid-svg-element-transform"],
+    ]);
+    expect(result.scene.nodes.some((node) => node.sourcePath === "svg")).toBe(false);
+    expect(result.scene.nodes.filter((node) => node.kind === "connector")).toHaveLength(4);
+    expect(result.scene.nodes.filter((node) =>
+      node.kind === "shape" && node.meta?.mermaid?.kind === "node")).toHaveLength(4);
+    expect(result.scene.nodes.filter((node) =>
+      node.meta?.mermaid?.kind === "edge-label")).toHaveLength(2);
+    expect(result.scene.nodes.some((node) => node.text?.paragraphs.some((paragraph) =>
+      paragraph.runs.some((run) => run.text === "yes")))).toBe(true);
+    const mapped = sceneToPptxElements(result.scene, {
+      pathPrefix: "mermaid[0]",
+      fallbackType: "mermaid",
+    });
+    expect(mapped.fallbacks.map((fallback) => fallback.sourcePath))
+      .toEqual(fallbacks.map((fallback) => fallback.sourcePath));
+    expect(mapped.elements.filter((element) => element.type === "connector")).toHaveLength(4);
+    expect(new Set(mapped.elements.map((element) => element.path)).size).toBe(mapped.elements.length);
+  } finally {
+    await harness.close();
+  }
+});
+
 test("falls back conservatively for unsupported node geometry, styling and diagram types", async ({ page }) => {
   const harness = await startHarness({ slides: ["# Conservative fallback"] });
   try {
@@ -1647,8 +1921,15 @@ test("falls back conservatively for unsupported node geometry, styling and diagr
       { kind: "fallback", reason: "unsupported-mermaid-svg-structure" },
     ]);
     const rotated = flowchart.replace('class="node default"', 'class="node default" style="rotate:15deg"');
-    expect((await sceneFromFixture(page, rotated, "rotated.svg")).scene.nodes).toMatchObject([
-      { kind: "fallback", reason: "unsupported-mermaid-svg-transform" },
+    const rotatedResult = await sceneFromFixture(page, rotated, "rotated.svg");
+    expect(rotatedResult.scene.nodes.filter((node) => node.kind === "fallback")).toMatchObject([
+      { sourcePath: "nodes[0]", reason: "unsupported-mermaid-node-transform" },
+    ]);
+    expect(rotatedResult.scene.nodes.some((node) => node.sourcePath === "svg")).toBe(false);
+    expect(rotatedResult.scene.nodes.filter((node) => node.kind === "connector")).toHaveLength(5);
+    const rootRotated = flowchart.replace('class="flowchart"', 'class="flowchart" style="rotate:15deg"');
+    expect((await sceneFromFixture(page, rootRotated, "root-rotated.svg")).scene.nodes).toMatchObject([
+      { kind: "fallback", sourcePath: "svg", reason: "unsupported-mermaid-svg-transform" },
     ]);
     const sequence = (await readFixture("sequence.svg")).replace("</svg>", '<path d="M0 0 L50 50 L0 50 Z" fill="red"/></svg>');
     const { scene } = await sceneFromFixture(page, sequence, "unsupported-sequence.svg");
@@ -1949,6 +2230,198 @@ test("real renderer exports new Mermaid diagrams with exact native masks and par
     await harness.close();
   }
 });
+
+test("actual export keeps rotated composites and connectors as exact local pictures", async ({ page }) => {
+  const diagram = [
+    '%%{init: {"themeCSS": "g.node:first-of-type{transform:rotate(12deg)} path.flowchart-link:nth-of-type(2){transform:rotate(8deg)}"}}%%',
+    "flowchart LR",
+    "A[One] --> B{Two}",
+    "B -->|yes| C[Three]",
+    "B --> D[Four]",
+  ].join("\n");
+  const harness = await startHarness({
+    slides: [`# Local transform pictures\n\n\`\`\`mermaid\n${diagram}\n\`\`\``],
+  });
+  try {
+    await page.goto(`${harness.url}/?pptx=1&token=${encodeURIComponent(harness.printToken)}`);
+    await page.waitForFunction(() => document.documentElement.hasAttribute("data-pptx-ready") ||
+      document.documentElement.hasAttribute("data-pptx-error"), undefined, { timeout: 120_000 });
+    await expect(page.locator("html")).toHaveAttribute("data-pptx-ready", "true");
+    const result = await page.evaluate(() => {
+      const slide = window.__presentationPptxModel.slides[0];
+      const svg = document.querySelector("pre.mermaid > svg");
+      return {
+        fallbacks: slide.fallbacks.filter((fallback) => fallback.type === "mermaid")
+          .map((fallback) => ({
+            sourcePath: fallback.sourcePath,
+            reason: fallback.reason,
+            captureId: fallback.captureId,
+          })),
+        nativePaths: slide.elements.filter((element) => element.path?.startsWith("mermaid[0]."))
+          .map((element) => element.path),
+        nodes: [...svg.querySelectorAll("g.node")].map((node) => ({
+          text: node.textContent,
+          native: node.getAttribute("data-pptx-native"),
+          fallback: node.getAttribute("data-pptx-fallback-ids"),
+        })),
+        edges: [...svg.querySelectorAll("path.flowchart-link")].map((edge) => ({
+          native: edge.getAttribute("data-pptx-native"),
+          fallback: edge.getAttribute("data-pptx-fallback-ids"),
+          stroke: getComputedStyle(edge).stroke,
+          marker: getComputedStyle(edge).markerEnd,
+        })),
+        label: {
+          native: svg.querySelector("g.edgeLabel:has(p)")?.getAttribute("data-pptx-native"),
+          text: svg.querySelector("g.edgeLabel:has(p)")?.textContent,
+        },
+        svgFallback: svg.getAttribute("data-pptx-fallback-ids"),
+      };
+    });
+    expect(result.fallbacks).toEqual([
+      {
+        sourcePath: "edges[1]",
+        reason: "unsupported-mermaid-edge-transform",
+        captureId: expect.stringMatching(/^pptx-fallback-\d+$/),
+      },
+      {
+        sourcePath: "nodes[0]",
+        reason: "unsupported-mermaid-node-transform",
+        captureId: expect.stringMatching(/^pptx-fallback-\d+$/),
+      },
+    ]);
+    expect(result.nativePaths).toEqual(expect.arrayContaining([
+      "mermaid[0].edges[0]",
+      "mermaid[0].edges[2]",
+      "mermaid[0].edgeLabels[L_B_C_0]",
+      "mermaid[0].nodes[1]",
+      "mermaid[0].nodes[2]",
+      "mermaid[0].nodes[3]",
+    ]));
+    expect(result.nodes).toEqual([
+      { text: "One", native: null, fallback: expect.stringMatching(/^pptx-fallback-\d+$/) },
+      { text: "Two", native: "shape", fallback: null },
+      { text: "Three", native: "shape", fallback: null },
+      { text: "Four", native: "shape", fallback: null },
+    ]);
+    expect(result.edges[0]).toEqual({
+      native: "connector",
+      fallback: null,
+      stroke: "rgba(0, 0, 0, 0)",
+      marker: "none",
+    });
+    expect(result.edges[1]).toMatchObject({
+      native: null,
+      fallback: expect.stringMatching(/^pptx-fallback-\d+$/),
+      stroke: expect.not.stringMatching(/^rgba\(0, 0, 0, 0\)$/),
+      marker: expect.stringContaining("pointEnd"),
+    });
+    expect(result.edges[2]).toEqual(result.edges[0]);
+    expect(result.label).toEqual({ native: "shape", text: "yes" });
+    expect(result.svgFallback).toBeNull();
+  } finally {
+    await harness.close();
+  }
+});
+
+for (const theme of ["dark", "light", "microsoft", "custom"]) {
+  test(`real renderer exports rotated text and localizes unsupported text transforms (${theme})`, async ({ page }) => {
+    const slideSource = [
+      "# Rotated Mermaid text",
+      "",
+      "```mermaid",
+      '%%{init: {"themeCSS": "text.messageText:first-of-type{transform-box:fill-box;transform-origin:center;transform:rotate(-30deg)} text.messageText:last-of-type{transform:skewX(12deg)}"}}%%',
+      "sequenceDiagram",
+      "participant A as Client",
+      "participant B as Service",
+      "A->>B: Rotated",
+      "B-->>A: Skewed",
+      "```",
+    ].join("\n");
+    const harness = await startHarness({
+      slides: [slideSource],
+      theme,
+      customThemeCss: theme === "custom"
+        ? "--bg:#102030;--fg:#fefefe;--body:#e0e4e8;--accent:#ff6600;--surface:#203040;--border:#405060;"
+        : "",
+    });
+    try {
+      await page.goto(`${harness.url}/?pptx=1&token=${encodeURIComponent(harness.printToken)}`);
+      await page.waitForFunction(() => document.documentElement.hasAttribute("data-pptx-ready") ||
+        document.documentElement.hasAttribute("data-pptx-error"), undefined, { timeout: 120_000 });
+      await expect(page.locator("html")).toHaveAttribute("data-pptx-ready", "true");
+      const result = await page.evaluate(() => {
+        const slide = window.__presentationPptxModel.slides[0];
+        const svg = document.querySelector("pre.mermaid > svg");
+        const deckRect = svg.closest(".deck").getBoundingClientRect();
+        const labels = [...svg.querySelectorAll("text.messageText")];
+        const source = labels.find((label) => label.textContent === "Rotated");
+        const sourceRect = source.getBoundingClientRect();
+        const node = svg.__presentationScene.nodes.find((entry) =>
+          entry.text?.paragraphs.some((paragraph) =>
+            paragraph.runs.some((run) => run.text === "Rotated")));
+        const element = slide.elements.find((entry) => entry.path === `mermaid[0].${node.sourcePath}`);
+        return {
+          slide,
+          node,
+          element,
+          source: {
+            centerX: sourceRect.left - deckRect.left + sourceRect.width / 2,
+            centerY: sourceRect.top - deckRect.top + sourceRect.height / 2,
+            width: sourceRect.width,
+            height: sourceRect.height,
+          },
+          masks: labels.map((label) => ({
+            text: label.textContent,
+            native: label.getAttribute("data-pptx-native"),
+            fallback: label.getAttribute("data-pptx-fallback-ids"),
+            fill: getComputedStyle(label).fill,
+          })),
+        };
+      });
+      expect(result.node).toMatchObject({
+        kind: "text",
+        rotation: -30,
+      });
+      expect(result.element).toMatchObject({
+        type: "text",
+        rotation: -30,
+      });
+      expect(Math.abs(result.source.centerX -
+        (result.element.x + result.element.width / 2))).toBeLessThanOrEqual(0.11);
+      expect(Math.abs(result.source.centerY -
+        (result.element.y + result.element.height / 2))).toBeLessThanOrEqual(0.11);
+      const radians = Math.PI / 6;
+      expect(Math.abs(result.source.width -
+        (Math.cos(radians) * result.element.width + Math.sin(radians) * result.element.height)))
+        .toBeLessThanOrEqual(0.2);
+      expect(Math.abs(result.source.height -
+        (Math.sin(radians) * result.element.width + Math.cos(radians) * result.element.height)))
+        .toBeLessThanOrEqual(0.2);
+      expect(result.slide.fallbacks.filter((fallback) => fallback.type === "mermaid")).toMatchObject([{
+        sourcePath: expect.stringMatching(/^sequence\[\d+\]$/),
+        reason: "unsupported-mermaid-text-transform",
+      }]);
+      expect(result.slide.elements.filter((element) => element.type === "connector" &&
+        element.path?.startsWith("mermaid[0].sequence["))).toHaveLength(4);
+      expect(result.masks).toEqual([
+        { text: "Rotated", native: "text", fallback: null, fill: "rgba(0, 0, 0, 0)" },
+        {
+          text: "Skewed",
+          native: null,
+          fallback: expect.stringMatching(/^pptx-fallback-\d+$/),
+          fill: expect.not.stringMatching(/^rgba\(0, 0, 0, 0\)$/),
+        },
+      ]);
+      const xml = buildPptxPackage({
+        title: "Rotated Mermaid text",
+        slides: [{ elements: result.slide.elements }],
+      }).toString("utf8");
+      expect(xml).toContain('<a:xfrm rot="-1800000">');
+    } finally {
+      await harness.close();
+    }
+  });
+}
 
 for (const theme of ["dark", "light", "microsoft", "custom"]) {
   test(`real renderer exports sequence self, asynchronous messages and editable loop frames (${theme})`, async ({ page }) => {

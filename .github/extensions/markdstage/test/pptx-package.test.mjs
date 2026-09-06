@@ -155,6 +155,51 @@ test("rejects invalid, coercible, and inherited paint opacity at the package bou
   }
 });
 
+test("writes normalized DrawingML text rotation and rejects invalid model values", () => {
+  const text = {
+    type: "text",
+    x: 10,
+    y: 20,
+    width: 100,
+    height: 30,
+    paragraphs: [{ runs: [{ text: "Rotated" }] }],
+  };
+  for (const [rotation, units] of [
+    [30, 1800000],
+    [-30, -1800000],
+    [450, 5400000],
+    [270, -5400000],
+  ]) {
+    const slide = xml(readStoredZip(buildPptxPackage({
+      slides: [{ elements: [{ ...text, rotation }] }],
+    })), "ppt/slides/slide1.xml");
+    assert.match(slide, new RegExp(`<a:xfrm rot="${units}">`));
+  }
+  const unrotated = xml(readStoredZip(buildPptxPackage({
+    slides: [{ elements: [{ ...text, rotation: 720 }] }],
+  })), "ppt/slides/slide1.xml");
+  assert.doesNotMatch(unrotated, /<a:xfrm rot=/);
+
+  for (const invalid of [
+    undefined,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    "30",
+    new Number(30),
+    { valueOf: () => 30 },
+  ]) {
+    assert.throws(
+      () => buildPptxPackage({ slides: [{ elements: [{ ...text, rotation: invalid }] }] }),
+      /rotation/,
+    );
+  }
+  const inherited = Object.assign(Object.create({ rotation: 30 }), text);
+  assert.throws(
+    () => buildPptxPackage({ slides: [{ elements: [inherited] }] }),
+    /rotation must be an own property/,
+  );
+});
+
 function samplePackage() {
   return buildPptxPackage({
     title: 'Roadmap & "Next"',

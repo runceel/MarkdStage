@@ -9,7 +9,7 @@ const MATH_TAGS = new Set("math mrow mi mn mo mtext mspace ms mfrac msqrt mroot 
 const ATTRIBUTES = new Set("id class name x y x1 y1 x2 y2 dx dy width height cx cy r rx ry d points viewBox preserveAspectRatio transform fill fill-opacity fill-rule stroke stroke-width stroke-opacity stroke-dasharray stroke-dashoffset stroke-linecap stroke-linejoin stroke-miterlimit opacity color font-family font-size font-weight font-style text-anchor dominant-baseline alignment-baseline textLength lengthAdjust letter-spacing word-spacing text-decoration visibility display overflow pointer-events role tabindex focusable marker-start marker-mid marker-end markerWidth markerHeight markerUnits refX refY orient clip-path clipPathUnits mask maskUnits maskContentUnits filter filterUnits primitiveUnits in in2 result stdDeviation mode type values operator k1 k2 k3 k4 flood-color flood-opacity offset stop-color stop-opacity gradientUnits gradientTransform spreadMethod patternUnits patternContentUnits patternTransform".split(" "));
 const CSS_PROPERTIES = new Set("fill fill-opacity fill-rule stroke stroke-width stroke-opacity stroke-dasharray stroke-dashoffset stroke-linecap stroke-linejoin stroke-miterlimit opacity color font-family font-size font-weight font-style font-variant line-height text-align text-anchor dominant-baseline alignment-baseline text-decoration letter-spacing word-spacing white-space overflow-wrap word-break display visibility overflow box-sizing width height min-width min-height max-width max-height padding padding-top padding-right padding-bottom padding-left margin margin-top margin-right margin-bottom margin-left border border-radius background-color vertical-align marker-start marker-mid marker-end clip-path filter".split(" "));
 for (const attribute of "alt colspan rowspan systemLanguage startOffset method spacing baseFrequency numOctaves seed stitchTiles scale xChannelSelector yChannelSelector radius order kernelMatrix divisor bias targetX targetY edgeMode preserveAlpha tableValues slope intercept amplitude exponent surfaceScale diffuseConstant specularConstant specularExponent azimuth elevation limitingConeAngle pointsAtX pointsAtY pointsAtZ z mathvariant mathsize mathcolor mathbackground columnalign rowalign columnspacing rowspacing stretchy fence separator accent accentunder largeop movablelimits lspace rspace encoding".split(" ")) ATTRIBUTES.add(attribute);
-for (const property of "position top right bottom left z-index transform transform-origin border-top border-right border-bottom border-left border-top-width border-right-width border-bottom-width border-left-width border-top-style border-right-style border-bottom-style border-left-style border-top-color border-right-color border-bottom-color border-left-color object-fit object-position flex flex-direction flex-wrap align-items align-content justify-content gap float clear".split(" ")) CSS_PROPERTIES.add(property);
+for (const property of "position top right bottom left z-index transform transform-box transform-origin border-top border-right border-bottom border-left border-top-width border-right-width border-bottom-width border-left-width border-top-style border-right-style border-bottom-style border-left-style border-top-color border-right-color border-bottom-color border-left-color object-fit object-position flex flex-direction flex-wrap align-items align-content justify-content gap float clear".split(" ")) CSS_PROPERTIES.add(property);
 let renderSequence = 0;
 
 function portableString(value) {
@@ -251,8 +251,14 @@ export function sceneToSvg(scene, {
     if (node.preset && !["rect", "roundedRect"].includes(node.preset)) throw new Error(`Unsupported scene SVG preset: ${node.preset}`);
     return dom("rect", { x, y, width: w, height: h, rx: node.preset === "roundedRect" ? node.style?.cornerRadius ?? 8 : 0, ...attrs });
   }
-  function text(parent, content, bounds, layout = {}) {
+  function text(parent, content, bounds, layout = {}, rotation) {
     if (!content?.paragraphs?.length) return;
+    const textParent = rotation
+      ? dom("g", {
+          transform: `rotate(${rotation} ${bounds.x + bounds.width / 2} ${bounds.y + bounds.height / 2})`,
+        })
+      : parent;
+    if (textParent !== parent) parent.appendChild(textParent);
     const lines = content.paragraphs.flatMap((paragraph) => {
       const output = [{ ...paragraph, runs: [] }];
       for (const run of paragraph.runs) {
@@ -283,7 +289,7 @@ export function sceneToSvg(scene, {
         span.textContent = run.text;
         label.appendChild(span);
       }
-      parent.appendChild(label);
+      textParent.appendChild(label);
       y += heights[index];
     });
   }
@@ -323,7 +329,7 @@ export function sceneToSvg(scene, {
         element.appendChild(dom("path", { d: node.points.map((point, i) => `${i ? "L" : "M"} ${point.x} ${point.y}`).join(" "), ...attrs }));
         if (node.label) text(element, node.label.text, node.label.bounds);
       }
-      if (node.text) text(element, node.text, node.bounds, node.textLayout);
+      if (node.text) text(element, node.text, node.bounds, node.textLayout, node.rotation);
       if (node.accessibility?.label) setAttributes(element, { role: node.accessibility.role || "img", "aria-label": node.accessibility.label });
     }
     setAttributes(element, { "data-scene-node": node.kind, "data-scene-source-path": node.sourcePath, "data-scene-id": node.id });

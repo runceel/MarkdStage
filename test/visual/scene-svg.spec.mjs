@@ -18,6 +18,18 @@ const sequenceDecorationsSlide = `# Sequence decorations\n\n\`\`\`mermaid\n${awa
 const flowchartAdditionalShapesSlide = `# Additional flowchart shapes\n\n\`\`\`mermaid\n${await readFile(new URL("../fixtures/mermaid/flowchart-additional-shapes.mmd", import.meta.url), "utf8")}\n\`\`\``;
 const classContainersSlide = `# Class containers\n\n\`\`\`mermaid\n${await readFile(new URL("../fixtures/mermaid/class-containers.mmd", import.meta.url), "utf8")}\n\`\`\``;
 const paintAlphaSlide = `# Paint alpha\n\n\`\`\`mermaid\n${await readFile(new URL("../fixtures/mermaid/paint-alpha.mmd", import.meta.url), "utf8")}\n\`\`\``;
+const rotatedTextSlide = [
+  "# Rotated Mermaid text",
+  "",
+  "```mermaid",
+  '%%{init: {"themeCSS": "text.messageText:first-of-type{transform-box:fill-box;transform-origin:center;transform:rotate(30deg)}"}}%%',
+  "sequenceDiagram",
+  "participant A as Client",
+  "participant B as Service",
+  "A->>B: Rotated",
+  "B-->>A: Plain",
+  "```",
+].join("\n");
 const slides = [
   `# Architecture\n\n\`\`\`architecture\n${JSON.stringify(architecture)}\n\`\`\``,
   "# Mermaid\n\n```mermaid\nflowchart LR\nA[Client] -->|Request| B(API)\nB --> C[(Database)]\n```",
@@ -34,6 +46,7 @@ const slides = [
   flowchartAdditionalShapesSlide,
   classContainersSlide,
   paintAlphaSlide,
+  rotatedTextSlide,
 ];
 
 const customThemeCss = ":root{--bg:#102030;--fg:#f8fafc;--body:#d7e3f0;--muted:#abbdd0;--surface:#203448;--border:#486580;--accent:#39b8f2;--accent-strong:#72d4ff;--accent-soft:#163b50;}";
@@ -54,6 +67,7 @@ async function assertBackend(page, count) {
 
 for (const theme of ["dark", "light", "microsoft", "custom"]) {
   test(`shared backend displays both producers and faithful fallback in ${theme}`, async ({ page }) => {
+    test.setTimeout(60_000);
     const harness = await startHarness({ slides: fidelitySlides, theme, customThemeCss: theme === "custom" ? customThemeCss : "" });
     await page.addInitScript(() => {
       const replaceWith = Element.prototype.replaceWith;
@@ -129,6 +143,7 @@ test("normal, presenter, fixed preview, PNG and PDF use the same shared scene re
     flowchartAdditionalShapesSlide,
     classContainersSlide,
     paintAlphaSlide,
+    rotatedTextSlide,
     ...slides.slice(7, 10),
   ];
   const harness = await startHarness({ slides: surfaceSlides });
@@ -164,6 +179,8 @@ test("normal, presenter, fixed preview, PNG and PDF use the same shared scene re
             strokeOpacity: shape.getAttribute("stroke-opacity"),
           })),
           text: [...element.querySelectorAll("text, span.edgeLabel")].map((label) => label.textContent),
+          textTransforms: [...element.querySelectorAll("text")].map((label) =>
+            getComputedStyle(label).transform),
           nodes: [...element.querySelectorAll("[data-architecture-id]")].map((node) => [node.getAttribute("data-architecture-id"), node.getAttribute("data-scene-source-path")]),
         })));
         if (query.includes("capture=")) expect((await page.screenshot()).length).toBeGreaterThan(1000);

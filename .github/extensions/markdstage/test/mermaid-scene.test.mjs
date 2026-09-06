@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   classifyPolygonPreset,
   cssStyleToSceneStyle,
+  decomposeSimpleSvgTransform,
   enforceSceneLimits,
   markerIdToArrow,
   knownMarkerGeometry,
@@ -55,6 +56,40 @@ test("maps Mermaid marker IDs and URL references to scene arrows", () => {
   assert.equal(markerIdToArrow("url(#mermaid-1_flowchart-v2-circleEnd)"), "oval");
   assert.equal(markerIdToArrow("url(#mermaid-1_flowchart-v2-crossEnd)"), "none");
   assert.equal(markerIdToArrow(""), "none");
+});
+
+test("decomposes only finite orientation-preserving uniform SVG rotations", () => {
+  const matrix = (rotation, scale = 1, e = 0, f = 0) => {
+    const radians = rotation * Math.PI / 180;
+    return {
+      a: Math.cos(radians) * scale,
+      b: Math.sin(radians) * scale,
+      c: -Math.sin(radians) * scale,
+      d: Math.cos(radians) * scale,
+      e,
+      f,
+    };
+  };
+  assert.deepEqual(decomposeSimpleSvgTransform(matrix(30, 1.25, 17, -9)), {
+    rotation: 30,
+    scale: 1.25,
+  });
+  assert.deepEqual(decomposeSimpleSvgTransform(matrix(270, 0.75)), {
+    rotation: -90,
+    scale: 0.75,
+  });
+  assert.deepEqual(decomposeSimpleSvgTransform(matrix(810, 2)), {
+    rotation: 90,
+    scale: 2,
+  });
+  for (const unsupported of [
+    { a: 1, b: 0, c: 0.25, d: 1, e: 0, f: 0 },
+    { a: -1, b: 0, c: 0, d: 1, e: 0, f: 0 },
+    { a: 1.2, b: 0, c: 0, d: 0.8, e: 0, f: 0 },
+    { a: Number.NaN, b: 0, c: 0, d: 1, e: 0, f: 0 },
+  ]) {
+    assert.equal(decomposeSimpleSvgTransform(unsupported), null);
+  }
 });
 
 test("recognizes only the bundled hollow and cross geometry, never a filled arrow substitute", () => {

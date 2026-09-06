@@ -181,6 +181,10 @@ function textElement(node, index, options) {
     paragraphs: text.paragraphs,
   };
   copyDefined(element, node.textLayout || {}, ["textInsets", "textWrap"]);
+  if (node.rotation !== undefined) {
+    element.rotation = node.rotation;
+    copyDefined(element, node.textLayout || {}, ["verticalAlignment"]);
+  }
   return element;
 }
 

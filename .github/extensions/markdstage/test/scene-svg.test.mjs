@@ -115,6 +115,22 @@ test("renders exact height-based Mermaid quadrilaterals without nearest-preset d
   ]);
 });
 
+test("renders rotated text around the center of its unrotated bounds", () => {
+  const svg = sceneToSvg(scene([{
+    kind: "text",
+    sourcePath: "rotated-label",
+    z: 0,
+    bounds: { x: 20, y: 30, width: 80, height: 20 },
+    text: { paragraphs: [{ alignment: "center", runs: [{ text: "Rotated", fontSize: 16 }] }] },
+    textLayout: { verticalAlignment: "middle", textWrap: "none" },
+    rotation: -90,
+  }]), { document });
+  const rotation = all(svg).find((node) => node.tagName === "g" &&
+    node.attributes.get("transform") === "rotate(-90 60 40)");
+  assert.ok(rotation);
+  assert.equal(rotation.children.filter((node) => node.tagName === "text").length, 1);
+});
+
 test("renders scene primitives, rich text, markers, images and stable stacking with DOM APIs", () => {
   const source = scene([
     { kind: "shape", preset: "diamond", sourcePath: "node", z: 2, bounds, style: { fill: "#ffffff", stroke: "#000000", strokeWidth: 2, dash: "dot" }, text: richText },
@@ -224,11 +240,17 @@ test("SVG capture preserves precise inline sizing and computed transforms", () =
     }]]),
   };
   const primitive = captureSvgTree(source, {
-    computedStyle: () => ({ getPropertyValue: (name) => name === "transform" ? "matrix(1, 0, 0, 1, 123.123, 0)" : "" }),
+    computedStyle: () => ({
+      getPropertyValue: (name) => ({
+        transform: "matrix(1, 0, 0, 1, 123.123, 0)",
+        "transform-box": "fill-box",
+      }[name] || ""),
+    }),
   });
   assert.equal(primitive.style["max-width"], "408.578125px");
   assert.equal(primitive.attributes.transform, "translate(123.123456789 0)");
   assert.equal(primitive.style.transform, "matrix(1, 0, 0, 1, 123.123456789, 0)");
+  assert.equal(primitive.style["transform-box"], "fill-box");
 });
 
 test("text preserves explicit transparent paint and zero font sizes", () => {
