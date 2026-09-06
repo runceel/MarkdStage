@@ -88,6 +88,8 @@ test("maps CSS paint, opacity, stroke dash, and font strings into scene fields",
     },
   );
   assert.deepEqual(cssStyleToSceneStyle({ strokeDasharray: "2px" }), { dash: "dot" });
+  assert.deepEqual(cssStyleToSceneStyle({ strokeDasharray: "0 0" }), { dash: "solid" });
+  assert.deepEqual(cssStyleToSceneStyle({ strokeDasharray: "0px, 0px" }), { dash: "solid" });
 
   const text = textToSceneText("yes\nno", {
     fontFamily: "\"trebuchet ms\", verdana, arial, sans-serif",
@@ -151,6 +153,8 @@ test("recognizes sequence arrows while leaving unsupported markers conservative"
   assert.equal(markerIdToArrow("url(#fixture-sequence-openarrowhead)"), "arrow");
   assert.equal(markerIdToArrow("url(#fixture-sequence-crosshead)"), "none");
   assert.equal(markerIdToArrow("url(#class-extensionStart)"), "none");
+  assert.equal(markerIdToArrow('url("https://example.test/deck#fixture-sequence-arrowhead")'), "triangle");
+  assert.equal(markerIdToArrow("none"), "none");
 });
 
 test("preserves zero-width strokes and does not silently truncate text over limits", () => {

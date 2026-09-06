@@ -48,8 +48,20 @@ function localPaint(value, source) {
     const base = new URL(source.baseURI);
     const url = new URL(match[1], base);
     if (url.hash && url.origin === base.origin && url.pathname === base.pathname && url.search === base.search) return `url(${url.hash})`;
-  } catch {}
+  } catch (error) {
+    if (!(error instanceof TypeError)) throw error;
+  }
   return value;
+}
+
+function inlineGeometry(source, property) {
+  // CSSOM serializes lengths with fewer digits than Mermaid's raw declaration.
+  // Rounding a max-width down can change the used width by a whole layout unit.
+  const declarations = source.getAttribute?.("style") || "";
+  const pattern = new RegExp(`(?:^|;)\\s*${property}\\s*:\\s*([^;]+)`, "gi");
+  const matches = [...declarations.matchAll(pattern)];
+  return matches.at(-1)?.[1].replace(/\s*!important\s*$/i, "").trim()
+    || source.style?.getPropertyValue(property);
 }
 
 /** A JSON-serializable primitive builder; it never creates or parses DOM. */
@@ -91,12 +103,17 @@ export function captureSvgTree(element, { slots = new Map(), computedStyle = glo
       for (const property of CSS_PROPERTIES) {
         // SVG geometry and the root's responsive CSS must not become screen pixels.
         if (!html && !math && /^(?:min-|max-)?(?:width|height)$/.test(property)) continue;
-        const value = localPaint(style.getPropertyValue(property), source);
+        let value = localPaint(style.getPropertyValue(property), source);
+        if (property === "transform") {
+          // Typed OM retains matrix precision and includes stylesheet overrides.
+          const transform = source.computedStyleMap?.().get("transform");
+          if (transform?.toMatrix && !transform.toString().includes("%")) value = transform.toMatrix().toString();
+        }
         if (value && safeCss(value)) primitive.style[property] = value;
       }
       if (root) {
         for (const property of ["width", "height", "max-width", "max-height"]) {
-          const value = source.style?.getPropertyValue(property);
+          const value = inlineGeometry(source, property);
           if (value && safeCss(value)) primitive.style[property] = value;
         }
       }
@@ -136,7 +153,7 @@ export function sceneToSvg(scene, {
   resolveFallback,
 } = {}) {
   validateScene(scene);
-  template ||= scene.nodes.find((node) => node.meta?.svgRoot)?.meta.svgRoot;
+  template ||= scene.meta?.svgRoot;
   if (!template && scene.nodes.some((node) => node.kind === "group" && node.children.length)) {
     scene = normalizeScene(scene).scene;
   }
@@ -206,7 +223,7 @@ export function sceneToSvg(scene, {
       }
       return output;
     });
-    const heights = lines.map((line) => Math.max(1, ...line.runs.map((run) => run.fontSize || 16)) * 1.2);
+    const heights = lines.map((line) => Math.max(1, ...line.runs.map((run) => run.fontSize ?? 16)) * 1.2);
     const insets = layout.textInsets || {};
     const availableHeight = bounds.height - (insets.top || 0) - (insets.bottom || 0);
     const total = heights.reduce((a, b) => a + b, 0);
@@ -219,10 +236,9 @@ export function sceneToSvg(scene, {
       const label = dom("text", { x, y: y + heights[index] / 2, "dominant-baseline": "middle", "text-anchor": alignment === "center" ? "middle" : alignment === "right" ? "end" : "start" });
       for (const run of line.runs) {
         const span = dom("tspan", {
-          fill: run.color || "#000000", "font-size": run.fontSize || 16,
+          fill: run.color === null ? "none" : run.color ?? "#000000", "font-size": run.fontSize ?? 16,
           "font-family": run.fontFace, "font-weight": run.fontWeight || (run.bold ? 700 : 400),
           "font-style": run.italic ? "italic" : "normal", opacity: run.opacity,
-          "text-decoration": run.underline ? "underline" : undefined,
         });
         span.textContent = run.text;
         label.appendChild(span);
@@ -265,7 +281,7 @@ export function sceneToSvg(scene, {
         }
         element.appendChild(defs);
         element.appendChild(dom("path", { d: node.points.map((point, i) => `${i ? "L" : "M"} ${point.x} ${point.y}`).join(" "), ...attrs }));
-        if (node.label) text(element, node.label.text, node.label.bounds, node.label.textLayout);
+        if (node.label) text(element, node.label.text, node.label.bounds);
       }
       if (node.text) text(element, node.text, node.bounds, node.textLayout);
       if (node.accessibility?.label) setAttributes(element, { role: node.accessibility.role || "img", "aria-label": node.accessibility.label });

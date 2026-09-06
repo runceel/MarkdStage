@@ -35,6 +35,54 @@ async function sceneFromFixture(page, svg, path) {
   return page.evaluate(() => window.__mermaidSceneResult);
 }
 
+async function updateFixture(page, update) {
+  await page.evaluate(update);
+  return page.evaluate(async () => {
+    const { mermaidSvgToScene } = await import("./renderer/mermaid-scene.mjs");
+    const result = mermaidSvgToScene(document.querySelector("#fixture-deck > svg"), {
+      deck: document.querySelector("#fixture-deck"),
+      path: window.__mermaidSceneResult.scene.source.path,
+      includeSourceElements: true,
+    });
+    return {
+      scene: result.scene,
+      diagnostics: result.diagnostics,
+      sources: [...result.sourceElements].map(([path, element]) => ({ path, tag: element.localName, id: element.id })),
+    };
+  });
+}
+
+test("preserves fallback paint order and keeps container effects from duplicating native descendants", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# Paint order"] });
+  try {
+    await page.goto(harness.url);
+    const source = await readFixture("flowchart.svg");
+    await sceneFromFixture(page, source, "paint-order.svg");
+    const ordered = await updateFixture(page, () => {
+      const svg = document.querySelector("#fixture-deck > svg");
+      svg.insertAdjacentHTML("afterbegin", '<circle id="behind" r="30" cx="40" cy="40"/>');
+      svg.insertAdjacentHTML("beforeend", '<circle id="above" r="10" cx="40" cy="40"/>');
+      svg.querySelector("g.edgePaths").style.filter = "blur(1px)";
+    });
+    expect(ordered.scene.nodes[0]).toMatchObject({ kind: "fallback", id: "behind" });
+    expect(ordered.scene.nodes.at(-1)).toMatchObject({ kind: "fallback", id: "above" });
+    const container = ordered.scene.nodes.find((node) => node.reason === "unsupported-mermaid-container-style");
+    expect(container.z).toBeGreaterThan(ordered.scene.nodes.find((node) => node.kind === "group").z);
+    expect(container.z).toBeLessThan(ordered.scene.nodes.find((node) => node.meta?.mermaid?.kind === "edge-label").z);
+    expect(ordered.scene.nodes.filter((node) => node.kind === "connector")).toEqual([]);
+    expect(ordered.scene.nodes.filter((node) => node.kind === "shape")).toHaveLength(7);
+    expect(ordered.diagnostics.filter((entry) => entry.kind === "fallback")).toHaveLength(3);
+
+    await sceneFromFixture(page, source, "container-opacity.svg");
+    const opacity = await updateFixture(page, () => { document.querySelector("g.nodes").style.opacity = "0.5"; });
+    expect(opacity.scene.nodes.filter((node) => node.reason === "unsupported-mermaid-container-style")).toHaveLength(1);
+    expect(opacity.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "node")).toEqual([]);
+    expect(opacity.scene.nodes.filter((node) => node.kind === "connector")).toHaveLength(5);
+  } finally {
+    await harness.close();
+  }
+});
+
 test("converts fixed Mermaid SVG fixtures into validated scene and PPTX elements", async ({ page }) => {
   const harness = await startHarness({ slides: ["# Mermaid scene fixture"] });
   try {
@@ -320,10 +368,192 @@ test("optionally maps scene paths back to exact source elements without putting 
   }
 });
 
+test.describe("additional SVG compatibility", () => {
+  test("preserves CSS connector markers and solid zero dash arrays in PPTX", async ({ page }) => {
+    const harness = await startHarness({ slides: ["# Connector styles"] });
+    try {
+      await page.goto(harness.url);
+      const classes = await sceneFromFixture(page, await readFixture("class.svg"), "class.svg");
+      expect(classes.scene.nodes.filter((node) => node.kind === "shape" || node.kind === "connector")
+        .every((node) => node.style.dash === "solid")).toBe(true);
+      expect(sceneToPptxElements(classes.scene).elements.filter((element) => element.type === "shape" || element.type === "connector")
+        .every((element) => !element.dash)).toBe(true);
+
+      await sceneFromFixture(page, await readFixture("sequence.svg"), "css-markers.svg");
+      const styled = await updateFixture(page, () => {
+        const line = document.querySelector("line.messageLine0");
+        line.style.markerEnd = line.getAttribute("marker-end");
+        line.removeAttribute("marker-end");
+        line.style.stroke = "rgb(12, 34, 56)";
+        line.style.opacity = "0.4";
+        line.style.strokeWidth = "4px";
+        line.style.strokeDasharray = "0 0";
+      });
+      const message = styled.scene.nodes.find((node) => node.style?.stroke === "rgb(12, 34, 56)");
+      expect(message).toMatchObject({
+        kind: "connector", arrowEnd: "triangle",
+        style: { strokeWidth: 4, opacity: 0.4, dash: "solid" },
+      });
+      expect(sceneToPptxElements(styled.scene).elements.find((element) => element.path === message.sourcePath))
+        .toMatchObject({ type: "connector", arrowEnd: "triangle", stroke: "rgb(12, 34, 56)", opacity: 0.4 });
+      const unsupported = await updateFixture(page, () => {
+        document.querySelector("line.messageLine0").style.markerEnd = "url(#fixture-sequence-crosshead)";
+      });
+      expect(unsupported.scene.nodes.filter((node) => node.kind === "fallback")).toHaveLength(1);
+      expect(unsupported.scene.nodes.filter((node) => node.kind === "connector")).toHaveLength(3);
+      const fallback = unsupported.scene.nodes.find((node) => node.kind === "fallback");
+      expect(fallback.bounds.height).toBeGreaterThanOrEqual(40);
+      expect(unsupported.diagnostics).toContainEqual({ path: fallback.sourcePath, kind: "fallback", reason: fallback.reason });
+    } finally {
+      await harness.close();
+    }
+  });
+
+  test("retains class relation labels and flowchart labels without unique data IDs", async ({ page }) => {
+    const harness = await startHarness({ slides: ["# Relation labels"] });
+    try {
+      await page.goto(harness.url);
+      await sceneFromFixture(page, await readFixture("class.svg"), "class-label.svg");
+      const classes = await updateFixture(page, () => {
+        const group = document.querySelector("g.edgeLabel");
+        group.querySelector("g.label").removeAttribute("data-id");
+        const foreign = group.querySelector("foreignObject");
+        foreign.setAttribute("width", "100");
+        foreign.setAttribute("height", "24");
+        group.querySelector("span.edgeLabel").textContent = "inherits";
+      });
+      const label = classes.scene.nodes.find((node) => node.meta?.mermaid?.kind === "edge-label");
+      expect(label.text.paragraphs[0].runs[0].text).toBe("inherits");
+      expect(classes.sources).toContainEqual({ path: label.sourcePath, tag: "g", id: "" });
+
+      const flowchart = await readFixture("flowchart.svg");
+      for (const duplicate of [false, true]) {
+        await sceneFromFixture(page, flowchart, "labels.svg");
+        await page.evaluate((duplicate) => {
+          document.querySelectorAll("g.edgeLabel > g.label").forEach((element) => {
+            if (duplicate) element.setAttribute("data-id", "shared");
+            else element.removeAttribute("data-id");
+          });
+        }, duplicate);
+        const result = await updateFixture(page, () => {});
+        const labels = result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "edge-label");
+        expect(labels.map((node) => node.text.paragraphs[0].runs[0].text)).toEqual(["yes", "no"]);
+        expect(new Set(labels.map((node) => node.sourcePath)).size).toBe(2);
+        expect(result.scene.nodes.filter((node) => node.kind === "fallback")).toEqual([]);
+      }
+    } finally {
+      await harness.close();
+    }
+  });
+
+  test("keeps unsupported class geometry and split paint local without omitting compartments", async ({ page }) => {
+    const harness = await startHarness({ slides: ["# Class fallback coverage"] });
+    try {
+      await page.goto(harness.url);
+      const source = await readFixture("class.svg");
+      const mutations = [
+        () => { document.querySelector("g.node g.label-container path:last-child").setAttribute("d", "M-78 -72 L78 72"); },
+        () => { document.querySelector("g.node g.label-container path:first-child").style.opacity = "0.5"; },
+        () => {
+          const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+          circle.setAttribute("r", "8");
+          document.querySelector("g.node g.members-group").append(circle);
+        },
+        () => {
+          document.querySelector("g.node g.members-group foreignObject div").append("Extra visible member");
+        },
+      ];
+      for (const mutate of mutations) {
+        await sceneFromFixture(page, source, "class-unsupported.svg");
+        const result = await updateFixture(page, mutate);
+        expect(result.scene.nodes.filter((node) => node.reason === "unsupported-mermaid-class-node")).toHaveLength(1);
+        expect(result.scene.nodes.filter((node) => node.sourcePath.startsWith("classes[0]."))).toEqual([]);
+        expect(result.scene.nodes.filter((node) => node.kind === "shape")).toHaveLength(1);
+        expect(result.scene.nodes.find((node) => node.sourcePath === "classes[1].labels[0]").text.paragraphs[0].runs[0].text).toBe("Dog");
+      }
+      await sceneFromFixture(page, source, "class-svg-text.svg");
+      const result = await updateFixture(page, () => {
+        const label = document.querySelector("g.node g.members-group g.label");
+        label.innerHTML = '<text fill="#123456" text-anchor="start">+String <tspan font-weight="700">name</tspan></text>';
+      });
+      const member = result.scene.nodes.find((node) => node.sourcePath === "classes[0].labels[1]");
+      expect(member.text.paragraphs).toHaveLength(1);
+      expect(member.text.paragraphs[0].runs.map((run) => run.text).join("")).toBe("+String name");
+      expect(member.text.paragraphs[0].runs[1].bold).toBe(true);
+      expect(member.text.paragraphs[0].alignment).toBe("left");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  test("does not drop unknown SVG siblings, flat lines, cluster effects or disconnected edge strokes", async ({ page }) => {
+    const harness = await startHarness({ slides: ["# Complete visual coverage"] });
+    try {
+      await page.goto(harness.url);
+      const source = await readFixture("flowchart.svg");
+      await sceneFromFixture(page, source, "unknown-siblings.svg");
+      const unknown = await updateFixture(page, () => {
+        const svg = document.querySelector("#fixture-deck > svg");
+        svg.insertAdjacentHTML("beforeend", '<line id="extra-line" x1="10" x2="100" y1="20" y2="20" stroke="red"/>');
+        svg.querySelector("g.root").insertAdjacentHTML("beforeend", '<g class="label"><circle id="extra-circle" r="10" cx="40" cy="40"/></g>');
+      });
+      expect(unknown.scene.nodes.filter((node) => node.kind === "fallback").map((node) => node.id).sort())
+        .toEqual(["extra-circle", "extra-line"]);
+      expect(unknown.scene.nodes.filter((node) => node.kind === "shape")).toHaveLength(7);
+      expect(unknown.diagnostics.filter((entry) => entry.kind === "fallback")).toHaveLength(2);
+      const decoratedLabel = await updateFixture(page, () => {
+        document.querySelector("g.edgeLabel:has(p)").insertAdjacentHTML("afterbegin", '<circle r="10" fill="red"/>');
+      });
+      expect(decoratedLabel.scene.nodes.filter((node) => node.reason === "unsupported-mermaid-edge-label")).toHaveLength(1);
+      expect(decoratedLabel.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "edge-label")).toHaveLength(1);
+
+      await sceneFromFixture(page, source, "cluster-effect.svg");
+      const cluster = await updateFixture(page, () => {
+        document.querySelector("g.cluster").style.filter = "blur(1px)";
+        document.querySelector("path.flowchart-link").setAttribute("d", "M10 10 L30 10 M50 10 L80 10");
+      });
+      expect(cluster.scene.nodes.filter((node) => node.reason === "unsupported-mermaid-cluster-content")).toHaveLength(1);
+      expect(cluster.scene.nodes.filter((node) => node.reason === "unsupported-mermaid-edge-path")).toHaveLength(1);
+      expect(cluster.scene.nodes.filter((node) => node.kind === "connector")).toHaveLength(4);
+      expect(cluster.scene.nodes.filter((node) => node.kind === "group")).toEqual([]);
+      const root = await updateFixture(page, () => { document.querySelector("g.root").style.filter = "blur(1px)"; });
+      expect(root.scene.nodes).toMatchObject([{ kind: "fallback", sourcePath: "svg", reason: "unsupported-mermaid-svg-style" }]);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  test("keeps sequence leaf effects local and inline SVG text on its original line", async ({ page }) => {
+    const harness = await startHarness({ slides: ["# Sequence text and local fallback"] });
+    try {
+      await page.goto(harness.url);
+      await sceneFromFixture(page, await readFixture("sequence.svg"), "sequence-local.svg");
+      const result = await updateFixture(page, () => {
+        document.querySelector("rect.note").style.filter = "blur(1px)";
+        document.querySelector("text.messageText").innerHTML = 'Send <tspan font-weight="700">Request</tspan>';
+        const hidden = document.querySelector("rect.actor").cloneNode(true);
+        hidden.style.display = "none";
+        document.querySelector("#fixture-deck > svg").append(hidden);
+      });
+      expect(result.scene.nodes.filter((node) => node.kind === "shape")).toHaveLength(5);
+      expect(result.scene.nodes.filter((node) => node.kind === "connector")).toHaveLength(4);
+      const fallbacks = result.scene.nodes.filter((node) => node.kind === "fallback");
+      expect(fallbacks).toHaveLength(1);
+      expect(result.sources.find((source) => source.path === fallbacks[0].sourcePath).tag).toBe("rect");
+      expect(result.scene.nodes.some((node) => node.text?.paragraphs[0].runs[0].text === "Validate")).toBe(true);
+      const request = result.scene.nodes.find((node) => node.text?.paragraphs[0].runs[0].text === "Send ");
+      expect(request.text.paragraphs).toHaveLength(1);
+      expect(request.text.paragraphs[0].runs[1]).toMatchObject({ text: "Request", bold: true });
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
 test("real renderer exports new Mermaid diagrams with exact native masks and partial fallback captures", async ({ page }) => {
   const diagrams = [
     "sequenceDiagram\nparticipant A as Client\nparticipant B as Service\nA->>B: Request\nB-->>A: Response",
-    "classDiagram\nclass Animal {\n+String name\n+speak() void\n}\nclass Dog\nAnimal <|-- Dog",
+    "classDiagram\nclass Animal {\n+String name\n+speak() void\n}\nclass Dog\nAnimal <|-- Dog : inherits",
     "flowchart LR\nA([Start]) -->|approved| B[(Database)]",
   ];
   const harness = await startHarness({
@@ -350,6 +580,9 @@ test("real renderer exports new Mermaid diagrams with exact native masks and par
     await expect(classSvg.locator("path.relation[data-pptx-fallback-ids]")).toHaveCount(1);
     await expect(classSvg.locator("g.node > g.label-container[data-pptx-native=shape]")).toHaveCount(2);
     await expect(classSvg.locator("span.nodeLabel[data-pptx-native=text]")).toHaveCount(4);
+    await expect(classSvg.locator("g.edgeLabel[data-pptx-native=shape]")).toHaveCount(1);
+    expect(classes.elements.some((element) => element.path?.includes("edgeLabels[") &&
+      element.text?.paragraphs?.some((paragraph) => paragraph.runs.some((run) => run.text === "inherits")))).toBe(true);
     expect(await classSvg.getAttribute("data-pptx-fallback-ids")).toBeNull();
 
     const shapes = model.slides[2];

@@ -4242,7 +4242,7 @@ export function renderArchitectureDiagram(
     }
   });
   svg.children = svg.children.map((child) => slots.has(child) ? { sceneNode: slots.get(child) } : child);
-  if (scene.nodes.length) scene.nodes[0].meta.svgRoot = svg;
+  scene.meta = { svgRoot: svg };
   wrapper.appendChild(sceneToSvg(scene, { document: documentRef, template: svg }));
   Object.defineProperty(wrapper, "__presentationPptxSnapshot", {
     value: powerPointSnapshot,

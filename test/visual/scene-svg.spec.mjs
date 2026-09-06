@@ -16,7 +16,11 @@ const slides = [
   "# Sequence Mermaid\n\n```mermaid\nsequenceDiagram\nAlice->>Bob: Hello\nBob-->>Alice: Reply\n```",
   "# Unsupported Mermaid\n\n```mermaid\npie title Shares\n\"One\" : 40\n\"Two\" : 60\n```",
   "# Nested Mermaid\n\n```mermaid\nflowchart TB\nsubgraph Cloud\nA --> B{Check}\nB -->|Yes| C((Done))\nend\n```",
+  "# Styled Mermaid\n\n```mermaid\nflowchart LR\nA[Styled]:::red --> B([Done])\nclassDef red fill:#ffdddd,stroke:#ff0000,stroke-width:3px,color:#111111\n```",
+  "# Class Mermaid\n\n```mermaid\nclassDiagram\nclass Animal {\n+String name\n+walk()\n}\nAnimal <|-- Duck\n```",
 ];
+
+const customThemeCss = ":root{--bg:#102030;--fg:#f8fafc;--body:#d7e3f0;--muted:#abbdd0;--surface:#203448;--border:#486580;--accent:#39b8f2;--accent-strong:#72d4ff;--accent-soft:#163b50;}";
 
 async function assertBackend(page, count) {
   await expect(page.locator("svg[data-scene-backend=svg]")).toHaveCount(count);
@@ -25,9 +29,18 @@ async function assertBackend(page, count) {
   )).toBe(true);
 }
 
-for (const theme of ["dark", "light", "microsoft"]) {
+for (const theme of ["dark", "light", "microsoft", "custom"]) {
   test(`shared backend displays both producers and faithful fallback in ${theme}`, async ({ page }) => {
-    const harness = await startHarness({ slides, theme });
+    const harness = await startHarness({ slides, theme, customThemeCss: theme === "custom" ? customThemeCss : "" });
+    await page.addInitScript(() => {
+      const replaceWith = Element.prototype.replaceWith;
+      Element.prototype.replaceWith = function (...nodes) {
+        if (this.localName === "svg" && nodes[0]?.getAttribute?.("data-scene-source") === "mermaid") {
+          nodes[0].__originalMermaidSvg = this;
+        }
+        return replaceWith.apply(this, nodes);
+      };
+    });
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     page.on("console", (message) => { if (message.type() === "error" || message.text().startsWith("mermaid-svg-source-fallback:")) errors.push(message.text()); });
@@ -39,6 +52,15 @@ for (const theme of ["dark", "light", "microsoft"]) {
         await assertBackend(page, 1);
         const svg = page.locator("svg[data-scene-backend=svg]");
         const before = await svg.screenshot();
+        if (index > 0) {
+          await svg.evaluate((element) => {
+            const original = element.__originalMermaidSvg;
+            original.__sharedSceneSvg = element;
+            element.replaceWith(original);
+          });
+          expect(await page.locator(".mermaid svg").screenshot()).toEqual(before);
+          await page.locator(".mermaid svg").evaluate((element) => element.replaceWith(element.__sharedSceneSvg));
+        }
         await svg.evaluate(async (element) => {
           const { sceneToSvg } = await import("./renderer/scene-svg.mjs");
           const scene = JSON.parse(JSON.stringify(element.__presentationScene));
@@ -59,6 +81,13 @@ for (const theme of ["dark", "light", "microsoft"]) {
           expect(await page.locator("svg[data-scene-backend=svg]").evaluate((element) =>
             element.__presentationScene.nodes.some((node) => node.kind === "fallback"),
           )).toBe(true);
+        } else if (index === 6) {
+          const paths = await page.locator("svg[data-scene-backend=svg]").evaluate((element) => ({
+            labels: element.__presentationScene.nodes.filter((node) => /^classes\[\d+\]\.labels\[/.test(node.sourcePath)).map((node) => node.sourcePath),
+            rendered: [...element.querySelectorAll("[data-scene-source-path]")].map((node) => node.dataset.sceneSourcePath),
+          }));
+          expect(paths.labels.length).toBeGreaterThan(0);
+          for (const path of paths.labels) expect(paths.rendered).toContain(path);
         }
       }
       expect(errors).toEqual([]);
@@ -107,6 +136,20 @@ test("normal, presenter, fixed preview, PNG and PDF use the same shared scene re
     await page.close();
     await harness.close();
   }
+});
+
+test("an invalid Mermaid block does not bypass the backend for valid sibling diagrams", async ({ page }) => {
+  const harness = await startHarness({ slides: [
+    "# Mixed input\n\n```mermaid\nflowchart LR\nA --> B\n```\n\n```mermaid\nnot-a-diagram invalid\n```\n\n```mermaid\nflowchart LR\nC --> D\n```",
+  ] });
+  try {
+    await page.goto(harness.url);
+    await waitForSlideReady(page);
+    await assertBackend(page, 3);
+    await expect(page.locator(".mermaid").nth(0)).toContainText("A");
+    await expect(page.locator(".mermaid").nth(1)).toContainText("Syntax error");
+    await expect(page.locator(".mermaid").nth(2)).toContainText("D");
+  } finally { await harness.close(); }
 });
 
 test("safe Mermaid primitive capture retains curves, HTML labels and unknown visuals without executable DOM", async ({ page }) => {

@@ -228,6 +228,18 @@ test("node meta rejects non-plain objects", () => {
   );
 });
 
+test("scene metadata survives normalization without requiring a node", () => {
+  const meta = { svgRoot: { tag: "svg", attributes: { viewBox: "0 0 800 450" }, children: [] } };
+  const { scene, diagnostics } = normalizeScene(validScene({ nodes: [], meta }));
+  assert.deepEqual(diagnostics, []);
+  assert.equal(validateScene(scene), scene);
+  assert.deepEqual(JSON.parse(JSON.stringify(scene)).meta, meta);
+  assert.throws(() => validateScene({ ...scene, meta: new Date() }), /scene\.meta/);
+  const cyclic = {};
+  cyclic.self = cyclic;
+  assert.throws(() => validateScene({ ...scene, meta: cyclic }), /JSON-serializable/);
+});
+
 test("node meta does not affect ordering", () => {
   const { scene } = normalizeScene(validScene({
     nodes: [

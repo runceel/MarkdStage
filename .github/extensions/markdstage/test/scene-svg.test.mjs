@@ -114,3 +114,45 @@ test("Architecture displayed SVG is produced from a portable shared scene with i
     assert.equal(all(svg).find((node) => node.attributes?.get("data-architecture-id") === "api").attributes.get("data-scene-source-path"), "elements[0]");
   }
 });
+
+test("empty Architecture scenes retain root sizing and accessibility after serialization", () => {
+  const original = renderArchitectureDiagram(parseArchitecture(""), document).children[0];
+  const source = JSON.parse(JSON.stringify(original.__presentationScene));
+  assert.equal(source.nodes.length, 0);
+  const restored = sceneToSvg(source, { document });
+  for (const attribute of ["class", "viewBox", "role", "tabindex", "aria-labelledby"]) {
+    assert.equal(restored.attributes.get(attribute), original.attributes.get(attribute));
+  }
+  assert.deepEqual(restored.children.map((child) => [child.tagName, child.textContent]),
+    original.children.map((child) => [child.tagName, child.textContent]));
+});
+
+test("SVG capture preserves precise inline sizing and computed transforms", () => {
+  const source = {
+    nodeType: 1, localName: "svg", namespaceURI: "http://www.w3.org/2000/svg",
+    attributes: [{ name: "transform", value: "translate(123.123456789 0)" }],
+    childNodes: [],
+    getAttribute: (name) => name === "style" ? "max-width: 408.578125px;" : null,
+    style: { getPropertyValue: (name) => name === "max-width" ? "408.578px" : "" },
+    computedStyleMap: () => new Map([["transform", {
+      toString: () => "translate(123.123px, 0px)",
+      toMatrix: () => ({ toString: () => "matrix(1, 0, 0, 1, 123.123456789, 0)" }),
+    }]]),
+  };
+  const primitive = captureSvgTree(source, {
+    computedStyle: () => ({ getPropertyValue: (name) => name === "transform" ? "matrix(1, 0, 0, 1, 123.123, 0)" : "" }),
+  });
+  assert.equal(primitive.style["max-width"], "408.578125px");
+  assert.equal(primitive.attributes.transform, "translate(123.123456789 0)");
+  assert.equal(primitive.style.transform, "matrix(1, 0, 0, 1, 123.123456789, 0)");
+});
+
+test("text preserves explicit transparent paint and zero font sizes", () => {
+  const svg = sceneToSvg(scene([{
+    kind: "text", sourcePath: "label", z: 0, bounds,
+    text: { paragraphs: [{ runs: [{ text: "Hidden", color: null, fontSize: 0 }] }] },
+  }]), { document });
+  const span = all(svg).find((node) => node.tagName === "tspan");
+  assert.equal(span.attributes.get("fill"), "none");
+  assert.equal(span.attributes.get("font-size"), "0");
+});

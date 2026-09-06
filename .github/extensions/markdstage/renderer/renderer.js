@@ -594,14 +594,18 @@ function runMermaid(scope, deckEl, token, revealWhenDone = true) {
       lastMermaidThemeVariables = serializedThemeVariables;
     }
     return Promise.resolve(window.mermaid.run({ nodes }))
+      .catch((e) => console.error("Mermaid render failed", e))
       .then(() => {
         for (const [index, host] of [...nodes].entries()) {
           const source = host.querySelector("svg");
           if (!source || source.hasAttribute("data-scene-backend")) continue;
-          renderMermaidScene(source, deckEl, index);
+          try {
+            renderMermaidScene(source, deckEl, index);
+          } catch (e) {
+            console.error("Mermaid scene render failed", e);
+          }
         }
       })
-      .catch((e) => console.error("Mermaid render failed", e))
       .finally(reveal);
   } catch (e) {
     console.error("Mermaid init failed", e);
@@ -633,16 +637,19 @@ function renderMermaidScene(svg, deck, blockIndex) {
   const slots = new Map();
   try {
     for (const [index, node] of scene.nodes.entries()) {
-      const owner = scene.nodes.find((candidate) =>
-        candidate !== node && node.sourcePath.startsWith(`${candidate.sourcePath}.`) &&
-        (result.sourceElements?.has(candidate.sourcePath) || mermaidElementForSourcePath(svg, candidate.sourcePath)),
-      );
+      const exactSource = result.sourceElements?.get(node.sourcePath) ||
+        mermaidElementForSourcePath(svg, node.sourcePath);
+      const owner = scene.nodes.find((candidate) => {
+        if (candidate === node || !node.sourcePath.startsWith(`${candidate.sourcePath}.`)) return false;
+        const candidateSource = result.sourceElements?.get(candidate.sourcePath) ||
+          mermaidElementForSourcePath(svg, candidate.sourcePath);
+        return candidateSource && (!exactSource || candidateSource.contains(exactSource));
+      });
       if (owner) {
         node.meta = { ...node.meta, svgOwner: owner.sourcePath };
         continue;
       }
-      const source = result.sourceElements?.get(node.sourcePath) ||
-        mermaidElementForSourcePath(svg, node.sourcePath) ||
+      const source = exactSource ||
         mermaidFallbackElementForBounds(svg, deck, node.bounds);
       if (!source) throw new Error(`Mermaid SVG source unavailable: ${node.sourcePath}`);
       if (slots.has(source)) {
@@ -676,7 +683,7 @@ function renderMermaidScene(svg, deck, blockIndex) {
   const template = slots.has(svg)
     ? { sceneNode: slots.get(svg) }
     : captureSvgTree(svg, { slots, computedStyle });
-  if (scene.nodes.length) scene.nodes[0].meta.svgRoot = template;
+  scene.meta = { ...scene.meta, svgRoot: template };
   svg.replaceWith(sceneToSvg(scene, { document, template }));
 }
 
@@ -2023,10 +2030,6 @@ function markMermaidNativeElements(svg, mappedElements, pathPrefix, sourceElemen
     while (!source && sourceElements && ownerPath.includes(".")) {
       ownerPath = ownerPath.slice(0, ownerPath.lastIndexOf("."));
       source = sourceElements.get(ownerPath);
-    }
-    // Class boxes have independently exported compartments and may contain a fallback divider.
-    if (/^classes\[\d+\]$/.test(sourcePath) && element.type === "shape") {
-      source = source?.querySelector(":scope > g.label-container") || source;
     }
     if (source && !source.hasAttribute("data-pptx-native")) {
       const nativeKind = element.type === "shape" ? "shape" : element.type;
