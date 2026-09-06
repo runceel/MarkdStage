@@ -105,24 +105,68 @@ function sameGeometryMetric(left, right, exact = true) {
   );
 }
 
-function canonicalPathCss(source, value) {
-  if (typeof value !== "string" || !value) return "";
-  const documentRef = source.ownerDocument || globalThis.document;
-  const reference = documentRef?.createElementNS?.(SVG_NS, "path");
-  if (!reference?.style?.setProperty) return null;
-  reference.style.setProperty("d", `path("${value}")`);
-  return reference.style.getPropertyValue?.("d") ||
-    reference.style.d ||
-    null;
+function pathCssCanonicalizer(root, computedStyle) {
+  const documentRef = root?.ownerDocument || globalThis.document;
+  let host;
+  let reference;
+  const connect = () => {
+    if (reference) return true;
+    const parent = documentRef?.body || documentRef?.documentElement;
+    if (!parent?.appendChild ||
+        !documentRef?.createElement ||
+        !documentRef?.createElementNS) return false;
+    host = documentRef.createElement("div");
+    if (!host?.attachShadow) return false;
+    host.setAttribute("aria-hidden", "true");
+    host.style.cssText = [
+      "position:fixed",
+      "left:-10000px",
+      "top:-10000px",
+      "width:0",
+      "height:0",
+      "overflow:hidden",
+      "visibility:hidden",
+      "pointer-events:none",
+      "contain:strict",
+    ].join(";");
+    const shadow = host.attachShadow({ mode: "closed" });
+    const svg = documentRef.createElementNS(SVG_NS, "svg");
+    reference = documentRef.createElementNS(SVG_NS, "path");
+    svg.setAttribute("width", "0");
+    svg.setAttribute("height", "0");
+    svg.appendChild(reference);
+    shadow.appendChild(svg);
+    parent.appendChild(host);
+    return reference.isConnected;
+  };
+  return {
+    value(attribute) {
+      if (typeof attribute !== "string" || !attribute) return "";
+      if (!connect()) return null;
+      reference.removeAttribute("style");
+      reference.setAttribute("d", attribute);
+      return computedStyle(reference).getPropertyValue("d") || "";
+    },
+    dispose() {
+      host?.remove();
+    },
+  };
 }
 
-function hasComputedGeometryOverride(source, property, value) {
+function hasComputedGeometryOverride(source, property, value, canonicalizePath) {
   const attribute = source.getAttribute?.(property);
   if (property === "d") {
-    const canonical = canonicalPathCss(source, attribute);
-    if (canonical !== null) return String(value).trim() !== canonical.trim();
     const computed = pathGeometry(value);
     const declared = pathGeometry(attribute);
+    if (computed && declared &&
+        computed.commands === declared.commands &&
+        computed.numbers.length === declared.numbers.length &&
+        computed.numbers.every((number, index) =>
+          sameGeometryMetric(number, declared.numbers[index], true))) {
+      return false;
+    }
+    const canonical = canonicalizePath(attribute);
+    if (canonical !== null) return String(value).trim() !== canonical.trim();
     const exact = Boolean(source.closest?.("marker"));
     return computed === null ||
       declared === null ||
@@ -157,6 +201,9 @@ export function svgPrimitive(tag, attributes = {}) {
  */
 export function captureSvgTree(element, { slots = new Map(), computedStyle = globalThis.getComputedStyle } = {}) {
   let count = 0;
+  const pathCanonicalizer = computedStyle
+    ? pathCssCanonicalizer(element, computedStyle)
+    : null;
   function capture(source, depth, root = false) {
     if (++count > 50000 || depth > 128) throw new Error("SVG primitive limit exceeded");
     if (source.nodeType === 3) return { text: portableString(source.textContent || "") };
@@ -192,7 +239,12 @@ export function captureSvgTree(element, { slots = new Map(), computedStyle = glo
           : [];
       for (const property of geometryProperties) {
         const value = style.getPropertyValue(property);
-        if (value && hasComputedGeometryOverride(source, property, value) &&
+        if (value && hasComputedGeometryOverride(
+          source,
+          property,
+          value,
+          (attribute) => pathCanonicalizer?.value(attribute) ?? null,
+        ) &&
             safeCss(value)) {
           primitive.style[property] = portableString(value);
         }
@@ -217,7 +269,11 @@ export function captureSvgTree(element, { slots = new Map(), computedStyle = glo
     }
     return primitive;
   }
-  return capture(element, 0, true);
+  try {
+    return capture(element, 0, true);
+  } finally {
+    pathCanonicalizer?.dispose();
+  }
 }
 
 function setAttributes(element, attributes = {}) {

@@ -249,6 +249,7 @@ test("safe Mermaid primitive capture retains curves, HTML labels and unknown vis
         lineBreaks: svg.querySelectorAll("br").length,
       };
     });
+
     expect(result).toEqual({
       path: "M0 0 Q50 100 200 0",
       label: "Richlabel",
@@ -257,4 +258,113 @@ test("safe Mermaid primitive capture retains curves, HTML labels and unknown vis
       lineBreaks: 1,
     });
   } finally { await harness.close(); }
+});
+
+test("captured relative paths keep attribute geometry without duplicate computed d", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# Relative path capture"] });
+  try {
+    await page.goto(harness.url);
+    const result = await page.evaluate(async () => {
+      const {
+        captureSvgTree,
+        sceneToSvg,
+      } = await import("./renderer/scene-svg.mjs");
+      const {
+        createScene,
+        normalizeScene,
+      } = await import("./renderer/scene-graph.mjs");
+      const namespace = "http://www.w3.org/2000/svg";
+      const source = document.createElementNS(namespace, "svg");
+      source.setAttribute("viewBox", "0 0 3000 3000");
+      const relative = document.createElementNS(namespace, "path");
+      relative.setAttribute("d", "m0 0h10v20z");
+      const longRelative = document.createElementNS(namespace, "path");
+      const longD = `m0 0${"h1v1".repeat(2500)}z`;
+      longRelative.setAttribute("d", longD);
+      source.append(relative, longRelative);
+      source.style.cssText =
+        "position:absolute;left:-10000px;top:-10000px;width:1px;height:1px";
+      document.body.append(source);
+
+      const relativePrimitive = captureSvgTree(relative);
+      const longPrimitive = captureSvgTree(longRelative);
+      const scene = normalizeScene(createScene({
+        width: 100,
+        height: 100,
+        source: { kind: "mermaid", path: "relative-paths.svg" },
+        nodes: [
+          {
+            kind: "fallback",
+            sourcePath: "relative",
+            z: 0,
+            bounds: { x: 0, y: 0, width: 10, height: 20 },
+            reason: "test",
+            meta: { svg: relativePrimitive },
+          },
+          {
+            kind: "fallback",
+            sourcePath: "long-relative",
+            z: 1,
+            bounds: { x: 0, y: 0, width: 50, height: 50 },
+            reason: "test",
+            meta: { svg: longPrimitive },
+          },
+        ],
+      })).scene;
+      const restored = sceneToSvg(scene);
+      restored.style.cssText =
+        "position:absolute;left:-10000px;top:-10000px;width:1px;height:1px";
+      document.body.append(restored);
+      const paths = [...restored.querySelectorAll("path")];
+      const output = {
+        source: [
+          {
+            attribute: relative.getAttribute("d"),
+            computed: getComputedStyle(relative).d,
+          },
+          {
+            attribute: longRelative.getAttribute("d"),
+            computed: getComputedStyle(longRelative).d,
+          },
+        ],
+        primitives: [relativePrimitive, longPrimitive].map((primitive) => ({
+          attributeIsChunked: Array.isArray(primitive.attributes.d),
+          attribute: Array.isArray(primitive.attributes.d)
+            ? primitive.attributes.d.join("")
+            : primitive.attributes.d,
+          computedStyleD: primitive.style.d,
+        })),
+        restored: paths.map((path) => ({
+          attribute: path.getAttribute("d"),
+          inline: path.style.d,
+          computed: getComputedStyle(path).d,
+        })),
+      };
+      restored.remove();
+      source.remove();
+      return output;
+    });
+    expect(result.source[0]).toEqual({
+      attribute: "m0 0h10v20z",
+      computed: 'path("M 0 0 H 10 V 20 Z")',
+    });
+    expect(result.primitives[0]).toEqual({
+      attributeIsChunked: false,
+      attribute: "m0 0h10v20z",
+      computedStyleD: undefined,
+    });
+    expect(result.restored[0]).toEqual({
+      attribute: "m0 0h10v20z",
+      inline: "",
+      computed: 'path("M 0 0 H 10 V 20 Z")',
+    });
+    expect(result.primitives[1].attributeIsChunked).toBe(true);
+    expect(result.primitives[1].attribute).toBe(result.source[1].attribute);
+    expect(result.primitives[1].computedStyleD).toBeUndefined();
+    expect(result.restored[1].attribute).toBe(result.source[1].attribute);
+    expect(result.restored[1].inline).toBe("");
+    expect(result.restored[1].computed).toBe(result.source[1].computed);
+  } finally {
+    await harness.close();
+  }
 });
