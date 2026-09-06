@@ -32,10 +32,10 @@ const slides = [
 
 const customThemeCss = ":root{--bg:#102030;--fg:#f8fafc;--body:#d7e3f0;--muted:#abbdd0;--surface:#203448;--border:#486580;--accent:#39b8f2;--accent-strong:#72d4ff;--accent-soft:#163b50;}";
 
-// Isolate message fidelity from Chromium's same-DOM reinsertion rounding at mirrored actor corners.
-// The full mirrored fixture remains covered by the cross-surface and PPTX tests.
+// Only the known sequence-path fixture has Chromium source-swap rounding at mirrored actor corners.
+// Keep that workaround isolated so newer sequence fixtures retain zero-pixel mirrored-actor coverage.
 const fidelitySlides = slides.map((slide) =>
-  slide === sequencePathsSlide || slide === sequenceDecorationsSlide
+  slide === sequencePathsSlide
     ? slide.replace('"handDrawnSeed": 42', '"handDrawnSeed": 42, "sequence": {"mirrorActors": false}')
     : slide);
 
