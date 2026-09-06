@@ -710,6 +710,9 @@ test("exports Architecture objects from the DSL and keeps fallback artwork visib
     const slide = model.slides[2];
     const architecture = slide.elements.filter((element) => element.architecture);
     const connectors = architecture.filter((element) => element.type === "connector");
+    const mermaid = slide.elements.filter((element) => element.mermaid);
+    const mermaidShapes = mermaid.filter((element) => element.type === "shape");
+    const mermaidConnectors = mermaid.filter((element) => element.type === "connector");
 
     expect(
       architecture.some(
@@ -784,22 +787,51 @@ test("exports Architecture objects from the DSL and keeps fallback artwork visib
         ),
       ),
     ).toBe(true);
+    expect(mermaidShapes).toHaveLength(2);
+    expect(mermaidShapes.map((element) => element.text?.paragraphs?.[0]?.runs?.[0]?.text)).toEqual([
+      "Browser",
+      "API",
+    ]);
+    expect(mermaidConnectors).toHaveLength(1);
+    expect(mermaidConnectors[0].points.length).toBeGreaterThanOrEqual(2);
+    expect(mermaid.every((element) => element.path?.startsWith("mermaid[0]."))).toBe(true);
+    expect(
+      slide.elements.filter(
+        (element) => element.text?.paragraphs?.[0]?.runs?.[0]?.text === "Browser",
+      ),
+    ).toHaveLength(1);
+    expect(
+      slide.elements.some(
+        (element) => element.type === "text" && element.path?.includes("mermaid"),
+      ),
+    ).toBe(false);
+    expect(
+      slide.fallbacks.some(
+        (fallback) =>
+          fallback.reason === "native-text-decoration-rendered-as-artwork" &&
+          fallback.path?.includes("mermaid"),
+      ),
+    ).toBe(false);
     expect(slide.fallbacks).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({
-          type: "mermaid",
-          reason: "mermaid-rendered-as-artwork",
-        }),
         expect.objectContaining({
           type: "architecture-icon",
           reason: "icon-rendered-as-foreground-picture",
         }),
       ]),
     );
-    expect(slide.fallbacks.filter((fallback) => fallback.type === "mermaid")).toHaveLength(1);
     expect(
-      slide.fallbacks.find((fallback) => fallback.type === "mermaid")?.captureId,
-    ).toMatch(/^pptx-fallback-/);
+      slide.fallbacks.some(
+        (fallback) =>
+          fallback.type === "mermaid" &&
+          fallback.reason === "mermaid-rendered-as-artwork",
+      ),
+    ).toBe(false);
+    expect(
+      slide.fallbacks
+        .filter((fallback) => fallback.type === "mermaid")
+        .every((fallback) => fallback.path?.startsWith("mermaid[0].")),
+    ).toBe(true);
     expect(
       slide.fallbacks.some(
         (fallback) => fallback.type === "html" && fallback.path.includes("pre.mermaid"),
@@ -814,12 +846,21 @@ test("exports Architecture objects from the DSL and keeps fallback artwork visib
         '[data-architecture-type="node"] > rect',
       );
       const icon = diagramDeck.querySelector("[data-architecture-icon]");
+      const mermaidNode = diagramDeck.querySelector("pre.mermaid svg g.node");
+      const mermaidShape = mermaidNode?.querySelector("rect, ellipse, polygon");
+      const mermaidNodeLabel = mermaidNode?.querySelector("span.nodeLabel");
+      const mermaidConnector = diagramDeck.querySelector("pre.mermaid svg path.flowchart-link");
       return {
         bodyClass: document.body.classList.contains("pptx-artwork-mode"),
         bodyAttribute: document.body.getAttribute("data-pptx-artwork"),
         headingColor: getComputedStyle(nativeHeading).color,
         architectureFill: getComputedStyle(nativeArchitecture).fill,
         iconOpacity: getComputedStyle(icon).opacity,
+        mermaidNodeNative: mermaidNode?.getAttribute("data-pptx-native") || "",
+        mermaidNodeFill: mermaidShape ? getComputedStyle(mermaidShape).fill : "",
+        mermaidNodeTextColor: mermaidNodeLabel ? getComputedStyle(mermaidNodeLabel).color : "",
+        mermaidConnectorNative: mermaidConnector?.getAttribute("data-pptx-native") || "",
+        mermaidConnectorStroke: mermaidConnector ? getComputedStyle(mermaidConnector).stroke : "",
         mermaidVisible:
           diagramDeck.querySelectorAll("pre.mermaid svg").length > 0 &&
           getComputedStyle(diagramDeck.querySelector("pre.mermaid")).visibility !== "hidden",
@@ -840,6 +881,11 @@ test("exports Architecture objects from the DSL and keeps fallback artwork visib
       headingColor: "rgba(0, 0, 0, 0)",
       architectureFill: "rgba(0, 0, 0, 0)",
       iconOpacity: "0",
+      mermaidNodeNative: "shape",
+      mermaidNodeFill: "rgba(0, 0, 0, 0)",
+      mermaidNodeTextColor: "rgba(0, 0, 0, 0)",
+      mermaidConnectorNative: "connector",
+      mermaidConnectorStroke: "rgba(0, 0, 0, 0)",
       mermaidVisible: true,
       codeVisible: false,
       unsupportedImageNative: true,
