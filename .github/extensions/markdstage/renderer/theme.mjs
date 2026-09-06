@@ -91,6 +91,38 @@ export function serializeThemeVariables(variables) {
     .join("");
 }
 
+export function mermaidThemeVariables(style) {
+  const read = (name) => style.getPropertyValue(name).trim();
+  const background = read("--bg");
+  const surface = read("--surface");
+  const border = read("--border");
+  const body = read("--body");
+  const foreground = read("--fg");
+  const accent = read("--accent");
+  const accentSoft = read("--accent-soft");
+
+  return {
+    background,
+    primaryColor: surface,
+    primaryTextColor: body,
+    primaryBorderColor: border,
+    secondaryColor: accentSoft,
+    secondaryTextColor: foreground,
+    secondaryBorderColor: accent,
+    tertiaryColor: background,
+    tertiaryTextColor: body,
+    tertiaryBorderColor: border,
+    lineColor: accent,
+    textColor: body,
+    mainBkg: surface,
+    nodeBorder: border,
+    clusterBkg: background,
+    clusterBorder: border,
+    titleColor: foreground,
+    edgeLabelBackground: background,
+  };
+}
+
 function assertPlainObject(value, path) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error(`${path} must be an object`);

@@ -2,6 +2,7 @@ import { powerPointDashStyle, renderArchitectureBlock } from "./architecture.mjs
 import { attachArchitectureEditor } from "./architecture-editor.mjs";
 import {
   DEFAULT_THEME,
+  mermaidThemeVariables,
   normalizeTheme,
   parseFrontMatter,
 } from "./theme.mjs";
@@ -74,11 +75,6 @@ function localAssetUrl(path, documentRef = document) {
 // The deck theme is chosen by the agent (load_deck `theme`) and delivered via
 // /state; slide front matter may override it unless the deck theme was explicit.
 // Anything unrecognized falls back to the default so a slide is never unstyled.
-const MERMAID_THEME = {
-  dark: "dark",
-  light: "default",
-  microsoft: "neutral",
-};
 const SIZE_MODES = new Set(["auto", "normal", "large", "xlarge"]);
 const DEFAULT_SIZE_MODE = "auto";
 let deckTheme = DEFAULT_THEME;
@@ -88,7 +84,7 @@ let customThemeMeta = null;
 // Bumped on every render so a late mermaid finish from a previous slide can't
 // reveal a newer, still-rendering one.
 let renderToken = 0;
-let lastMermaidTheme = null;
+let lastMermaidThemeVariables = null;
 let pptxFallbackSequence = 0;
 const pptxFallbackCaptureElements = new Map();
 // Editing mode is available only in normal view, not presenter or print mode.
@@ -564,9 +560,9 @@ function applySyntaxHighlighting(root) {
 // --- mermaid ---------------------------------------------------------------
 // Render every <pre class="mermaid"> in `scope` to SVG. Resilient: a slide with
 // no diagrams, a missing library, or an invalid diagram must never leave the
-// slide blank, so the body is always revealed in the end. The mermaid theme is
-// matched to the slide theme, re-initialized only when it actually changes.
-function runMermaid(scope, theme, token, revealWhenDone = true) {
+// slide blank, so the body is always revealed in the end. Mermaid colors are
+// matched to the slide theme, re-initialized only when they actually change.
+function runMermaid(scope, _theme, token, revealWhenDone = true) {
   // Only the latest render may lift the loading veil; a stale finish is ignored.
   const reveal = () => {
     if (revealWhenDone && token === renderToken) {
@@ -579,10 +575,18 @@ function runMermaid(scope, theme, token, revealWhenDone = true) {
     return Promise.resolve();
   }
   try {
-    const wanted = MERMAID_THEME[theme] || "neutral";
-    if (wanted !== lastMermaidTheme) {
-      window.mermaid.initialize({ startOnLoad: false, theme: wanted, securityLevel: "strict" });
-      lastMermaidTheme = wanted;
+    const themeVariables = mermaidThemeVariables(
+      getComputedStyle(scope.closest(".deck") || scope),
+    );
+    const serializedThemeVariables = JSON.stringify(themeVariables);
+    if (serializedThemeVariables !== lastMermaidThemeVariables) {
+      window.mermaid.initialize({
+        startOnLoad: false,
+        theme: "base",
+        themeVariables,
+        securityLevel: "strict",
+      });
+      lastMermaidThemeVariables = serializedThemeVariables;
     }
     return Promise.resolve(window.mermaid.run({ nodes }))
       .catch((e) => console.error("Mermaid render failed", e))
