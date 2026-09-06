@@ -48,6 +48,18 @@ the source of truth from the first draft to the stage.
 - **Validate PDF fit before export**: Preview the fixed 16:9 layout, inspect clipping, and capture only pages that need visual review
 - **Keep controls focused on presenting**: Navigate with buttons, the keyboard, or Surface Pen in supported environments
 
+### Choose the diagram format
+
+Use Mermaid when the diagram should be generated from its relationships and laid out automatically.
+Use Architecture DSL when the diagram is part of the slide design and its positions, sizes, groups,
+icons, connectors, or theme treatment need to remain intentional and stable. Both formats can follow
+the deck theme, but they solve different authoring problems.
+
+MarkdStage is different because the Markdown file remains the source of truth through authoring,
+presentation, layout review, PDF export, and editable PowerPoint export. The same renderer carries
+the deck across those stages, so a diagram is not only something to display: it can remain part of
+the source, be edited visually, and be carried into the final deliverable.
+
 ## See Markdown on stage
 
 The same Markdown renderer powers the GitHub Copilot canvas, presenter window, Desktop app, CLI, PDF
