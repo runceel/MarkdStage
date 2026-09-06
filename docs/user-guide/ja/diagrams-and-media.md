@@ -18,7 +18,7 @@ flowchart LR
 ````
 
 Mermaid は同梱しているのでオフラインでも動きます。フローチャート、シーケンス図、クラス図、
-状態図、円グラフなど、配置を自動で決めてよい図に向いています。
+状態図、requirement 図、円グラフなど、配置を自動で決めてよい図に向いています。
 
 Mermaid の図は背景色、枠線、テキスト、アクセントカラーをスライドのテーマから自動的に取り込むため、
 Mermaid 既定の配色ではなく、カスタムテーマを含むデッキのテーマに自然に溶け込みます。
@@ -104,6 +104,44 @@ theme では白 fill）を保持します。relationship label は独立した�
 height、text box、relation route、terminal direction、label position は描画済み SVG から取得し、
 MarkdStage が ER source を再解釈して代替 layout を計算することはありません。
 
+同梱 Mermaid 11.15.0 の requirement 図で受理される diagram 名は
+`requirementDiagram` と全小文字の `requirementdiagram` です。
+`RequirementDiagram`、`REQUIREMENTDIAGRAM`、`requirementDiagram-beta`、ハイフン付き表記、
+その他の別名は受理されません。`direction LR`、`RL`、`TB`、`BT` は受理されます。
+MarkdStage は requirement graph を再構築せず、描画済み SVG の順序と位置を使います。
+
+classic の requirement／element node では、描画された外枠、title 区画、divider、表示される
+すべての label を編集可能なオブジェクトにします。requirement には block 名に加えて
+`id`、`text`、`risk`、`verifyMethod`／`verifymethod` を表示でき、これらの field keyword は
+大文字小文字を区別しません。risk value は quote なしの `low`、`medium`、`high`、
+verification value は quote なしの `analysis`、`inspection`、`test`、`demonstration` で、
+いずれも大文字小文字を区別しません。同梱 parser では `verificationMethod` は別名として
+受理されません。element は大文字小文字を区別しない `type` と `docRef`／`docref` に対応し、
+`documentRef` と `documentReference` は受理されません。空 block は人工的な divider を追加せず、
+title と名前だけの編集可能な box になります。空の field value は Mermaid が受理しません。
+
+plain／quoted field text、日本語、`<br/>` は描画された label のまま保持します。
+`<br/>` は実際の 2 行目になります。一方、source の `\n` escape は `\` と `n` の 2 文字として
+表示され、MarkdStage が改行へ再解釈することはありません。表示 label には Mermaid の
+`<<Requirement>>`／`<<Element>>` title、太字の block identifier、および renderer が追加する
+`ID:`、`Text:`、`Risk:`、`Verification:`、`Type:`、`Doc Ref:` prefix が含まれます。
+
+対応する relation word は `contains`、`copies`、`derives`、`satisfies`、`verifies`、
+`refines`、`traces` です。relation keyword は大文字小文字を区別せず、独立した label は
+小文字の `<<...>>` に正規化されます。構文は `source - relation -> target` です。
+逆向きに書く `target <- relation - source` も受理され、同じ有向 relation になります。
+`<- relation ->` のように head を混在させる形式や bidirectional arrow は受理されません。
+`contains` は描画済みの実線と始点 terminal を使います。terminal は
+20 × 20、`strokeWidth` scale、`refX=0`、`refY=10`、`orient=auto` の circle-plus marker です。
+他の 6 relation は描画済みの破線と終点 terminal を使い、同じ viewport size、
+`refX=20`、`refY=10`、自動向きの 2 本線 open marker になります。どちらの同梱 marker にも
+`viewBox` はありません。MarkdStage は正確な marker geometry、units、reference point、
+clip、接線、paint、cap、join、alpha を検証します。不透明な terminal と、source 側で
+独立した primitive になっている contains marker は編集可能なネイティブオブジェクトになります。
+半透明の multi-segment route または 2 本線 open arrow は、1 つの SVG path を複数の
+PowerPoint line に分割すると bend／tip が濃くなるため、relation 単位の画像にします。
+relation label は relation artwork から独立したままです。
+
 同梱 Mermaid 11.15.0 の基本的な状態図では、`stateDiagram-v2` と従来の
 `stateDiagram` を使えます。`stateDiagram-beta`、`stateDiagram-v2-beta`、小文字表記など、
 実際に受理されない別名は対応名として扱いません。単純な角丸 state box とラベルを、
@@ -172,6 +210,18 @@ element opacity は、両端 terminal を含むその relation だけを画像�
 alpha 合成が変わるため relation 単位の局所画像にします。未対応 entity look／decoration、複雑な
 HTML／icon／image、gradient、mask、effect、同梱版以外の geometry は、分離できる最小単位で
 フォールバックします。
+requirement 図では、不正な node structure または node 全体の composite opacity を
+node 単位の画像にします。未対応の box geometry、装飾付き field label、divider path、
+未知の node decoration は、その box、label、divider、decoration だけを局所画像にします。
+renderer の divider は重なる 2 本の rough stroke を 1 つの SVG path に含むため、
+半透明 divider を分割すると alpha compositing が変わります。この場合は divider だけを
+画像として保持します。未対応の relation path、marker geometry／units／paint／effect、
+transform、relation／marker の compositing は、影響する relation と terminal だけを画像にし、
+独立した `<<relation>>` label と未影響の兄弟 relation は編集可能なまま残します。
+relation label の背景と文字へ共通 opacity がかかる場合は、2 つのネイティブオブジェクトへ
+別々に乗算せず、その label だけを画像にします。filter fallback では effect-aware な
+capture padding を使い、blur／drop-shadow の出力を切り取りません。
+不正な root と、共通 scene の element／depth／text 上限は、従来の図単位 safety fallback を使います。
 1 つの node、connector、label、marker、制御枠、未知の視覚要素に未対応 transform があっても、
 対応済みの兄弟要素まで図全体の画像にはしません。子要素の重なり、marker の描画、label の
 source ownership を分割すると変えてしまう複合要素は 1 つの局所画像として保持します。

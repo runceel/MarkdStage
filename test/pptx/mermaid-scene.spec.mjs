@@ -1596,6 +1596,1311 @@ test("rejects malformed and excessive ER structures explicitly", async ({ page }
   }
 });
 
+test("accepts only bundled requirement aliases, fields and relations", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# Requirement grammar"] });
+  try {
+    await page.goto(harness.url);
+    const result = await page.evaluate(async () => {
+      window.mermaid.initialize({
+        startOnLoad: false,
+        theme: "default",
+        securityLevel: "strict",
+      });
+      const render = async (id, source) => {
+        try {
+          await window.mermaid.parse(source);
+          const { svg } = await window.mermaid.render(id, source);
+          const root = new DOMParser()
+            .parseFromString(svg, "image/svg+xml")
+            .documentElement;
+          return {
+            accepted: true,
+            role: root.getAttribute("aria-roledescription"),
+            class: root.getAttribute("class"),
+            root: root.querySelector("g.root")?.getAttribute("class") || "",
+            markers: [...root.querySelectorAll("marker")].map((marker) =>
+              marker.id.split("_requirement-").at(-1)),
+            labels: [...root.querySelectorAll("g.edgeLabel span.edgeLabel")]
+              .map((label) => label.textContent),
+          };
+        } catch (_) {
+          return { accepted: false };
+        }
+      };
+      const aliases = {};
+      for (const alias of [
+        "requirementDiagram",
+        "requirementdiagram",
+        "RequirementDiagram",
+        "REQUIREMENTDIAGRAM",
+        "requirementDiagram-beta",
+        "requirementdiagram-beta",
+        "requirement-diagram",
+        "requirement",
+      ]) {
+        aliases[alias] = await render(
+          `requirement-alias-${alias.replace(/[^a-z0-9]+/gi, "-")}`,
+          [
+            alias,
+            "requirement req {",
+            '  id: "REQ-1"',
+            '  text: "Text"',
+            "}",
+            "element impl {",
+            '  type: "Service"',
+            '  docRef: "docs/ref"',
+            "}",
+            "impl - satisfies -> req",
+          ].join("\n"),
+        );
+      }
+      const requirementFields = {};
+      for (const [field, value] of [
+        ["id", '"REQ-1"'],
+        ["ID", '"REQ-1"'],
+        ["text", '"Text"'],
+        ["TEXT", '"Text"'],
+        ["risk", "high"],
+        ["RISK", "high"],
+        ["verifyMethod", "test"],
+        ["verifymethod", "test"],
+        ["VERIFYMETHOD", "test"],
+        ["verificationMethod", "test"],
+        ["verificationmethod", "test"],
+      ]) {
+        requirementFields[field] = (await render(
+          `requirement-field-${field}`,
+          [
+            "requirementDiagram",
+            "requirement req {",
+            `  ${field}: ${value}`,
+            "}",
+          ].join("\n"),
+        )).accepted;
+      }
+      const elementFields = {};
+      for (const field of [
+        "type",
+        "TYPE",
+        "docRef",
+        "docref",
+        "DOCREF",
+        "documentRef",
+        "documentReference",
+      ]) {
+        elementFields[field] = (await render(
+          `requirement-element-field-${field}`,
+          [
+            "requirementDiagram",
+            "element impl {",
+            `  ${field}: "Value"`,
+            "}",
+          ].join("\n"),
+        )).accepted;
+      }
+      const riskValues = {};
+      for (const value of [
+        "low",
+        "MEDIUM",
+        "High",
+        "critical",
+        '"high"',
+      ]) {
+        riskValues[value] = (await render(
+          `requirement-risk-${value.replace(/[^a-z0-9]+/gi, "-")}`,
+          [
+            "requirementDiagram",
+            "requirement req {",
+            `  risk: ${value}`,
+            "}",
+          ].join("\n"),
+        )).accepted;
+      }
+      const verificationValues = {};
+      for (const value of [
+        "analysis",
+        "INSPECTION",
+        "Test",
+        "demonstration",
+        "review",
+        '"test"',
+      ]) {
+        verificationValues[value] = (await render(
+          `requirement-verification-${value.replace(/[^a-z0-9]+/gi, "-")}`,
+          [
+            "requirementDiagram",
+            "requirement req {",
+            `  verifymethod: ${value}`,
+            "}",
+          ].join("\n"),
+        )).accepted;
+      }
+      const emptyValues = {};
+      for (const [kind, field] of [
+        ["requirement", "id"],
+        ["requirement", "text"],
+        ["element", "type"],
+        ["element", "docRef"],
+      ]) {
+        emptyValues[`${kind}.${field}`] = (await render(
+          `requirement-empty-${kind}-${field}`,
+          [
+            "requirementDiagram",
+            `${kind} item {`,
+            `  ${field}:`,
+            "}",
+          ].join("\n"),
+        )).accepted;
+      }
+      const relations = {};
+      for (const relation of [
+        "contains",
+        "copies",
+        "derives",
+        "satisfies",
+        "verifies",
+        "refines",
+        "traces",
+        "Contains",
+        "COPIES",
+        "fulfills",
+      ]) {
+        relations[relation] = await render(
+          `requirement-relation-${relation}`,
+          [
+            "requirementDiagram",
+            "requirement left {",
+            '  text: "Left"',
+            "}",
+            "requirement right {",
+            '  text: "Right"',
+            "}",
+            `left - ${relation} -> right`,
+          ].join("\n"),
+        );
+      }
+      const relationSyntax = {};
+      for (const form of [
+        "left - copies -> right",
+        "right <- copies - left",
+        "left <- copies -> right",
+        "left - copies - right",
+      ]) {
+        relationSyntax[form] = await render(
+          `requirement-relation-form-${
+            Object.keys(relationSyntax).length
+          }`,
+          [
+            "requirementDiagram",
+            "requirement left {",
+            '  text: "Left"',
+            "}",
+            "requirement right {",
+            '  text: "Right"',
+            "}",
+            form,
+          ].join("\n"),
+        );
+      }
+      const directions = {};
+      for (const direction of ["LR", "RL", "TB", "BT"]) {
+        directions[direction] = (await render(
+          `requirement-direction-${direction}`,
+          [
+            "requirementDiagram",
+            `direction ${direction}`,
+            "requirement req {",
+            '  text: "Text"',
+            "}",
+          ].join("\n"),
+        )).accepted;
+      }
+      return {
+        aliases,
+        requirementFields,
+        elementFields,
+        riskValues,
+        verificationValues,
+        emptyValues,
+        relations,
+        relationSyntax,
+        directions,
+      };
+    });
+
+    const accepted = {
+      accepted: true,
+      role: "requirement",
+      class: "requirementDiagram",
+      root: "root",
+      markers: [
+        "requirement_containsStart",
+        "requirement_arrowEnd",
+      ],
+      labels: ["<<satisfies>>"],
+    };
+    expect(result.aliases.requirementDiagram).toEqual(accepted);
+    expect(result.aliases.requirementdiagram).toEqual(accepted);
+    for (const alias of [
+      "RequirementDiagram",
+      "REQUIREMENTDIAGRAM",
+      "requirementDiagram-beta",
+      "requirementdiagram-beta",
+      "requirement-diagram",
+      "requirement",
+    ]) {
+      expect(result.aliases[alias], alias).toEqual({ accepted: false });
+    }
+    expect(result.requirementFields).toEqual({
+      id: true,
+      ID: true,
+      text: true,
+      TEXT: true,
+      risk: true,
+      RISK: true,
+      verifyMethod: true,
+      verifymethod: true,
+      VERIFYMETHOD: true,
+      verificationMethod: false,
+      verificationmethod: false,
+    });
+    expect(result.elementFields).toEqual({
+      type: true,
+      TYPE: true,
+      docRef: true,
+      docref: true,
+      DOCREF: true,
+      documentRef: false,
+      documentReference: false,
+    });
+    expect(result.riskValues).toEqual({
+      low: true,
+      MEDIUM: true,
+      High: true,
+      critical: false,
+      '"high"': false,
+    });
+    expect(result.verificationValues).toEqual({
+      analysis: true,
+      INSPECTION: true,
+      Test: true,
+      demonstration: true,
+      review: false,
+      '"test"': false,
+    });
+    expect(result.emptyValues).toEqual({
+      "requirement.id": false,
+      "requirement.text": false,
+      "element.type": false,
+      "element.docRef": false,
+    });
+    for (const relation of [
+      "contains",
+      "copies",
+      "derives",
+      "satisfies",
+      "verifies",
+      "refines",
+      "traces",
+    ]) {
+      expect(result.relations[relation].accepted, relation).toBe(true);
+      expect(result.relations[relation].labels).toEqual([`<<${relation}>>`]);
+    }
+    for (const [relation, normalized] of [
+      ["Contains", "contains"],
+      ["COPIES", "copies"],
+    ]) {
+      expect(result.relations[relation].accepted, relation).toBe(true);
+      expect(result.relations[relation].labels).toEqual([
+        `<<${normalized}>>`,
+      ]);
+    }
+    expect(result.relations.fulfills).toEqual({ accepted: false });
+    expect(result.relationSyntax["left - copies -> right"])
+      .toMatchObject({
+        accepted: true,
+        labels: ["<<copies>>"],
+      });
+    expect(result.relationSyntax["right <- copies - left"])
+      .toMatchObject({
+        accepted: true,
+        labels: ["<<copies>>"],
+      });
+    expect(result.relationSyntax["left <- copies -> right"])
+      .toEqual({ accepted: false });
+    expect(result.relationSyntax["left - copies - right"])
+      .toEqual({ accepted: false });
+    expect(result.directions).toEqual({
+      LR: true,
+      RL: true,
+      TB: true,
+      BT: true,
+    });
+  } finally {
+    await harness.close();
+  }
+});
+
+test("extracts pinned requirement compartments, fields, relations and terminals", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# Requirement fixture"] });
+  try {
+    await page.goto(harness.url);
+    const result = await sceneFromFixture(
+      page,
+      await readFixture("requirement-basic.svg"),
+      "requirement-basic.svg",
+    );
+    validateScene(result.scene);
+    expect(result.diagnostics).toEqual([]);
+    expect(JSON.parse(JSON.stringify(result.scene))).toEqual(result.scene);
+    expect(result.scene.nodes.map((node) => node.z))
+      .toEqual(Array.from({ length: 110 }, (_, index) => index));
+    expect(result.scene.nodes.filter((node) => node.kind === "group")).toHaveLength(15);
+    expect(result.scene.nodes.filter((node) => node.kind === "shape")).toHaveLength(18);
+    expect(result.scene.nodes.filter((node) => node.kind === "connector")).toHaveLength(37);
+    expect(result.scene.nodes.filter((node) => node.kind === "text")).toHaveLength(40);
+    expect(result.scene.nodes.filter((node) => node.kind === "fallback")).toEqual([]);
+
+    const relations = result.scene.nodes.filter((node) =>
+      node.meta?.mermaid?.kind === "requirement-relation");
+    expect(relations.map((node) => [
+      node.sourcePath,
+      node.meta.mermaid.marker,
+      node.style.dash,
+      node.style.lineCap,
+      node.points.length,
+      node.meta.mermaid.rawPointCount,
+    ])).toEqual([
+      ["relations[0].line", "contains", "solid", "butt", 4, 40],
+      ["relations[1].line", "arrow", "dash", "butt", 4, 43],
+      ["relations[2].line", "arrow", "dash", "butt", 2, 38],
+      ["relations[3].line", "arrow", "dash", "butt", 6, 80],
+      ["relations[4].line", "arrow", "dash", "butt", 5, 47],
+      ["relations[5].line", "arrow", "dash", "butt", 5, 49],
+      ["relations[6].line", "arrow", "dash", "butt", 6, 83],
+    ]);
+    const terminals = result.scene.nodes.filter((node) =>
+      node.meta?.mermaid?.kind === "requirement-terminal");
+    expect(terminals.map((node) => [
+      node.sourcePath,
+      node.kind,
+      node.meta.mermaid.marker,
+      node.meta.mermaid.placement,
+      node.meta.mermaid.component,
+      node.points?.length,
+    ])).toEqual([
+      ["relations[0].terminals.start[0]", "shape", "contains", "start", "circle", undefined],
+      ["relations[0].terminals.start[1]", "connector", "contains", "start", "horizontal", 2],
+      ["relations[0].terminals.start[2]", "connector", "contains", "start", "vertical", 2],
+      ...Array.from({ length: 6 }, (_, relation) => [
+        [`relations[${relation + 1}].terminals.end[0]`, "connector", "arrow", "end", "upper", 2],
+        [`relations[${relation + 1}].terminals.end[1]`, "connector", "arrow", "end", "lower", 2],
+      ]).flat(),
+    ]);
+    expect(terminals[0]).toMatchObject({
+      preset: "ellipse",
+      style: {
+        fill: null,
+        stroke: "rgb(51, 51, 51)",
+        strokeWidth: 0.6,
+        dash: "solid",
+      },
+    });
+    expect(terminals.slice(1).every((node) =>
+      node.style.fill === null &&
+      node.style.stroke === "rgb(51, 51, 51)" &&
+      node.style.lineCap === "butt" &&
+      node.arrowStart === "none" &&
+      node.arrowEnd === "none")).toBe(true);
+    for (const [relationIndex, relation] of relations.entries()) {
+      const owned = terminals.filter((terminal) =>
+        terminal.sourcePath.startsWith(`relations[${relationIndex}].`));
+      expect(owned.every((terminal) => terminal.z > relation.z)).toBe(true);
+    }
+
+    const boxes = result.scene.nodes.filter((node) =>
+      ["requirement-box", "element-box"].includes(node.meta?.mermaid?.kind));
+    expect(boxes).toHaveLength(10);
+    expect(boxes.map((node) => node.meta.mermaid.kind)).toEqual([
+      ...Array(7).fill("requirement-box"),
+      ...Array(3).fill("element-box"),
+    ]);
+    expect(boxes[0].style).toMatchObject({
+      fill: "rgb(219, 234, 254)",
+      stroke: "rgb(37, 99, 235)",
+      strokeWidth: 1.2,
+    });
+    const dividerParts = result.scene.nodes.filter((node) =>
+      node.kind === "connector" &&
+      node.meta?.mermaid?.kind === "requirement-divider");
+    expect(dividerParts).toHaveLength(16);
+    expect(new Set(dividerParts.map((node) =>
+      node.sourcePath.replace(/\.paths\[\d+\]$/, ""))).size).toBe(8);
+
+    const textOf = (node) => node.text.paragraphs
+      .map((paragraph) => paragraph.runs.map((run) => run.text).join(""))
+      .join("\n");
+    const requirementLabels = result.scene.nodes.filter((node) =>
+      node.meta?.mermaid?.kind === "requirement-label");
+    const elementLabels = result.scene.nodes.filter((node) =>
+      node.meta?.mermaid?.kind === "element-label");
+    expect(requirementLabels.map(textOf)).toEqual([
+      "<<Requirement>>", "root_req", "ID: REQ-001",
+      "Text: 顧客\nRoot\\nliteral",
+      "Risk: High", "Verification: Test",
+      "<<Requirement>>", "child_req", "ID: REQ-002", "Text: Child",
+      "Risk: Low", "Verification: Analysis",
+      "<<Requirement>>", "copy_req", "ID: REQ-003", "Text: Copy",
+      "<<Requirement>>", "derive_req", "ID: REQ-004", "Text: Derive",
+      "<<Requirement>>", "refine_req", "ID: REQ-005", "Text: Refine",
+      "<<Requirement>>", "trace_req", "ID: REQ-006", "Text: Trace",
+      "<<Requirement>>", "empty_req",
+    ]);
+    expect(requirementLabels.slice(0, 6).map((node) =>
+      node.meta.mermaid.role)).toEqual([
+      "type",
+      "name",
+      "id",
+      "text",
+      "risk",
+      "verification",
+    ]);
+    expect(requirementLabels.slice(0, 6).every((node) =>
+      node.text.paragraphs.every((paragraph) =>
+        paragraph.runs.every((run) =>
+          run.color === "rgb(16, 32, 48)")))).toBe(true);
+    expect(elementLabels.map(textOf)).toEqual([
+      "<<Element>>", "implementation", "Type: サービス\nService",
+      "Doc Ref: docs/要件\\nref",
+      "<<Element>>", "verifier", "Type: Test", "Doc Ref: tests/spec",
+      "<<Element>>", "empty_element",
+    ]);
+    expect(elementLabels.slice(0, 4).map((node) =>
+      node.meta.mermaid.role)).toEqual([
+      "type",
+      "name",
+      "element-type",
+      "document-reference",
+    ]);
+    expect(result.scene.nodes.filter((node) =>
+      node.meta?.mermaid?.kind === "edge-label").map(textOf)).toEqual([
+      "<<contains>>",
+      "<<copies>>",
+      "<<derives>>",
+      "<<satisfies>>",
+      "<<verifies>>",
+      "<<refines>>",
+      "<<traces>>",
+    ]);
+    expect(result.scene.nodes.some((node) =>
+      node.sourcePath.startsWith("requirements[6].dividers["))).toBe(false);
+    expect(result.scene.nodes.some((node) =>
+      node.sourcePath.startsWith("elements[2].dividers["))).toBe(false);
+
+    const geometry = await page.evaluate(async () => {
+      const { mermaidSvgToScene } = await import("./renderer/mermaid-scene.mjs");
+      const deck = document.querySelector("#fixture-deck");
+      const output = mermaidSvgToScene(deck.querySelector("svg"), {
+        deck,
+        includeSourceElements: true,
+      });
+      const deckRect = deck.getBoundingClientRect();
+      const round = (value) => Math.round(value * 10) / 10;
+      const relationErrors = output.scene.nodes
+        .filter((node) =>
+          node.meta?.mermaid?.kind === "requirement-relation")
+        .map((node) => {
+          const source = output.sourceElements.get(node.sourcePath);
+          const count = Math.max(
+            2,
+            Math.round(source.getTotalLength() / 4) + 1,
+          );
+          const samples = Array.from({ length: count }, (_, index) => {
+            const point = source.getPointAtLength(
+              source.getTotalLength() * index / (count - 1),
+            );
+            const screen = new DOMPoint(point.x, point.y)
+              .matrixTransform(source.getScreenCTM());
+            return {
+              x: round(screen.x - deckRect.left),
+              y: round(screen.y - deckRect.top),
+            };
+          });
+          const error = (point) => Math.min(
+            ...node.points.slice(1).map((end, index) => {
+              const start = node.points[index];
+              const dx = end.x - start.x;
+              const dy = end.y - start.y;
+              const denominator = dx * dx + dy * dy;
+              const t = denominator === 0 ? 0 : Math.max(0, Math.min(
+                1,
+                ((point.x - start.x) * dx +
+                  (point.y - start.y) * dy) / denominator,
+              ));
+              return Math.hypot(
+                point.x - start.x - t * dx,
+                point.y - start.y - t * dy,
+              );
+            }),
+          );
+          return {
+            sourcePath: node.sourcePath,
+            maxError: Math.max(...samples.map(error)),
+          };
+        });
+      const selected = [
+        "requirements[0].box",
+        "requirements[0].labels[3]",
+        "elements[0].box",
+        "elements[0].labels[3]",
+      ].map((sourcePath) => {
+        const node = output.scene.nodes.find((entry) =>
+          entry.sourcePath === sourcePath);
+        const source = output.sourceElements.get(sourcePath);
+        const rect = source.getBoundingClientRect();
+        return {
+          sourcePath,
+          bounds: node.bounds,
+          expected: {
+            x: round(rect.left - deckRect.left),
+            y: round(rect.top - deckRect.top),
+            width: round(rect.width),
+            height: round(rect.height),
+          },
+          ctm: Object.fromEntries(["a", "b", "c", "d"].map((key) => [
+            key,
+            round(source.getScreenCTM()[key]),
+          ])),
+        };
+      });
+      return {
+        relationErrors,
+        selected,
+        ownership: output.scene.nodes
+          .filter((node) =>
+            node.meta?.mermaid?.kind === "requirement-terminal")
+          .map((node) => {
+            const relationPath = node.sourcePath.split(".terminals.")[0];
+            return output.sourceElements.get(node.sourcePath) ===
+              output.sourceElements.get(relationPath);
+          }),
+        markers: [...deck.querySelectorAll("marker")].map((marker) => ({
+          id: marker.id.split("_requirement-").at(-1),
+          class: marker.getAttribute("class"),
+          markerUnits: marker.getAttribute("markerUnits"),
+          viewBox: marker.getAttribute("viewBox"),
+          preserveAspectRatio: marker.getAttribute("preserveAspectRatio"),
+          markerWidth: Number(marker.getAttribute("markerWidth")),
+          markerHeight: Number(marker.getAttribute("markerHeight")),
+          refX: Number(marker.getAttribute("refX")),
+          refY: Number(marker.getAttribute("refY")),
+          orient: marker.getAttribute("orient"),
+          overflow: getComputedStyle(marker).overflow,
+          children: [...marker.querySelectorAll("circle, line, path")]
+            .map((child) => ({
+              tag: child.localName,
+              geometry: Object.fromEntries(
+                ["cx", "cy", "r", "x1", "x2", "y1", "y2", "d"]
+                  .filter((name) => child.hasAttribute(name))
+                  .map((name) => [name, child.getAttribute(name)]),
+              ),
+              stroke: getComputedStyle(child).stroke,
+              strokeWidth: getComputedStyle(child).strokeWidth,
+              lineCap: getComputedStyle(child).strokeLinecap,
+              lineJoin: getComputedStyle(child).strokeLinejoin,
+            })),
+        })),
+        uniqueSourcePaths: new Set(output.scene.nodes.map((node) =>
+          node.sourcePath)).size,
+      };
+    });
+    for (const entry of geometry.relationErrors) {
+      expect(entry.maxError, entry.sourcePath).toBeLessThanOrEqual(2);
+    }
+    for (const entry of geometry.selected) {
+      expect(entry.bounds, entry.sourcePath).toEqual(entry.expected);
+      expect(entry.ctm).toEqual({
+        a: 0.6,
+        b: 0,
+        c: 0,
+        d: 0.6,
+      });
+    }
+    expect(geometry.ownership).toEqual(Array(15).fill(true));
+    expect(geometry.uniqueSourcePaths).toBe(result.scene.nodes.length);
+    expect(geometry.markers.map((marker) => [
+      marker.id,
+      marker.class,
+      marker.markerUnits,
+      marker.viewBox,
+      marker.preserveAspectRatio,
+      marker.markerWidth,
+      marker.markerHeight,
+      marker.refX,
+      marker.refY,
+      marker.orient,
+      marker.overflow,
+    ])).toEqual([
+      ["requirement_containsStart", null, null, null, null, 20, 20, 0, 10, "auto", "hidden"],
+      ["requirement_arrowEnd", null, null, null, null, 20, 20, 20, 10, "auto", "hidden"],
+    ]);
+    expect(geometry.markers[0].children.map((child) => [
+      child.tag,
+      child.geometry,
+    ])).toEqual([
+      ["circle", { cx: "10", cy: "10", r: "9" }],
+      ["line", { x1: "1", x2: "19", y1: "10", y2: "10" }],
+      ["line", { x1: "10", x2: "10", y1: "1", y2: "19" }],
+    ]);
+    expect(geometry.markers[1].children.map((child) => [
+      child.tag,
+      child.geometry,
+    ])).toEqual([[
+      "path",
+      { d: "M0,0\n      L20,10\n      M20,10\n      L0,20" },
+    ]]);
+    expect(geometry.markers.flatMap((marker) => marker.children)
+      .every((child) =>
+        child.stroke === "rgb(51, 51, 51)" &&
+        child.strokeWidth === "1px" &&
+        child.lineCap === "butt" &&
+        child.lineJoin === "miter")).toBe(true);
+
+    const mapped = sceneToPptxElements(result.scene);
+    expect(mapped.fallbacks).toEqual([]);
+    expect(mapped.elements.filter((element) => element.type === "shape"))
+      .toHaveLength(18);
+    expect(mapped.elements.filter((element) => element.type === "connector"))
+      .toHaveLength(37);
+    expect(mapped.elements.filter((element) => element.type === "text"))
+      .toHaveLength(40);
+    const buffer = buildPptxPackage({ slides: [{ elements: mapped.elements }] });
+    expect(inspectPptxPackage(buffer).valid).toBe(true);
+    const xml = buffer.toString("utf8");
+    const lineCount = mapped.elements
+      .filter((element) => element.type === "connector")
+      .reduce((sum, element) => sum + element.points.length - 1, 0);
+    expect((xml.match(/<a:prstGeom prst="line">/g) || []))
+      .toHaveLength(lineCount);
+    expect((xml.match(/<a:prstGeom prst="ellipse">/g) || []))
+      .toHaveLength(1);
+    expect(xml).not.toMatch(/<a:(?:headEnd|tailEnd)\b/);
+    expect(xml).toContain("顧客");
+    expect(xml).toContain("サービス");
+    expect(xml).toContain("&lt;&lt;contains&gt;&gt;");
+  } finally {
+    await harness.close();
+  }
+});
+
+test("preserves independent requirement paint alpha in native DrawingML", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# Requirement paint"] });
+  try {
+    await page.goto(harness.url);
+    await sceneFromFixture(
+      page,
+      await readFixture("requirement-basic.svg"),
+      "requirement-paint.svg",
+    );
+    const result = await updateFixture(page, () => {
+      const root = document.querySelector(
+        'g.node[id$="-root_req"]',
+      );
+      const [fill, stroke] = root.querySelectorAll(
+        ":scope > g.outer-path > path",
+      );
+      fill.style.setProperty("fill", "rgba(10, 20, 30, 0.5)", "important");
+      fill.style.fillOpacity = "0.6";
+      fill.style.opacity = "0.8";
+      stroke.style.setProperty(
+        "stroke",
+        "rgba(40, 50, 60, 0.5)",
+        "important",
+      );
+      stroke.style.strokeOpacity = "0.7";
+      stroke.style.opacity = "0.8";
+      const label = root.querySelectorAll(":scope > g.label")[3];
+      for (const part of [label, ...label.querySelectorAll("*")]) {
+        part.style.setProperty(
+          "color",
+          "rgba(70, 80, 90, 0.5)",
+          "important",
+        );
+      }
+      label.style.opacity = "0.75";
+
+      const relation = document.querySelectorAll(
+        "path.relationshipLine",
+      )[2];
+      relation.style.stroke = "rgba(12, 34, 56, 0.5)";
+      relation.style.strokeOpacity = "0.4";
+      const originalArrow = document.querySelector(
+        'marker[id$="_requirement-requirement_arrowEnd"]',
+      );
+      const arrow = originalArrow.cloneNode(true);
+      arrow.id = "fixture-paint_requirement-requirement_arrowEnd";
+      const arrowPath = arrow.querySelector("path");
+      arrowPath.style.setProperty(
+        "stroke",
+        "rgb(90, 80, 70)",
+        "important",
+      );
+      originalArrow.parentElement.append(arrow);
+      relation.setAttribute("marker-end", `url(#${arrow.id})`);
+
+      const circle = document.querySelector(
+        'marker[id$="_requirement-requirement_containsStart"] circle',
+      );
+      circle.style.setProperty(
+        "fill",
+        "rgba(20, 40, 60, 0.5)",
+        "important",
+      );
+      circle.style.setProperty(
+        "stroke",
+        "rgba(80, 100, 120, 0.5)",
+        "important",
+      );
+      circle.style.fillOpacity = "0.6";
+      circle.style.strokeOpacity = "0.8";
+      circle.style.opacity = "0.7";
+    });
+    expect(result.diagnostics).toEqual([]);
+    const fill = result.scene.nodes.find((node) =>
+      node.sourcePath === "requirements[0].box.paths[0]");
+    const stroke = result.scene.nodes.find((node) =>
+      node.sourcePath === "requirements[0].box.paths[1]");
+    expect(fill).toMatchObject({
+      kind: "shape",
+      style: {
+        fill: "rgba(10, 20, 30, 0.5)",
+        stroke: null,
+        opacity: 0.8,
+        fillOpacity: 0.6,
+      },
+    });
+    expect(stroke).toMatchObject({
+      kind: "shape",
+      style: {
+        fill: null,
+        stroke: "rgba(40, 50, 60, 0.5)",
+        opacity: 0.8,
+        strokeOpacity: 0.7,
+      },
+    });
+    const text = result.scene.nodes.find((node) =>
+      node.sourcePath === "requirements[0].labels[3]");
+    expect(text.text.paragraphs.flatMap((paragraph) =>
+      paragraph.runs).every((run) =>
+      run.color === "rgba(70, 80, 90, 0.5)" &&
+      run.opacity === 0.75)).toBe(true);
+
+    const relation = result.scene.nodes.find((node) =>
+      node.sourcePath === "relations[2].line");
+    expect(relation.style).toMatchObject({
+      stroke: "rgba(12, 34, 56, 0.5)",
+      strokeOpacity: 0.4,
+      dash: "dash",
+    });
+    const arrow = result.scene.nodes.filter((node) =>
+      node.sourcePath.startsWith("relations[2].terminals.end["));
+    expect(arrow).toHaveLength(2);
+    expect(arrow.every((node) =>
+      node.style.stroke === "rgb(90, 80, 70)")).toBe(true);
+    const circle = result.scene.nodes.find((node) =>
+      node.sourcePath === "relations[0].terminals.start[0]");
+    expect(circle.style).toMatchObject({
+      fill: "rgba(20, 40, 60, 0.5)",
+      stroke: "rgba(80, 100, 120, 0.5)",
+      opacity: 0.7,
+      fillOpacity: 0.6,
+      strokeOpacity: 0.8,
+    });
+
+    const mapped = sceneToPptxElements(result.scene);
+    expect(mapped.fallbacks).toEqual([]);
+    const packageBytes = buildPptxPackage({
+      slides: [{ elements: mapped.elements }],
+    });
+    expect(inspectPptxPackage(packageBytes).valid).toBe(true);
+    const xml = packageBytes.toString("utf8");
+    for (const alpha of [20000, 21000, 24000, 28000]) {
+      expect(xml).toContain(`<a:alpha val="${alpha}"/>`);
+    }
+    expect(xml).toContain("顧客");
+  } finally {
+    await harness.close();
+  }
+});
+
+test("keeps unsupported requirement details at the smallest safe fallback boundary", async ({ page }) => {
+  test.setTimeout(180_000);
+  const harness = await startHarness({ slides: ["# Requirement fallbacks"] });
+  try {
+    await page.goto(harness.url);
+    const fixture = await readFixture("requirement-basic.svg");
+    const cases = [
+      {
+        name: "computed box geometry",
+        mutate: () => {
+          document.querySelector(
+            'g.node[id$="-root_req"] > g.outer-path > path',
+          ).style.setProperty(
+            "d",
+            'path("M 0 0 L 20 0 L 10 10 Z")',
+            "important",
+          );
+        },
+        fallback: {
+          sourcePath: "requirements[0].box",
+          reason: "unsupported-mermaid-requirement-node-geometry",
+        },
+        boxCount: 9,
+        sourceTag: "g",
+      },
+      {
+        name: "decorated field label",
+        mutate: () => {
+          document.querySelectorAll(
+            'g.node[id$="-root_req"] > g.label',
+          )[3].insertAdjacentHTML(
+            "beforeend",
+            '<circle cx="4" cy="4" r="3" fill="red"/>',
+          );
+        },
+        fallback: {
+          sourcePath: "requirements[0].labels[3]",
+          reason: "unsupported-mermaid-requirement-text",
+        },
+        textCount: 39,
+        sourceTag: "g",
+      },
+      {
+        name: "divider geometry",
+        mutate: () => {
+          document.querySelector(
+            'g.node[id$="-root_req"] > g.divider > path',
+          ).setAttribute("d", "M0 0 L10 10");
+        },
+        fallback: {
+          sourcePath: "requirements[0].dividers[0]",
+          reason: "unsupported-mermaid-requirement-divider-geometry",
+        },
+        dividerCount: 14,
+        sourceTag: "path",
+      },
+      {
+        name: "divider nonuniform transform",
+        mutate: () => {
+          document.querySelector(
+            'g.node[id$="-root_req"] > g.divider > path',
+          ).setAttribute("transform", "scale(2,1)");
+        },
+        fallback: {
+          sourcePath: "requirements[0].dividers[0]",
+          reason: "unsupported-mermaid-requirement-divider-transform",
+        },
+        dividerCount: 14,
+        sourceTag: "path",
+      },
+      {
+        name: "node decoration",
+        mutate: () => {
+          document.querySelector(
+            'g.node[id$="-root_req"]',
+          ).insertAdjacentHTML(
+            "beforeend",
+            '<circle cx="0" cy="0" r="5" fill="red"/>',
+          );
+        },
+        fallback: {
+          sourcePath: "requirements[0].decorations[0]",
+          reason: "unsupported-mermaid-requirement-node-decoration",
+        },
+        sourceTag: "circle",
+      },
+      {
+        name: "node compositing",
+        mutate: () => {
+          document.querySelector(
+            'g.node[id$="-root_req"]',
+          ).style.opacity = "0.5";
+        },
+        fallback: {
+          sourcePath: "requirements[0]",
+          reason: "unsupported-mermaid-requirement-node-compositing",
+        },
+        relationCount: 7,
+        terminalCount: 15,
+        boxCount: 9,
+        dividerCount: 14,
+        textCount: 34,
+        sourceTag: "g",
+      },
+      {
+        name: "multiple relation subpaths",
+        mutate: () => {
+          const relation = document.querySelectorAll(
+            "path.relationshipLine",
+          )[1];
+          relation.setAttribute(
+            "d",
+            `${relation.getAttribute("d")} M0 0 L1 1`,
+          );
+        },
+        fallback: {
+          sourcePath: "relations[1]",
+          reason: "unsupported-mermaid-requirement-relation-path",
+        },
+        relationCount: 6,
+        terminalCount: 13,
+        sourceTag: "path",
+      },
+      {
+        name: "relation transform",
+        mutate: () => {
+          document.querySelectorAll("path.relationshipLine")[1]
+            .setAttribute("transform", "skewX(8)");
+        },
+        fallback: {
+          sourcePath: "relations[1]",
+          reason: "unsupported-mermaid-requirement-relation-transform",
+        },
+        relationCount: 6,
+        terminalCount: 13,
+        sourceTag: "path",
+      },
+      {
+        name: "relation effect",
+        mutate: () => {
+          document.querySelectorAll("path.relationshipLine")[1]
+            .style.filter = "blur(1px)";
+        },
+        fallback: {
+          sourcePath: "relations[1]",
+          reason: "unsupported-mermaid-requirement-relation-style",
+        },
+        relationCount: 6,
+        terminalCount: 13,
+        sourceTag: "path",
+      },
+      {
+        name: "relation stroke compositing",
+        mutate: () => {
+          document.querySelectorAll("path.relationshipLine")[1]
+            .style.stroke = "rgba(12, 34, 56, 0.5)";
+        },
+        fallback: {
+          sourcePath: "relations[1]",
+          reason: "unsupported-mermaid-requirement-relation-compositing",
+        },
+        relationCount: 6,
+        terminalCount: 13,
+        sourceTag: "path",
+      },
+      {
+        name: "terminal geometry",
+        mutate: () => {
+          const relation = document.querySelectorAll(
+            "path.relationshipLine",
+          )[1];
+          const original = document.querySelector(
+            'marker[id$="_requirement-requirement_arrowEnd"]',
+          );
+          const marker = original.cloneNode(true);
+          marker.id =
+            "fixture-local_requirement-requirement_arrowEnd";
+          marker.querySelector("path").setAttribute("d", "M0 0 L10 10");
+          original.parentElement.append(marker);
+          relation.setAttribute("marker-end", `url(#${marker.id})`);
+        },
+        fallback: {
+          sourcePath: "relations[1]",
+          reason: "unsupported-mermaid-requirement-terminal-geometry",
+        },
+        relationCount: 6,
+        terminalCount: 13,
+        sourceTag: "path",
+      },
+      {
+        name: "terminal effect",
+        mutate: () => {
+          const relation = document.querySelectorAll(
+            "path.relationshipLine",
+          )[1];
+          const original = document.querySelector(
+            'marker[id$="_requirement-requirement_arrowEnd"]',
+          );
+          const marker = original.cloneNode(true);
+          marker.id =
+            "fixture-effect_requirement-requirement_arrowEnd";
+          marker.style.filter = "blur(1px)";
+          original.parentElement.append(marker);
+          relation.setAttribute("marker-end", `url(#${marker.id})`);
+        },
+        fallback: {
+          sourcePath: "relations[1]",
+          reason: "unsupported-mermaid-requirement-terminal-style",
+        },
+        relationCount: 6,
+        terminalCount: 13,
+        sourceTag: "path",
+      },
+      {
+        name: "terminal compositing",
+        mutate: () => {
+          const relation = document.querySelectorAll(
+            "path.relationshipLine",
+          )[1];
+          const original = document.querySelector(
+            'marker[id$="_requirement-requirement_arrowEnd"]',
+          );
+          const marker = original.cloneNode(true);
+          marker.id =
+            "fixture-opacity_requirement-requirement_arrowEnd";
+          marker.style.opacity = "0.5";
+          original.parentElement.append(marker);
+          relation.setAttribute("marker-end", `url(#${marker.id})`);
+        },
+        fallback: {
+          sourcePath: "relations[1]",
+          reason: "unsupported-mermaid-requirement-terminal-compositing",
+        },
+        relationCount: 6,
+        terminalCount: 13,
+        sourceTag: "path",
+      },
+      {
+        name: "arrow stroke compositing",
+        mutate: () => {
+          const relation = document.querySelectorAll(
+            "path.relationshipLine",
+          )[1];
+          const original = document.querySelector(
+            'marker[id$="_requirement-requirement_arrowEnd"]',
+          );
+          const marker = original.cloneNode(true);
+          marker.id =
+            "fixture-stroke-alpha_requirement-requirement_arrowEnd";
+          marker.querySelector("path").style.setProperty(
+            "stroke",
+            "rgba(90, 80, 70, 0.5)",
+            "important",
+          );
+          original.parentElement.append(marker);
+          relation.setAttribute("marker-end", `url(#${marker.id})`);
+        },
+        fallback: {
+          sourcePath: "relations[1]",
+          reason: "unsupported-mermaid-requirement-terminal-compositing",
+        },
+        relationCount: 6,
+        terminalCount: 13,
+        sourceTag: "path",
+      },
+      {
+        name: "relation compositing",
+        mutate: () => {
+          document.querySelectorAll("path.relationshipLine")[1]
+            .style.opacity = "0.5";
+        },
+        fallback: {
+          sourcePath: "relations[1]",
+          reason: "unsupported-mermaid-requirement-terminal-compositing",
+        },
+        relationCount: 6,
+        terminalCount: 13,
+        sourceTag: "path",
+      },
+      {
+        name: "decorated relation label",
+        mutate: () => {
+          document.querySelectorAll("g.edgeLabel")[1]
+            .insertAdjacentHTML(
+              "beforeend",
+              '<circle cx="4" cy="4" r="3" fill="red"/>',
+            );
+        },
+        fallback: {
+          sourcePath: "edgeLabels[root_req-copy_req-0]",
+          reason: "unsupported-mermaid-requirement-relation-label",
+        },
+        edgeLabelCount: 6,
+        sourceTag: "g",
+      },
+      {
+        name: "relation label compositing",
+        mutate: () => {
+          document.querySelectorAll("g.edgeLabel")[1]
+            .style.opacity = "0.5";
+        },
+        fallback: {
+          sourcePath: "edgeLabels[root_req-copy_req-0]",
+          reason: "unsupported-mermaid-requirement-relation-label",
+        },
+        edgeLabelCount: 6,
+        sourceTag: "g",
+      },
+    ];
+    for (const entry of cases) {
+      await sceneFromFixture(
+        page,
+        fixture,
+        `requirement-${entry.name}.svg`,
+      );
+      const result = await updateFixture(page, entry.mutate);
+      expect(result.scene.nodes.filter((node) => node.kind === "fallback"),
+        entry.name).toMatchObject([entry.fallback]);
+      expect(result.scene.nodes.filter((node) =>
+        node.meta?.mermaid?.kind === "requirement-relation"),
+      entry.name).toHaveLength(entry.relationCount ?? 7);
+      expect(result.scene.nodes.filter((node) =>
+        node.meta?.mermaid?.kind === "requirement-terminal"),
+      entry.name).toHaveLength(entry.terminalCount ?? 15);
+      expect(result.scene.nodes.filter((node) =>
+        ["requirement-box", "element-box"].includes(
+          node.meta?.mermaid?.kind,
+        )),
+      entry.name).toHaveLength(entry.boxCount ?? 10);
+      expect(result.scene.nodes.filter((node) =>
+        node.kind === "connector" &&
+        node.meta?.mermaid?.kind === "requirement-divider"),
+      entry.name).toHaveLength(entry.dividerCount ?? 16);
+      expect(result.scene.nodes.filter((node) => node.kind === "text"),
+        entry.name).toHaveLength(entry.textCount ?? 40);
+      expect(result.scene.nodes.filter((node) =>
+        node.meta?.mermaid?.kind === "edge-label"),
+      entry.name).toHaveLength(entry.edgeLabelCount ?? 7);
+      if (entry.fallback.sourcePath.startsWith("relations[")) {
+        const fallback = result.scene.nodes.find((node) =>
+          node.kind === "fallback");
+        const labels = result.scene.nodes.filter((node) =>
+          node.meta?.mermaid?.kind === "edge-label");
+        expect(labels.every((label) => label.z > fallback.z), entry.name)
+          .toBe(true);
+      }
+      expect(result.sources.find((source) =>
+        source.path === entry.fallback.sourcePath),
+      entry.name).toMatchObject({ tag: entry.sourceTag });
+      expect(sceneToPptxElements(result.scene).fallbacks.map((fallback) => ({
+        sourcePath: fallback.sourcePath,
+        reason: fallback.reason,
+      })), entry.name).toEqual([entry.fallback]);
+    }
+  } finally {
+    await harness.close();
+  }
+});
+
+test("rejects malformed and excessive requirement structures explicitly", async ({ page }) => {
+  test.setTimeout(180_000);
+  const harness = await startHarness({ slides: ["# Requirement limits"] });
+  try {
+    await page.goto(harness.url);
+    const fixture = await readFixture("requirement-basic.svg");
+
+    for (const mutate of [
+      () => {
+        document.querySelector("svg").setAttribute(
+          "aria-roledescription",
+          "error",
+        );
+      },
+      () => {
+        document.querySelector("svg").setAttribute("class", "flowchart");
+      },
+      () => {
+        const svg = document.querySelector("svg");
+        svg.setAttribute("aria-roledescription", "requirement");
+        svg.setAttribute("class", "erDiagram");
+      },
+    ]) {
+      await sceneFromFixture(page, fixture, "requirement-wrong-route.svg");
+      const routed = await updateFixture(page, mutate);
+      expect(routed.scene.nodes).toMatchObject([{
+        kind: "fallback",
+        sourcePath: "svg",
+        reason: "unsupported-mermaid-svg-structure",
+      }]);
+      expect(routed.scene.nodes.some((node) =>
+        node.meta?.mermaid?.kind?.startsWith("requirement"))).toBe(false);
+    }
+
+    await sceneFromFixture(page, fixture, "requirement-malformed-root.svg");
+    const malformed = await updateFixture(page, () => {
+      const root = document.querySelector("g.root");
+      root.append(root.querySelector(":scope > g.edgePaths").cloneNode(true));
+    });
+    expect(malformed.scene.nodes).toMatchObject([{
+      kind: "fallback",
+      sourcePath: "svg",
+      reason: "unsupported-mermaid-requirement-structure",
+    }]);
+
+    await sceneFromFixture(page, fixture, "requirement-depth.svg");
+    const depth = await updateFixture(page, () => {
+      let root = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "g",
+      );
+      root.setAttribute("class", "label");
+      document.querySelector("g.root").append(root);
+      for (let index = 0; index < 17; index += 1) {
+        const child = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "g",
+        );
+        child.setAttribute("class", "label");
+        root.append(child);
+        root = child;
+      }
+      root.insertAdjacentHTML(
+        "beforeend",
+        '<circle cx="20" cy="20" r="5" fill="red"/>',
+      );
+    });
+    expect(depth.scene.nodes.filter((node) =>
+      node.reason === "unsupported-mermaid-requirement-depth"))
+      .toHaveLength(1);
+    expect(depth.scene.nodes.filter((node) =>
+      node.meta?.mermaid?.kind === "requirement-relation"))
+      .toHaveLength(7);
+    expect(depth.scene.nodes.filter((node) =>
+      node.meta?.mermaid?.kind === "requirement-box"))
+      .toHaveLength(7);
+
+    await sceneFromFixture(page, fixture, "requirement-text-limit.svg");
+    const textLimit = await updateFixture(page, () => {
+      document.querySelectorAll(
+        'g.node[id$="-root_req"] > g.label p',
+      )[3].innerHTML = Array.from(
+        { length: 201 },
+        (_, index) => `line-${index}`,
+      ).join("<br>");
+    });
+    expect(textLimit.scene.nodes).toMatchObject([{
+      kind: "fallback",
+      sourcePath: "svg",
+      reason: expect.stringContaining("mermaid-scene-limit-exceeded"),
+    }]);
+
+    await sceneFromFixture(page, fixture, "requirement-element-limit.svg");
+    const elementLimit = await updateFixture(page, () => {
+      document.querySelector("svg").insertAdjacentHTML(
+        "beforeend",
+        "<desc></desc>".repeat(40001),
+      );
+    });
+    expect(elementLimit.scene.nodes).toMatchObject([{
+      kind: "fallback",
+      sourcePath: "svg",
+      reason: "mermaid-scene-limit-exceeded: SVG element count",
+    }]);
+  } finally {
+    await harness.close();
+  }
+});
+
 test("extracts pinned basic state geometry, labels, routes, alpha and exact pseudo-states", async ({ page }) => {
   const harness = await startHarness({ slides: ["# State fixture"] });
   try {
@@ -5044,6 +6349,212 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
         .toHaveLength(4);
       expect(packageXml).not.toMatch(/<a:(?:headEnd|tailEnd)\b/);
       expect(packageXml).toContain('cap="flat"');
+    } finally {
+      await harness.close();
+    }
+  });
+}
+
+for (const theme of ["dark", "light", "microsoft", "custom"]) {
+  test(`real renderer exports requirement aliases, masks and local fallbacks (${theme})`, async ({ page }) => {
+    const diagram = await readFixture("requirement-basic.mmd");
+    const fallbackDiagram = diagram.replace(
+      '{"handDrawnSeed": 42}',
+      JSON.stringify({
+        handDrawnSeed: 42,
+        themeCSS:
+          ".highlighted .divider{" +
+          "filter:drop-shadow(30px 20px 10px red)} " +
+          ".edgePaths path:nth-child(2){opacity:.5}",
+      }),
+    );
+    const harness = await startHarness({
+      slides: [
+        `# Requirement\n\n\`\`\`mermaid\n${diagram}\n\`\`\``,
+        `# Requirement lowercase\n\n\`\`\`mermaid\n${diagram.replace(
+          /^requirementDiagram$/m,
+          "requirementdiagram",
+        )}\n\`\`\``,
+        `# Requirement local fallback\n\n\`\`\`mermaid\n${fallbackDiagram}\n\`\`\``,
+      ],
+      theme,
+      customThemeCss: theme === "custom"
+        ? "--bg:#102030;--fg:#fefefe;--body:#e0e4e8;--accent:#ff6600;--surface:#203040;--border:#405060;"
+        : "",
+    });
+    try {
+      await page.goto(
+        `${harness.url}/?pptx=1&token=${encodeURIComponent(
+          harness.printToken,
+        )}`,
+      );
+      await page.waitForFunction(() =>
+        document.documentElement.hasAttribute("data-pptx-ready") ||
+        document.documentElement.hasAttribute("data-pptx-error"),
+      undefined, { timeout: 120_000 });
+      await expect(page.locator("html"))
+        .toHaveAttribute("data-pptx-ready", "true");
+      await expect(page.locator(
+        "pre.mermaid > svg[data-scene-backend=svg]",
+      )).toHaveCount(3);
+      const model = await page.evaluate(() => window.__presentationPptxModel);
+      const native = model.slides[0].elements.filter((element) =>
+        element.path?.startsWith("mermaid[0]."));
+      const lowercase = model.slides[1].elements.filter((element) =>
+        element.path?.startsWith("mermaid[0]."));
+      expect(lowercase).toEqual(native);
+      for (const elements of [native, lowercase]) {
+        expect(elements.filter((element) => element.type === "shape"))
+          .toHaveLength(18);
+        expect(elements.filter((element) => element.type === "connector"))
+          .toHaveLength(37);
+        expect(elements.filter((element) => element.type === "text"))
+          .toHaveLength(40);
+        expect(elements.filter((element) =>
+          element.mermaid?.kind === "requirement-relation"))
+          .toHaveLength(7);
+        expect(elements.filter((element) =>
+          element.mermaid?.kind === "requirement-terminal"))
+          .toHaveLength(15);
+        expect(elements.filter((element) =>
+          element.mermaid?.kind === "edge-label"))
+          .toHaveLength(7);
+      }
+      expect(model.slides.slice(0, 2).flatMap((slide) =>
+        slide.fallbacks.filter((entry) => entry.type === "mermaid")))
+        .toEqual([]);
+
+      const fallback = model.slides[2];
+      const mermaidFallbacks = fallback.fallbacks.filter((entry) =>
+        entry.type === "mermaid");
+      expect(mermaidFallbacks.map((entry) => ({
+        sourcePath: entry.sourcePath,
+        reason: entry.reason,
+        captureId: entry.captureId,
+      }))).toEqual([
+        {
+          sourcePath: "relations[1]",
+          reason: "unsupported-mermaid-requirement-terminal-compositing",
+          captureId: expect.any(String),
+        },
+        {
+          sourcePath: "requirements[0].dividers[0]",
+          reason: "unsupported-mermaid-requirement-divider-style",
+          captureId: expect.any(String),
+        },
+      ]);
+      const dividerFallback = mermaidFallbacks.find((entry) =>
+        entry.sourcePath === "requirements[0].dividers[0]");
+      expect(dividerFallback.width).toBeGreaterThan(200);
+      expect(dividerFallback.height).toBeGreaterThan(100);
+      expect(fallback.elements.filter((element) =>
+        element.mermaid?.kind === "requirement-relation"))
+        .toHaveLength(6);
+      expect(fallback.elements.filter((element) =>
+        element.mermaid?.kind === "requirement-terminal"))
+        .toHaveLength(13);
+      expect(fallback.elements.filter((element) =>
+        element.mermaid?.kind === "requirement-divider" &&
+        element.type === "connector")).toHaveLength(14);
+      expect(fallback.elements.filter((element) =>
+        element.mermaid?.kind === "edge-label")).toHaveLength(7);
+
+      const basicSvg = page.locator("pre.mermaid > svg").nth(0);
+      const lowercaseSvg = page.locator("pre.mermaid > svg").nth(1);
+      const fallbackSvg = page.locator("pre.mermaid > svg").nth(2);
+      for (const svg of [basicSvg, lowercaseSvg, fallbackSvg]) {
+        await expect(svg).toHaveAttribute(
+          "aria-roledescription",
+          "requirement",
+        );
+        await expect(svg).toHaveClass(/requirementDiagram/);
+      }
+      for (const svg of [basicSvg, lowercaseSvg]) {
+        await expect(svg.locator(
+          "g.nodes > g.node > g.outer-path[data-pptx-native=shape]",
+        )).toHaveCount(10);
+        await expect(svg.locator(
+          "g.nodes > g.node > g.label[data-pptx-native=text]",
+        )).toHaveCount(40);
+        await expect(svg.locator(
+          "g.nodes > g.node > g.divider > path[data-pptx-native=connector]",
+        )).toHaveCount(8);
+        await expect(svg.locator(
+          "path.relationshipLine[data-pptx-native=connector]",
+        )).toHaveCount(7);
+        await expect(svg.locator(
+          "g.edgeLabel[data-pptx-native=shape]",
+        )).toHaveCount(7);
+        await expect(svg.locator("[data-pptx-fallback-ids]"))
+          .toHaveCount(0);
+      }
+      const masks = await basicSvg.evaluate((svg) => ({
+        boxes: [...svg.querySelectorAll(
+          "g.outer-path[data-pptx-native] > path",
+        )].map((path) => {
+          const style = getComputedStyle(path);
+          return [style.fill, style.stroke];
+        }),
+        labels: [...svg.querySelectorAll(
+          "g.node > g.label[data-pptx-native] span.nodeLabel",
+        )].map((label) => getComputedStyle(label).color),
+        dividers: [...svg.querySelectorAll(
+          "g.divider > path[data-pptx-native]",
+        )].map((path) => getComputedStyle(path).stroke),
+        relations: [...svg.querySelectorAll(
+          "path.relationshipLine[data-pptx-native]",
+        )].map((path) => {
+          const style = getComputedStyle(path);
+          return [style.stroke, style.markerStart, style.markerEnd];
+        }),
+        relationLabels: [...svg.querySelectorAll(
+          "g.edgeLabel[data-pptx-native] span.edgeLabel",
+        )].map((label) => getComputedStyle(label).color),
+      }));
+      expect(masks.boxes).toEqual(Array(20).fill([
+        "rgba(0, 0, 0, 0)",
+        "rgba(0, 0, 0, 0)",
+      ]));
+      expect(masks.labels).toEqual(Array(40).fill("rgba(0, 0, 0, 0)"));
+      expect(masks.dividers).toEqual(Array(8).fill("rgba(0, 0, 0, 0)"));
+      expect(masks.relations).toEqual(Array(7).fill([
+        "rgba(0, 0, 0, 0)",
+        "none",
+        "none",
+      ]));
+      expect(masks.relationLabels)
+        .toEqual(Array(7).fill("rgba(0, 0, 0, 0)"));
+
+      await expect(fallbackSvg.locator(
+        'g.node[id$="-root_req"] > g.divider[data-pptx-fallback-ids]',
+      )).toHaveCount(1);
+      await expect(fallbackSvg.locator(
+        'g.node[id$="-root_req"] > g.divider[data-pptx-native], ' +
+        'g.node[id$="-root_req"] > g.divider > path[data-pptx-native]',
+      )).toHaveCount(0);
+      await expect(fallbackSvg.locator(
+        'path.relationshipLine[data-id="root_req-copy_req-0"][data-pptx-fallback-ids]',
+      )).toHaveCount(1);
+      await expect(fallbackSvg.locator(
+        'path.relationshipLine[data-id="root_req-copy_req-0"][data-pptx-native]',
+      )).toHaveCount(0);
+      await expect(fallbackSvg.locator(
+        "path.relationshipLine[data-pptx-native=connector]",
+      )).toHaveCount(6);
+      await expect(fallbackSvg.locator(
+        "g.edgeLabel[data-pptx-native=shape]",
+      )).toHaveCount(7);
+      expect(await fallbackSvg.getAttribute("data-pptx-fallback-ids"))
+        .toBeNull();
+
+      const packageBytes = buildPptxPackage({
+        slides: [{ elements: native }],
+      });
+      expect(inspectPptxPackage(packageBytes).valid).toBe(true);
+      const packageXml = packageBytes.toString("utf8");
+      expect((packageXml.match(/<a:prstGeom prst="ellipse">/g) || []))
+        .toHaveLength(1);
+      expect(packageXml).not.toMatch(/<a:(?:headEnd|tailEnd)\b/);
     } finally {
       await harness.close();
     }

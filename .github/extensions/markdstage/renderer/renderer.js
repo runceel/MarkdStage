@@ -2097,10 +2097,17 @@ function collectMermaidObjects(element, deck, blockIndex) {
       mermaidElementForSourcePath(svg, sourcePath) ||
       mermaidFallbackElementForBounds(svg, deck, fallback) ||
       svg;
-    const sourceBounds = source.getBoundingClientRect();
-    const padding = ["path", "line", "polyline"].includes(source.localName)
-      ? Math.max(1, (fallback.width - sourceBounds.width) / 2, (fallback.height - sourceBounds.height) / 2)
-      : 0;
+    const sourceBounds = fallbackBounds(source, deck, 0, true);
+    const inferredPadding = Math.max(
+      0,
+      (fallback.width - sourceBounds.width) / 2,
+      (fallback.height - sourceBounds.height) / 2,
+    );
+    const geometryPadding = ["path", "line", "polyline"].includes(source.localName)
+      ? Math.max(1, inferredPadding)
+      : inferredPadding;
+    const effectPadding = subtreeEffectPaintPadding(source);
+    const padding = Math.max(geometryPadding, effectPadding);
     const captured = pptxFallback("mermaid", source, deck, fallback.reason, {
       captureElement: source,
       includeDescendants: true,
@@ -2112,10 +2119,14 @@ function collectMermaidObjects(element, deck, blockIndex) {
       path: fallback.path,
       sourcePath,
       reason: fallback.reason,
-      x: fallback.x,
-      y: fallback.y,
-      width: fallback.width,
-      height: fallback.height,
+      ...(effectPadding
+        ? {}
+        : {
+            x: fallback.x,
+            y: fallback.y,
+            width: fallback.width,
+            height: fallback.height,
+          }),
       zOrder: fallback.zOrder,
       ...(node?.id ? { id: node.id } : {}),
       ...(fallback.artwork === false ? { artwork: false } : {}),

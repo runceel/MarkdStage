@@ -109,6 +109,11 @@ export function classifyMermaidDiagramRoute(diagramType, svgClass = "", hasRoot 
   if (diagramType === "er") {
     return hasRoot && classes.includes("erDiagram") ? "er" : null;
   }
+  if (diagramType === "requirement") {
+    return hasRoot && classes.includes("requirementDiagram")
+      ? "requirement"
+      : null;
+  }
   if (diagramType === "packet") return "packet";
   if (diagramType === "treeView") return "treeView";
   if (diagramType === "stateDiagram") {
@@ -1727,6 +1732,10 @@ function hasAncestorInSet(element, set) {
 
 function readEdgeLabels(root, deck, options, consumed, config = {}) {
   const labels = new Map();
+  const fallbackReason = nonEmptyStringOr(
+    config.fallbackReason,
+    "unsupported-mermaid-edge-label",
+  );
   const selector = config.recursive
     ? "g.edgeLabels > g.edgeLabel, g.edgeLabels > g.edgeTerminals"
     : ":scope > g.edgeLabels > g.edgeLabel, :scope > g.edgeLabels > g.edgeTerminals";
@@ -1749,7 +1758,7 @@ function readEdgeLabels(root, deck, options, consumed, config = {}) {
         (terminal && (group.querySelectorAll("span.edgeLabel, text").length > 1 || extra.textContent.trim())) ||
         unsupportedVisualEffect(group)) {
       labels.set(key, { fallback: fallbackNode(group, 0, deck,
-        "unsupported-mermaid-edge-label", sourcePath) });
+        fallbackReason, sourcePath) });
       continue;
     }
     const label = labelInfo(group, "span.edgeLabel, text", deck, options);
@@ -1763,9 +1772,18 @@ function readEdgeLabels(root, deck, options, consumed, config = {}) {
         ? computedSvgStyle(background, options)
         : null;
       const opacity = background ? effectiveOpacity(background) : 1;
-      if (label.unsupportedTransform || (label.rotation !== undefined && fill)) {
+      const compositeOpacity = fill && [
+        group,
+        ...group.querySelectorAll("*"),
+      ].some((part) =>
+        localOpacity(part) < 1 &&
+        part.contains(background) &&
+        part.contains(label.element));
+      if (label.unsupportedTransform ||
+          compositeOpacity ||
+          (label.rotation !== undefined && fill)) {
         labels.set(key, { fallback: fallbackNode(group, 0, deck,
-          "unsupported-mermaid-edge-label", sourcePath) });
+          fallbackReason, sourcePath) });
         continue;
       }
       if (label.rotation !== undefined) options.sourceElements?.set(sourcePath, label.element);
@@ -1782,7 +1800,7 @@ function readEdgeLabels(root, deck, options, consumed, config = {}) {
         }),
       });
     } else if (group.textContent.trim() || [...group.querySelectorAll("rect, path, image, use")].some(isVisibleUnknown)) {
-      labels.set(key, { fallback: fallbackNode(group, 0, deck, "unsupported-mermaid-edge-label", sourcePath) });
+      labels.set(key, { fallback: fallbackNode(group, 0, deck, fallbackReason, sourcePath) });
     }
   }
   return labels;
@@ -2472,7 +2490,7 @@ function sequenceScene(svg, deck, size, options) {
 }
 
 function isRectanglePath(path) {
-  const d = path?.getAttribute("d") || "";
+  const d = path ? renderedPathData(path) : "";
   if (d.replace(/[-+]?(?:\d*\.?\d+)(?:e[-+]?\d+)?|[\s,]/gi, "") !== "MLLL") return false;
   const values = d.match(/[-+]?(?:\d*\.?\d+)(?:e[-+]?\d+)?/gi)?.map(Number) || [];
   return values.length === 8 && values[0] === values[6] && values[2] === values[4] &&
@@ -3473,6 +3491,86 @@ function exactErPath(primitive, commands, numbers) {
     exactPathGeometry(primitive.d, commands, numbers);
 }
 
+function exactLineGeometry(primitive, x1, y1, x2, y2) {
+  return primitive?.tag === "line" &&
+    primitive.x1 === x1 &&
+    primitive.y1 === y1 &&
+    primitive.x2 === x2 &&
+    primitive.y2 === y2;
+}
+
+export function knownRequirementMarkerGeometry(id, primitives) {
+  const match = /(?:^|[-_])requirement_(containsStart|arrowEnd)$/
+    .exec(markerReferenceId(id));
+  if (!match || !Array.isArray(primitives)) return null;
+  if (match[1] === "containsStart") {
+    const group = primitives[0];
+    const children = group?.tag === "g" ? group.children : null;
+    if (primitives.length !== 1 ||
+        !Array.isArray(children) ||
+        children.length !== 3 ||
+        !exactCircleGeometry(children[0], 10, 10, 9) ||
+        !exactLineGeometry(children[1], 1, 10, 19, 10) ||
+        !exactLineGeometry(children[2], 10, 1, 10, 19)) return null;
+    return {
+      markerClass: "contains",
+      placement: "start",
+      markerWidth: 20,
+      markerHeight: 20,
+      refX: 0,
+      refY: 10,
+      parts: [
+        {
+          kind: "circle",
+          component: "circle",
+          primitive: [0, 0],
+          cx: 10,
+          cy: 10,
+          radius: 9,
+        },
+        {
+          kind: "polyline",
+          component: "horizontal",
+          primitive: [0, 1],
+          points: [{ x: 1, y: 10 }, { x: 19, y: 10 }],
+        },
+        {
+          kind: "polyline",
+          component: "vertical",
+          primitive: [0, 2],
+          points: [{ x: 10, y: 1 }, { x: 10, y: 19 }],
+        },
+      ],
+    };
+  }
+  if (primitives.length !== 1 ||
+      !exactErPath(primitives[0], "MLML", [0, 0, 20, 10, 20, 10, 0, 20])) {
+    return null;
+  }
+  return {
+    markerClass: "arrow",
+    placement: "end",
+    markerWidth: 20,
+    markerHeight: 20,
+    refX: 20,
+    refY: 10,
+    parts: [
+      {
+        kind: "polyline",
+        component: "upper",
+        primitive: [0],
+        points: [{ x: 0, y: 0 }, { x: 20, y: 10 }],
+      },
+      {
+        kind: "polyline",
+        component: "lower",
+        primitive: [0],
+        points: [{ x: 20, y: 10 }, { x: 0, y: 20 }],
+      },
+    ],
+  };
+}
+
 export function knownErMarkerGeometry(id, primitives) {
   const match = /(?:^|_)er-(onlyOne|zeroOrOne|oneOrMore|zeroOrMore)(Start|End)$/
     .exec(markerReferenceId(id));
@@ -3604,6 +3702,51 @@ function erMarkerPrimitive(element) {
     return metrics.every(Number.isFinite)
       ? { tag: "circle", cx: metrics[0], cy: metrics[1], r: metrics[2] }
       : { tag: "circle" };
+  }
+  return { tag: localName(element) };
+}
+
+function computedMarkerGeometry(element, names) {
+  const style = getComputedStyle(element);
+  const values = names.map((name) => {
+    const used = style.getPropertyValue(name).trim();
+    const match = /^([-+]?(?:\d*\.?\d+)(?:e[-+]?\d+)?)(?:px)?$/i.exec(used);
+    if (match) return Number(match[1]);
+    const attribute = element.getAttribute(name);
+    return attribute !== null && Number.isFinite(Number(attribute))
+      ? Number(attribute)
+      : NaN;
+  });
+  return values.every(Number.isFinite) ? values : null;
+}
+
+function requirementMarkerPrimitive(element) {
+  if (localName(element) === "g") {
+    return {
+      tag: "g",
+      children: directChildren(element).map(requirementMarkerPrimitive),
+    };
+  }
+  if (localName(element) === "path") {
+    return { tag: "path", d: renderedPathData(element) };
+  }
+  if (localName(element) === "circle") {
+    const values = computedMarkerGeometry(element, ["cx", "cy", "r"]);
+    return values
+      ? { tag: "circle", cx: values[0], cy: values[1], r: values[2] }
+      : { tag: "circle" };
+  }
+  if (localName(element) === "line") {
+    const values = computedMarkerGeometry(element, ["x1", "y1", "x2", "y2"]);
+    return values
+      ? {
+          tag: "line",
+          x1: values[0],
+          y1: values[1],
+          x2: values[2],
+          y2: values[3],
+        }
+      : { tag: "line" };
   }
   return { tag: localName(element) };
 }
@@ -4449,6 +4592,833 @@ function erScene(svg, root, deck, size, options) {
   return diagramScene(svg, size, options, nodes);
 }
 
+function markerElementAt(root, path) {
+  let current = root;
+  for (const index of path) {
+    current = directChildren(current)[index];
+    if (!current) return null;
+  }
+  return current;
+}
+
+function hasUnsafeCompositeOpacity(element) {
+  return [element, ...element.querySelectorAll("g, marker")].some((part) =>
+    localOpacity(part) < 1 &&
+    part.querySelectorAll([...VISUAL_TAGS].join(",")).length > 1);
+}
+
+function requirementTerminalParts(
+  value,
+  relation,
+  placement,
+  sourcePath,
+  deck,
+  options,
+) {
+  const id = markerReferenceId(value);
+  const marker = relation.ownerSVGElement.querySelector(`#${CSS.escape(id)}`);
+  const children = marker ? directChildren(marker) : [];
+  const geometry = knownRequirementMarkerGeometry(
+    id,
+    children.map(requirementMarkerPrimitive),
+  );
+  if (localName(marker) !== "marker" ||
+      !geometry ||
+      geometry.placement !== placement) {
+    return { reason: "unsupported-mermaid-requirement-terminal-geometry" };
+  }
+  if ((marker.getAttribute("markerUnits") || "strokeWidth") !== "strokeWidth" ||
+      marker.hasAttribute("viewBox") ||
+      marker.hasAttribute("preserveAspectRatio") ||
+      marker.getAttribute("orient") !== "auto") {
+    return { reason: "unsupported-mermaid-requirement-terminal-geometry" };
+  }
+  const markerMetrics = numericAttributes(
+    marker,
+    ["markerWidth", "markerHeight", "refX", "refY"],
+  );
+  if (!markerMetrics ||
+      ![
+        geometry.markerWidth,
+        geometry.markerHeight,
+        geometry.refX,
+        geometry.refY,
+      ].every((expected, index) => sameMetric(markerMetrics[index], expected)) ||
+      getComputedStyle(marker).overflow !== "hidden") {
+    return { reason: "unsupported-mermaid-requirement-terminal-geometry" };
+  }
+  const markerParts = [
+    marker,
+    ...children,
+    ...children.flatMap((child) => directChildren(child)),
+  ];
+  if (hasUnsafeCompositeOpacity(marker)) {
+    return { reason: "unsupported-mermaid-requirement-terminal-compositing" };
+  }
+  if (unsupportedVisualEffect(marker) ||
+      markerParts.some((part) => !visibleSvgPart(part))) {
+    return { reason: "unsupported-mermaid-requirement-terminal-style" };
+  }
+  if (localOpacity(marker) !== 1) {
+    return { reason: "unsupported-mermaid-requirement-terminal-compositing" };
+  }
+  const relationStyle = getComputedStyle(relation);
+  const relationMatrix = relation.getScreenCTM();
+  const relationScale = elementScale(relation);
+  const unitScale = parseMetric(relationStyle.strokeWidth);
+  if (!relationMatrix ||
+      Math.abs(relationMatrix.a - relationMatrix.d) > 0.001 ||
+      Math.abs(relationMatrix.b) > 0.001 ||
+      Math.abs(relationMatrix.c) > 0.001 ||
+      !(relationMatrix.a > 0) ||
+      !(unitScale > 0)) {
+    return { reason: "unsupported-mermaid-requirement-terminal-transform" };
+  }
+  if (effectiveOpacity(relation) !== 1) {
+    return { reason: "unsupported-mermaid-requirement-terminal-compositing" };
+  }
+  const endpoints = markerEndpointTangents(renderedPathData(relation));
+  const endpoint = endpoints?.[placement];
+  if (!endpoint) {
+    return { reason: "unsupported-mermaid-requirement-terminal-geometry" };
+  }
+  const angle = Math.atan2(endpoint.direction.y, endpoint.direction.x);
+  const cosine = Math.cos(angle);
+  const sine = Math.sin(angle);
+  const transformPoint = (point) => {
+    const x = (point.x - geometry.refX) * unitScale;
+    const y = (point.y - geometry.refY) * unitScale;
+    return screenPoint(relation, {
+      x: endpoint.point.x + cosine * x - sine * y,
+      y: endpoint.point.y + sine * x + cosine * y,
+    }, deck);
+  };
+  const nodes = [];
+  for (const [partIndex, part] of geometry.parts.entries()) {
+    const primitive = markerElementAt(marker, part.primitive);
+    if (part.kind === "circle") {
+      if (localName(primitive) !== "circle" ||
+          unsupportedVisualEffect(primitive)) {
+        return { reason: "unsupported-mermaid-requirement-terminal-style" };
+      }
+      const primitiveStyle = getComputedStyle(primitive);
+      const fill = normalizeColor(primitiveStyle.fill, options.resolveColor);
+      const stroke = normalizeColor(primitiveStyle.stroke, options.resolveColor);
+      const strokeWidth = parseMetric(primitiveStyle.strokeWidth);
+      if (!stroke ||
+          !cssColorParts(primitiveStyle.stroke) ||
+          !(strokeWidth > 0) ||
+          (fill && !cssColorParts(primitiveStyle.fill)) ||
+          !solidMarkerDash(primitiveStyle.strokeDasharray) ||
+          parseMetric(primitiveStyle.strokeDashoffset) !== 0) {
+        return { reason: "unsupported-mermaid-requirement-terminal-style" };
+      }
+      const center = transformPoint({ x: part.cx, y: part.cy });
+      const radius = part.radius * unitScale * relationScale;
+      if (!(radius > 0) || !Number.isFinite(radius)) {
+        return { reason: "unsupported-mermaid-requirement-terminal-geometry" };
+      }
+      nodes.push({
+        kind: "shape",
+        sourcePath: `${sourcePath}.terminals.${placement}[${partIndex}]`,
+        z: nodes.length,
+        bounds: {
+          x: roundedMetric(center.x - radius),
+          y: roundedMetric(center.y - radius),
+          width: roundedMetric(radius * 2),
+          height: roundedMetric(radius * 2),
+        },
+        preset: "ellipse",
+        style: cssStyleToSceneStyle({
+          fill: primitiveStyle.fill,
+          stroke: primitiveStyle.stroke,
+          strokeWidth: strokeWidth * unitScale * relationScale,
+          strokeDasharray: primitiveStyle.strokeDasharray,
+          opacity: localOpacity(primitive),
+          fillOpacity: primitiveStyle.fillOpacity,
+          strokeOpacity: primitiveStyle.strokeOpacity,
+        }, options),
+        meta: {
+          mermaid: {
+            kind: "requirement-terminal",
+            marker: geometry.markerClass,
+            placement,
+            component: part.component,
+          },
+        },
+      });
+      continue;
+    }
+    if (!["line", "path"].includes(localName(primitive)) ||
+        unsupportedVisualEffect(primitive)) {
+      return { reason: "unsupported-mermaid-requirement-terminal-style" };
+    }
+    const primitiveStyle = getComputedStyle(primitive);
+    const stroke = normalizeColor(primitiveStyle.stroke, options.resolveColor);
+    const strokeWidth = parseMetric(primitiveStyle.strokeWidth);
+    if (!stroke ||
+        !cssColorParts(primitiveStyle.stroke) ||
+        !(strokeWidth > 0) ||
+        !solidMarkerDash(primitiveStyle.strokeDasharray) ||
+        parseMetric(primitiveStyle.strokeDashoffset) !== 0 ||
+        primitiveStyle.strokeLinecap !== "butt" ||
+        primitiveStyle.strokeLinejoin !== "miter" ||
+        Number(primitiveStyle.strokeMiterlimit) !== 4) {
+      return { reason: "unsupported-mermaid-requirement-terminal-style" };
+    }
+    const points = part.points
+      .map(transformPoint)
+      .filter((point, index, entries) =>
+        index === 0 || pointKey(point) !== pointKey(entries[index - 1]));
+    if (points.length < 2) {
+      return { reason: "unsupported-mermaid-requirement-terminal-geometry" };
+    }
+    const style = {
+      ...cssStyleToSceneStyle({
+        fill: "none",
+        stroke: primitiveStyle.stroke,
+        strokeWidth: strokeWidth * unitScale * relationScale,
+        strokeDasharray: "none",
+        strokeOpacity: primitiveStyle.strokeOpacity,
+        opacity: localOpacity(primitive),
+      }, options),
+      fill: null,
+      dash: "solid",
+      lineCap: "butt",
+    };
+    if (geometry.markerClass === "arrow" &&
+        effectiveStrokeAlpha(style) < 1) {
+      return {
+        reason: "unsupported-mermaid-requirement-terminal-compositing",
+      };
+    }
+    nodes.push({
+      kind: "connector",
+      sourcePath: `${sourcePath}.terminals.${placement}[${partIndex}]`,
+      z: nodes.length,
+      points,
+      style,
+      arrowStart: "none",
+      arrowEnd: "none",
+      meta: {
+        mermaid: {
+          kind: "requirement-terminal",
+          marker: geometry.markerClass,
+          placement,
+          component: part.component,
+        },
+      },
+    });
+  }
+  return { geometry, nodes };
+}
+
+function markedRequirementRelation(connector, terminal, relation, options) {
+  const children = [{
+    ...connector,
+    sourcePath: `${connector.sourcePath}.line`,
+  }, ...terminal.nodes];
+  const xs = [];
+  const ys = [];
+  for (const child of children) {
+    if (child.kind === "connector") {
+      xs.push(...child.points.map((point) => point.x));
+      ys.push(...child.points.map((point) => point.y));
+    } else {
+      xs.push(child.bounds.x, child.bounds.x + child.bounds.width);
+      ys.push(child.bounds.y, child.bounds.y + child.bounds.height);
+    }
+  }
+  const bounds = {
+    x: Math.min(...xs),
+    y: Math.min(...ys),
+    width: Math.max(...xs) - Math.min(...xs),
+    height: Math.max(...ys) - Math.min(...ys),
+  };
+  for (const child of children) {
+    options.sourceElements.set(child.sourcePath, relation);
+    if (child.kind === "connector") {
+      child.points = child.points.map((point) => ({
+        x: point.x - bounds.x,
+        y: point.y - bounds.y,
+      }));
+    } else {
+      child.bounds = relativeBounds(child.bounds, bounds);
+    }
+  }
+  return {
+    ...compositeGroup(
+      connector.sourcePath,
+      connector.z,
+      bounds,
+      children,
+      "requirement-marked-relation",
+    ),
+    meta: { mermaid: { kind: "requirement-marked-relation" } },
+  };
+}
+
+function requirementRelationPath(path, sourcePath, z, deck, options) {
+  const fallback = (reason) => fallbackNode(path, z, deck, reason, sourcePath);
+  try {
+    if (!hasClass(path, "relationshipLine") ||
+        path.getAttribute("data-et") !== "edge" ||
+        path.getAttribute("data-edge") !== "true" ||
+        (path.getAttribute("data-look") &&
+          path.getAttribute("data-look") !== "classic")) {
+      return fallback("unsupported-mermaid-requirement-relation-structure");
+    }
+    const css = getComputedStyle(path);
+    const style = computedConnectorStyle(path, options);
+    if (unsupportedVisualEffect(path) ||
+        normalizeColor(css.fill, options.resolveColor) ||
+        !normalizeColor(css.stroke, options.resolveColor) ||
+        !cssColorParts(css.stroke) ||
+        !(parseMetric(css.strokeWidth) > 0) ||
+        parseMetric(css.strokeDashoffset) !== 0 ||
+        css.strokeLinecap !== "butt" ||
+        css.strokeLinejoin !== "miter" ||
+        Number(css.strokeMiterlimit) !== 4 ||
+        !["solid", "dash"].includes(style.dash) ||
+        (css.markerMid && css.markerMid !== "none")) {
+      return fallback("unsupported-mermaid-requirement-relation-style");
+    }
+    const matrix = path.getScreenCTM();
+    if (!supportsConnectorTransform(path) ||
+        !matrix ||
+        Math.abs(matrix.a - matrix.d) > 0.001) {
+      return fallback("unsupported-mermaid-requirement-relation-transform");
+    }
+    const commands = renderedPathData(path).match(/[a-df-z]/gi) || [];
+    if (commands.filter((command) => command.toLowerCase() === "m").length !== 1 ||
+        commands.some((command) => command.toLowerCase() === "z")) {
+      return fallback("unsupported-mermaid-requirement-relation-path");
+    }
+    const start = css.markerStart || path.getAttribute("marker-start");
+    const end = css.markerEnd || path.getAttribute("marker-end");
+    const markers = [
+      start && start !== "none" ? ["start", start] : null,
+      end && end !== "none" ? ["end", end] : null,
+    ].filter(Boolean);
+    if (markers.length !== 1) {
+      return fallback("unsupported-mermaid-requirement-terminal-geometry");
+    }
+    const terminal = requirementTerminalParts(
+      markers[0][1],
+      path,
+      markers[0][0],
+      sourcePath,
+      deck,
+      options,
+    );
+    if (terminal.reason) return fallback(terminal.reason);
+    const points = sampledPathPoints(path, deck, options);
+    if (points.simplified.length < 2 ||
+        pointKey(points.raw[0]) === pointKey(points.raw.at(-1))) {
+      return fallback("unsupported-mermaid-requirement-relation-path");
+    }
+    if (points.simplified.length > 2 &&
+        effectiveStrokeAlpha(style) < 1) {
+      return fallback(
+        "unsupported-mermaid-requirement-relation-compositing",
+      );
+    }
+    const id = path.getAttribute("data-id") || path.getAttribute("id") || "";
+    return markedRequirementRelation({
+      kind: "connector",
+      id: path.getAttribute("id") || undefined,
+      sourcePath,
+      z,
+      points: points.simplified,
+      style,
+      arrowStart: "none",
+      arrowEnd: "none",
+      meta: {
+        mermaid: {
+          kind: "requirement-relation",
+          id,
+          marker: terminal.geometry.markerClass,
+          rawPointCount: points.raw.length,
+          simplifiedPointCount: points.simplified.length,
+        },
+      },
+    }, terminal, path, options);
+  } catch (error) {
+    return fallback(
+      `unsupported-mermaid-requirement-relation-path: ${
+        error?.message || "path sampling failed"
+      }`,
+    );
+  }
+}
+
+function requirementDividerStrokes(path, deck, options) {
+  const data = renderedPathData(path);
+  const commands = data
+    .replace(/[-+]?(?:\d*\.?\d+)(?:e[-+]?\d+)?|[\s,]/gi, "");
+  const values = data
+    .match(/[-+]?(?:\d*\.?\d+)(?:e[-+]?\d+)?/gi)
+    ?.map(Number) || [];
+  if (commands !== "MCMC" || values.length !== 16) return null;
+  return [0, 8].map((offset) => {
+    const [x0, y0, x1, y1, x2, y2, x3, y3] = values.slice(offset, offset + 8);
+    const points = Array.from({ length: 17 }, (_, index) => {
+      const t = index / 16;
+      const inverse = 1 - t;
+      return screenPoint(path, {
+        x: inverse ** 3 * x0 +
+          3 * inverse ** 2 * t * x1 +
+          3 * inverse * t ** 2 * x2 +
+          t ** 3 * x3,
+        y: inverse ** 3 * y0 +
+          3 * inverse ** 2 * t * y1 +
+          3 * inverse * t ** 2 * y2 +
+          t ** 3 * y3,
+      }, deck);
+    });
+    return simplifyPolyline(points, options.simplifyTolerance);
+  });
+}
+
+function requirementDividerPart(
+  element,
+  sourcePath,
+  z,
+  deck,
+  options,
+  index,
+) {
+  const fallback = (reason, boundsSource = element, owner = boundsSource) => {
+    options.sourceElements.set(sourcePath, owner);
+    return fallbackNode(boundsSource, z, deck, reason, sourcePath);
+  };
+  const paths = directChildren(element, "path");
+  if (paths.length !== 1 || directChildren(element).length !== 1) {
+    return fallback("unsupported-mermaid-requirement-divider-geometry");
+  }
+  const path = paths[0];
+  if (unsupportedVisualEffect(element)) {
+    return fallback(
+      "unsupported-mermaid-requirement-divider-style",
+      path,
+      element,
+    );
+  }
+  if (normalizeColor(getComputedStyle(path).fill, options.resolveColor)) {
+    return fallback(
+      "unsupported-mermaid-requirement-divider-style",
+      path,
+    );
+  }
+  if (!hasUniformAxisAlignedScale(element)) {
+    return fallback(
+      "unsupported-mermaid-requirement-divider-transform",
+      path,
+      element,
+    );
+  }
+  if (!hasUniformAxisAlignedScale(path)) {
+    return fallback(
+      "unsupported-mermaid-requirement-divider-transform",
+      path,
+    );
+  }
+  const style = computedConnectorStyle(path, options);
+  const css = getComputedStyle(path);
+  if (!normalizeColor(css.stroke, options.resolveColor) ||
+      !cssColorParts(css.stroke) ||
+      !(parseMetric(css.strokeWidth) > 0) ||
+      parseMetric(css.strokeDashoffset) !== 0 ||
+      css.strokeLinecap !== "butt" ||
+      css.strokeLinejoin !== "miter" ||
+      Number(css.strokeMiterlimit) !== 4 ||
+      style.dash !== "solid" ||
+      [css.markerStart, css.markerMid, css.markerEnd]
+        .some((value) => value && value !== "none")) {
+    return fallback(
+      "unsupported-mermaid-requirement-divider-style",
+      path,
+    );
+  }
+  const strokes = requirementDividerStrokes(path, deck, options);
+  if (!strokes ||
+      strokes.some((points) => points.length < 2 ||
+        pointKey(points[0]) === pointKey(points.at(-1)))) {
+    return fallback(
+      "unsupported-mermaid-requirement-divider-geometry",
+      path,
+    );
+  }
+  if (effectiveStrokeAlpha(style) < 1) {
+    return fallback(
+      "unsupported-mermaid-requirement-divider-compositing",
+      path,
+    );
+  }
+  options.sourceElements.set(sourcePath, element);
+  const xs = strokes.flatMap((points) => points.map((point) => point.x));
+  const ys = strokes.flatMap((points) => points.map((point) => point.y));
+  const bounds = {
+    x: Math.min(...xs),
+    y: Math.min(...ys),
+    width: Math.max(...xs) - Math.min(...xs),
+    height: Math.max(...ys) - Math.min(...ys),
+  };
+  const children = strokes.map((points, strokeIndex) => {
+    const childPath = `${sourcePath}.paths[${strokeIndex}]`;
+    options.sourceElements.set(childPath, path);
+    return {
+      kind: "connector",
+      sourcePath: childPath,
+      z: strokeIndex,
+      points: points.map((point) => ({
+        x: point.x - bounds.x,
+        y: point.y - bounds.y,
+      })),
+      style,
+      arrowStart: "none",
+      arrowEnd: "none",
+      meta: {
+        mermaid: {
+          kind: "requirement-divider",
+          index,
+          part: strokeIndex,
+        },
+      },
+    };
+  });
+  return {
+    ...compositeGroup(
+      sourcePath,
+      z,
+      bounds,
+      children,
+      "requirement-divider",
+    ),
+    meta: {
+      mermaid: {
+        kind: "requirement-divider",
+        index,
+      },
+    },
+  };
+}
+
+function requirementLabelPart(
+  element,
+  sourcePath,
+  z,
+  deck,
+  options,
+  itemKind,
+  itemIndex,
+  labelIndex,
+) {
+  options.sourceElements.set(sourcePath, element);
+  if (!safeClassLabel(element)) {
+    return fallbackNode(
+      element,
+      z,
+      deck,
+      "unsupported-mermaid-requirement-text",
+      sourcePath,
+    );
+  }
+  const measured = measuredText(element, sourcePath, z, deck, options, {
+    mermaid: {
+      kind: `${itemKind}-label`,
+      item: itemIndex,
+      label: labelIndex,
+      role: (() => {
+        if (labelIndex === 0) return "type";
+        if (labelIndex === 1) return "name";
+        const text = element.textContent?.replace(/\s+/g, " ").trim() || "";
+        for (const [prefix, role] of [
+          ["ID:", "id"],
+          ["Text:", "text"],
+          ["Risk:", "risk"],
+          ["Verification:", "verification"],
+          ["Type:", "element-type"],
+          ["Doc Ref:", "document-reference"],
+        ]) {
+          if (text.startsWith(prefix)) return role;
+        }
+        return "field";
+      })(),
+    },
+  });
+  return measured.kind === "fallback"
+    ? fallbackNode(
+        element,
+        z,
+        deck,
+        "unsupported-mermaid-requirement-text-transform",
+        sourcePath,
+      )
+    : measured;
+}
+
+function requirementItemKind(group) {
+  const title = directChildren(group)
+    .find((child) => hasClass(child, "label"))
+    ?.textContent
+    ?.replace(/\s+/g, " ")
+    .trim();
+  if (title === "<<Requirement>>") return "requirement";
+  if (title === "<<Element>>") return "element";
+  return null;
+}
+
+function requirementItemParts(
+  group,
+  itemKind,
+  itemIndex,
+  z,
+  deck,
+  options,
+) {
+  const sourcePath = `${itemKind}s[${itemIndex}]`;
+  const children = directChildren(group);
+  const outer = children.filter((child) =>
+    hasClass(child, "basic") &&
+    hasClass(child, "label-container") &&
+    hasClass(child, "outer-path"));
+  const labels = children.filter((child) => hasClass(child, "label"));
+  const dividers = children.filter((child) => hasClass(child, "divider"));
+  const roleCount = (child) => [
+    outer.includes(child),
+    labels.includes(child),
+    dividers.includes(child),
+  ].filter(Boolean).length;
+  const malformed = outer.length !== 1 ||
+    labels.length < 2 ||
+    children.some((child) => roleCount(child) > 1) ||
+    (group.getAttribute("data-look") &&
+      group.getAttribute("data-look") !== "classic");
+  const compositeOpacity = hasUnsafeCompositeOpacity(group);
+  if (malformed ||
+      !hasUniformAxisAlignedScale(group) ||
+      compositeOpacity ||
+      unsupportedVisualEffect(group, false)) {
+    options.sourceElements.set(sourcePath, group);
+    return [fallbackNode(
+      group,
+      z,
+      deck,
+      malformed
+        ? "unsupported-mermaid-requirement-node-structure"
+        : !hasUniformAxisAlignedScale(group)
+          ? "unsupported-mermaid-requirement-node-transform"
+          : compositeOpacity
+            ? "unsupported-mermaid-requirement-node-compositing"
+          : "unsupported-mermaid-requirement-node-style",
+      sourcePath,
+    )];
+  }
+  const nodes = [];
+  let labelIndex = 0;
+  let dividerIndex = 0;
+  let decorationIndex = 0;
+  for (const child of children) {
+    if (child === outer[0]) {
+      const box = erRectPart(
+        child,
+        `${sourcePath}.box`,
+        z + nodes.length,
+        deck,
+        options,
+        {
+          mermaid: {
+            kind: `${itemKind}-box`,
+            item: itemIndex,
+          },
+        },
+        {
+          geometry: "unsupported-mermaid-requirement-node-geometry",
+          style: "unsupported-mermaid-requirement-node-style",
+          transform: "unsupported-mermaid-requirement-node-transform",
+        },
+      );
+      if (box.kind === "group") {
+        const paths = directChildren(child, "path");
+        box.children.forEach((part, index) => {
+          if (paths[index]) {
+            options.sourceElements.set(part.sourcePath, paths[index]);
+          }
+        });
+      }
+      nodes.push(box);
+      continue;
+    }
+    if (labels.includes(child)) {
+      nodes.push(requirementLabelPart(
+        child,
+        `${sourcePath}.labels[${labelIndex}]`,
+        z + nodes.length,
+        deck,
+        options,
+        itemKind,
+        itemIndex,
+        labelIndex,
+      ));
+      labelIndex += 1;
+      continue;
+    }
+    if (dividers.includes(child)) {
+      nodes.push(requirementDividerPart(
+        child,
+        `${sourcePath}.dividers[${dividerIndex}]`,
+        z + nodes.length,
+        deck,
+        options,
+        dividerIndex,
+      ));
+      dividerIndex += 1;
+      continue;
+    }
+    if (!isVisibleVisualSubtree(child)) continue;
+    const decorationPath =
+      `${sourcePath}.decorations[${decorationIndex++}]`;
+    options.sourceElements.set(decorationPath, child);
+    nodes.push(fallbackNode(
+      child,
+      z + nodes.length,
+      deck,
+      "unsupported-mermaid-requirement-node-decoration",
+      decorationPath,
+    ));
+  }
+  return nodes;
+}
+
+function unsupportedRequirementContainers(root, deck, nodes, options) {
+  const consumed = new Set();
+  const blocked = new Set();
+  const containers = directChildren(root, "g").filter(isClassCollection);
+  for (const [index, container] of containers.entries()) {
+    const reason = unsupportedVisualEffect(container, false)
+      ? "unsupported-mermaid-requirement-container-style"
+      : !hasUniformAxisAlignedScale(container)
+        ? "unsupported-mermaid-requirement-container-transform"
+        : "";
+    if (!reason) continue;
+    const sourcePath = `requirement.containers[${index}]`;
+    consumed.add(container);
+    blocked.add(container);
+    options.sourceElements.set(sourcePath, container);
+    nodes.push(fallbackNode(
+      container,
+      nodes.length,
+      deck,
+      reason,
+      sourcePath,
+    ));
+  }
+  return { consumed, blocked };
+}
+
+function requirementScene(svg, root, deck, size, options) {
+  const roots = [...svg.querySelectorAll("g.root")];
+  const containers = Object.fromEntries(
+    ["clusters", "edgePaths", "edgeLabels", "nodes"].map((name) => [
+      name,
+      directChildren(root, `g.${name}`),
+    ]),
+  );
+  if (roots.length !== 1 ||
+      Object.values(containers).some((entries) => entries.length !== 1) ||
+      directChildren(containers.nodes[0], "g.node").length === 0) {
+    return specialDiagramStructureFallback(
+      svg,
+      deck,
+      size,
+      options,
+      "unsupported-mermaid-requirement-structure",
+    );
+  }
+  const nodes = [];
+  const { consumed, blocked } = unsupportedRequirementContainers(
+    root,
+    deck,
+    nodes,
+    options,
+  );
+  const edgeLabels = readEdgeLabels(root, deck, options, consumed, {
+    blocked,
+    fallbackReason: "unsupported-mermaid-requirement-relation-label",
+  });
+  for (const [relationIndex, path] of directChildren(
+    containers.edgePaths[0],
+    "path.relationshipLine",
+  ).entries()) {
+    if (hasAncestorInSet(path, blocked)) continue;
+    const sourcePath = `relations[${relationIndex}]`;
+    consumed.add(path);
+    options.sourceElements.set(sourcePath, path);
+    nodes.push(requirementRelationPath(
+      path,
+      sourcePath,
+      nodes.length,
+      deck,
+      options,
+    ));
+  }
+  appendEdgeLabels(nodes, edgeLabels);
+  const itemCounts = { requirement: 0, element: 0 };
+  let unknownIndex = 0;
+  for (const group of directChildren(containers.nodes[0], "g.node")) {
+    if (hasAncestorInSet(group, blocked)) continue;
+    consumed.add(group);
+    const itemKind = requirementItemKind(group);
+    if (!itemKind) {
+      const sourcePath = `items[${unknownIndex++}]`;
+      options.sourceElements.set(sourcePath, group);
+      nodes.push(fallbackNode(
+        group,
+        nodes.length,
+        deck,
+        "unsupported-mermaid-requirement-node-structure",
+        sourcePath,
+      ));
+      continue;
+    }
+    const itemIndex = itemCounts[itemKind]++;
+    nodes.push(...requirementItemParts(
+      group,
+      itemKind,
+      itemIndex,
+      nodes.length,
+      deck,
+      options,
+    ));
+  }
+  nodes.push(...collectUnexpectedVisuals(
+    root,
+    deck,
+    nodes.length,
+    "root",
+    consumed,
+    options,
+    {
+      depthLimit: MAX_GROUP_DEPTH,
+      depthReason: "unsupported-mermaid-requirement-depth",
+    },
+  ));
+  nodes.push(...collectUnexpectedVisuals(
+    svg,
+    deck,
+    nodes.length,
+    "svg",
+    new Set([root]),
+    options,
+    {
+      depthLimit: MAX_GROUP_DEPTH,
+      depthReason: "unsupported-mermaid-requirement-depth",
+    },
+  ));
+  return diagramScene(svg, size, options, nodes);
+}
+
 function sceneFromSvg(svg, options) {
   options.sourceElements?.set("svg", svg);
   const deck = options.deck || svg.closest(".deck") || svg.parentElement || svg;
@@ -4482,6 +5452,9 @@ function sceneFromSvg(svg, options) {
   if (route === "sequence") return sequenceScene(svg, deck, size, options);
   if (route === "class") return classScene(svg, root, deck, size, options);
   if (route === "er") return erScene(svg, root, deck, size, options);
+  if (route === "requirement") {
+    return requirementScene(svg, root, deck, size, options);
+  }
   if (route === "packet") return packetScene(svg, deck, size, options);
   if (route === "treeView") return treeViewScene(svg, deck, size, options);
   if (route === "state") return stateScene(svg, root, deck, size, options);

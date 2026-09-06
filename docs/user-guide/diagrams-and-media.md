@@ -18,7 +18,7 @@ flowchart LR
 ````
 
 Mermaid is bundled and works offline. Use it for flowcharts, sequence diagrams, class diagrams,
-state diagrams, pie charts, and other automatically arranged diagrams.
+state diagrams, requirement diagrams, pie charts, and other automatically arranged diagrams.
 
 Mermaid diagrams pick up the slide's background, border, text, and accent colors automatically, so
 they blend into the deck's theme (including custom themes) instead of using one of Mermaid's own
@@ -108,6 +108,44 @@ positions, row heights, text boxes, relation routes, terminal direction, and lab
 from the rendered SVG; MarkdStage never parses the ER source again to calculate a replacement
 layout.
 
+Requirement diagrams from bundled Mermaid 11.15.0 accept `requirementDiagram` and the all-lowercase
+`requirementdiagram`; `RequirementDiagram`, `REQUIREMENTDIAGRAM`, `requirementDiagram-beta`,
+hyphenated forms, and other invented aliases are not accepted. `direction LR`, `RL`, `TB`, and
+`BT` are accepted. MarkdStage follows the resulting SVG order and positions rather than rebuilding
+the requirement graph.
+
+Classic requirement and element nodes export their rendered outer box, title compartment, divider,
+and every visible label as editable objects. A requirement can display its block name plus `id`,
+`text`, `risk`, and `verifyMethod`/`verifymethod`; these field keywords are case-insensitive.
+Risk values are the unquoted, case-insensitive `low`, `medium`, or `high`. Verification values are
+the unquoted, case-insensitive `analysis`, `inspection`, `test`, or `demonstration`.
+`verificationMethod` is not an accepted synonym in this bundled parser. Elements support
+case-insensitive `type` and `docRef`/`docref`; `documentRef` and `documentReference` are not
+accepted synonyms. Empty blocks remain editable title/name-only boxes without a synthetic divider,
+while empty field values are rejected by Mermaid.
+
+Plain or quoted field text, Japanese text, and `<br/>` are preserved from the rendered labels.
+`<br/>` creates an actual second rendered line. A source `\n` escape remains the visible two
+characters `\` and `n`; MarkdStage does not reinterpret it as a line break. The visible labels
+include Mermaid's `<<Requirement>>`/`<<Element>>` titles, the bold block identifier, and the
+renderer-generated `ID:`, `Text:`, `Risk:`, `Verification:`, `Type:`, and `Doc Ref:` prefixes.
+
+The supported relation words are `contains`, `copies`, `derives`, `satisfies`, `verifies`,
+`refines`, and `traces`; relation keywords are case-insensitive and Mermaid normalizes their
+independent labels to lowercase `<<...>>`. Use `source - relation -> target`. Reversing the
+written form as `target <- relation - source` is also accepted and produces the same directed
+relation. Mixed-head forms such as `<- relation ->` and bidirectional arrows are not accepted.
+`contains` uses the rendered solid relation and its start terminal: a
+20 by 20, `strokeWidth`-scaled circle-plus marker with `refX=0`, `refY=10`, and `orient=auto`.
+The other six relations use rendered dashed routes and the end terminal: a two-stroke open marker
+with the same viewport size, `refX=20`, `refY=10`, and automatic orientation. Neither bundled
+marker declares a `viewBox`. MarkdStage validates the exact marker geometry, units, reference
+point, clipping, tangent, paint, cap, join, and alpha. Opaque terminals and the contains marker's
+independently painted source primitives become editable native objects. A translucent
+multi-segment route or two-stroke open arrow remains relation-local artwork because splitting one
+SVG path into separate PowerPoint lines would darken its bends or tip. Relation labels remain
+independent of relation artwork.
+
 Basic state diagrams from bundled Mermaid 11.15.0 accept `stateDiagram-v2` and the legacy
 `stateDiagram` spelling. `stateDiagram-beta`, `stateDiagram-v2-beta`, lowercase variants, and
 other invented aliases are not accepted. Simple rounded state boxes and their labels export as
@@ -178,6 +216,17 @@ artwork; its independent relationship label remains editable. Translucent crow's
 stay relation-local because splitting the curved stroke into editable segments would change alpha
 compositing at their joins. Unsupported entity looks/decorations, complex HTML/icons/images,
 gradients, masks, effects, and non-bundled geometry use the smallest separable local fallback.
+For requirement diagrams, malformed node structure or composite node opacity stays node-local.
+Unsupported box geometry, a decorated field label, a divider path, or an unknown node decoration
+falls back only for that box, label, divider, or decoration. The renderer's divider is one SVG
+path containing two coincident rough strokes; translucent divider paint remains divider-local
+artwork because splitting it would change alpha compositing. Unsupported relation paths, marker
+geometry/units/paint/effects, transforms, or relation/marker compositing keep only the affected
+relation and its terminal as artwork. Its independent `<<relation>>` label and unaffected sibling
+relations remain editable. Common opacity over both a relation label's background and text keeps
+that label local instead of independently multiplying two native objects. Filter fallbacks use
+effect-aware capture padding so blur and drop-shadow output is not cropped. Malformed roots and
+shared scene/element/depth/text limits retain the existing diagram-level safety fallback.
 An unsupported transform on one node, connector, label, marker, control frame, or unknown visual
 no longer forces supported siblings into whole-diagram artwork. A transformed composite remains
 one local picture when splitting it would change descendant overlap, marker paint, or label

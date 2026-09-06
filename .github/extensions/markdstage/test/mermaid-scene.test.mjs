@@ -10,6 +10,7 @@ import {
   markerIdToArrow,
   knownErMarkerGeometry,
   knownMarkerGeometry,
+  knownRequirementMarkerGeometry,
   markerEndpointTangents,
   polygonPointsSignature,
   isKnownSequenceTab,
@@ -58,6 +59,14 @@ test("routes only bundled Mermaid SVG roles with their actual root signals", () 
   assert.equal(classifyMermaidDiagramRoute("sequence"), "sequence");
   assert.equal(classifyMermaidDiagramRoute("class", "", true), "class");
   assert.equal(classifyMermaidDiagramRoute("er", "erDiagram", true), "er");
+  assert.equal(
+    classifyMermaidDiagramRoute(
+      "requirement",
+      "requirementDiagram",
+      true,
+    ),
+    "requirement",
+  );
   assert.equal(classifyMermaidDiagramRoute("stateDiagram", "statediagram", true), "state");
   assert.equal(classifyMermaidDiagramRoute("flowchart-v2", "flowchart", true), "flowchart");
   assert.equal(classifyMermaidDiagramRoute("packet-beta"), null);
@@ -66,6 +75,22 @@ test("routes only bundled Mermaid SVG roles with their actual root signals", () 
   assert.equal(classifyMermaidDiagramRoute("class", "", false), null);
   assert.equal(classifyMermaidDiagramRoute("er", "flowchart", true), null);
   assert.equal(classifyMermaidDiagramRoute("er", "erDiagram", false), null);
+  assert.equal(
+    classifyMermaidDiagramRoute("requirement", "flowchart", true),
+    null,
+  );
+  assert.equal(
+    classifyMermaidDiagramRoute(
+      "requirement",
+      "requirementDiagram",
+      false,
+    ),
+    null,
+  );
+  assert.equal(
+    classifyMermaidDiagramRoute("error", "requirementDiagram", true),
+    null,
+  );
   assert.equal(classifyMermaidDiagramRoute("class", "erDiagram", true), "class");
   assert.equal(classifyMermaidDiagramRoute("stateDiagram", "flowchart", true), null);
   assert.equal(classifyMermaidDiagramRoute("stateDiagram", "statediagram", false), null);
@@ -128,6 +153,69 @@ test("recognizes only bundled Mermaid ER cardinality marker geometry", () => {
     );
   }
   assert.equal(knownErMarkerGeometry("fixture_er-unknownEnd", []), null);
+});
+
+test("recognizes only bundled Mermaid requirement terminal geometry", () => {
+  const contains = knownRequirementMarkerGeometry(
+    "url(#fixture_requirement-requirement_containsStart)",
+    [{
+      tag: "g",
+      children: [
+        { tag: "circle", cx: 10, cy: 10, r: 9 },
+        { tag: "line", x1: 1, y1: 10, x2: 19, y2: 10 },
+        { tag: "line", x1: 10, y1: 1, x2: 10, y2: 19 },
+      ],
+    }],
+  );
+  assert.equal(contains.markerClass, "contains");
+  assert.equal(contains.placement, "start");
+  assert.deepEqual(
+    contains.parts.map((part) => part.component),
+    ["circle", "horizontal", "vertical"],
+  );
+
+  const arrow = knownRequirementMarkerGeometry(
+    "url(#fixture_requirement-requirement_arrowEnd)",
+    [{
+      tag: "path",
+      d: "M0,0 L20,10 M20,10 L0,20",
+    }],
+  );
+  assert.equal(arrow.markerClass, "arrow");
+  assert.equal(arrow.placement, "end");
+  assert.deepEqual(
+    arrow.parts.map((part) => part.points),
+    [
+      [{ x: 0, y: 0 }, { x: 20, y: 10 }],
+      [{ x: 20, y: 10 }, { x: 0, y: 20 }],
+    ],
+  );
+
+  assert.equal(
+    knownRequirementMarkerGeometry(
+      "fixture_requirement-requirement_containsStart",
+      [{
+        tag: "g",
+        children: [
+          { tag: "circle", cx: 10, cy: 10, r: 8 },
+          { tag: "line", x1: 1, y1: 10, x2: 19, y2: 10 },
+          { tag: "line", x1: 10, y1: 1, x2: 10, y2: 19 },
+        ],
+      }],
+    ),
+    null,
+  );
+  assert.equal(
+    knownRequirementMarkerGeometry(
+      "fixture_requirement-requirement_arrowEnd",
+      [{ tag: "path", d: "M0,0 L20,10 L0,20" }],
+    ),
+    null,
+  );
+  assert.equal(
+    knownRequirementMarkerGeometry("fixture_requirement-unknownEnd", []),
+    null,
+  );
 });
 
 test("decomposes only finite orientation-preserving uniform SVG rotations", () => {
