@@ -8,6 +8,11 @@ const HTML_TAGS = new Set("div span p br b strong i em s u small sub sup ul ol l
 const MATH_TAGS = new Set("math mrow mi mn mo mtext mspace ms mfrac msqrt mroot mstyle merror mpadded mphantom mfenced menclose msub msup msubsup munder mover munderover mmultiscripts mprescripts none mtable mtr mtd semantics annotation".split(" "));
 const ATTRIBUTES = new Set("id class name x y x1 y1 x2 y2 dx dy width height cx cy r rx ry d points viewBox preserveAspectRatio transform fill fill-opacity fill-rule stroke stroke-width stroke-opacity stroke-dasharray stroke-dashoffset stroke-linecap stroke-linejoin stroke-miterlimit opacity color font-family font-size font-weight font-style text-anchor dominant-baseline alignment-baseline textLength lengthAdjust letter-spacing word-spacing text-decoration visibility display overflow pointer-events role tabindex focusable marker-start marker-mid marker-end markerWidth markerHeight markerUnits refX refY orient clip-path clipPathUnits mask maskUnits maskContentUnits filter filterUnits primitiveUnits in in2 result stdDeviation mode type values operator k1 k2 k3 k4 flood-color flood-opacity offset stop-color stop-opacity gradientUnits gradientTransform spreadMethod patternUnits patternContentUnits patternTransform".split(" "));
 const CSS_PROPERTIES = new Set("fill fill-opacity fill-rule stroke stroke-width stroke-opacity stroke-dasharray stroke-dashoffset stroke-linecap stroke-linejoin stroke-miterlimit opacity color font-family font-size font-weight font-style font-variant line-height text-align text-anchor dominant-baseline alignment-baseline text-decoration letter-spacing word-spacing white-space overflow-wrap word-break display visibility overflow box-sizing width height min-width min-height max-width max-height padding padding-top padding-right padding-bottom padding-left margin margin-top margin-right margin-bottom margin-left border border-radius background-color vertical-align marker-start marker-mid marker-end clip-path filter".split(" "));
+const SVG_GEOMETRY_PROPERTIES = new Set(["cx", "cy", "d", "r"]);
+const SVG_GEOMETRY_BY_TAG = {
+  circle: ["cx", "cy", "r"],
+  path: ["d"],
+};
 for (const attribute of "alt colspan rowspan systemLanguage startOffset method spacing baseFrequency numOctaves seed stitchTiles scale xChannelSelector yChannelSelector radius order kernelMatrix divisor bias targetX targetY edgeMode preserveAlpha tableValues slope intercept amplitude exponent surfaceScale diffuseConstant specularConstant specularExponent azimuth elevation limitingConeAngle pointsAtX pointsAtY pointsAtZ z mathvariant mathsize mathcolor mathbackground columnalign rowalign columnspacing rowspacing stretchy fence separator accent accentunder largeop movablelimits lspace rspace encoding".split(" ")) ATTRIBUTES.add(attribute);
 for (const property of "position top right bottom left z-index transform transform-box transform-origin border-top border-right border-bottom border-left border-top-width border-right-width border-bottom-width border-left-width border-top-style border-right-style border-bottom-style border-left-style border-top-color border-right-color border-bottom-color border-left-color object-fit object-position flex flex-direction flex-wrap align-items align-content justify-content gap float clear".split(" ")) CSS_PROPERTIES.add(property);
 let renderSequence = 0;
@@ -64,6 +69,55 @@ function inlineGeometry(source, property) {
     || source.style?.getPropertyValue(property);
 }
 
+function simplePixelMetric(value) {
+  const match = /^([-+]?(?:\d*\.?\d+)(?:e[-+]?\d+)?)(?:px)?$/i.exec(
+    String(value || "").trim(),
+  );
+  return match ? Number(match[1]) : null;
+}
+
+function pathGeometry(value) {
+  let text = String(value || "").trim();
+  if (!text || text === "none") return { commands: "", numbers: [] };
+  const cssPath = /^path\(["'](.*)["']\)$/s.exec(text);
+  if (cssPath) text = cssPath[1];
+  const tokenPattern = /[-+]?(?:\d*\.?\d+)(?:e[-+]?\d+)?|[a-z]/gi;
+  if (text.replace(tokenPattern, "").replace(/[\s,]/g, "")) return null;
+  const tokens = text.match(tokenPattern) || [];
+  return {
+    commands: tokens
+      .filter((token) => /^[a-z]$/i.test(token))
+      .map((command) => command.toLowerCase() === "z" ? "Z" : command)
+      .join(""),
+    numbers: tokens
+      .filter((token) => !/^[a-z]$/i.test(token))
+      .map(Number),
+  };
+}
+
+function sameGeometryMetric(left, right) {
+  return left === right;
+}
+
+function hasComputedGeometryOverride(source, property, value) {
+  const attribute = source.getAttribute?.(property);
+  if (property === "d") {
+    const computed = pathGeometry(value);
+    const declared = pathGeometry(attribute);
+    return computed === null ||
+      declared === null ||
+      computed.commands !== declared.commands ||
+      computed.numbers.length !== declared.numbers.length ||
+      computed.numbers.some((number, index) =>
+        !sameGeometryMetric(number, declared.numbers[index]));
+  }
+  const computed = simplePixelMetric(value);
+  const declared = simplePixelMetric(attribute);
+  return computed === null ||
+    declared === null ||
+    !sameGeometryMetric(computed, declared);
+}
+
 /** A JSON-serializable primitive builder; it never creates or parses DOM. */
 export function svgPrimitive(tag, attributes = {}) {
   const primitive = { tag, attributes: {}, children: [] };
@@ -110,6 +164,15 @@ export function captureSvgTree(element, { slots = new Map(), computedStyle = glo
           if (transform?.toMatrix && !transform.toString().includes("%")) value = transform.toMatrix().toString();
         }
         if (value && safeCss(value)) primitive.style[property] = value;
+      }
+      for (const property of source.closest?.("marker")
+        ? SVG_GEOMETRY_BY_TAG[tag] || []
+        : []) {
+        const value = style.getPropertyValue(property);
+        if (value && hasComputedGeometryOverride(source, property, value) &&
+            safeCss(value)) {
+          primitive.style[property] = portableString(value);
+        }
       }
       if (root) {
         for (const property of ["width", "height", "max-width", "max-height"]) {
@@ -182,7 +245,11 @@ export function sceneToSvg(scene, {
     if (!(math ? MATH_TAGS : html ? HTML_TAGS : SVG_TAGS).has(value.tag)) throw new Error(`Unsupported SVG primitive: ${value.tag}`);
     const element = dom(value.tag, value.attributes, math ? MATH_NS : html ? HTML_NS : SVG_NS);
     for (const [property, content] of Object.entries(value.style || {})) {
-      if (CSS_PROPERTIES.has(property) && safeCss(content)) element.style?.setProperty(property, String(content));
+      const styleValue = stringValue(content);
+      if ((CSS_PROPERTIES.has(property) || SVG_GEOMETRY_PROPERTIES.has(property)) &&
+          safeCss(styleValue)) {
+        element.style?.setProperty(property, styleValue);
+      }
     }
     if (value.textContent !== undefined) element.textContent = String(value.textContent);
     for (const child of value.children || []) {

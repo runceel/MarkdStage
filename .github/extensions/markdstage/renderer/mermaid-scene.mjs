@@ -3588,11 +3588,20 @@ export function knownErMarkerGeometry(id, primitives) {
 
 function erMarkerPrimitive(element) {
   if (localName(element) === "path") {
+    // CSS d overrides presentation attributes in modern Chromium.
     return { tag: "path", d: renderedPathData(element) };
   }
   if (localName(element) === "circle") {
-    const metrics = numericAttributes(element, ["cx", "cy", "r"]);
-    return metrics
+    // Geometry properties are CSS properties too. Read the used values so an
+    // overridden marker is never masked behind stale native geometry.
+    const style = getComputedStyle(element);
+    const metrics = ["cx", "cy", "r"].map((name) => {
+      const match = /^([-+]?(?:\d*\.?\d+)(?:e[-+]?\d+)?)px$/i.exec(
+        style.getPropertyValue(name).trim(),
+      );
+      return match ? Number(match[1]) : NaN;
+    });
+    return metrics.every(Number.isFinite)
       ? { tag: "circle", cx: metrics[0], cy: metrics[1], r: metrics[2] }
       : { tag: "circle" };
   }

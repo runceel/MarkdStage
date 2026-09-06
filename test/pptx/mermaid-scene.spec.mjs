@@ -1047,6 +1047,140 @@ test("keeps ER relation, terminal and circle paint independent in native Drawing
   }
 });
 
+test("rejects CSS-computed ER circle and path marker geometry without consuming siblings", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# ER CSS marker geometry"] });
+  try {
+    await page.goto(harness.url);
+    const fixture = await readFixture("er-basic.svg");
+    const cases = [
+      {
+        name: "circle radius",
+        mutate: () => {
+          document.querySelector('[id$="_er-zeroOrOneEnd"] circle')
+            .style.r = "12px";
+        },
+        geometry: () => {
+          const circle = document.querySelector(
+            '[id$="_er-zeroOrOneEnd"] circle',
+          );
+          return {
+            attribute: circle.getAttribute("r"),
+            computed: getComputedStyle(circle).r,
+          };
+        },
+        expected: { attribute: "6", computed: "12px" },
+      },
+      {
+        name: "circle center x",
+        mutate: () => {
+          document.querySelector('[id$="_er-zeroOrOneEnd"] circle')
+            .style.cx = "15px";
+        },
+        geometry: () => {
+          const circle = document.querySelector(
+            '[id$="_er-zeroOrOneEnd"] circle',
+          );
+          return {
+            attribute: circle.getAttribute("cx"),
+            computed: getComputedStyle(circle).cx,
+          };
+        },
+        expected: { attribute: "9", computed: "15px" },
+      },
+      {
+        name: "circle center y",
+        mutate: () => {
+          document.querySelector('[id$="_er-zeroOrOneEnd"] circle')
+            .style.cy = "15px";
+        },
+        geometry: () => {
+          const circle = document.querySelector(
+            '[id$="_er-zeroOrOneEnd"] circle',
+          );
+          return {
+            attribute: circle.getAttribute("cy"),
+            computed: getComputedStyle(circle).cy,
+          };
+        },
+        expected: { attribute: "9", computed: "15px" },
+      },
+      {
+        name: "path data",
+        mutate: () => {
+          document.querySelector('[id$="_er-onlyOneStart"] path')
+            .style.d = 'path("M0,0 L18,18")';
+        },
+        geometry: () => {
+          const path = document.querySelector(
+            '[id$="_er-onlyOneStart"] path',
+          );
+          return {
+            attribute: path.getAttribute("d"),
+            computed: getComputedStyle(path).d,
+          };
+        },
+        expected: {
+          attribute: "M9,0 L9,18 M15,0 L15,18",
+          computed: 'path("M 0 0 L 18 18")',
+        },
+      },
+    ];
+    for (const entry of cases) {
+      await sceneFromFixture(page, fixture, `er-css-${entry.name}.svg`);
+      const result = await updateFixture(page, entry.mutate);
+      expect(await page.evaluate(entry.geometry), entry.name)
+        .toEqual(entry.expected);
+      expect(result.diagnostics, entry.name).toEqual([{
+        path: "relations[0]",
+        kind: "fallback",
+        reason: "unsupported-mermaid-er-terminal-geometry",
+      }]);
+      expect(result.scene.nodes.filter((node) => node.kind === "fallback"),
+        entry.name).toMatchObject([{
+        sourcePath: "relations[0]",
+        reason: "unsupported-mermaid-er-terminal-geometry",
+      }]);
+      expect(result.scene.nodes.some((node) =>
+        node.kind === "fallback" && node.sourcePath === "svg"),
+      entry.name).toBe(false);
+      expect(result.scene.nodes.filter((node) =>
+        node.meta?.mermaid?.kind === "er-relation"),
+      entry.name).toHaveLength(3);
+      const terminals = result.scene.nodes.filter((node) =>
+        node.meta?.mermaid?.kind === "er-terminal");
+      expect(terminals, entry.name).toHaveLength(12);
+      expect(terminals.some((node) =>
+        node.sourcePath.startsWith("relations[0].terminals.")),
+      entry.name).toBe(false);
+      expect(new Set(terminals.map((node) => node.sourcePath)).size,
+        entry.name).toBe(12);
+      expect(result.scene.nodes.filter((node) =>
+        node.meta?.mermaid?.kind === "edge-label"),
+      entry.name).toHaveLength(4);
+      expect(result.scene.nodes.some((node) =>
+        node.meta?.mermaid?.kind === "edge-label" &&
+        node.meta.mermaid.edgeId ===
+          "id_entity-ACCOUNT-0_entity-PROFILE-1_0"),
+      entry.name).toBe(true);
+      expect(result.scene.nodes.filter((node) =>
+        node.meta?.mermaid?.kind === "er-entity-box"),
+      entry.name).toHaveLength(4);
+      expect(result.sources.find((source) =>
+        source.path === "relations[0]"),
+      entry.name).toMatchObject({ tag: "path" });
+      expect(sceneToPptxElements(result.scene).fallbacks.map((fallback) => ({
+        sourcePath: fallback.sourcePath,
+        reason: fallback.reason,
+      })), entry.name).toEqual([{
+        sourcePath: "relations[0]",
+        reason: "unsupported-mermaid-er-terminal-geometry",
+      }]);
+    }
+  } finally {
+    await harness.close();
+  }
+});
+
 test("keeps malformed ER entities, rows, text, relations and terminals at local fallback boundaries", async ({ page }) => {
   const harness = await startHarness({ slides: ["# ER fallback boundaries"] });
   try {
@@ -4534,6 +4668,140 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
     }
   });
 }
+
+test("actual ER CSS marker geometry overrides remain exact relation-local fallback artwork", async ({ page }) => {
+  const diagram = await readFixture("er-basic.mmd");
+  const withThemeCss = (themeCSS) => diagram.replace(
+    '{"handDrawnSeed": 42}',
+    JSON.stringify({ handDrawnSeed: 42, themeCSS }),
+  );
+  const cases = [
+    {
+      title: "Circle geometry",
+      source: withThemeCss(
+        'marker[id$="zeroOrOneEnd"] circle{r:12px}',
+      ),
+      expectedGeometry: {
+        tag: "circle",
+        attribute: "6",
+        computed: "12px",
+      },
+    },
+    {
+      title: "Path geometry",
+      source: withThemeCss(
+        'marker[id$="onlyOneStart"] path{d:path("M0,0 L18,18")}',
+      ),
+      expectedGeometry: {
+        tag: "path",
+        attribute: "M9,0 L9,18 M15,0 L15,18",
+        computed: 'path("M 0 0 L 18 18")',
+      },
+    },
+  ];
+  const harness = await startHarness({
+    slides: cases.map(({ title, source }) =>
+      `# ${title}\n\n\`\`\`mermaid\n${source}\n\`\`\``),
+  });
+  try {
+    await page.goto(
+      `${harness.url}/?pptx=1&token=${encodeURIComponent(harness.printToken)}`,
+    );
+    await page.waitForFunction(() =>
+      document.documentElement.hasAttribute("data-pptx-ready") ||
+      document.documentElement.hasAttribute("data-pptx-error"),
+    undefined, { timeout: 120_000 });
+    await expect(page.locator("html")).toHaveAttribute("data-pptx-ready", "true");
+    const result = await page.evaluate(() => ({
+      slides: window.__presentationPptxModel.slides,
+      diagrams: [...document.querySelectorAll("pre.mermaid > svg")].map((svg) => {
+        const circle = svg.querySelector('[id$="zeroOrOneEnd"] circle');
+        const path = svg.querySelector('[id$="onlyOneStart"] path');
+        const overridden = getComputedStyle(circle).r === "12px" ? circle : path;
+        const geometryProperty = overridden.localName === "circle" ? "r" : "d";
+        const terminals = svg.__presentationScene.nodes.filter((node) =>
+          node.meta?.mermaid?.kind === "er-terminal");
+        return {
+          sceneFallbacks: svg.__presentationScene.nodes
+            .filter((node) => node.kind === "fallback")
+            .map((node) => ({
+              sourcePath: node.sourcePath,
+              reason: node.reason,
+            })),
+          terminalPaths: terminals.map((node) => node.sourcePath),
+          uniqueTerminalPaths: new Set(terminals.map((node) =>
+            node.sourcePath)).size,
+          geometry: {
+            tag: overridden.localName,
+            attribute: overridden.getAttribute(geometryProperty),
+            computed: getComputedStyle(overridden)
+              .getPropertyValue(geometryProperty),
+          },
+          relations: [...svg.querySelectorAll("path.relationshipLine")]
+            .map((relation) => ({
+              native: relation.getAttribute("data-pptx-native"),
+              fallback: relation.getAttribute("data-pptx-fallback-ids"),
+              stroke: getComputedStyle(relation).stroke,
+              markerStart: getComputedStyle(relation).markerStart,
+              markerEnd: getComputedStyle(relation).markerEnd,
+            })),
+          nativeLabels: svg.querySelectorAll(
+            "g.edgeLabel[data-pptx-native=shape]",
+          ).length,
+          wholeSvgFallback: svg.getAttribute("data-pptx-fallback-ids"),
+        };
+      }),
+    }));
+    for (const [index, entry] of cases.entries()) {
+      const slide = result.slides[index];
+      const diagramResult = result.diagrams[index];
+      expect(diagramResult.geometry).toEqual(entry.expectedGeometry);
+      expect(diagramResult.sceneFallbacks).toEqual([{
+        sourcePath: "relations[0]",
+        reason: "unsupported-mermaid-er-terminal-geometry",
+      }]);
+      expect(diagramResult.terminalPaths).toHaveLength(12);
+      expect(diagramResult.uniqueTerminalPaths).toBe(12);
+      expect(diagramResult.terminalPaths.some((path) =>
+        path.startsWith("relations[0].terminals."))).toBe(false);
+      expect(diagramResult.nativeLabels).toBe(4);
+      expect(diagramResult.wholeSvgFallback).toBeNull();
+      expect(slide.fallbacks.filter((fallback) =>
+        fallback.type === "mermaid")).toMatchObject([{
+        path: "mermaid[0].relations[0]",
+        sourcePath: "relations[0]",
+        reason: "unsupported-mermaid-er-terminal-geometry",
+        captureId: expect.any(String),
+      }]);
+      expect(slide.elements.filter((element) =>
+        element.mermaid?.kind === "er-relation")).toHaveLength(3);
+      expect(slide.elements.filter((element) =>
+        element.mermaid?.kind === "er-terminal")).toHaveLength(12);
+      expect(slide.elements.filter((element) =>
+        element.mermaid?.kind === "edge-label")).toHaveLength(4);
+      expect(slide.elements.filter((element) =>
+        element.mermaid?.kind === "er-entity-box")).toHaveLength(4);
+      expect(slide.elements.some((element) =>
+        element.path?.startsWith("mermaid[0].relations[0]."))).toBe(false);
+      expect(diagramResult.relations[0].native).toBeNull();
+      expect(diagramResult.relations[0].fallback).toBeTruthy();
+      expect(diagramResult.relations[0].stroke)
+        .not.toBe("rgba(0, 0, 0, 0)");
+      expect([
+        diagramResult.relations[0].markerStart,
+        diagramResult.relations[0].markerEnd,
+      ].some((marker) => marker !== "none")).toBe(true);
+      expect(diagramResult.relations.slice(1).every((relation) =>
+        relation.native === "connector" &&
+        relation.fallback === null &&
+        relation.stroke === "rgba(0, 0, 0, 0)" &&
+        relation.markerStart === "none" &&
+        relation.markerEnd === "none")).toBe(true);
+    }
+  } finally {
+    await harness.close();
+  }
+});
 
 for (const theme of ["dark", "light", "microsoft", "custom"]) {
   test(`real renderer exports ER aliases, crow feet and exact local fallback captures (${theme})`, async ({ page }) => {

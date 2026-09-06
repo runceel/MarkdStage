@@ -283,3 +283,116 @@ test("SVG capture retains class terminal CSS sizing instead of using foreignObje
   assert.equal(restored.attributes.get("style:width"), "36.123456px");
   assert.equal(restored.attributes.get("style:height"), "12px");
 });
+
+test("SVG capture retains computed circle and path geometry overrides", () => {
+  const circleAttributes = { cx: "9", cy: "9", r: "6" };
+  const circle = captureSvgTree({
+    nodeType: 1,
+    localName: "circle",
+    namespaceURI: "http://www.w3.org/2000/svg",
+    attributes: [
+      { name: "cx", value: "9" },
+      { name: "cy", value: "9" },
+      { name: "r", value: "6" },
+    ],
+    childNodes: [],
+    getAttribute: (name) => circleAttributes[name] ?? null,
+    closest: (selector) => selector === "marker" ? {} : null,
+  }, {
+    computedStyle: () => ({
+      getPropertyValue: (name) => ({
+        cx: "15px",
+        cy: "18px",
+        r: "12px",
+      }[name] || ""),
+    }),
+  });
+  assert.deepEqual(circle.style, {
+    cx: "15px",
+    cy: "18px",
+    r: "12px",
+  });
+
+  const pathAttribute = "M9,0 L9,18";
+  const path = captureSvgTree({
+    nodeType: 1,
+    localName: "path",
+    namespaceURI: "http://www.w3.org/2000/svg",
+    attributes: [{ name: "d", value: pathAttribute }],
+    childNodes: [],
+    getAttribute: (name) => name === "d" ? pathAttribute : null,
+    closest: (selector) => selector === "marker" ? {} : null,
+  }, {
+    computedStyle: () => ({
+      getPropertyValue: (name) =>
+        name === "d" ? 'path("M 0 0 L 18 18")' : "",
+    }),
+  });
+  assert.equal(path.style.d, 'path("M 0 0 L 18 18")');
+
+  const unchangedCircle = captureSvgTree({
+    nodeType: 1,
+    localName: "circle",
+    namespaceURI: "http://www.w3.org/2000/svg",
+    attributes: Object.entries(circleAttributes).map(([name, value]) => ({
+      name,
+      value,
+    })),
+    childNodes: [],
+    getAttribute: (name) => circleAttributes[name] ?? null,
+    closest: (selector) => selector === "marker" ? {} : null,
+  }, {
+    computedStyle: () => ({
+      getPropertyValue: (name) => ({
+        cx: "9px",
+        cy: "9px",
+        r: "6px",
+      }[name] || ""),
+    }),
+  });
+  assert.deepEqual(unchangedCircle.style, {});
+
+  const unchangedPath = captureSvgTree({
+    nodeType: 1,
+    localName: "path",
+    namespaceURI: "http://www.w3.org/2000/svg",
+    attributes: [{ name: "d", value: pathAttribute }],
+    childNodes: [],
+    getAttribute: (name) => name === "d" ? pathAttribute : null,
+    closest: (selector) => selector === "marker" ? {} : null,
+  }, {
+    computedStyle: () => ({
+      getPropertyValue: (name) =>
+        name === "d" ? 'path("M 9 0 L 9 18")' : "",
+    }),
+  });
+  assert.deepEqual(unchangedPath.style, {});
+
+  const source = scene([
+    {
+      kind: "fallback",
+      sourcePath: "circle",
+      z: 0,
+      bounds,
+      reason: "unsupported",
+      meta: { svg: circle },
+    },
+    {
+      kind: "fallback",
+      sourcePath: "path",
+      z: 1,
+      bounds,
+      reason: "unsupported",
+      meta: { svg: path },
+    },
+  ]);
+  const restored = all(sceneToSvg(source, { document }));
+  const restoredCircle = restored.find((element) => element.tagName === "circle");
+  const restoredPath = restored.find((element) => element.tagName === "path");
+  assert.equal(restoredCircle.attributes.get("r"), "6");
+  assert.equal(restoredCircle.attributes.get("style:cx"), "15px");
+  assert.equal(restoredCircle.attributes.get("style:cy"), "18px");
+  assert.equal(restoredCircle.attributes.get("style:r"), "12px");
+  assert.equal(restoredPath.attributes.get("d"), "M9,0 L9,18");
+  assert.equal(restoredPath.attributes.get("style:d"), 'path("M 0 0 L 18 18")');
+});
