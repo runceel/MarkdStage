@@ -581,6 +581,9 @@ export async function startArchitectureEditorServer({
     if (
       [
         "/renderer/architecture.mjs",
+        "/renderer/architecture-scene.mjs",
+        "/renderer/scene-graph.mjs",
+        "/renderer/scene-svg.mjs",
         "/renderer/architecture-contract.mjs",
         "/renderer/architecture-diagnostics.mjs",
         "/renderer/architecture-edit.mjs",

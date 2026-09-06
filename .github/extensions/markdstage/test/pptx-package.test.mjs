@@ -763,6 +763,31 @@ test("emits solid and dotted DrawingML connector styles", () => {
   assert.match(connectors[1], /<a:prstDash val="dot"\/>/);
 });
 
+test("places arrow heads only on the first and last connector segments", () => {
+  const element = {
+    type: "connector",
+    points: [{ x: 300, y: 100 }, { x: 150, y: 100 }, { x: 150, y: 20 }],
+    stroke: "#123456",
+    arrowStart: "oval",
+    arrowEnd: "triangle",
+  };
+  const files = readStoredZip(buildPptxPackage({ slides: [{ elements: [element] }] }));
+  const slide = xml(files, "ppt/slides/slide1.xml");
+  const connectors = [...slide.matchAll(/name="Connector \d+"[\s\S]*?<\/p:sp>/g)]
+    .map((match) => match[0]);
+  assert.equal(connectors.length, 2);
+  assert.match(connectors[0], /flipH="1"/);
+  assert.match(connectors[0], /<a:headEnd type="oval"\/>/);
+  assert.doesNotMatch(connectors[0], /<a:tailEnd/);
+  assert.match(connectors[1], /flipV="1"/);
+  assert.match(connectors[1], /<a:tailEnd type="triangle"\/>/);
+  assert.doesNotMatch(connectors[1], /<a:headEnd/);
+  assert.throws(
+    () => buildPptxPackage({ slides: [{ elements: [{ ...element, arrowStart: "invalid" }] }] }),
+    /arrowStart is not a supported arrow end/,
+  );
+});
+
 test("places a full-slide PNG background before every native element", () => {
   const files = readStoredZip(samplePackage());
   const slide = xml(files, "ppt/slides/slide1.xml");

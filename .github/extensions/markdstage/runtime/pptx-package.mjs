@@ -707,7 +707,7 @@ function tableXml(element, path, id, relationships) {
   return `<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="${id}" name="Table ${id}"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>${xfrmXml(bounds, "p:xfrm")}<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl><a:tblPr firstRow="1" bandRow="1"/><a:tblGrid>${columns}</a:tblGrid>${rows}</a:tbl></a:graphicData></a:graphic></p:graphicFrame>`;
 }
 
-function arrowXml(value, path) {
+function arrowXml(value, path, end = "tailEnd") {
   if (value === undefined || value === null || value === false || value === "none") {
     return "";
   }
@@ -722,7 +722,7 @@ function arrowXml(value, path) {
           oval: "oval",
         }[value];
   if (!type) fail(`${path} is not a supported arrow end`);
-  return `<a:tailEnd type="${type}"/>`;
+  return `<a:${end} type="${type}"/>`;
 }
 
 function connectorXml(element, path, nextId, relationships) {
@@ -756,6 +756,7 @@ function connectorXml(element, path, nextId, relationships) {
     const y = Math.min(start.y, end.y);
     const flipH = end.x < start.x ? ' flipH="1"' : "";
     const flipV = end.y < start.y ? ' flipV="1"' : "";
+    const head = index === 0 ? arrowXml(element.arrowStart, `${path}.arrowStart`, "headEnd") : "";
     const tail =
       index === points.length - 2
         ? arrowXml(element.arrowEnd, `${path}.arrowEnd`)
@@ -763,7 +764,7 @@ function connectorXml(element, path, nextId, relationships) {
     shapes.push(
       `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="Connector ${id}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm${flipH}${flipV}><a:off x="${emu(x)}" y="${emu(y)}"/><a:ext cx="${emu(Math.abs(end.x - start.x))}" cy="${emu(Math.abs(end.y - start.y))}"/></a:xfrm><a:prstGeom prst="line"><a:avLst/></a:prstGeom><a:ln w="${emu(width)}"><a:solidFill><a:srgbClr val="${color.hex}">${
         alpha < 100000 ? `<a:alpha val="${alpha}"/>` : ""
-      }</a:srgbClr></a:solidFill>${dash}${tail}</a:ln></p:spPr></p:sp>`,
+      }</a:srgbClr></a:solidFill>${dash}${head}${tail}</a:ln></p:spPr></p:sp>`,
     );
   }
   if (element.label !== undefined) {

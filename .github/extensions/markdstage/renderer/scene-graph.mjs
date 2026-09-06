@@ -672,20 +672,21 @@ function stripInternal(node) {
   return stripped;
 }
 
-export function createScene({ width, height, source, nodes, accessibility } = {}) {
+export function createScene({ width, height, source, nodes, accessibility, meta } = {}) {
   return {
     version: SCENE_VERSION,
     source,
     width,
     height,
     ...(accessibility !== undefined ? { accessibility } : {}),
+    ...(meta !== undefined ? { meta } : {}),
     nodes: Array.isArray(nodes) ? nodes : [],
   };
 }
 
 export function validateScene(scene) {
   requiredObject(scene, "scene");
-  exactKeys(scene, new Set(["version", "source", "width", "height", "accessibility", "nodes"]), "scene");
+  exactKeys(scene, new Set(["version", "source", "width", "height", "accessibility", "meta", "nodes"]), "scene");
   if (scene.version !== SCENE_VERSION) fail("scene.version must be 1");
   nonNegativeNumber(scene.width, "scene.width");
   nonNegativeNumber(scene.height, "scene.height");
@@ -694,6 +695,7 @@ export function validateScene(scene) {
   if (!SOURCE_KINDS.has(scene.source.kind)) fail("scene.source.kind is not supported");
   requiredString(scene.source.path, "scene.source.path");
   validateAccessibility(scene.accessibility, "scene.accessibility");
+  validateMeta(scene.meta, "scene.meta");
   if (!Array.isArray(scene.nodes)) fail("scene.nodes must be an array");
   const state = { count: 0 };
   scene.nodes.forEach((node, index) => validateNode(node, `scene.nodes[${index}]`, state, 1));
@@ -729,6 +731,7 @@ export function normalizeScene(scene) {
       width: roundedExtent(scene?.width),
       height: roundedExtent(scene?.height),
       ...(scene?.accessibility !== undefined ? { accessibility: scene.accessibility } : {}),
+      ...(scene?.meta !== undefined ? { meta: scene.meta } : {}),
       nodes: normalizedNodes,
     },
     diagnostics,

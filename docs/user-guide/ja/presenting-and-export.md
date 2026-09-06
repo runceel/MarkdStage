@@ -110,4 +110,8 @@ PowerPoint は PDF と同じ 13.333333 x 7.5 インチ、同じメモリ上の�
 生成され、一時的なスライド差し替えと自動の裏表紙も含みます。Architecture の編集コントロールは
 含みません。Chromium との完全一致や汎用 HTML/CSS 変換は対象外です。
 
+リリース時は [プレゼンテーションアプリでの検証手順](../../../test/fixtures/README.md#editable-diagram-verification-in-presentation-applications)
+に従ってください。PowerPoint デスクトップ、PowerPoint for Web、LibreOffice Impress での
+個別オブジェクトの編集確認と、PowerPoint 自身が描画した PNG の許容差付き比較を含みます。
+
 [次へ: トラブルシューティング →](troubleshooting.md)
