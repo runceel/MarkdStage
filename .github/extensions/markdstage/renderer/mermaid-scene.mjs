@@ -715,15 +715,70 @@ function unsupportedVisualEffect(element, descendants = true) {
   });
 }
 
+function markerPrimitiveSupportsArrow(primitive, arrow) {
+  const tag = localName(primitive);
+  if (arrow === "oval") return tag === "circle";
+  if (arrow === "arrow") return tag === "path" || tag === "polyline";
+  return ["triangle", "diamond", "stealth"].includes(arrow) &&
+    (tag === "path" || tag === "polygon");
+}
+
+function markerPaintMatchesConnector(marker, primitive, element, arrow) {
+  const lineStyle = getComputedStyle(element);
+  const lineColor = cssColorParts(lineStyle.stroke);
+  if (!lineColor || !normalizeColor(lineStyle.stroke) || !(parseMetric(lineStyle.strokeWidth) > 0)) {
+    return false;
+  }
+  const referenceOpacity = effectiveOpacity(element);
+  const lineAlpha = lineColor.alpha *
+    parseOpacity(lineStyle.strokeOpacity) * referenceOpacity;
+  const markerStyle = getComputedStyle(primitive);
+  const markerOpacity = localOpacity(marker) * localOpacity(primitive);
+  const paints = [];
+  const visible = { fill: false, stroke: false };
+  for (const channel of ["fill", "stroke"]) {
+    if (channel === "stroke" && !(parseMetric(markerStyle.strokeWidth) > 0)) continue;
+    const value = markerStyle[channel];
+    if (!normalizeColor(value)) continue;
+    const color = cssColorParts(value);
+    if (!color) return false;
+    const alpha = color.alpha *
+      parseOpacity(markerStyle[`${channel}Opacity`]) *
+      markerOpacity *
+      referenceOpacity;
+    if (alpha <= 0.000001) continue;
+    if (channel === "stroke" && !solidMarkerDash(markerStyle.strokeDasharray)) return false;
+    visible[channel] = true;
+    paints.push({ color, alpha });
+  }
+  if (lineAlpha > 0.000001 && paints.length === 0) return false;
+  if (lineAlpha > 0.000001 &&
+      (arrow === "arrow" ? !visible.stroke || visible.fill : !visible.fill)) return false;
+  return paints.every(({ color, alpha }) =>
+    color.rgb === lineColor.rgb && Math.abs(alpha - lineAlpha) <= 0.000001);
+}
+
 function connectorArrow(value, element, placement) {
   const id = markerReferenceId(value);
+  const arrow = markerIdToArrow(value);
+  if (arrow === "none") return "none";
   const relation = /(?:^|[-_])(composition|dependency)(Start|End)(?:-margin)?$/i.exec(id);
   const sequenceHead = /-filled-head$/.test(id);
-  if (!relation && !sequenceHead) return markerIdToArrow(value);
   const marker = element.ownerSVGElement.querySelector(`#${CSS.escape(id)}`);
   const children = marker ? directChildren(marker) : [];
-  if (localName(marker) !== "marker" || children.length !== 1 || localName(children[0]) !== "path" ||
-      unsupportedVisualEffect(marker)) return "none";
+  const primitive = children[0];
+  if (localName(marker) !== "marker" || children.length !== 1 ||
+      !markerPrimitiveSupportsArrow(primitive, arrow) ||
+      unsupportedVisualEffect(marker) ||
+      [marker, primitive].some((part) => {
+        const style = getComputedStyle(part);
+        return style.display === "none" ||
+          (style.visibility === "hidden" &&
+            (!element.ownerDocument.body.classList.contains("mermaid-loading") ||
+              part.style.visibility === "hidden" || part.getAttribute("visibility") === "hidden")) ||
+          style.transform !== "none" || style.rotate !== "none" ||
+          style.scale !== "none" || style.translate !== "none";
+      })) return "none";
   // Mermaid 11.15.0 emits this forward-facing marker only at the end. Its
   // concave filled geometry is a stealth head, not an open asynchronous head.
   if (sequenceHead && (placement !== "end" || marker.getAttribute("orient") !== "auto" ||
@@ -731,39 +786,18 @@ function connectorArrow(value, element, placement) {
       marker.hasAttribute("viewBox") ||
       [["refX", 15.5], ["refY", 7], ["markerWidth", 20], ["markerHeight", 28]]
         .some(([name, value]) => Number(marker.getAttribute(name)) !== value))) return "none";
-  const path = children[0];
-  // The pinned class renderer uses a filled diamond or a concave (stealth) head,
-  // not the hollow diamond/triangle used for aggregation and inheritance.
-  const d = path.getAttribute("d") || "";
-  if (d.replace(/[-+]?(?:\d*\.?\d+)(?:e[-+]?\d+)?|[\s,]/gi, "") !== "MLLLZ") return "none";
-  const values = d.match(/[-+]?(?:\d*\.?\d+)(?:e[-+]?\d+)?/gi)?.map(Number) || [];
-  const expected = sequenceHead ? [18, 7, 9, 13, 14, 7, 9, 1]
-    : relation[1].toLowerCase() === "composition" ? [18, 7, 9, 13, 1, 7, 9, 1]
-    : relation[2].toLowerCase() === "start" ? [5, 7, 9, 13, 1, 7, 9, 1] : [18, 7, 9, 13, 14, 7, 9, 1];
-  if (values.length !== expected.length || values.some((value, index) => value !== expected[index])) return "none";
-  const paint = getComputedStyle(path);
-  const linePaint = getComputedStyle(element);
-  const stroke = linePaint.stroke;
-  const lineColor = cssColorParts(stroke);
-  const fillColor = cssColorParts(paint.fill);
-  const markerOpacity = localOpacity(marker) * localOpacity(path);
-  const lineAlpha = (lineColor?.alpha ?? 1) *
-    parseOpacity(linePaint.strokeOpacity) * effectiveOpacity(element);
-  const fillAlpha = (fillColor?.alpha ?? 1) *
-    parseOpacity(paint.fillOpacity) * markerOpacity * effectiveOpacity(element);
-  if (!normalizeColor(paint.fill) || !lineColor || !fillColor ||
-      lineColor.rgb !== fillColor.rgb || Math.abs(lineAlpha - fillAlpha) > 0.000001 ||
-      (normalizeColor(paint.stroke) && Number.parseFloat(paint.strokeWidth) > 0 &&
-        (cssColorParts(paint.stroke)?.rgb !== lineColor.rgb ||
-          Math.abs((cssColorParts(paint.stroke)?.alpha ?? 1) *
-            parseOpacity(paint.strokeOpacity) * markerOpacity * effectiveOpacity(element) - lineAlpha) > 0.000001 ||
-          dashToSceneDash(paint.strokeDasharray) !== "solid")) ||
-      [marker, path].some((part) => {
-        const style = getComputedStyle(part);
-        return style.transform !== "none" ||
-          style.rotate !== "none" || style.scale !== "none" || style.translate !== "none";
-      })) return "none";
-  return markerIdToArrow(value);
+  if (relation || sequenceHead) {
+    // The pinned class renderer uses a filled diamond or a concave (stealth) head,
+    // not the hollow diamond/triangle used for aggregation and inheritance.
+    const d = primitive.getAttribute("d") || "";
+    if (d.replace(/[-+]?(?:\d*\.?\d+)(?:e[-+]?\d+)?|[\s,]/gi, "") !== "MLLLZ") return "none";
+    const values = d.match(/[-+]?(?:\d*\.?\d+)(?:e[-+]?\d+)?/gi)?.map(Number) || [];
+    const expected = sequenceHead ? [18, 7, 9, 13, 14, 7, 9, 1]
+      : relation[1].toLowerCase() === "composition" ? [18, 7, 9, 13, 1, 7, 9, 1]
+      : relation[2].toLowerCase() === "start" ? [5, 7, 9, 13, 1, 7, 9, 1] : [18, 7, 9, 13, 14, 7, 9, 1];
+    if (values.length !== expected.length || values.some((value, index) => value !== expected[index])) return "none";
+  }
+  return markerPaintMatchesConnector(marker, primitive, element, arrow) ? arrow : "none";
 }
 
 // These are the actual Mermaid 11.15.0 outlines, not arrow presets. In particular

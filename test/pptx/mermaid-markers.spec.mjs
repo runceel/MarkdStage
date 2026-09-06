@@ -223,6 +223,95 @@ test("marker viewport alignment, orient and paint are independent from the main 
   } finally { await h.close(); }
 });
 
+test("attached point markers require visible RGB and effective alpha to match the connector preset", async ({ page }) => {
+  const h = await startHarness({ slides: ["# Preset marker paint"] });
+  try {
+    await page.goto(h.url);
+    await load(page, "flowchart");
+    await page.evaluate(() => {
+      const edge = document.querySelectorAll("path.flowchart-link")[1];
+      edge.style.stroke = "rgba(51, 51, 51, 0.5)";
+      edge.style.strokeOpacity = "0.4";
+    });
+    const mismatch = await extract(page);
+    expect(mismatch.diagnostics).toEqual([{
+      path: "edges[1]",
+      kind: "fallback",
+      reason: "unsupported-mermaid-edge-style",
+    }]);
+    expect(mismatch.scene.nodes.filter((node) => node.kind === "fallback")).toMatchObject([{
+      sourcePath: "edges[1]",
+      reason: "unsupported-mermaid-edge-style",
+    }]);
+    expect(mismatch.scene.nodes.filter((node) => node.kind === "connector")).toHaveLength(4);
+    expect(mismatch.scene.nodes.find((node) =>
+      node.meta?.mermaid?.kind === "edge-label" &&
+      node.text.paragraphs.some((paragraph) =>
+        paragraph.runs.some((run) => run.text === "yes")))).toBeTruthy();
+    expect(mismatch.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "node")).toHaveLength(5);
+    expect(mismatch.sources.find((source) => source.path === "edges[1]")).toMatchObject({
+      tag: "path",
+      id: "mermaid-1788676915576-L_B_C_0",
+    });
+    expect(sceneToPptxElements(mismatch.scene).fallbacks.map((fallback) => fallback.sourcePath))
+      .toEqual(["edges[1]"]);
+
+    await load(page, "flowchart");
+    await page.evaluate(() => {
+      const edge = document.querySelectorAll("path.flowchart-link")[1];
+      edge.style.stroke = "rgba(51, 51, 51, 0.5)";
+      edge.style.strokeOpacity = "0.4";
+      const original = document.querySelector('[id$="flowchart-v2-pointEnd"]');
+      const marker = original.cloneNode(true);
+      marker.id = "matched-pointEnd";
+      marker.style.opacity = "0.5";
+      marker.firstElementChild.style.fill = "rgba(51, 51, 51, 0.5)";
+      marker.firstElementChild.style.fillOpacity = "0.8";
+      marker.firstElementChild.style.stroke = "rgba(51, 51, 51, 0.5)";
+      marker.firstElementChild.style.strokeOpacity = "0.8";
+      original.parentElement.append(marker);
+      edge.style.markerEnd = `url(#${marker.id})`;
+    });
+    const matched = await extract(page);
+    expect(matched.diagnostics).toEqual([]);
+    expect(matched.scene.nodes.filter((node) => node.kind === "fallback")).toEqual([]);
+    const edge = matched.scene.nodes.find((node) => node.sourcePath === "edges[1]");
+    expect(edge).toMatchObject({
+      kind: "connector",
+      arrowEnd: "triangle",
+      style: {
+        stroke: "rgba(51, 51, 51, 0.5)",
+        opacity: 1,
+        strokeOpacity: 0.4,
+      },
+    });
+    expect(matched.scene.nodes.find((node) =>
+      node.meta?.mermaid?.kind === "edge-label" &&
+      node.text.paragraphs.some((paragraph) =>
+        paragraph.runs.some((run) => run.text === "yes")))).toBeTruthy();
+    const { xml } = assertPackage(matched.scene);
+    expect(xml).toContain('<a:srgbClr val="333333"><a:alpha val="20000"/></a:srgbClr>');
+    const shared = await page.evaluate(async () => {
+      const { sceneToSvg } = await import("./renderer/scene-svg.mjs");
+      const svg = sceneToSvg(window.markerResult.scene);
+      const connector = [...svg.querySelectorAll("[data-scene-source-path]")]
+        .find((node) => node.getAttribute("data-scene-source-path") === "edges[1]");
+      const markerId = /^url\(["']?#([^"')]+)["']?\)$/.exec(
+        connector.querySelector("path[marker-end]").getAttribute("marker-end"),
+      )[1];
+      const marker = svg.querySelector(`#${CSS.escape(markerId)}`);
+      return {
+        fill: marker.firstElementChild.getAttribute("fill"),
+        fillOpacity: marker.firstElementChild.getAttribute("fill-opacity"),
+      };
+    });
+    expect(shared).toEqual({
+      fill: "rgba(51, 51, 51, 0.5)",
+      fillOpacity: "0.4",
+    });
+  } finally { await h.close(); }
+});
+
 test("unsupported hollow marker variants keep just their source connector and its markers as local fallback", async ({ page }) => {
   const h = await startHarness({ slides: ["# Marker boundaries"] });
   try {

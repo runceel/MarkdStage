@@ -427,9 +427,16 @@ test("keeps class and sequence paint alpha native while localizing unsafe compos
         opacity: "0.8",
       });
       const markerId = /#([^")]+)[")]*$/.exec(getComputedStyle(message).markerEnd)?.[1];
-      const markerPath = document.getElementById(markerId)?.firstElementChild;
+      const originalMarker = document.getElementById(markerId);
+      const marker = originalMarker.cloneNode(true);
+      marker.id = "alpha-sequence-arrowhead";
+      originalMarker.parentElement.append(marker);
+      message.style.markerEnd = `url(#${marker.id})`;
+      const markerPath = marker.firstElementChild;
       markerPath.style.setProperty("fill", "rgba(0, 120, 200, 0.5)", "important");
       markerPath.style.fillOpacity = "0.4";
+      markerPath.style.setProperty("stroke", "rgba(0, 120, 200, 0.5)", "important");
+      markerPath.style.strokeOpacity = "0.4";
       const numberMarker = document.querySelector('[id$="-sequencenumber"]');
       numberMarker.style.opacity = "0.8";
       set(numberMarker.firstElementChild, {
@@ -1722,7 +1729,14 @@ test.describe("additional SVG compatibility", () => {
       await sceneFromFixture(page, await readFixture("sequence.svg"), "css-markers.svg");
       const styled = await updateFixture(page, () => {
         const line = document.querySelector("line.messageLine0");
-        line.style.markerEnd = line.getAttribute("marker-end");
+        const markerId = /#([^")]+)[")]*$/.exec(line.getAttribute("marker-end"))?.[1];
+        const originalMarker = document.getElementById(markerId);
+        const marker = originalMarker.cloneNode(true);
+        marker.id = "css-matched-arrowhead";
+        marker.firstElementChild.style.fill = "rgb(12, 34, 56)";
+        marker.firstElementChild.style.stroke = "rgb(12, 34, 56)";
+        originalMarker.parentElement.append(marker);
+        line.style.markerEnd = `url(#${marker.id})`;
         line.removeAttribute("marker-end");
         line.style.stroke = "rgb(12, 34, 56)";
         line.style.opacity = "0.4";
