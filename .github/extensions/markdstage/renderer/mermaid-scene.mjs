@@ -500,13 +500,45 @@ function structuredLabelText(element, options) {
   return { paragraphs: paragraphs.length ? paragraphs : textToSceneText("", computedTextStyle(element, options), options).paragraphs };
 }
 
+function markerFallbackPadding(element, style) {
+  let padding = 20;
+  for (const value of [style.markerStart, style.markerMid, style.markerEnd]) {
+    if (!value || value === "none") continue;
+    const marker = element.ownerSVGElement?.querySelector(`#${CSS.escape(markerReferenceId(value))}`);
+    if (localName(marker) !== "marker") continue;
+    const refX = marker.refX.baseVal.value;
+    const refY = marker.refY.baseVal.value;
+    const unit = (marker.getAttribute("markerUnits") || "strokeWidth") === "strokeWidth" ? parseMetric(style.strokeWidth) : 1;
+    const view = marker.viewBox.baseVal;
+    const viewScale = marker.hasAttribute("viewBox") && view.width > 0 && view.height > 0
+      ? Math.max(marker.markerWidth.baseVal.value / view.width, marker.markerHeight.baseVal.value / view.height) : 1;
+    for (const child of directChildren(marker)) {
+      if (typeof child.getBBox !== "function") continue;
+      const box = child.getBBox();
+      const stroke = parseMetric(getComputedStyle(child).strokeWidth) || 0;
+      const matrix = new DOMMatrix(getComputedStyle(child).transform === "none" ? undefined : getComputedStyle(child).transform);
+      const markerMatrix = new DOMMatrix(getComputedStyle(marker).transform === "none" ? undefined : getComputedStyle(marker).transform);
+      const transform = markerMatrix.multiply(matrix);
+      for (const [x, y] of [[box.x, box.y], [box.x + box.width, box.y], [box.x, box.y + box.height], [box.x + box.width, box.y + box.height]]) {
+        const point = new DOMPoint(x, y).matrixTransform(transform);
+        // A radius is independent of the tangent/orient and safe for either end.
+        const radius = (Math.hypot(point.x - refX, point.y - refY) +
+          stroke * 4 * Math.max(Math.hypot(transform.a, transform.b), Math.hypot(transform.c, transform.d))) * viewScale * unit;
+        if (Number.isFinite(radius)) padding = Math.max(padding, radius);
+      }
+    }
+  }
+  return padding;
+}
+
 function fallbackNode(element, z, deck, reason, sourcePath) {
   let bounds = boundsOf(element, deck);
   if (["path", "line", "polyline"].includes(localName(element))) {
     const style = getComputedStyle(element);
     const marked = [style.markerStart, style.markerMid, style.markerEnd].some((value) => value && value !== "none");
     const padding = Math.max(1, Number.parseFloat(getComputedStyle(element).strokeWidth) || 0,
-      marked ? 20 : 0) * elementScale(element);
+      marked ? markerFallbackPadding(element, style) : 0) *
+      Math.max(elementScale(element), Math.abs(element.getScreenCTM()?.d || 1));
     bounds = { x: bounds.x - padding, y: bounds.y - padding,
       width: bounds.width + 2 * padding, height: bounds.height + 2 * padding };
   }
@@ -590,18 +622,268 @@ function connectorArrow(value, element, placement) {
   return markerIdToArrow(value);
 }
 
-function connectorMarkers(element) {
+// These are the actual Mermaid 11.15.0 outlines, not arrow presets. In particular
+// the two extension margin polygons are different from the regular triangles.
+export function knownMarkerGeometry(id, tag, geometry) {
+  const name = markerReferenceId(id);
+  const numbers = String(geometry).match(/[-+]?(?:\d*\.?\d+)(?:e[-+]?\d+)?/gi)?.map(Number) || [];
+  const commands = String(geometry).replace(/[-+]?(?:\d*\.?\d+)(?:e[-+]?\d+)?|[\s,]/gi, "");
+  const relation = /(?:^|[-_])(extension|aggregation)(Start|End)(-margin)?$/i.exec(name);
+  const cross = /(?:^|[-_])cross(Start|End)(-margin)?$/i.exec(name);
+  let expected;
+  let syntax;
+  let kind;
+  let strokes;
+  if (relation) {
+    const start = relation[2].toLowerCase() === "start";
+    kind = relation[1].toLowerCase() === "aggregation" ? "hollow-diamond" : "hollow-triangle";
+    if (kind === "hollow-diamond") {
+      expected = [18, 7, 9, 13, 1, 7, 9, 1];
+      syntax = "MLLLZ";
+      strokes = [[[18, 7], [9, 13], [1, 7], [9, 1], [18, 7]]];
+    } else if (relation[3]) {
+      expected = start ? [10, 7, 18, 13, 18, 1] : [10, 1, 10, 13, 18, 7];
+      syntax = "";
+      strokes = [start ? [[10, 7], [18, 13], [18, 1], [10, 7]] : [[10, 1], [10, 13], [18, 7], [10, 1]]];
+    } else {
+      expected = start ? [1, 7, 18, 13, 1] : [1, 1, 13, 18, 7];
+      syntax = start ? "MLVZ" : "MVLZ";
+      strokes = [start ? [[1, 7], [18, 13], [18, 1], [1, 7]] : [[1, 1], [1, 13], [18, 7], [1, 1]]];
+    }
+  } else if (cross || /-crosshead$/.test(name)) {
+    kind = "cross";
+    expected = cross ? cross[2] ? [1, 1, 14, 14, 1, 14, 14, 1] : [1, 1, 9, 9, 10, 1, -9, 9]
+      : [1, 2, 6, 7, 6, 2, 1, 7];
+    syntax = cross && !cross[2] ? "MlMl" : "MLML";
+    if (cross && !cross[2] && commands === "MLML") {
+      expected = [1, 1, 10, 10, 10, 1, 1, 10];
+      syntax = "MLML";
+    }
+    strokes = cross ? cross[2] ? [[[1, 1], [14, 14]], [[1, 14], [14, 1]]]
+      : [[[1, 1], [10, 10]], [[10, 1], [1, 10]]] : [[[1, 2], [6, 7]], [[6, 2], [1, 7]]];
+  } else return null;
+  if (tag !== (syntax ? "path" : "polygon") || commands !== syntax ||
+      numbers.length !== expected.length || numbers.some((value, index) => value !== expected[index])) return null;
+  return { kind, strokes: strokes.map((stroke) => stroke.map(([x, y]) => ({ x, y }))) };
+}
+
+// Work from the curve's control points, not the simplified polyline: its first
+// chord can have a different direction, especially on self and short messages.
+export function markerEndpointTangents(d) {
+  const text = String(d || "");
+  if (text.replace(/[MLHVCSQTmlhvcsqt]|[-+]?(?:\d*\.?\d+)(?:e[-+]?\d+)?|[\s,]/g, "")) return null;
+  const tokens = text.match(/[MLHVCSQTmlhvcsqt]|[-+]?(?:\d*\.?\d+)(?:e[-+]?\d+)?/g) || [];
+  if (tokens.length > MAX_SCENE_NODES * 8) return null;
+  const sizes = { M: 2, L: 2, H: 1, V: 1, C: 6, S: 4, Q: 4, T: 2 };
+  let index = 0;
+  let command = "";
+  let previous = "";
+  let current = { x: 0, y: 0 };
+  let control;
+  let start;
+  let firstDirection;
+  let lastDirection;
+  while (index < tokens.length) {
+    if (/^[a-z]$/i.test(tokens[index])) command = tokens[index++];
+    const upper = command.toUpperCase();
+    const count = sizes[upper];
+    if (!count || index + count > tokens.length || (!start && upper !== "M")) return null;
+    const values = tokens.slice(index, index + count).map(Number);
+    if (!values.every(Number.isFinite)) return null;
+    index += count;
+    const relative = command !== upper;
+    const point = (offset) => ({
+      x: values[offset] + (relative ? current.x : 0),
+      y: values[offset + 1] + (relative ? current.y : 0),
+    });
+    let end;
+    let controls = [];
+    if (upper === "H") end = { x: values[0] + (relative ? current.x : 0), y: current.y };
+    else if (upper === "V") end = { x: current.x, y: values[0] + (relative ? current.y : 0) };
+    else end = point(count - 2);
+    if (upper === "M") {
+      if (start) return null;
+      start = end;
+      command = relative ? "l" : "L";
+    } else {
+      if (upper === "C") controls = [point(0), point(2)];
+      if (upper === "Q") controls = [point(0)];
+      if (upper === "S" || upper === "T") {
+        const reflect = (upper === "S" ? ["C", "S"] : ["Q", "T"]).includes(previous);
+        controls = [reflect ? { x: 2 * current.x - control.x, y: 2 * current.y - control.y } : current];
+        if (upper === "S") controls.push(point(0));
+      }
+      const initial = [...controls, end].find((point) => point.x !== current.x || point.y !== current.y);
+      const final = [...controls].reverse().concat(current).find((point) => point.x !== end.x || point.y !== end.y);
+      if (!firstDirection && initial) firstDirection = { x: initial.x - current.x, y: initial.y - current.y };
+      if (final) lastDirection = { x: end.x - final.x, y: end.y - final.y };
+      control = controls.at(-1);
+    }
+    current = end;
+    previous = upper;
+  }
+  return firstDirection && lastDirection ? {
+    start: { point: start, direction: firstDirection }, end: { point: current, direction: lastDirection },
+  } : null;
+}
+
+function solidMarkerDash(value) {
+  if (!value || value === "none") return true;
+  const values = value.split(/[,\s]+/).map(Number.parseFloat);
+  return values.every((value) => value === 0) ||
+    (values.length % 2 === 0 && values.every((value, index) => Number.isFinite(value) && (index % 2 === 0 ? value > 0 : value === 0)));
+}
+
+function renderedPathData(path) {
+  const computed = getComputedStyle(path).d;
+  if (!computed) return path.getAttribute("d") || "";
+  return /^path\(["'](.*)["']\)$/.exec(computed)?.[1] || "";
+}
+
+function markerParts(value, element, placement, deck, options) {
+  const id = markerReferenceId(value);
+  const marker = element.ownerSVGElement.querySelector(`#${CSS.escape(id)}`);
+  const children = marker ? directChildren(marker) : [];
+  const outline = children[0];
+  if (localName(marker) !== "marker" || children.length !== 1 || unsupportedVisualEffect(marker)) return null;
+  const geometry = knownMarkerGeometry(id, localName(outline),
+    localName(outline) === "path" ? renderedPathData(outline) : outline.getAttribute("points"));
+  if (!geometry) return null;
+  const paint = getComputedStyle(outline);
+  const markerStyle = getComputedStyle(marker);
+  const lineStyle = getComputedStyle(element);
+  const matrix = element.getScreenCTM();
+  const scale = elementScale(element);
+  if (!matrix || Math.abs(matrix.a - matrix.d) > 0.001 || Math.abs(matrix.b) > 0.001 || Math.abs(matrix.c) > 0.001 ||
+      !/^rgb\(\d+, \d+, \d+\)$/.test(paint.stroke) || !(parseMetric(paint.strokeWidth) > 0) || effectiveOpacity(element) !== 1 ||
+      !normalizeColor(lineStyle.stroke) || !(parseMetric(lineStyle.strokeWidth) > 0) ||
+      roundedMetric(parseMetric(lineStyle.strokeWidth) * scale) <= 0 ||
+      (localName(element) === "path" && normalizeColor(lineStyle.fill)) ||
+      (geometry.kind !== "cross" && normalizeColor(paint.fill)) ||
+      !solidMarkerDash(paint.strokeDasharray) || parseMetric(paint.strokeDashoffset) !== 0 ||
+      paint.strokeLinecap !== "butt" || paint.strokeLinejoin !== "miter" || Number(paint.strokeMiterlimit) !== 4 ||
+      [element, marker, outline].some((part) => {
+        const style = getComputedStyle(part);
+        return Number(style.opacity) !== 1 || (part !== element && (style.transform !== "none" ||
+          style.rotate !== "none" || style.scale !== "none" || style.translate !== "none")) ||
+          (style.vectorEffect && style.vectorEffect !== "none") ||
+          (style.mixBlendMode && style.mixBlendMode !== "normal") ||
+          (style.paintOrder && style.paintOrder !== "normal") ||
+          style.display === "none" || (style.visibility === "hidden" &&
+            (!element.ownerDocument.body.classList.contains("mermaid-loading") ||
+              part.style.visibility === "hidden" || part.getAttribute("visibility") === "hidden"));
+      })) return null;
+  const units = marker.getAttribute("markerUnits") || "strokeWidth";
+  if (!["strokeWidth", "userSpaceOnUse"].includes(units)) return null;
+  const unitScale = units === "strokeWidth" ? parseMetric(lineStyle.strokeWidth) : 1;
+  const metric = (name, fallback) => {
+    const raw = marker.getAttribute(name);
+    return raw === null ? fallback : /^[-+]?(?:\d*\.?\d+)(?:e[-+]?\d+)?(?:px)?$/i.test(raw.trim()) ? Number.parseFloat(raw) : NaN;
+  };
+  const width = metric("markerWidth", 3);
+  const height = metric("markerHeight", 3);
+  const ref = { x: metric("refX", 0), y: metric("refY", 0) };
+  let sx = 1;
+  let sy = 1;
+  let tx = 0;
+  let ty = 0;
+  if (marker.hasAttribute("viewBox")) {
+    const box = marker.getAttribute("viewBox").trim().split(/[\s,]+/).map(Number);
+    if (box.length !== 4 || !box.every(Number.isFinite) || box[2] <= 0 || box[3] <= 0) return null;
+    const aspect = (marker.getAttribute("preserveAspectRatio") || "xMidYMid meet").trim();
+    const match = /^(none|x(Min|Mid|Max)Y(Min|Mid|Max))(?:\s+(meet|slice))?$/.exec(aspect);
+    if (!match) return null;
+    sx = width / box[2];
+    sy = height / box[3];
+    if (match[1] !== "none") {
+      sx = sy = (match[4] === "slice" ? Math.max : Math.min)(sx, sy);
+      tx = (width - box[2] * sx) * ({ Min: 0, Mid: 0.5, Max: 1 }[match[2]]);
+      ty = (height - box[3] * sy) * ({ Min: 0, Mid: 0.5, Max: 1 }[match[3]]);
+    }
+    tx -= box[0] * sx;
+    ty -= box[1] * sy;
+  }
+  if (![width, height, ref.x, ref.y, sx, sy, unitScale].every(Number.isFinite) ||
+      width <= 0 || height <= 0 || unitScale <= 0 || Math.abs(sx - sy) > 0.001) return null;
+  // Clipping through the known strokes needs a local picture, not shortened or
+  // missing terminals. Normal bundled marker viewports contain their vertices.
+  if (markerStyle.overflow !== "visible" && geometry.strokes.flat().some((point) =>
+    point.x * sx + tx < 0 || point.x * sx + tx > width || point.y * sy + ty < 0 || point.y * sy + ty > height)) return null;
+  const endpoints = localName(element) === "path" ? markerEndpointTangents(renderedPathData(element)) : (() => {
+    const start = { x: Number(element.getAttribute("x1")), y: Number(element.getAttribute("y1")) };
+    const end = { x: Number(element.getAttribute("x2")), y: Number(element.getAttribute("y2")) };
+    const direction = { x: end.x - start.x, y: end.y - start.y };
+    return direction.x || direction.y ? { start: { point: start, direction }, end: { point: end, direction } } : null;
+  })();
+  if (!endpoints) return null;
+  const endpoint = endpoints[placement];
+  const orient = marker.getAttribute("orient") || "0";
+  let angle;
+  if (orient === "auto" || orient === "auto-start-reverse") {
+    angle = Math.atan2(endpoint.direction.y, endpoint.direction.x) + (orient === "auto-start-reverse" && placement === "start" ? Math.PI : 0);
+  } else if (/^[-+]?(?:\d*\.?\d+)(?:e[-+]?\d+)?(?:deg|rad|grad|turn)?$/i.test(orient)) {
+    angle = marker.orientAngle.baseVal.value * Math.PI / 180;
+  } else return null;
+  const cosine = Math.cos(angle);
+  const sine = Math.sin(angle);
+  const strokes = geometry.strokes.map((stroke) => stroke.map((point) => {
+    const x = (point.x - ref.x) * sx * unitScale;
+    const y = (point.y - ref.y) * sy * unitScale;
+    return screenPoint(element, { x: endpoint.point.x + cosine * x - sine * y,
+      y: endpoint.point.y + sine * x + cosine * y }, deck);
+  }));
+  if (strokes.some((stroke) => stroke.slice(1).some((point, index) => pointKey(point) === pointKey(stroke[index])))) return null;
+  const strokeWidth = parseMetric(paint.strokeWidth) * scale * unitScale * sx;
+  if (roundedMetric(strokeWidth) <= 0) return null;
+  return {
+    kind: geometry.kind, placement, strokes,
+    style: { fill: null, stroke: normalizeColor(paint.stroke, options.resolveColor),
+      strokeWidth, dash: "solid", lineCap: "butt", opacity: 1 },
+  };
+}
+
+function connectorMarkers(element, deck, options) {
   const style = getComputedStyle(element);
   const start = style.markerStart || element.getAttribute("marker-start");
   const end = style.markerEnd || element.getAttribute("marker-end");
   const arrowStart = connectorArrow(start, element, "start");
   const arrowEnd = connectorArrow(end, element, "end");
+  const parts = [start, end].map((value, index) => {
+    if (!value || value === "none" || (index === 0 ? arrowStart : arrowEnd) !== "none") return null;
+    return markerParts(value, element, index === 0 ? "start" : "end", deck, options);
+  });
   return {
     arrowStart,
     arrowEnd,
-    unsupported: [[start, arrowStart], [end, arrowEnd]].some(([value, arrow]) => value && value !== "none" && arrow === "none") ||
+    parts: parts.filter(Boolean),
+    unsupported: [[start, arrowStart], [end, arrowEnd]].some(([value, arrow], index) => value && value !== "none" && arrow === "none" && !parts[index]) ||
+      // Attached arrow presets paint with the main line. An explicit start must
+      // precede an attached end marker, which that representation cannot ensure.
+      Boolean(parts[0] && arrowEnd !== "none") ||
       Boolean(style.markerMid && style.markerMid !== "none"),
   };
+}
+
+function markedConnector(connector, markers, element, options) {
+  if (!markers.parts.length) return connector;
+  const children = [{ ...connector, sourcePath: `${connector.sourcePath}.line` }];
+  for (const marker of markers.parts) {
+    for (const [index, points] of marker.strokes.entries()) children.push({
+      kind: "connector", sourcePath: `${connector.sourcePath}.markers.${marker.placement}[${index}]`,
+      points, style: marker.style, arrowStart: "none", arrowEnd: "none",
+      meta: { mermaid: { kind: "marker", shape: marker.kind, placement: marker.placement } },
+    });
+  }
+  const points = children.flatMap((child) => child.points);
+  const bounds = { x: Math.min(...points.map((point) => point.x)), y: Math.min(...points.map((point) => point.y)) };
+  bounds.width = Math.max(...points.map((point) => point.x)) - bounds.x;
+  bounds.height = Math.max(...points.map((point) => point.y)) - bounds.y;
+  for (const child of children) {
+    options.sourceElements.set(child.sourcePath, element);
+    child.points = child.points.map((point) => ({ x: point.x - bounds.x, y: point.y - bounds.y }));
+  }
+  return { ...compositeGroup(connector.sourcePath, connector.z, bounds, children, "marked-connector"),
+    meta: { mermaid: { kind: "marked-edge" } } };
 }
 
 function nodeText(group, deck, options) {
@@ -878,12 +1160,12 @@ function sampledPathPoints(path, deck, options) {
 
 function connectorPath(path, sourcePath, z, deck, options) {
   try {
-    const markers = connectorMarkers(path);
+    const markers = connectorMarkers(path, deck, options);
     if (unsupportedVisualEffect(path) || markers.unsupported) {
       return fallbackNode(path, z, deck, "unsupported-mermaid-edge-style", sourcePath);
     }
     // Sampling across multiple subpaths joins disconnected strokes with invented lines.
-    const commands = (path.getAttribute("d") || "").match(/[a-df-z]/gi) || [];
+    const commands = renderedPathData(path).match(/[a-df-z]/gi) || [];
     if (commands.filter((command) => command.toLowerCase() === "m").length !== 1 ||
         commands.some((command) => command.toLowerCase() === "z")) {
       return fallbackNode(path, z, deck, "unsupported-mermaid-edge-path", sourcePath);
@@ -893,7 +1175,7 @@ function connectorPath(path, sourcePath, z, deck, options) {
       return fallbackNode(path, z, deck, "unsupported-mermaid-edge-path", sourcePath);
     }
     const id = path.getAttribute("data-id") || path.getAttribute("id") || "";
-    return definedEntries({
+    return markedConnector(definedEntries({
       kind: "connector",
       id: path.getAttribute("id") || undefined,
       sourcePath,
@@ -910,7 +1192,7 @@ function connectorPath(path, sourcePath, z, deck, options) {
           simplifiedPointCount: points.simplified.length,
         },
       },
-    });
+    }), markers, path, options);
   } catch (error) {
     return fallbackNode(path, z, deck, `unsupported-mermaid-edge-path: ${error?.message || "path sampling failed"}`, sourcePath);
   }
@@ -1082,10 +1364,10 @@ function sequenceScene(svg, deck, size, options) {
         : connectorPath(element, sourcePath, nodes.length, deck, options));
       return;
     }
-    const markers = tag === "line" ? connectorMarkers(element) : null;
+    const markers = tag === "line" ? connectorMarkers(element, deck, options) : null;
     if (tag === "line" && /^(?:actor-line|messageLine\d+)(?:\s|$)/.test(element.getAttribute("class") || "") &&
         !markers.unsupported) {
-      nodes.push({
+      nodes.push(markedConnector({
         kind: "connector", sourcePath, z: nodes.length,
         points: [1, 2].map((index) => screenPoint(element, {
           x: Number(element.getAttribute(`x${index}`)), y: Number(element.getAttribute(`y${index}`)),
@@ -1093,7 +1375,7 @@ function sequenceScene(svg, deck, size, options) {
         style: computedSvgStyle(element, options),
         arrowStart: markers.arrowStart,
         arrowEnd: markers.arrowEnd,
-      });
+      }, markers, element, options));
       return;
     }
     if (VISUAL_TAGS.has(tag)) nodes.push(fallbackNode(element, nodes.length, deck,

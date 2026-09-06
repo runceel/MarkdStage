@@ -195,6 +195,7 @@ export function sceneToSvg(scene, {
     return {
       fill: style.fill ?? "none", stroke: style.stroke ?? "none",
       "stroke-width": style.strokeWidth ?? 0, opacity: style.opacity ?? 1,
+      "stroke-linecap": style.lineCap,
       "stroke-dasharray": { dash: "8 5", dashDot: "8 4 2 4", dot: "2 4" }[style.dash],
     };
   }
@@ -274,7 +275,7 @@ export function sceneToSvg(scene, {
         role: "img", "aria-label": node.alt,
       }));
       if (node.kind === "connector") {
-        const attrs = { ...paint(node.style), fill: "none", "stroke-linejoin": "round", "stroke-linecap": "round" };
+        const attrs = { ...paint(node.style), fill: "none", "stroke-linejoin": "round", "stroke-linecap": node.style?.lineCap ?? "round" };
         const defs = dom("defs");
         for (const [end, arrow] of [["start", node.arrowStart], ["end", node.arrowEnd]]) {
           if (!arrow || arrow === "none") continue;

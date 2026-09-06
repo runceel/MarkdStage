@@ -6,6 +6,8 @@ import {
   cssStyleToSceneStyle,
   enforceSceneLimits,
   markerIdToArrow,
+  knownMarkerGeometry,
+  markerEndpointTangents,
   polygonPointsSignature,
   simplifyPolyline,
   textToSceneText,
@@ -40,6 +42,47 @@ test("maps Mermaid marker IDs and URL references to scene arrows", () => {
   assert.equal(markerIdToArrow("url(#mermaid-1_flowchart-v2-circleEnd)"), "oval");
   assert.equal(markerIdToArrow("url(#mermaid-1_flowchart-v2-crossEnd)"), "none");
   assert.equal(markerIdToArrow(""), "none");
+});
+
+test("recognizes only the bundled hollow and cross geometry, never a filled arrow substitute", () => {
+  for (const [name, tag, data, kind, sizes] of [
+    ["extensionStart", "path", "M 1,7 L18,13 V 1 Z", "hollow-triangle", [4]],
+    ["extensionEnd", "path", "M 1,1 V 13 L18,7 Z", "hollow-triangle", [4]],
+    ["extensionStart-margin", "polygon", "10,7 18,13 18,1", "hollow-triangle", [4]],
+    ["extensionEnd-margin", "polygon", "10,1 10,13 18,7", "hollow-triangle", [4]],
+    ["aggregationStart", "path", "M 18,7 L9,13 L1,7 L9,1 Z", "hollow-diamond", [5]],
+    ["aggregationEnd-margin", "path", "M 18,7 L9,13 L1,7 L9,1 Z", "hollow-diamond", [5]],
+    ["crossStart", "path", "M 1,1 l 9,9 M 10,1 l -9,9", "cross", [2, 2]],
+    ["crossEnd-margin", "path", "M 1,1 L 14,14 M 1,14 L 14,1", "cross", [2, 2]],
+    ["crosshead", "path", "M 1,2 L 6,7 M 6,2 L 1,7", "cross", [2, 2]],
+  ]) {
+    const id = `url("https://example.test/#fixture-${name}")`;
+    const geometry = knownMarkerGeometry(id, tag, data);
+    assert.equal(geometry.kind, kind);
+    assert.deepEqual(geometry.strokes.map((stroke) => stroke.length), sizes);
+    assert.equal(markerIdToArrow(id), "none");
+    assert.equal(knownMarkerGeometry(id, tag, `${data} 0`), null);
+    assert.equal(knownMarkerGeometry(`${id}-unknown`, tag, data), null);
+    if (kind !== "cross") assert.deepEqual(geometry.strokes[0][0], geometry.strokes[0].at(-1));
+  }
+});
+
+test("takes marker endpoint tangents from original line and Bezier control points", () => {
+  for (const [d, start, end] of [
+    ["M1 2 L1 2 L1 20 H30 V10", [0, 18], [0, -10]],
+    ["M1 2 C1 2 3 9 10 2", [2, 7], [7, -7]],
+    ["M1 2 c0 0 2 7 9 0 s3 -7 9 0", [2, 7], [6, 7]],
+    ["M1 2 Q1 9 10 2 T20 2", [0, 7], [1, 7]],
+    ["M10 10 c30 0 30 20 0 20 l0 0", [30, 0], [-30, 0]],
+    ["M1 2 5 6 3 4", [4, 4], [-2, -2]],
+  ]) {
+    const endpoints = markerEndpointTangents(d);
+    assert.deepEqual(endpoints.start.direction, { x: start[0], y: start[1] }, d);
+    assert.deepEqual(endpoints.end.direction, { x: end[0], y: end[1] }, d);
+  }
+  for (const d of ["", "M0 0", "L1 2", "M0 0 M1 2", "M0 0L0 0", "M0 0L2", "M0 0Qx 1 2 3", "M0 0 A2 2 0 0 0 2 2", "M0 0L2 2Z"]) {
+    assert.equal(markerEndpointTangents(d), null, d);
+  }
 });
 
 test("simplifies collinear runs while preserving genuine corners", () => {

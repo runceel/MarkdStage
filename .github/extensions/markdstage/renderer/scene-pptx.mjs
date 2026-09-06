@@ -61,7 +61,7 @@ function copyTextLayout(target, textLayout = {}, keys) {
 
 function styleFields(style = {}) {
   const mapped = {};
-  copyDefined(mapped, style, ["fill", "stroke", "opacity", "cornerRadius"]);
+  copyDefined(mapped, style, ["fill", "stroke", "lineCap", "opacity", "cornerRadius"]);
   if (style.strokeWidth !== undefined && style.strokeWidth > 0) {
     mapped.strokeWidth = style.strokeWidth;
   } else if (style.strokeWidth === 0) {

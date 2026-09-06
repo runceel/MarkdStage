@@ -20,6 +20,8 @@ const slides = [
   "# Nested Mermaid\n\n```mermaid\nflowchart TB\nsubgraph Cloud\nA --> B{Check}\nB -->|Yes| C((Done))\nend\n```",
   "# Styled Mermaid\n\n```mermaid\nflowchart LR\nA[Styled]:::red --> B([Done])\nclassDef red fill:#ffdddd,stroke:#ff0000,stroke-width:3px,color:#111111\n```",
   "# Class Mermaid\n\n```mermaid\nclassDiagram\nclass Animal {\n+String name\n+walk()\n}\nAnimal <|-- Duck\n```",
+  ...await Promise.all(["class-hollow", "flowchart-cross", "sequence-cross"].map(async (name) =>
+    `# Hollow and cross markers\n\n\`\`\`mermaid\n${await readFile(new URL(`../fixtures/mermaid/${name}.mmd`, import.meta.url), "utf8")}\n\`\`\``)),
   `# Class relationships\n\n\`\`\`mermaid\n${await readFile(new URL("../fixtures/mermaid/class-relations.mmd", import.meta.url), "utf8")}\n\`\`\``,
   `# Sequence paths\n\n\`\`\`mermaid\n${await readFile(new URL("../fixtures/mermaid/sequence-paths.mmd", import.meta.url), "utf8")}\n\`\`\``,
 ];
@@ -106,14 +108,15 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
 }
 
 test("normal, presenter, fixed preview, PNG and PDF use the same shared scene rendering", async ({ browser }) => {
-  const surfaceSlides = [slides[0], slides[1], slides.at(-2), slides.at(-1)];
+  test.setTimeout(90_000);
+  const surfaceSlides = [slides[0], slides[1], slides.at(-2), slides.at(-1), ...slides.slice(7, 10)];
   const harness = await startHarness({ slides: surfaceSlides });
   const page = await browser.newPage();
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
   try {
-    for (const index of [0, 1, 2, 3]) {
+    for (const index of surfaceSlides.keys()) {
       await page.request.post(`${harness.url}/navigate`, { data: { index } });
       const signatures = [];
       for (const query of ["", "?present=1", "?preview=1", "fixed", `?capture=1&token=${harness.printToken}&index=${index}`, `?print=1&token=${harness.printToken}`]) {

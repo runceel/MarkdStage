@@ -31,6 +31,16 @@ function scene(nodes) {
   })).scene;
 }
 
+test("renders explicit marker caps while retaining the existing connector default", () => {
+  for (const lineCap of [undefined, "butt", "round", "square"]) {
+    const source = scene([{ kind: "connector", sourcePath: "cross", z: 0,
+      points: [{ x: 1, y: 2 }, { x: 6, y: 7 }], style: { stroke: "#123456", ...(lineCap ? { lineCap } : {}) } }]);
+    const path = all(sceneToSvg(source, { document })).find((node) => node.tagName === "path");
+    assert.equal(path.attributes.get("stroke-linecap"), lineCap ?? "round");
+    assert.equal(path.attributes.get("fill"), "none");
+  }
+});
+
 test("renders scene primitives, rich text, markers, images and stable stacking with DOM APIs", () => {
   const source = scene([
     { kind: "shape", preset: "diamond", sourcePath: "node", z: 2, bounds, style: { fill: "#ffffff", stroke: "#000000", strokeWidth: 2, dash: "dot" }, text: richText },

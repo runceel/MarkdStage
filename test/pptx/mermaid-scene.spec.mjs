@@ -358,7 +358,7 @@ test("keeps unsupported sequence message paths local without joining strokes or 
       () => { document.querySelector("path.messageLine0").style.strokeOpacity = "0.5"; },
       () => { document.querySelector("path.messageLine0").style.clipPath = "inset(1px)"; },
       () => { document.querySelector("path.messageLine0").style.markerMid = "url(#fixture-sequence-paths-arrowhead)"; },
-      () => { document.querySelector("path.messageLine0").style.markerEnd = "url(#fixture-sequence-paths-crosshead)"; },
+      () => { document.querySelector("path.messageLine0").style.markerEnd = "url(#fixture-sequence-paths-crosshead)"; document.querySelector('[id$="-crosshead"] path').style.filter = "blur(1px)"; },
       () => { document.querySelector("path.messageLine0").style.markerEnd = "url(#unknown-head)"; },
       () => { document.querySelector("path.messageLine0").setAttribute("class", "messageLine2"); },
     ]) {
@@ -426,19 +426,23 @@ test("recognizes sequence filled-head by geometry and paint and rejects unsuppor
   }
 });
 
-test("extracts class compartments and preserves unsupported inheritance arrows as fallback", async ({ page }) => {
+test("extracts class compartments and editable hollow inheritance outlines", async ({ page }) => {
   const harness = await startHarness({ slides: ["# Classes"] });
   try {
     await page.goto(harness.url);
     const { scene } = await sceneFromFixture(page, await readFixture("class.svg"), "class.svg");
     validateScene(scene);
     expect(scene.nodes.filter((node) => node.kind === "shape")).toHaveLength(2);
-    expect(scene.nodes.filter((node) => node.kind === "connector")).toHaveLength(4);
+    expect(scene.nodes.filter((node) => node.kind === "connector")).toHaveLength(6);
     expect(scene.nodes.filter((node) => node.kind === "text").map((node) => node.text.paragraphs[0].runs[0].text))
       .toEqual(["Animal", "+String name", "+speak() : void", "Dog"]);
-    expect(scene.nodes.filter((node) => node.kind === "fallback")).toHaveLength(1);
-    expect(scene.nodes[0].reason).toBe("unsupported-mermaid-edge-style");
+    expect(scene.nodes.filter((node) => node.kind === "fallback")).toHaveLength(0);
+    expect(scene.nodes[0].meta.mermaid.kind).toBe("marked-edge");
     expect(scene.nodes[0].bounds.width).toBeGreaterThan(0);
+    expect(scene.nodes.find((node) => node.meta?.mermaid?.kind === "marker")).toMatchObject({
+      kind: "connector", style: { fill: null, dash: "solid" }, arrowStart: "none", arrowEnd: "none",
+      meta: { mermaid: { shape: "hollow-triangle", placement: "start" } },
+    });
     const association = (await readFixture("class.svg")).replace(/ marker-start="[^"]*"/g, "");
     const native = await sceneFromFixture(page, association, "class-association.svg");
     expect(native.scene.nodes.filter((node) => node.kind === "fallback")).toEqual([]);
@@ -534,8 +538,8 @@ test("keeps unsupported class markers and decorated multiplicities local and los
       () => { document.querySelector('[id$="-compositionStart"] path').style.opacity = "0.5"; },
       () => { document.querySelector('[id$="-compositionStart"] path').style.transform = "rotate(20deg)"; },
       () => { document.querySelector('[id$="-compositionStart"]').remove(); },
-      () => { document.querySelector("path.relation").setAttribute("marker-start", "url(#fixture-class-relations_class-aggregationStart)"); },
-      () => { document.querySelector("path.relation").setAttribute("marker-start", "url(#fixture-class-relations_class-extensionStart)"); },
+      () => { document.querySelector("path.relation").setAttribute("marker-start", "url(#fixture-class-relations_class-aggregationStart)"); document.querySelector('[id$="-aggregationStart"] path').style.fill = "white"; },
+      () => { document.querySelector("path.relation").setAttribute("marker-start", "url(#fixture-class-relations_class-extensionStart)"); document.querySelector('[id$="-extensionStart"] path').style.fill = "white"; },
     ]) {
       await sceneFromFixture(page, fixture, "class-marker-fallback.svg");
       const result = await updateFixture(page, mutate);
@@ -920,9 +924,10 @@ test("real renderer exports new Mermaid diagrams with exact native masks and par
     await expect(sequenceSvg.locator("line[data-et=message][data-pptx-native=connector]")).toHaveCount(2);
 
     const classes = model.slides[1];
-    expect(classes.fallbacks.filter((fallback) => fallback.reason === "unsupported-mermaid-edge-style")).toHaveLength(1);
+    expect(classes.fallbacks.filter((fallback) => fallback.reason === "unsupported-mermaid-edge-style")).toHaveLength(0);
     const classSvg = page.locator("pre.mermaid > svg").nth(1);
-    await expect(classSvg.locator("path.relation[data-pptx-fallback-ids]")).toHaveCount(1);
+    await expect(classSvg.locator("path.relation[data-pptx-fallback-ids]")).toHaveCount(0);
+    await expect(classSvg.locator("path.relation[data-pptx-native=connector]")).toHaveCount(1);
     await expect(classSvg.locator("g.node > g.label-container[data-pptx-native=shape]")).toHaveCount(2);
     await expect(classSvg.locator("span.nodeLabel[data-pptx-native=text]")).toHaveCount(4);
     await expect(classSvg.locator("g.edgeLabel[data-pptx-native=shape]")).toHaveCount(1);
@@ -960,10 +965,11 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
       const slide = await page.evaluate(() => window.__presentationPptxModel.slides[0]);
       const connectors = slide.elements.filter((element) => element.type === "connector" &&
         element.path?.startsWith("mermaid[0].sequence["));
-      expect(connectors).toHaveLength(11);
+      expect(connectors).toHaveLength(17);
       expect(connectors.filter((element) => element.arrowEnd === "stealth")).toHaveLength(4);
       expect(connectors.filter((element) => element.arrowStart === "triangle")).toHaveLength(2);
-      expect(connectors.filter((element) => element.points.length > 2)).toHaveLength(6);
+      expect(connectors.filter((element) => element.points.length > 2)).toHaveLength(7);
+      expect(connectors.filter((element) => element.mermaid?.shape === "cross")).toHaveLength(4);
       const labels = slide.elements.filter((element) => element.type === "text" &&
         element.path?.startsWith("mermaid[0].sequence["))
         .map((element) => element.paragraphs.map((paragraph) => paragraph.runs.map((run) => run.text).join("")).join("\n"));
@@ -974,13 +980,13 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
         "Cancel self", "Cancel remote", "Again",
       ]);
       const fallbacks = slide.fallbacks.filter((fallback) => fallback.type === "mermaid");
-      expect(fallbacks.length).toBeGreaterThan(2); // Cross heads and unsupported loop decorations stay local.
+      expect(fallbacks.length).toBeGreaterThan(0); // Unsupported loop decorations stay local.
       expect(fallbacks.every((fallback) => fallback.path.startsWith("mermaid[0].sequence[") && fallback.reason)).toBe(true);
       const svg = page.locator("pre.mermaid > svg");
       expect(await svg.getAttribute("data-pptx-fallback-ids")).toBeNull();
-      await expect(svg.locator("path[data-et=message][data-pptx-native=connector]")).toHaveCount(6);
-      await expect(svg.locator("line[data-et=message][data-pptx-native=connector]")).toHaveCount(3);
-      await expect(svg.locator("[data-et=message][data-pptx-fallback-ids]")).toHaveCount(2);
+      await expect(svg.locator("path[data-et=message][data-pptx-native=connector]")).toHaveCount(7);
+      await expect(svg.locator("line[data-et=message][data-pptx-native=connector]")).toHaveCount(4);
+      await expect(svg.locator("[data-et=message][data-pptx-fallback-ids]")).toHaveCount(0);
       const masks = await svg.evaluate((svg) => ({
         messages: [...svg.querySelectorAll("[data-et=message][data-pptx-native]")].map((message) => {
           const style = getComputedStyle(message);
@@ -995,17 +1001,13 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
           native: label.getAttribute("data-pptx-native"), fill: getComputedStyle(label).fill,
         })),
       }));
-      expect(masks.messages).toHaveLength(9);
+      expect(masks.messages).toHaveLength(11);
       for (const message of masks.messages) {
         expect(message).toMatchObject({ stroke: "rgba(0, 0, 0, 0)", start: "none", end: "none" });
-        expect(connectors.some((connector) => connector.path === `mermaid[0].${message.path}`)).toBe(true);
+        expect(connectors.some((connector) => connector.path === `mermaid[0].${message.path}` ||
+          connector.path === `mermaid[0].${message.path}.line`)).toBe(true);
       }
-      for (const fallback of masks.fallback) {
-        expect(fallback.stroke).not.toBe("rgba(0, 0, 0, 0)");
-        expect(fallback.marker).toContain("crosshead");
-        expect(fallbacks.some((entry) => entry.path === `mermaid[0].${fallback.path}`)).toBe(true);
-        expect(connectors.some((connector) => connector.path === `mermaid[0].${fallback.path}`)).toBe(false);
-      }
+      expect(masks.fallback).toEqual([]);
       expect(masks.labels).toEqual(Array(13).fill({ native: "text", fill: "rgba(0, 0, 0, 0)" }));
     } finally {
       await harness.close();
@@ -1028,22 +1030,22 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
       await expect(page.locator("html")).toHaveAttribute("data-pptx-ready", "true");
       const slide = await page.evaluate(() => window.__presentationPptxModel.slides[0]);
       const edges = slide.elements.filter((element) => element.path?.startsWith("mermaid[0].edges["));
-      expect(edges.map((edge) => [edge.arrowStart, edge.arrowEnd])).toEqual([
+      expect(edges.filter((edge) => edge.mermaid?.kind !== "marker").map((edge) => [edge.arrowStart, edge.arrowEnd])).toEqual([
         ["diamond", "none"], ["none", "stealth"], ["none", "stealth"], ["none", "none"],
+        ["none", "none"], ["none", "none"],
       ]);
+      expect(edges.filter((edge) => edge.mermaid?.kind === "marker").map((edge) => edge.mermaid.shape))
+        .toEqual(["hollow-triangle", "hollow-diamond"]);
       const terminals = slide.elements.filter((element) => element.mermaid?.kind === "edge-terminal");
       expect(terminals.map((terminal) => terminal.text.paragraphs.map((paragraph) => paragraph.runs.map((run) => run.text).join(""))))
         .toEqual([["1"], ["0..*", "\u8907\u6570"]]);
       expect(slide.elements.some((element) => element.text?.paragraphs?.map((paragraph) =>
         paragraph.runs.map((run) => run.text).join("")).join("\n") === "\u5408\u6210\n\u95a2\u4fc2")).toBe(true);
-      expect(slide.fallbacks.filter((fallback) => fallback.type === "mermaid")).toMatchObject([
-        { path: "mermaid[0].edges[4]", reason: "unsupported-mermaid-edge-style" },
-        { path: "mermaid[0].edges[5]", reason: "unsupported-mermaid-edge-style" },
-      ]);
+      expect(slide.fallbacks.filter((fallback) => fallback.type === "mermaid")).toEqual([]);
       const svg = page.locator("pre.mermaid > svg");
-      await expect(svg.locator("path.relation[data-pptx-native=connector]")).toHaveCount(4);
+      await expect(svg.locator("path.relation[data-pptx-native=connector]")).toHaveCount(6);
       await expect(svg.locator("g.edgeTerminals[data-pptx-native=shape]")).toHaveCount(2);
-      await expect(svg.locator("path.relation[data-pptx-fallback-ids]")).toHaveCount(2);
+      await expect(svg.locator("path.relation[data-pptx-fallback-ids]")).toHaveCount(0);
       expect(await svg.getAttribute("data-pptx-fallback-ids")).toBeNull();
       const masks = await svg.evaluate((svg) => ({
         edges: [...svg.querySelectorAll("path.relation[data-pptx-native]")].map((edge) => {
@@ -1053,9 +1055,9 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
         labels: [...svg.querySelectorAll("g.edgeTerminals span.edgeLabel")].map((label) => getComputedStyle(label).color),
         fallbackMarkers: [...svg.querySelectorAll("path.relation[data-pptx-fallback-ids]")].map((edge) => getComputedStyle(edge).markerStart),
       }));
-      expect(masks.edges).toEqual(Array(4).fill(["rgba(0, 0, 0, 0)", "none", "none"]));
+      expect(masks.edges).toEqual(Array(6).fill(["rgba(0, 0, 0, 0)", "none", "none"]));
       expect(masks.labels).toEqual(Array(2).fill("rgba(0, 0, 0, 0)"));
-      expect(masks.fallbackMarkers.every((marker) => marker !== "none")).toBe(true);
+      expect(masks.fallbackMarkers).toEqual([]);
     } finally {
       await harness.close();
     }

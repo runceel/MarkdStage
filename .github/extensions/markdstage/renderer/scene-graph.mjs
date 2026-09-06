@@ -27,6 +27,7 @@ const SHAPE_PRESETS = new Set([
   "parallelogram",
 ]);
 const DASH_STYLES = new Set(["", "solid", "dash", "dashDot", "dot"]);
+const LINE_CAPS = new Set(["butt", "round", "square"]);
 const IMAGE_FITS = new Set(["contain", "cover", "fill", "none"]);
 const ARROWS = new Set([null, "none", "triangle", "arrow", "stealth", "diamond", "oval"]);
 const ALIGNMENTS = new Set(["left", "center", "right", "justify"]);
@@ -272,7 +273,7 @@ function validateCapability(value, path) {
 function validateStyle(value, path) {
   if (value === undefined) return;
   requiredObject(value, path);
-  exactKeys(value, new Set(["fill", "stroke", "strokeWidth", "dash", "opacity", "cornerRadius"]), path);
+  exactKeys(value, new Set(["fill", "stroke", "strokeWidth", "dash", "lineCap", "opacity", "cornerRadius"]), path);
   if (value.fill !== undefined) validateColor(value.fill, `${path}.fill`);
   if (value.stroke !== undefined) validateColor(value.stroke, `${path}.stroke`);
   if (value.strokeWidth !== undefined) nonNegativeNumber(value.strokeWidth, `${path}.strokeWidth`);
@@ -283,6 +284,9 @@ function validateStyle(value, path) {
   }
   if (value.dash !== undefined && !DASH_STYLES.has(value.dash)) {
     fail(`${path}.dash must be "", "solid", "dash", "dashDot", or "dot"`);
+  }
+  if (value.lineCap !== undefined && !LINE_CAPS.has(value.lineCap)) {
+    fail(`${path}.lineCap must be "butt", "round", or "square"`);
   }
 }
 
