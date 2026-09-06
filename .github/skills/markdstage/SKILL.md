@@ -113,9 +113,10 @@ Run commands with `npx @markdstage/markdstage` or install
    DSL errors before judging layout.
 5. **Use watch mode for live authoring.** Run
    `markdstage preview slides.md --watch`, edit the Markdown, and review the
-   reloaded deck without losing the current slide. The browser begins in
-   viewing mode; the pencil control enables Architecture placement and detailed
-   editing.
+   reloaded deck without losing the current slide. The browser begins on the
+   fixed 16:9 output surface in viewing mode; **Output preview** switches to the
+   retained responsive layout, and the pencil control switches to that layout
+   while enabling Architecture placement and detailed editing.
 6. **Inspect fixed 16:9 output.** Run
    `markdstage inspect slides.md --json`. Use `--slide <n>` after a localized
    change and `--fail-on-issues` in CI or other quality gates.

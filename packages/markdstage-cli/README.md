@@ -61,10 +61,13 @@ Global options: `--workspace <dir>`, `--theme <name>`, `--theme-file <path>`,
 ## Architecture editing
 
 Run `markdstage preview slides.md --watch` for the live authoring workflow. The
-browser starts in viewing mode. Select the pencil control to move Architecture
-elements; those placement changes are saved atomically to the matching
-`architecture` fence. Select **Advanced edit** to add, update, duplicate,
-reparent, or delete elements in the detailed designer, then select **Save**.
+browser starts in the fixed 16:9 output preview and remains in viewing mode.
+Select **Output preview** to switch to the retained responsive layout. Select
+the pencil control to move Architecture elements; editing automatically switches
+to the responsive layout, and those placement changes are saved atomically to
+the matching `architecture` fence. Select **Advanced edit** to add, update,
+duplicate, reparent, or delete elements in the detailed designer, then select
+**Save**.
 
 The server rejects a save if the Markdown changed outside the editor. Successful
 saves reload the watched deck without changing the current slide. Presenter,

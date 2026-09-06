@@ -45,11 +45,12 @@ what the MarkdStage canvas and MarkdStage Desktop render.
    `markdstage export slides.md --output slides.pdf`, or
    `markdstage export slides.md --output slides.pptx`.
 
-The browser in `preview --watch` starts in viewing mode. The user can activate
-the pencil control to move Architecture elements, then choose **Advanced edit**
-for the detailed designer. Placement changes save immediately, while the
-detailed designer saves only when the user selects **Save**. `preview` without
-`--watch` is read-only.
+The browser in `preview --watch` starts in viewing mode on the fixed 16:9
+output surface. **Output preview** switches to the retained responsive layout.
+The user can activate the pencil control to switch to the responsive layout and
+move Architecture elements, then choose **Advanced edit** for the detailed
+designer. Placement changes save immediately, while the detailed designer saves
+only when the user selects **Save**. `preview` without `--watch` is read-only.
 
 Never hand-write HTML or CSS for a slide. Fix layout problems by shortening the
 content or by changing the layout in front matter. Prefer structured validation
@@ -60,7 +61,7 @@ and layout diagnostics over capturing every slide.
 | Command | Purpose |
 | --- | --- |
 | `markdstage present <file> [--watch]` | Open presenter view with the current slide, next-slide preview, speaker notes, and controls for a synchronized audience window. |
-| `markdstage preview <file> [--watch]` | Serve the deck on loopback and open it in a browser window. `--watch` reloads on save, keeps the current slide, and enables Architecture placement and detailed editing. Without it, the source is read-only. |
+| `markdstage preview <file> [--watch]` | Serve the deck on loopback and open it on the fixed 16:9 output surface. **Output preview** switches to the responsive layout. `--watch` reloads on save, keeps the current slide, and enables Architecture placement and detailed editing. Without it, the source is read-only. |
 | `markdstage validate <file> [--json]` | Check deck structure, Architecture DSL blocks, and themes. |
 | `markdstage inspect <file> [--json]` | Report 1280x720 clipping diagnostics for the deck or one slide; use `--fail-on-issues` for quality gates. |
 | `markdstage capture <file> [--pages 2,4]` | Write 1280x720 PNG files; without `--pages` only clipped slides are captured. |

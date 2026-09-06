@@ -122,7 +122,6 @@ test("live 16:9 preview and headless layout inspection report the same clipping"
 
     await page.goto(`${harness.url}/`, { waitUntil: "load" });
     await waitForSlideReady(page);
-    await clickMoreControl(page, "#navFixedPreview");
     await settleFrames(page);
 
     for (let index = 0; index < SLIDES.length; index += 1) {
