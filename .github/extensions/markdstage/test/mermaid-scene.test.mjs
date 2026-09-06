@@ -12,6 +12,7 @@ import {
   primaryFontFamily,
 } from "../renderer/mermaid-scene.mjs";
 import {
+  MAX_CONNECTOR_POINTS,
   MAX_SCENE_NODES,
   createScene,
   validateScene,
@@ -151,10 +152,62 @@ test("recognizes safe additional polygons without replacing unknown geometry wit
 test("recognizes sequence arrows while leaving unsupported markers conservative", () => {
   assert.equal(markerIdToArrow("url(#fixture-sequence-arrowhead)"), "triangle");
   assert.equal(markerIdToArrow("url(#fixture-sequence-openarrowhead)"), "arrow");
+  assert.equal(markerIdToArrow("url(#fixture-sequence-filled-head)"), "stealth");
+  assert.equal(markerIdToArrow('url("https://example.test/deck#fixture-sequence-filled-head")'), "stealth");
+  assert.equal(markerIdToArrow("url(#fixture-sequence-filled-head-control)"), "none");
   assert.equal(markerIdToArrow("url(#fixture-sequence-crosshead)"), "none");
   assert.equal(markerIdToArrow("url(#class-extensionStart)"), "none");
   assert.equal(markerIdToArrow('url("https://example.test/deck#fixture-sequence-arrowhead")'), "triangle");
   assert.equal(markerIdToArrow("none"), "none");
+});
+
+test("simplifies a self-message without collapsing its return or reversing the endpoints", () => {
+  const points = [
+    { x: 76, y: 117 }, { x: 96, y: 117 }, { x: 116, y: 117 },
+    { x: 116, y: 127 }, { x: 116, y: 137 }, { x: 96, y: 137 }, { x: 76, y: 137 },
+  ];
+  assert.deepEqual(simplifyPolyline(points), [points[0], points[2], points[4], points[6]]);
+  assert.deepEqual(simplifyPolyline(points.flatMap((point) => [point, point])), simplifyPolyline(points));
+  assert.deepEqual(simplifyPolyline([]), []);
+  assert.deepEqual(simplifyPolyline([points[0], points[0]]), [points[0]]);
+  const scaledCurve = Array.from({ length: 26 }, (_, index) => {
+    const t = index / 25;
+    return {
+      x: 60 * t * (1 - t),
+      y: (-30 * t * (1 - t) ** 2 + 90 * t ** 2 * (1 - t) + 20 * t ** 3) / 3,
+    };
+  });
+  const simplified = simplifyPolyline(scaledCurve);
+  assert.ok(simplified.length > 2);
+  assert.deepEqual(simplified[0], scaledCurve[0]);
+  assert.deepEqual(simplified.at(-1), scaledCurve.at(-1));
+  assert.ok(Math.max(...simplified.map((point) => point.x)) > 14);
+  for (const point of scaledCurve) {
+    const error = Math.min(...simplified.slice(1).map((end, index) => {
+      const start = simplified[index];
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const t = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / (dx * dx + dy * dy)));
+      return Math.hypot(point.x - start.x - t * dx, point.y - start.y - t * dy);
+    }));
+    assert.ok(error <= 2, `simplification error ${error} exceeds the deck-pixel tolerance`);
+  }
+});
+
+test("retains genuine path detail so connector point limits still apply", () => {
+  const points = Array.from({ length: MAX_CONNECTOR_POINTS + 1 }, (_, index) => ({
+    x: index * 5, y: index % 2 * 10,
+  }));
+  const simplified = simplifyPolyline(points, 0);
+  assert.deepEqual(simplified, points);
+  const scene = createScene({
+    width: 400, height: 100, source: { kind: "mermaid", path: "detailed-path.svg" },
+    nodes: [{ kind: "connector", sourcePath: "sequence[0]", z: 0, points: simplified }],
+  });
+  const limited = enforceSceneLimits(scene);
+  assert.equal(limited.scene.nodes.length, 1);
+  assert.match(limited.scene.nodes[0].reason, /connector points exceed 64/);
+  validateScene(limited.scene);
 });
 
 test("maps filled class relationship markers without confusing them with hollow UML markers", () => {

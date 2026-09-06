@@ -831,6 +831,40 @@ test("preserves filled class relationship presets, dashed lines and multiplicity
   }
 });
 
+test("preserves sequence self-message returns and asynchronous stealth heads in DrawingML", () => {
+  for (const [arrowStart, arrowEnd] of [["none", "triangle"], ["none", "stealth"], ["triangle", "triangle"]]) {
+    const self = {
+      type: "connector",
+      points: [{ x: 76, y: 117 }, { x: 118, y: 122 }, { x: 121, y: 129 }, { x: 76, y: 137 }],
+      stroke: "#123456", strokeWidth: 1.5, dash: "dash", arrowStart, arrowEnd,
+    };
+    const elements = [self, {
+      type: "connector", points: [{ x: 274, y: 200 }, { x: 79, y: 200 }],
+      stroke: "#123456", arrowEnd: "stealth",
+    }];
+    const files = readStoredZip(buildPptxPackage({ slides: [{ elements }] }));
+    const slide = xml(files, "ppt/slides/slide1.xml");
+    const connectors = [...slide.matchAll(/name="Connector \d+"[\s\S]*?<\/p:sp>/g)].map((match) => match[0]);
+    assert.equal(connectors.length, 4);
+    if (arrowStart === "none") assert.doesNotMatch(connectors[0], /<a:headEnd/);
+    else assert.match(connectors[0], /<a:headEnd type="triangle"\/>/);
+    assert.doesNotMatch(connectors[0], /<a:tailEnd/);
+    assert.doesNotMatch(connectors[1], /<a:(?:head|tail)End/);
+    assert.ok(connectors[2].includes(`<a:tailEnd type="${arrowEnd}"/>`));
+    assert.doesNotMatch(connectors[2], /<a:headEnd/);
+    for (const connector of connectors.slice(0, 3)) {
+      assert.match(connector, /<a:ln w="14288">/);
+      assert.match(connector, /<a:srgbClr val="123456"/);
+      assert.match(connector, /<a:prstDash val="dash"\/>/);
+    }
+    assert.match(connectors[2], /flipH="1"/);
+    assert.match(connectors[3], /flipH="1"/);
+    assert.match(connectors[3], /<a:tailEnd type="stealth"\/>/);
+    assert.doesNotMatch(connectors[3], /<a:prstDash/);
+    assert.doesNotMatch(slide, /<p:pic\b/);
+  }
+});
+
 test("rejects duplicate and missing asset references", () => {
   assert.throws(
     () =>

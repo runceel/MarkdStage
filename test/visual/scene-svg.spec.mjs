@@ -21,9 +21,16 @@ const slides = [
   "# Styled Mermaid\n\n```mermaid\nflowchart LR\nA[Styled]:::red --> B([Done])\nclassDef red fill:#ffdddd,stroke:#ff0000,stroke-width:3px,color:#111111\n```",
   "# Class Mermaid\n\n```mermaid\nclassDiagram\nclass Animal {\n+String name\n+walk()\n}\nAnimal <|-- Duck\n```",
   `# Class relationships\n\n\`\`\`mermaid\n${await readFile(new URL("../fixtures/mermaid/class-relations.mmd", import.meta.url), "utf8")}\n\`\`\``,
+  `# Sequence paths\n\n\`\`\`mermaid\n${await readFile(new URL("../fixtures/mermaid/sequence-paths.mmd", import.meta.url), "utf8")}\n\`\`\``,
 ];
 
 const customThemeCss = ":root{--bg:#102030;--fg:#f8fafc;--body:#d7e3f0;--muted:#abbdd0;--surface:#203448;--border:#486580;--accent:#39b8f2;--accent-strong:#72d4ff;--accent-soft:#163b50;}";
+
+// Isolate message fidelity from Chromium's same-DOM reinsertion rounding at mirrored actor corners.
+// The full mirrored fixture remains covered by the cross-surface and PPTX tests.
+const fidelitySlides = [...slides.slice(0, -1), slides.at(-1).replace(
+  '"handDrawnSeed": 42', '"handDrawnSeed": 42, "sequence": {"mirrorActors": false}',
+)];
 
 async function assertBackend(page, count) {
   await expect(page.locator("svg[data-scene-backend=svg]")).toHaveCount(count);
@@ -34,7 +41,7 @@ async function assertBackend(page, count) {
 
 for (const theme of ["dark", "light", "microsoft", "custom"]) {
   test(`shared backend displays both producers and faithful fallback in ${theme}`, async ({ page }) => {
-    const harness = await startHarness({ slides, theme, customThemeCss: theme === "custom" ? customThemeCss : "" });
+    const harness = await startHarness({ slides: fidelitySlides, theme, customThemeCss: theme === "custom" ? customThemeCss : "" });
     await page.addInitScript(() => {
       const replaceWith = Element.prototype.replaceWith;
       Element.prototype.replaceWith = function (...nodes) {
@@ -99,13 +106,14 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
 }
 
 test("normal, presenter, fixed preview, PNG and PDF use the same shared scene rendering", async ({ browser }) => {
-  const harness = await startHarness({ slides: [slides[0], slides[1], slides.at(-1)] });
+  const surfaceSlides = [slides[0], slides[1], slides.at(-2), slides.at(-1)];
+  const harness = await startHarness({ slides: surfaceSlides });
   const page = await browser.newPage();
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
   try {
-    for (const index of [0, 1, 2]) {
+    for (const index of [0, 1, 2, 3]) {
       await page.request.post(`${harness.url}/navigate`, { data: { index } });
       const signatures = [];
       for (const query of ["", "?present=1", "?preview=1", "fixed", `?capture=1&token=${harness.printToken}&index=${index}`, `?print=1&token=${harness.printToken}`]) {
@@ -129,7 +137,7 @@ test("normal, presenter, fixed preview, PNG and PDF use the same shared scene re
         })));
         if (query.includes("capture=")) expect((await page.screenshot()).length).toBeGreaterThan(1000);
         if (query.includes("print=")) {
-          await assertBackend(page, 3);
+          await assertBackend(page, surfaceSlides.length);
           expect((await page.pdf()).subarray(0, 5).toString()).toBe("%PDF-");
         }
       }
