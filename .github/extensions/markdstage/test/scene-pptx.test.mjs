@@ -41,6 +41,26 @@ test("maps a sequence frame tab through the scene and PowerPoint contracts", () 
   assert.match(buildPptxPackage({ slides: [{ elements }] }).toString("utf8"), /<a:custGeom>/);
 });
 
+test("maps exact Mermaid quadrilaterals through scene and DrawingML contracts", () => {
+  const presets = ["trapezoid", "invertedTrapezoid", "reverseParallelogram"];
+  const scene = normalizeScene(createScene({
+    width: 500, height: 100, source: { kind: "mermaid", path: "flowchart.svg" },
+    nodes: presets.map((preset, index) => ({
+      kind: "shape", sourcePath: `nodes[${index}]`, z: index,
+      bounds: { x: 10 + index * 150, y: 20, width: 120, height: 40 },
+      preset,
+      style: { fill: "#ffffff", stroke: "#123456", strokeWidth: 1 },
+    })),
+  })).scene;
+  const { elements, fallbacks } = sceneToPptxElements(scene);
+  assert.deepEqual(fallbacks, []);
+  assert.deepEqual(elements.map((element) => element.shape), presets);
+  const xml = buildPptxPackage({ slides: [{ elements }] }).toString("utf8");
+  assert.equal((xml.match(/<a:gd name="dx" fmla="\*\/ h 1 2"\/>/g) || []).length, 3);
+  assert.match(xml, /<a:pt x="dx" y="h"\/>/);
+  assert.match(xml, /<a:pt x="rx" y="0"\/>/);
+});
+
 function richText(text = "Text") {
   return {
     paragraphs: [

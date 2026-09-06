@@ -215,6 +215,137 @@ test("preserves classDef styling, stadium, cylinder, hexagon and double-circle s
   }
 });
 
+test("extracts exact subroutine components and bundled height-based flowchart outlines", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# Additional flowchart shapes"] });
+  try {
+    await page.goto(harness.url);
+    const result = await sceneFromFixture(
+      page,
+      await readFixture("flowchart-additional-shapes.svg"),
+      "flowchart-additional-shapes.svg",
+    );
+    validateScene(result.scene);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.scene.nodes.map((node) => node.z))
+      .toEqual(Array.from({ length: result.scene.nodes.length }, (_, index) => index));
+    expect(result.scene.nodes.filter((node) => node.kind === "fallback")).toEqual([]);
+
+    const subroutines = result.scene.nodes.filter((node) => node.meta?.mermaid?.shape === "subroutine");
+    expect(subroutines).toHaveLength(2);
+    for (const subroutine of subroutines) {
+      const parts = result.scene.nodes.filter((node) => node.sourcePath.startsWith(`${subroutine.sourcePath}.`));
+      expect(parts.map((node) => node.kind)).toEqual(["shape", "connector", "connector", "text"]);
+      expect(parts[0]).toMatchObject({ preset: "rect", bounds: subroutine.bounds });
+      expect(parts.slice(1, 3).map((node) => node.style.lineCap)).toEqual(["butt", "butt"]);
+      for (const side of parts.slice(1, 3)) {
+        expect(side.points[0].x).toBe(side.points[1].x);
+        expect(side.points.map((point) => point.y)).toEqual([
+          subroutine.bounds.y,
+          subroutine.bounds.y + subroutine.bounds.height,
+        ]);
+      }
+    }
+    expect(result.scene.nodes.filter((node) => node.kind === "shape" && node.meta?.mermaid?.kind === "node")
+      .map((node) => node.preset)).toEqual([
+      "trapezoid",
+      "invertedTrapezoid",
+      "reverseParallelogram",
+      "trapezoid",
+      "invertedTrapezoid",
+      "reverseParallelogram",
+    ]);
+
+    const mapped = await updateFixture(page, () => {});
+    for (const node of mapped.scene.nodes) {
+      expect(mapped.sources.some((source) => source.path === node.sourcePath) ||
+        mapped.sources.some((source) => node.sourcePath.startsWith(`${source.path}.`)), node.sourcePath).toBe(true);
+    }
+    const { elements, fallbacks } = sceneToPptxElements(result.scene, { groupPreset: "rect" });
+    expect(fallbacks).toEqual([]);
+    expect(elements.filter((element) => ["trapezoid", "invertedTrapezoid", "reverseParallelogram"]
+      .includes(element.shape)).map((element) => element.shape)).toEqual([
+      "trapezoid",
+      "invertedTrapezoid",
+      "reverseParallelogram",
+      "trapezoid",
+      "invertedTrapezoid",
+      "reverseParallelogram",
+    ]);
+    const buffer = buildPptxPackage({ slides: [{ elements }] });
+    expect(inspectPptxPackage(buffer).valid).toBe(true);
+    expect((buffer.toString("utf8").match(/<a:gd name="dx" fmla="\*\/ h 1 2"\/>/g) || [])).toHaveLength(6);
+
+    const positioned = await page.evaluate(async () => {
+      document.querySelector("#fixture-deck").style.cssText = "margin:17px 0 0 29px";
+      document.querySelector("svg").style.cssText =
+        "width:520px;max-width:none;transform-origin:0 0;transform:translate(33px,21px) scale(1.2,0.85)";
+      const { mermaidSvgToScene } = await import("./renderer/mermaid-scene.mjs");
+      const deck = document.querySelector("#fixture-deck");
+      const result = mermaidSvgToScene(deck.querySelector("svg"), { deck, includeSourceElements: true });
+      const deckBounds = deck.getBoundingClientRect();
+      const round = (value) => Math.round(value * 10) / 10;
+      return result.scene.nodes
+        .filter((node) => ["trapezoid", "invertedTrapezoid", "reverseParallelogram"].includes(node.preset))
+        .map((node) => {
+          const source = result.sourceElements.get(node.sourcePath).querySelector(".label-container");
+          const bounds = source.getBoundingClientRect();
+          return {
+            bounds: node.bounds,
+            expected: {
+              x: round(bounds.left - deckBounds.left),
+              y: round(bounds.top - deckBounds.top),
+              width: round(bounds.width),
+              height: round(bounds.height),
+            },
+          };
+        });
+    });
+    expect(positioned).toHaveLength(6);
+    for (const entry of positioned) expect(entry.bounds).toEqual(entry.expected);
+  } finally {
+    await harness.close();
+  }
+});
+
+test("keeps unsupported subroutine paint and unknown quadrilaterals local", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# Flowchart shape boundaries"] });
+  try {
+    await page.goto(harness.url);
+    const fixture = await readFixture("flowchart-additional-shapes.svg");
+    for (const entry of [
+      {
+        mutate: () => {
+          document.querySelector("g.node polygon.label-container").style.strokeDasharray = "4 2";
+        },
+        reason: "unsupported-mermaid-composite-paint",
+        path: "nodes[0]",
+      },
+      {
+        mutate: () => {
+          const polygon = [...document.querySelectorAll("g.node polygon.label-container")]
+            .find((element) => element.getAttribute("points").trim().split(/\s+/).length === 4);
+          polygon.setAttribute("points", "0,0 120,0 91,-63 -31.5,-63");
+        },
+        reason: "unsupported-mermaid-node-shape",
+        path: "nodes[2]",
+      },
+    ]) {
+      await sceneFromFixture(page, fixture, "flowchart-shape-fallback.svg");
+      const result = await updateFixture(page, entry.mutate);
+      expect(result.scene.nodes.filter((node) => node.kind === "fallback")).toMatchObject([{
+        sourcePath: entry.path,
+        reason: entry.reason,
+      }]);
+      expect(result.scene.nodes.filter((node) => node.meta?.mermaid?.shape === "subroutine").length)
+        .toBe(entry.path === "nodes[0]" ? 1 : 2);
+      expect(result.scene.nodes.filter((node) => ["trapezoid", "invertedTrapezoid", "reverseParallelogram"]
+        .includes(node.preset))).toHaveLength(entry.path === "nodes[2]" ? 5 : 6);
+    }
+  } finally {
+    await harness.close();
+  }
+});
+
 test("extracts editable sequence participants, lifelines, messages, activation and notes", async ({ page }) => {
   const harness = await startHarness({ slides: ["# Sequence"] });
   try {
@@ -800,6 +931,209 @@ test("keeps unsupported class markers and decorated multiplicities local and los
   }
 });
 
+test("extracts class notes and recursive namespaces without consuming relations", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# Class containers"] });
+  try {
+    await page.goto(harness.url);
+    const fixture = await readFixture("class-containers.svg");
+    const result = await sceneFromFixture(page, fixture, "class-containers.svg");
+    validateScene(result.scene);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.scene.nodes.filter((node) => node.kind === "fallback")).toEqual([]);
+    expect(result.scene.nodes.map((node) => node.z))
+      .toEqual(Array.from({ length: result.scene.nodes.length }, (_, index) => index));
+
+    const namespaces = result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "class-namespace");
+    expect(namespaces.map((node) => [node.sourcePath, node.meta.mermaid.depth]))
+      .toEqual([["namespaces[0]", 1], ["namespaces[1]", 1], ["namespaces[2]", 2]]);
+    expect(result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "class-namespace-label")
+      .map((node) => node.text.paragraphs[0].runs[0].text)).toEqual(["Core", "External", "Internal"]);
+
+    const notes = result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "class-note");
+    const noteLabels = result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "class-note-label");
+    expect(notes).toHaveLength(2);
+    expect(noteLabels.map((node) => node.text.paragraphs.map((paragraph) =>
+      paragraph.runs.map((run) => run.text).join("")))).toEqual([
+      ["口座ノート", "Account note"],
+      ["全体ノート", "General note"],
+    ]);
+
+    const edges = result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "edge");
+    expect(edges.map((node) => node.meta.mermaid.id)).toEqual([
+      "edgeNote0",
+      "id_Account_Ledger_1",
+      "id_Ledger_Gateway_2",
+      "id_Gateway_Account_3",
+      "id_Account_Gateway_4",
+    ]);
+    expect(new Set(edges.map((node) => node.meta.mermaid.id)).size).toBe(edges.length);
+    expect(edges.map((node) => [node.arrowStart, node.arrowEnd, node.style.dash])).toEqual([
+      ["none", "none", "dot"],
+      ["diamond", "none", "solid"],
+      ["none", "stealth", "dash"],
+      ["none", "none", "solid"],
+      ["none", "none", "solid"],
+    ]);
+    expect(result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "marker")
+      .map((node) => node.meta.mermaid.shape)).toEqual(["hollow-triangle", "hollow-diamond"]);
+    expect(result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "edge-terminal")
+      .map((node) => node.text.paragraphs[0].runs[0].text)).toEqual(["1", "0..*"]);
+    expect(result.scene.nodes.filter((node) => node.sourcePath.startsWith("classes[") && node.kind === "shape"))
+      .toHaveLength(3);
+
+    const mapped = await updateFixture(page, () => {});
+    for (const node of mapped.scene.nodes) {
+      expect(mapped.sources.some((source) => source.path === node.sourcePath) ||
+        mapped.sources.some((source) => node.sourcePath.startsWith(`${source.path}.`)), node.sourcePath).toBe(true);
+    }
+    const { elements, fallbacks } = sceneToPptxElements(result.scene, { groupPreset: "rect" });
+    expect(fallbacks).toEqual([]);
+    expect(elements.filter((element) => element.mermaid?.kind === "class-namespace" && element.shape === "rect"))
+      .toHaveLength(3);
+    expect(elements.filter((element) => element.mermaid?.kind === "class-note" && element.shape === "rect"))
+      .toHaveLength(2);
+    expect(inspectPptxPackage(buildPptxPackage({ slides: [{ elements }] })).valid).toBe(true);
+
+    await sceneFromFixture(page, fixture, "class-containers-recursive.svg");
+    const recursive = await updateFixture(page, () => {
+      const root = document.querySelector("g.root");
+      const namespace = root.querySelector("g.cluster");
+      for (const name of ["edgePaths", "edgeLabels"]) {
+        namespace.append(root.querySelector(`:scope > g.${name}`));
+      }
+      const nodes = root.querySelector(":scope > g.nodes");
+      for (const node of [...nodes.children]) namespace.append(node);
+      nodes.remove();
+    });
+    const recursiveEdges = recursive.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "edge");
+    expect(recursiveEdges.map((node) => node.meta.mermaid.id)).toEqual(edges.map((node) => node.meta.mermaid.id));
+    expect(new Set(recursiveEdges.map((node) => node.meta.mermaid.id)).size).toBe(edges.length);
+    expect(recursive.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "class-note")).toHaveLength(2);
+    expect(recursive.scene.nodes.filter((node) => node.sourcePath.startsWith("classes[") && node.kind === "shape"))
+      .toHaveLength(3);
+    expect(recursive.scene.nodes.filter((node) => node.kind === "fallback")).toEqual([]);
+  } finally {
+    await harness.close();
+  }
+});
+
+test("keeps unsupported class note and namespace details at local fallback boundaries", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# Class container boundaries"] });
+  try {
+    await page.goto(harness.url);
+    const fixture = await readFixture("class-containers.svg");
+    const edgeIds = [
+      "edgeNote0",
+      "id_Account_Ledger_1",
+      "id_Ledger_Gateway_2",
+      "id_Gateway_Account_3",
+      "id_Account_Gateway_4",
+    ];
+    for (const entry of [
+      {
+        mutate: () => {
+          document.querySelector("g.node:has(.noteLabel) .noteLabel")
+            .insertAdjacentHTML("beforeend", '<circle cx="4" cy="4" r="3" fill="red"/>');
+        },
+        reason: "unsupported-mermaid-class-note",
+        path: "notes[0]",
+      },
+      {
+        mutate: () => {
+          document.querySelector("g.node:has(.noteLabel) .noteLabel div").style.backgroundColor = "red";
+        },
+        reason: "unsupported-mermaid-class-note",
+        path: "notes[0]",
+      },
+      {
+        mutate: () => {
+          const note = document.querySelector("g.node:has(.noteLabel)");
+          note.setAttribute("transform", `${note.getAttribute("transform")} rotate(5)`);
+        },
+        reason: "unsupported-mermaid-class-note-transform",
+        path: "notes[0]",
+      },
+      {
+        mutate: () => {
+          document.querySelector("g.cluster .cluster-label")
+            .insertAdjacentHTML("beforeend", '<circle cx="4" cy="4" r="3" fill="red"/>');
+        },
+        reason: "unsupported-mermaid-class-namespace-label",
+        path: "namespaces[0].labels[0]",
+      },
+      {
+        mutate: () => {
+          document.querySelector("g.cluster > rect").style.filter = "blur(1px)";
+        },
+        reason: "unsupported-mermaid-class-namespace-frame",
+        path: "namespaces[0]",
+      },
+      {
+        mutate: () => {
+          document.querySelector("g.cluster")
+            .insertAdjacentHTML("beforeend",
+              '<g class="label"><circle id="namespace-decoration" cx="20" cy="20" r="4" fill="red"/></g>');
+        },
+        reason: "unsupported-mermaid-class-namespace-decoration",
+        path: "namespaces[0].unknown",
+      },
+      {
+        mutate: () => {
+          document.querySelector("g.cluster").style.filter = "blur(1px)";
+        },
+        reason: "unsupported-mermaid-class-namespace-style",
+        path: "namespaces[0]",
+      },
+      {
+        mutate: () => {
+          document.querySelector("g.cluster").setAttribute("transform", "rotate(5)");
+        },
+        reason: "unsupported-mermaid-class-namespace-transform",
+        path: "namespaces[0]",
+      },
+    ]) {
+      await sceneFromFixture(page, fixture, "class-container-fallback.svg");
+      const result = await updateFixture(page, entry.mutate);
+      const fallbacks = result.scene.nodes.filter((node) => node.kind === "fallback");
+      expect(fallbacks).toHaveLength(1);
+      expect(fallbacks[0].reason).toBe(entry.reason);
+      expect(fallbacks[0].sourcePath.startsWith(entry.path)).toBe(true);
+      expect(result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "edge")
+        .map((node) => node.meta.mermaid.id)).toEqual(edgeIds);
+      expect(result.scene.nodes.filter((node) => node.sourcePath.startsWith("classes[") && node.kind === "shape"))
+        .toHaveLength(3);
+      expect(result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "class-note").length)
+        .toBe(entry.path === "notes[0]" ? 1 : 2);
+    }
+
+    await sceneFromFixture(page, fixture, "class-namespace-depth.svg");
+    const depth = await updateFixture(page, () => {
+      const clusters = document.querySelector("g.clusters");
+      clusters.replaceChildren();
+      for (let index = 0; index < 18; index += 1) {
+        const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        group.setAttribute("class", "cluster undefined");
+        group.setAttribute("id", `depth-${index}`);
+        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        rect.setAttribute("x", String(8 + index * 2));
+        rect.setAttribute("y", String(8 + index * 2));
+        rect.setAttribute("width", String(500 - index * 4));
+        rect.setAttribute("height", String(400 - index * 4));
+        group.append(rect);
+        clusters.append(group);
+      }
+    });
+    expect(depth.scene.nodes.filter((node) =>
+      node.reason?.startsWith("unsupported-mermaid-class-namespace-depth"))).toHaveLength(2);
+    expect(depth.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "edge")
+      .map((node) => node.meta.mermaid.id)).toEqual(edgeIds);
+    expect(depth.scene.nodes.filter((node) => node.sourcePath.startsWith("classes[") && node.kind === "shape"))
+      .toHaveLength(3);
+  } finally {
+    await harness.close();
+  }
+});
+
 test("turns unknown Mermaid SVG visuals into explicit fallback nodes", async ({ page }) => {
   const harness = await startHarness({ slides: ["# Mermaid fallback fixture"] });
   try {
@@ -1369,6 +1703,80 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
       expect(masks.edges).toEqual(Array(6).fill(["rgba(0, 0, 0, 0)", "none", "none"]));
       expect(masks.labels).toEqual(Array(2).fill("rgba(0, 0, 0, 0)"));
       expect(masks.fallbackMarkers).toEqual([]);
+    } finally {
+      await harness.close();
+    }
+  });
+}
+
+for (const theme of ["dark", "light", "microsoft", "custom"]) {
+  test(`real renderer masks Priority 5 flowchart shapes and class containers (${theme})`, async ({ page }) => {
+    const [flowchart, classes] = await Promise.all([
+      readFixture("flowchart-additional-shapes.mmd"),
+      readFixture("class-containers.mmd"),
+    ]);
+    const harness = await startHarness({
+      slides: [
+        `# Flowchart shapes\n\n\`\`\`mermaid\n${flowchart}\n\`\`\``,
+        `# Class containers\n\n\`\`\`mermaid\n${classes}\n\`\`\``,
+      ],
+      theme,
+      customThemeCss: theme === "custom"
+        ? "--bg:#102030;--fg:#fefefe;--body:#e0e4e8;--accent:#ff6600;--surface:#203040;--border:#405060;"
+        : "",
+    });
+    try {
+      await page.goto(`${harness.url}/?pptx=1&token=${encodeURIComponent(harness.printToken)}`);
+      await page.waitForFunction(() => document.documentElement.hasAttribute("data-pptx-ready") ||
+        document.documentElement.hasAttribute("data-pptx-error"), undefined, { timeout: 120_000 });
+      await expect(page.locator("html")).toHaveAttribute("data-pptx-ready", "true");
+      const model = await page.evaluate(() => window.__presentationPptxModel);
+
+      const flow = model.slides[0];
+      expect(flow.fallbacks.filter((fallback) => fallback.type === "mermaid")).toEqual([]);
+      expect(flow.elements.filter((element) => element.path?.startsWith("mermaid[0].nodes[0]."))).toHaveLength(4);
+      expect(flow.elements.filter((element) => element.path?.startsWith("mermaid[0].nodes[1]."))).toHaveLength(4);
+      expect(flow.elements.filter((element) => element.shape === "trapezoid")).toHaveLength(2);
+      expect(flow.elements.filter((element) => element.shape === "invertedTrapezoid")).toHaveLength(2);
+      expect(flow.elements.filter((element) => element.shape === "reverseParallelogram")).toHaveLength(2);
+      const flowSvg = page.locator("pre.mermaid > svg").nth(0);
+      await expect(flowSvg.locator("g.node[data-pptx-native=shape]")).toHaveCount(8);
+      await expect(flowSvg.locator("g.node[data-pptx-fallback-ids]")).toHaveCount(0);
+
+      const classSlide = model.slides[1];
+      expect(classSlide.fallbacks.filter((fallback) => fallback.type === "mermaid")).toEqual([]);
+      expect(classSlide.elements.filter((element) => element.mermaid?.kind === "class-namespace")).toHaveLength(3);
+      expect(classSlide.elements.filter((element) => element.mermaid?.kind === "class-namespace-label")).toHaveLength(3);
+      expect(classSlide.elements.filter((element) => element.mermaid?.kind === "class-note")).toHaveLength(2);
+      expect(classSlide.elements.filter((element) => element.mermaid?.kind === "class-note-label")).toHaveLength(2);
+      expect(classSlide.elements.filter((element) => element.mermaid?.kind === "edge" &&
+        element.path?.startsWith("mermaid[0].edges["))).toHaveLength(5);
+      const classSvg = page.locator("pre.mermaid > svg").nth(1);
+      await expect(classSvg.locator("g.cluster > rect[data-pptx-native=shape]")).toHaveCount(3);
+      await expect(classSvg.locator("g.cluster > g.cluster-label[data-pptx-native=text]")).toHaveCount(3);
+      await expect(classSvg.locator("g.node:has(.noteLabel) > g.label-container[data-pptx-native=shape]")).toHaveCount(2);
+      await expect(classSvg.locator("g.node > g.noteLabel[data-pptx-native=text]")).toHaveCount(2);
+      await expect(classSvg.locator("path.relation[data-pptx-native=connector]")).toHaveCount(5);
+      await expect(classSvg.locator("[data-pptx-fallback-ids]")).toHaveCount(0);
+      const masks = await classSvg.evaluate((svg) => ({
+        namespaceFrames: [...svg.querySelectorAll("g.cluster > rect[data-pptx-native]")].map((element) => {
+          const style = getComputedStyle(element);
+          return [style.fill, style.stroke];
+        }),
+        noteFrames: [...svg.querySelectorAll("g.node:has(.noteLabel) > g.label-container[data-pptx-native]")]
+          .map((element) => [...element.querySelectorAll("path")].map((path) => {
+            const style = getComputedStyle(path);
+            return [style.fill, style.stroke];
+          })),
+        relations: [...svg.querySelectorAll("path.relation[data-pptx-native]")].map((element) => {
+          const style = getComputedStyle(element);
+          return [style.stroke, style.markerStart, style.markerEnd];
+        }),
+      }));
+      expect(masks.namespaceFrames).toEqual(Array(3).fill(["rgba(0, 0, 0, 0)", "rgba(0, 0, 0, 0)"]));
+      expect(masks.noteFrames.every((paths) =>
+        paths.every((paint) => paint[0] === "rgba(0, 0, 0, 0)" && paint[1] === "rgba(0, 0, 0, 0)"))).toBe(true);
+      expect(masks.relations).toEqual(Array(5).fill(["rgba(0, 0, 0, 0)", "none", "none"]));
     } finally {
       await harness.close();
     }

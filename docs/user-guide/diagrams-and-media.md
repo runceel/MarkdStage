@@ -31,7 +31,11 @@ If Mermaid syntax is invalid, the slide shows an error while preserving the rest
 Flowcharts preserve `style`, `classDef`, and `class` colors and text styles. Supported nodes,
 subgraphs, connectors, and labels export as editable objects; edge-label backgrounds keep lines
 from crossing the text. Stadium, cylinder, and double-circle nodes use multiple editable shapes
-when their paint can be reproduced safely.
+when their paint can be reproduced safely. Mermaid 11.15.0 subroutine/framed-rectangle nodes
+(`[[...]]`, `subproc`, `subprocess`, `fr-rect`, and `subroutine`) export as an editable outer
+rectangle, two inner vertical strokes, and text. Base-bottom trapezoids (`trap-b`, `trapezoid`),
+base-top/inverted trapezoids (`trap-t`, `inv-trapezoid`), and reverse parallelograms (`lean-l`)
+use exact height-based editable geometry; their legacy bracket forms are supported too.
 
 Basic sequence diagrams export participant boxes, their mirrored lower boxes when Mermaid emits
 them, lifelines, messages, notes, and activations. Stick-figure actors export as editable head
@@ -57,7 +61,11 @@ directed associations (`A --> B`), dependencies (`A ..> B`), and multiplicities
 (`A "1" -- "many" B`). Composition uses a filled diamond; directed associations and dependencies
 use the bundled renderer's filled, notched arrowhead. Markers at either end and dashed dependency
 lines are preserved. Simple relationship and multiplicity labels remain editable, including
-Japanese and multiline text.
+Japanese and multiline text. Plain class notes, including attached `note for Class "..."` and
+standalone `note "..."` forms, export as editable rectangles and localized text. Ordinary nested
+`namespace` containers export as editable frames and titles up to the shared scene depth limit.
+Relations, labels, multiplicities, markers, notes, and class nodes remain independent and are
+retained exactly once even when they cross namespace boundaries.
 
 Hollow inheritance/realization triangles (`<|--`, `<|..`) and aggregation diamonds (`o--`) use
 editable, unfilled outline strokes, never filled arrow substitutes. Flowchart cross terminals
@@ -76,7 +84,12 @@ SVG marker paint order. Unsupported paint, decorated
 labels, actor variants or embedded icons/images, unknown sequence controls or tab geometry,
 decorated autonumber markers, complex clipping/transforms, effects, and unknown geometry remain
 fallback pictures of the smallest safe affected element or control frame. Supported sibling
-messages and labels stay native when source ownership permits.
+messages and labels stay native when source ownership permits. Subroutine paint that cannot be
+split without changing overlap semantics, non-bundled trapezoid/parallelogram outlines, decorated
+or special-geometry class notes, namespace decoration with unknown children, namespace effects or
+unsupported transforms, and namespace hierarchies beyond the scene depth limit likewise fall back
+at the smallest safe note, decoration, label, or container. Supported class relations outside that
+local fallback are not consumed or dropped.
 Other diagram types, including pie, mindmap, and gitGraph, can still use whole-diagram artwork.
 Check the export report for the reason and source path of each fallback.
 

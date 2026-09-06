@@ -25,6 +25,9 @@ const SHAPE_PRESETS = new Set([
   "triangle",
   "hexagon",
   "parallelogram",
+  "reverseParallelogram",
+  "trapezoid",
+  "invertedTrapezoid",
   "sequenceTab",
 ]);
 const DASH_STYLES = new Set(["", "solid", "dash", "dashDot", "dot"]);

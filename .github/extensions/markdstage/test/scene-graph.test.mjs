@@ -163,6 +163,34 @@ test("accepts the internal sequence frame tab preset without broadening unknown 
   assert.equal(validateScene(scene), scene);
 });
 
+test("accepts exact height-based Mermaid quadrilaterals as a closed preset set", () => {
+  const presets = ["reverseParallelogram", "trapezoid", "invertedTrapezoid"];
+  const { scene, diagnostics } = normalizeScene(validScene({
+    nodes: presets.map((preset, index) => ({
+      kind: "shape",
+      sourcePath: `nodes[${index}]`,
+      z: index,
+      bounds: { x: index * 120, y: 20, width: 100, height: 40 },
+      preset,
+    })),
+  }));
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(scene.nodes.map((node) => node.preset), presets);
+  assert.equal(validateScene(scene), scene);
+
+  const unknown = validScene({
+    nodes: [{
+      kind: "shape",
+      sourcePath: "nodes[0]",
+      z: 0,
+      bounds: { x: 0, y: 0, width: 100, height: 40 },
+      preset: "nearestTrapezoid",
+    }],
+  });
+  assert.throws(() => validateScene(unknown), /preset is not supported/);
+});
+
 test("nested group children flatten into absolute coordinates", () => {
   const { scene } = normalizeScene(validScene({
     nodes: [

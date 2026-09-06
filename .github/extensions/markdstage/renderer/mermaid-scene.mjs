@@ -127,10 +127,35 @@ function closeToPoint(point, x, y, tolerance) {
   return Math.abs(point.x - x) <= tolerance && Math.abs(point.y - y) <= tolerance;
 }
 
+function closeMetric(left, right, tolerance) {
+  return Math.abs(left - right) <= tolerance;
+}
+
+function classifyHeightBasedQuadrilateral(points) {
+  const [a, b, c, d] = points;
+  if (!a || points.length !== 4) return null;
+  const height = a.y - c.y;
+  const tolerance = Math.max(0.05, Math.abs(height) * 0.002);
+  if (!(height > 0) ||
+      !closeMetric(a.y, b.y, tolerance) ||
+      !closeMetric(c.y, d.y, tolerance)) return null;
+  const halfHeight = height / 2;
+  if (closeMetric(d.x, a.x + halfHeight, tolerance) &&
+      closeMetric(b.x, c.x + halfHeight, tolerance)) return "trapezoid";
+  if (closeMetric(a.x, d.x + halfHeight, tolerance) &&
+      closeMetric(c.x, b.x + halfHeight, tolerance)) return "invertedTrapezoid";
+  if (closeMetric(a.x, d.x + halfHeight, tolerance) &&
+      closeMetric(b.x, c.x + halfHeight, tolerance)) return "reverseParallelogram";
+  return null;
+}
+
 export function classifyPolygonPreset(points, options = {}) {
   const fallbackPreset = options.fallbackPreset === null ? null : nonEmptyStringOr(options.fallbackPreset, "rect");
   const tolerance = finiteNumberOr(options.tolerance, 0.04);
-  const normalized = normalizePolygon(points);
+  const parsed = parsePoints(points);
+  const heightBased = classifyHeightBasedQuadrilateral(parsed);
+  if (heightBased) return heightBased;
+  const normalized = normalizePolygon(parsed);
   if (normalized.length === 4) {
     const [a, b, c, d] = normalized;
     if (
@@ -1026,6 +1051,63 @@ function matchingStadiumOutline(path, reference) {
   });
 }
 
+function subroutineGeometry(shape) {
+  const points = parsePoints(shape.getAttribute("points"));
+  if (points.length !== 10) return null;
+  const [a, b, c, d, e, f, g, h, i, j] = points;
+  const height = a.y - d.y;
+  const width = b.x - a.x;
+  const tolerance = Math.max(0.01, Math.max(Math.abs(width), Math.abs(height)) * 0.0001);
+  const same = (left, right) => closeMetric(left, right, tolerance);
+  if (!(width > 0 && height > 0) ||
+      !same(a.y, b.y) || !same(b.x, c.x) || !same(c.y, d.y) || !same(d.x, a.x) ||
+      !same(e.x, a.x) || !same(e.y, a.y) ||
+      !same(f.x, a.x - 8) || !same(f.y, a.y) ||
+      !same(g.x, b.x + 8) || !same(g.y, a.y) ||
+      !same(h.x, g.x) || !same(h.y, d.y) ||
+      !same(i.x, f.x) || !same(i.y, d.y) ||
+      !same(j.x, f.x) || !same(j.y, f.y)) return null;
+  return { left: a.x, right: b.x, top: d.y, bottom: a.y };
+}
+
+function subroutineParts(shape, group, sourcePath, z, deck, options) {
+  const geometry = subroutineGeometry(shape);
+  if (!geometry) return null;
+  const style = computedSvgStyle(shape, options);
+  const connectorStyle = computedConnectorStyle(shape, options);
+  if ((style.opacity !== undefined && style.opacity !== 1) ||
+      style.dash !== "solid" ||
+      (style.stroke && /^rgba\(/i.test(style.stroke))) {
+    return fallbackNode(group, z, deck, "unsupported-mermaid-composite-paint", sourcePath);
+  }
+  const bounds = boundsOf(shape, deck);
+  const children = [{
+    kind: "shape", sourcePath: `${sourcePath}.parts[0]`, z: 0,
+    bounds: { x: 0, y: 0, width: bounds.width, height: bounds.height },
+    preset: "rect", style,
+  }];
+  if (style.stroke && style.strokeWidth !== 0) {
+    for (const x of [geometry.left, geometry.right]) {
+      const top = screenPoint(shape, { x, y: geometry.top }, deck);
+      const bottom = screenPoint(shape, { x, y: geometry.bottom }, deck);
+      children.push({
+        kind: "connector", sourcePath: `${sourcePath}.parts[${children.length}]`, z: children.length,
+        points: [top, bottom].map((point) => ({ x: point.x - bounds.x, y: point.y - bounds.y })),
+        style: { ...connectorStyle, lineCap: "butt" },
+        arrowStart: "none",
+        arrowEnd: "none",
+      });
+    }
+  }
+  const label = labelInfo(group, "span.nodeLabel, text", deck, options);
+  if (label) children.push({
+    kind: "text", sourcePath: `${sourcePath}.label`, z: children.length,
+    bounds: relativeBounds(label.bounds, bounds), text: label.text,
+    textLayout: { alignment: "center", verticalAlignment: "middle", textWrap: "none" },
+  });
+  return compositeGroup(sourcePath, z, bounds, children, "subroutine");
+}
+
 function cylinderParts(path, group, sourcePath, z, deck, options) {
   const d = path.getAttribute("d") || "";
   // The pinned renderer draws a cylinder with move, arc, arc, line, arc, line.
@@ -1082,6 +1164,10 @@ function nodeShape(group, sourceIndex, z, deck, options) {
   if (localName(shape) === "path") {
     const cylinder = cylinderParts(shape, group, sourcePath, z, deck, options);
     if (cylinder) return cylinder;
+  }
+  if (localName(shape) === "polygon") {
+    const subroutine = subroutineParts(shape, group, sourcePath, z, deck, options);
+    if (subroutine) return subroutine;
   }
   if (localName(shape) === "g") {
     const circles = directChildren(shape, "circle");
@@ -1222,11 +1308,20 @@ function connectorPath(path, sourcePath, z, deck, options) {
   }
 }
 
-function readEdgeLabels(root, deck, options, consumed) {
+function hasAncestorInSet(element, set) {
+  for (let current = element; current; current = current.parentElement) {
+    if (set?.has(current)) return true;
+  }
+  return false;
+}
+
+function readEdgeLabels(root, deck, options, consumed, config = {}) {
   const labels = new Map();
-  const selector = ":scope > g.edgeLabels > g.edgeLabel, :scope > g.edgeLabels > g.edgeTerminals";
+  const selector = config.recursive
+    ? "g.edgeLabels > g.edgeLabel, g.edgeLabels > g.edgeTerminals"
+    : ":scope > g.edgeLabels > g.edgeLabel, :scope > g.edgeLabels > g.edgeTerminals";
   for (const [index, group] of [...root.querySelectorAll(selector)].entries()) {
-    if (consumed?.has(group.parentElement)) continue;
+    if (hasAncestorInSet(group, config.blocked || consumed)) continue;
     consumed?.add(group);
     const terminal = hasClass(group, "edgeTerminals");
     const labelGroup = group.querySelector(":scope > g.label");
@@ -1275,6 +1370,17 @@ function isVisibleUnknown(element) {
   if (!VISUAL_TAGS.has(localName(element)) && localName(element) !== "g") return false;
   const rect = element.getBoundingClientRect();
   return rect.width > 0 || rect.height > 0;
+}
+
+function isVisibleVisualSubtree(element) {
+  if (IGNORED_TAGS.has(tagName(element)) || IGNORED_TAGS.has(localName(element)) ||
+      getComputedStyle(element).display === "none" ||
+      (!VISUAL_TAGS.has(localName(element)) && localName(element) !== "g")) return false;
+  const elements = [element, ...element.querySelectorAll([...VISUAL_TAGS].join(","))];
+  return elements.some((candidate) => {
+    const rect = candidate.getBoundingClientRect();
+    return rect.width > 0 || rect.height > 0;
+  });
 }
 
 function collectUnexpectedVisuals(container, deck, startZ, sourcePath, consumed = new Set(), options = {}) {
@@ -1376,6 +1482,20 @@ function hasUniformAxisAlignedScale(element) {
     Math.abs(matrix.b) <= 0.001 &&
     Math.abs(matrix.c) <= 0.001 &&
     Math.abs(matrix.a - matrix.d) <= 0.001;
+}
+
+function unsupportedLocalTransform(element) {
+  return [element, ...element.querySelectorAll("*")].some((child) => {
+    if (child.namespaceURI !== SVG_NS || typeof child.getScreenCTM !== "function") return false;
+    const matrix = child.getScreenCTM();
+    return matrix && (
+      Math.abs(matrix.b) > 0.001 ||
+      Math.abs(matrix.c) > 0.001 ||
+      matrix.a <= 0 ||
+      matrix.d <= 0 ||
+      Math.abs(matrix.a - matrix.d) > 0.001
+    );
+  });
 }
 
 function sequenceActorInfo(group) {
@@ -1784,11 +1904,18 @@ function isRectanglePath(path) {
     values[1] === values[3] && values[5] === values[7];
 }
 
-function classParts(group, outline, paths, options) {
+function rectangularOutlinePaths(outline, options) {
+  const paths = outline ? directChildren(outline, "path") : [];
   if (paths.length !== 2 || directChildren(outline).length !== 2 || !isRectanglePath(paths[0]) ||
       !compatiblePathPaint(paths, options) || !matchingOutline(paths[1], paths[0], (point, box) =>
         Math.min(Math.abs(point.x - box.x), Math.abs(point.x - box.x - box.width),
           Math.abs(point.y - box.y), Math.abs(point.y - box.y - box.height)))) return null;
+  return paths;
+}
+
+function classParts(group, outline, options) {
+  const paths = rectangularOutlinePaths(outline, options);
+  if (!paths) return null;
   const labels = [...group.querySelectorAll("span.nodeLabel, text")]
     .filter((label) => !label.parentElement.closest("span.nodeLabel, text"));
   const dividers = [...group.querySelectorAll(":scope > g.divider > path")];
@@ -1802,28 +1929,262 @@ function classParts(group, outline, paths, options) {
     }
     return null;
   }
-  return { labels, dividers };
+  return { paths, labels, dividers };
+}
+
+const SAFE_CLASS_LABEL_TAGS = new Set([
+  "b",
+  "br",
+  "div",
+  "em",
+  "foreignObject",
+  "g",
+  "i",
+  "p",
+  "rect",
+  "span",
+  "strong",
+  "text",
+  "tspan",
+]);
+
+function safeClassLabel(element) {
+  if (!element || unsupportedVisualEffect(element) || element.querySelector("img, image, svg, .katex, use")) return false;
+  for (const child of [element, ...element.querySelectorAll("*")]) {
+    if (!SAFE_CLASS_LABEL_TAGS.has(localName(child))) return false;
+    const style = getComputedStyle(child);
+    if (localName(child) === "rect") {
+      const bounds = child.getBoundingClientRect();
+      if ((bounds.width > 0.1 || bounds.height > 0.1) &&
+          (normalizeColor(style.fill) || (normalizeColor(style.stroke) && parseMetric(style.strokeWidth) > 0))) return false;
+    }
+    if (child.namespaceURI !== SVG_NS && (
+      [style.transform, style.rotate, style.scale, style.translate]
+        .some((value) => value && value !== "none") ||
+      normalizeColor(style.backgroundColor) ||
+      style.textDecorationLine && style.textDecorationLine !== "none" ||
+      style.boxShadow && style.boxShadow !== "none" ||
+      style.textShadow && style.textShadow !== "none" ||
+      ["Top", "Right", "Bottom", "Left"].some((side) =>
+        parseMetric(style[`border${side}Width`]) > 0 && style[`border${side}Style`] !== "none")
+    )) return false;
+  }
+  return Boolean(element.innerText?.trim() || element.textContent?.trim());
+}
+
+function isClassNoteGroup(group) {
+  return Boolean(directChildren(group).find((child) => hasClass(child, "noteLabel"))) ||
+    /-note\d+$/.test(group.getAttribute("id") || "");
+}
+
+function classNoteParts(group, options) {
+  const children = directChildren(group);
+  const outline = children.find((child) => hasClass(child, "label-container"));
+  const label = children.find((child) => hasClass(child, "noteLabel"));
+  const paths = rectangularOutlinePaths(outline, options);
+  if (!outline || !label || !paths || !safeClassLabel(label) ||
+      children.some((child) => child !== outline && child !== label)) return null;
+  return { outline, label, paths };
+}
+
+function namespaceEntries(root, deck) {
+  return [...root.querySelectorAll("g.cluster")].map((group, index) => {
+    const frames = directChildren(group, "rect");
+    const frame = frames[0] || null;
+    return {
+      group,
+      index,
+      frame,
+      bounds: frame ? boundsOf(frame, deck) : boundsOf(group, deck),
+      parent: null,
+      children: [],
+      depth: 1,
+    };
+  });
+}
+
+function boundsContain(outer, inner, tolerance = 0.5) {
+  return outer.width > inner.width + tolerance &&
+    outer.height > inner.height + tolerance &&
+    inner.x >= outer.x - tolerance &&
+    inner.y >= outer.y - tolerance &&
+    inner.x + inner.width <= outer.x + outer.width + tolerance &&
+    inner.y + inner.height <= outer.y + outer.height + tolerance;
+}
+
+function classNamespaceHierarchy(root, deck) {
+  // Mermaid 11.15.0 emits nested namespace frames as flat cluster siblings.
+  // Rebuild only their bounded visual hierarchy; edges and class nodes stay independent.
+  const entries = namespaceEntries(root, deck);
+  for (const entry of entries) {
+    const parents = entries
+      .filter((candidate) => candidate !== entry && boundsContain(candidate.bounds, entry.bounds))
+      .sort((left, right) => left.bounds.width * left.bounds.height - right.bounds.width * right.bounds.height);
+    entry.parent = parents[0] || null;
+    entry.parent?.children.push(entry);
+  }
+  const visited = new Set();
+  const visit = (entry, depth) => {
+    if (visited.has(entry)) return;
+    visited.add(entry);
+    entry.depth = depth;
+    entry.children.sort((left, right) => left.index - right.index);
+    entry.children.forEach((child) => visit(child, depth + 1));
+  };
+  entries.filter((entry) => !entry.parent).sort((left, right) => left.index - right.index)
+    .forEach((entry) => visit(entry, 1));
+  entries.filter((entry) => !visited.has(entry)).forEach((entry) => {
+    entry.depth = MAX_GROUP_DEPTH + 1;
+  });
+  return entries;
+}
+
+function isClassCollection(element) {
+  return ["clusters", "edgePaths", "edgeLabels", "nodes"].some((name) => hasClass(element, name));
+}
+
+function unsupportedClassContainers(root, deck, nodes, options) {
+  const consumed = new Set();
+  const blocked = new Set();
+  const containers = [...root.querySelectorAll("g")].filter(isClassCollection);
+  for (const [index, container] of containers.entries()) {
+    if (!unsupportedVisualEffect(container, false) || hasAncestorInSet(container.parentElement, blocked)) continue;
+    const sourcePath = `root.containers[${index}]`;
+    consumed.add(container);
+    blocked.add(container);
+    options.sourceElements.set(sourcePath, container);
+    nodes.push(fallbackNode(container, nodes.length, deck, "unsupported-mermaid-container-style", sourcePath));
+  }
+  return { consumed, blocked };
+}
+
+function appendClassNamespaces(root, deck, nodes, options, consumed, blocked) {
+  for (const entry of classNamespaceHierarchy(root, deck).sort((left, right) => left.index - right.index)) {
+    const { group, index, frame, depth } = entry;
+    if (hasAncestorInSet(group, blocked)) continue;
+    const sourcePath = `namespaces[${index}]`;
+    if (depth > MAX_GROUP_DEPTH) {
+      consumed.add(group);
+      blocked.add(group);
+      options.sourceElements.set(sourcePath, group);
+      nodes.push(fallbackNode(group, nodes.length, deck,
+        `unsupported-mermaid-class-namespace-depth: exceeds ${MAX_GROUP_DEPTH}`, sourcePath));
+      continue;
+    }
+    if (unsupportedLocalTransform(group)) {
+      consumed.add(group);
+      blocked.add(group);
+      options.sourceElements.set(sourcePath, group);
+      nodes.push(fallbackNode(group, nodes.length, deck,
+        "unsupported-mermaid-class-namespace-transform", sourcePath));
+      continue;
+    }
+    if (unsupportedVisualEffect(group, false)) {
+      consumed.add(group);
+      blocked.add(group);
+      options.sourceElements.set(sourcePath, group);
+      nodes.push(fallbackNode(group, nodes.length, deck,
+        "unsupported-mermaid-class-namespace-style", sourcePath));
+      continue;
+    }
+    const children = directChildren(group);
+    const labels = children.filter((child) => hasClass(child, "cluster-label"));
+    if (frame) {
+      options.sourceElements.set(sourcePath, frame);
+      nodes.push(unsupportedVisualEffect(frame)
+        ? fallbackNode(frame, nodes.length, deck,
+            "unsupported-mermaid-class-namespace-frame", sourcePath)
+        : {
+            kind: "group",
+            id: group.getAttribute("id") || undefined,
+            sourcePath,
+            z: nodes.length,
+            bounds: boundsOf(frame, deck),
+            children: [],
+            style: computedSvgStyle(frame, options),
+            meta: { mermaid: { kind: "class-namespace", depth } },
+          });
+      consumed.add(frame);
+    }
+    for (const [labelIndex, label] of labels.entries()) {
+      const labelPath = `${sourcePath}.labels[${labelIndex}]`;
+      options.sourceElements.set(labelPath, label);
+      nodes.push(safeClassLabel(label)
+        ? measuredText(label, labelPath, nodes.length, deck, options, {
+            mermaid: { kind: "class-namespace-label", depth },
+          })
+        : fallbackNode(label, nodes.length, deck,
+            "unsupported-mermaid-class-namespace-label", labelPath));
+      consumed.add(label);
+    }
+    for (const [childIndex, child] of children.entries()) {
+      if (child === frame || labels.includes(child) ||
+          (localName(child) === "g" &&
+            (isClassCollection(child) || hasClass(child, "cluster") || hasClass(child, "node")))) continue;
+      if (!isVisibleVisualSubtree(child)) continue;
+      const childPath = `${sourcePath}.unknown[${childIndex}]`;
+      options.sourceElements.set(childPath, child);
+      nodes.push(fallbackNode(child, nodes.length, deck,
+        "unsupported-mermaid-class-namespace-decoration", childPath));
+      consumed.add(child);
+    }
+    consumed.add(group);
+  }
 }
 
 function classScene(svg, root, deck, size, options) {
   const nodes = [];
-  const consumed = unsupportedContainers(root, deck, nodes, options);
-  for (const [index, path] of [...root.querySelectorAll(":scope > g.edgePaths > path.relation")].entries()) {
-    if (consumed.has(path.parentElement)) continue;
+  const { consumed, blocked } = unsupportedClassContainers(root, deck, nodes, options);
+  appendClassNamespaces(root, deck, nodes, options, consumed, blocked);
+  const edges = [...new Set(root.querySelectorAll("path.relation"))];
+  for (const [index, path] of edges.entries()) {
+    if (hasAncestorInSet(path, blocked)) continue;
     consumed.add(path);
     options.sourceElements?.set(`edges[${index}]`, path);
     nodes.push(connectorPath(path, `edges[${index}]`, nodes.length, deck, options));
   }
-  appendEdgeLabels(nodes, readEdgeLabels(root, deck, options, consumed));
-  for (const [index, group] of [...root.querySelectorAll(":scope > g.nodes > g.node")].entries()) {
-    if (consumed.has(group.parentElement)) continue;
+  appendEdgeLabels(nodes, readEdgeLabels(root, deck, options, consumed, { recursive: true, blocked }));
+  let classIndex = 0;
+  let noteIndex = 0;
+  const classNodes = [...new Set(root.querySelectorAll("g.node"))];
+  for (const group of classNodes) {
+    if (hasAncestorInSet(group, blocked)) continue;
     consumed.add(group);
-    const sourcePath = `classes[${index}]`;
+    const note = isClassNoteGroup(group);
+    const sourcePath = note ? `notes[${noteIndex++}]` : `classes[${classIndex++}]`;
     options.sourceElements?.set(sourcePath, group);
+    if (note) {
+      const parts = classNoteParts(group, options);
+      if (unsupportedLocalTransform(group)) {
+        nodes.push(fallbackNode(group, nodes.length, deck,
+          "unsupported-mermaid-class-note-transform", sourcePath));
+        continue;
+      }
+      if (unsupportedVisualEffect(group) || !parts) {
+        nodes.push(fallbackNode(group, nodes.length, deck, "unsupported-mermaid-class-note", sourcePath));
+        continue;
+      }
+      nodes.push({
+        kind: "shape", sourcePath, z: nodes.length, bounds: boundsOf(parts.outline, deck),
+        preset: "rect", style: paintedPathStyle(parts.paths, options),
+        meta: { mermaid: { kind: "class-note" } },
+      });
+      options.sourceElements.set(sourcePath, parts.outline);
+      const labelPath = `${sourcePath}.label`;
+      options.sourceElements.set(labelPath, parts.label);
+      nodes.push(measuredText(parts.label, labelPath, nodes.length, deck, options, {
+        mermaid: { kind: "class-note-label" },
+      }));
+      continue;
+    }
     const outline = group.querySelector(":scope > g.label-container");
-    const paths = outline ? directChildren(outline, "path") : [];
     const children = directChildren(group);
-    const parts = outline && classParts(group, outline, paths, options);
+    const parts = outline && classParts(group, outline, options);
+    if (unsupportedLocalTransform(group)) {
+      nodes.push(fallbackNode(group, nodes.length, deck,
+        "unsupported-mermaid-class-node-transform", sourcePath));
+      continue;
+    }
     if (unsupportedVisualEffect(group) || !parts ||
         group.querySelector("img, image, svg, .katex, use") ||
         children.some((child) => child !== outline &&
@@ -1833,7 +2194,7 @@ function classScene(svg, root, deck, size, options) {
     }
     nodes.push({
       kind: "shape", sourcePath, z: nodes.length, bounds: boundsOf(outline, deck),
-      preset: "rect", style: paintedPathStyle(paths, options),
+      preset: "rect", style: paintedPathStyle(parts.paths, options),
     });
     options.sourceElements.set(sourcePath, outline);
     for (const [labelIndex, label] of parts.labels.entries()) {
@@ -1865,10 +2226,14 @@ function sceneFromSvg(svg, options) {
   const deck = options.deck || svg.closest(".deck") || svg.parentElement || svg;
   const size = svgSize(svg, deck);
   const root = svg.querySelector("g.root");
+  const diagramType = svg.getAttribute("aria-roledescription");
   const nodes = [];
   const elements = svg.querySelectorAll("*");
   if (elements.length > MAX_SCENE_NODES * 10 || [...elements].some((element) => {
     if (!VISUAL_TAGS.has(localName(element)) || element.closest("defs, marker")) return false;
+    // Class notes, nodes, and namespace frames can fall back locally without
+    // forcing unrelated relations and labels into whole-diagram artwork.
+    if (diagramType === "class" && element.closest("g.cluster, g.node")) return false;
     const matrix = element.getScreenCTM?.();
     return matrix && (Math.abs(matrix.b) > 0.001 || Math.abs(matrix.c) > 0.001 || matrix.a <= 0 || matrix.d <= 0);
   })) {
@@ -1877,7 +2242,6 @@ function sceneFromSvg(svg, options) {
     return { scene: fallbackSceneForReason(createScene({ ...size, source: { kind: "mermaid", path: options.path } }), reason,
       boundsOf(svg, deck)), diagnostics: [{ path: "svg", kind: "fallback", reason }] };
   }
-  const diagramType = svg.getAttribute("aria-roledescription");
   const outerElements = [svg];
   for (let element = root; element && element !== svg; element = element.parentElement) outerElements.push(element);
   if (outerElements.some((element) => unsupportedVisualEffect(element, false))) {

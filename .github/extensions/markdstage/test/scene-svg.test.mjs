@@ -54,6 +54,24 @@ test("renders the fixed Mermaid sequence frame tab profile", () => {
   assert.equal(path.attributes.get("d"), "M 10 20 L 60 20 L 60 33 L 51.6 40 L 10 40 Z");
 });
 
+test("renders exact height-based Mermaid quadrilaterals without nearest-preset distortion", () => {
+  const presets = ["trapezoid", "invertedTrapezoid", "reverseParallelogram"];
+  const svg = sceneToSvg(scene(presets.map((preset, index) => ({
+    kind: "shape",
+    preset,
+    sourcePath: `nodes[${index}]`,
+    z: index,
+    bounds: { x: 10 + index * 140, y: 20, width: 120, height: 40 },
+    style: { fill: "#ffffff", stroke: "#000000", strokeWidth: 1 },
+  }))), { document });
+  const polygons = all(svg).filter((node) => node.tagName === "polygon");
+  assert.deepEqual(polygons.map((node) => node.attributes.get("points")), [
+    "10,60 130,60 110,20 30,20",
+    "170,60 250,60 270,20 150,20",
+    "310,60 410,60 390,20 290,20",
+  ]);
+});
+
 test("renders scene primitives, rich text, markers, images and stable stacking with DOM APIs", () => {
   const source = scene([
     { kind: "shape", preset: "diamond", sourcePath: "node", z: 2, bounds, style: { fill: "#ffffff", stroke: "#000000", strokeWidth: 2, dash: "dot" }, text: richText },

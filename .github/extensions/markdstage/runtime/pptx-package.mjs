@@ -612,7 +612,7 @@ function shapeTextOf(element, path) {
 
 function nativeShapeXml(element, path, id, relationships) {
   const bounds = boundsOf(element, path);
-  const preset = {
+  const presets = {
     rect: "rect",
     roundedRect: "roundRect",
     ellipse: "ellipse",
@@ -620,15 +620,24 @@ function nativeShapeXml(element, path, id, relationships) {
     triangle: "triangle",
     hexagon: "hexagon",
     parallelogram: "parallelogram",
-  }[element.shape];
-  const geometry = element.shape === "sequenceTab"
-    ? '<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="l" t="t" r="r" b="b"/><a:pathLst><a:path w="50000" h="20000"><a:moveTo><a:pt x="0" y="0"/></a:moveTo><a:lnTo><a:pt x="50000" y="0"/></a:lnTo><a:lnTo><a:pt x="50000" y="13000"/></a:lnTo><a:lnTo><a:pt x="41600" y="20000"/></a:lnTo><a:lnTo><a:pt x="0" y="20000"/></a:lnTo><a:close/></a:path></a:pathLst></a:custGeom>'
-    : preset
+  };
+  const customGeometries = {
+    sequenceTab: '<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="l" t="t" r="r" b="b"/><a:pathLst><a:path w="50000" h="20000"><a:moveTo><a:pt x="0" y="0"/></a:moveTo><a:lnTo><a:pt x="50000" y="0"/></a:lnTo><a:lnTo><a:pt x="50000" y="13000"/></a:lnTo><a:lnTo><a:pt x="41600" y="20000"/></a:lnTo><a:lnTo><a:pt x="0" y="20000"/></a:lnTo><a:close/></a:path></a:pathLst></a:custGeom>',
+    reverseParallelogram: '<a:custGeom><a:avLst/><a:gdLst><a:gd name="dx" fmla="*/ h 1 2"/><a:gd name="rx" fmla="+- w 0 dx"/></a:gdLst><a:ahLst/><a:cxnLst/><a:rect l="l" t="t" r="r" b="b"/><a:pathLst><a:path><a:moveTo><a:pt x="dx" y="h"/></a:moveTo><a:lnTo><a:pt x="w" y="h"/></a:lnTo><a:lnTo><a:pt x="rx" y="0"/></a:lnTo><a:lnTo><a:pt x="0" y="0"/></a:lnTo><a:close/></a:path></a:pathLst></a:custGeom>',
+    trapezoid: '<a:custGeom><a:avLst/><a:gdLst><a:gd name="dx" fmla="*/ h 1 2"/><a:gd name="rx" fmla="+- w 0 dx"/></a:gdLst><a:ahLst/><a:cxnLst/><a:rect l="l" t="t" r="r" b="b"/><a:pathLst><a:path><a:moveTo><a:pt x="0" y="h"/></a:moveTo><a:lnTo><a:pt x="w" y="h"/></a:lnTo><a:lnTo><a:pt x="rx" y="0"/></a:lnTo><a:lnTo><a:pt x="dx" y="0"/></a:lnTo><a:close/></a:path></a:pathLst></a:custGeom>',
+    invertedTrapezoid: '<a:custGeom><a:avLst/><a:gdLst><a:gd name="dx" fmla="*/ h 1 2"/><a:gd name="rx" fmla="+- w 0 dx"/></a:gdLst><a:ahLst/><a:cxnLst/><a:rect l="l" t="t" r="r" b="b"/><a:pathLst><a:path><a:moveTo><a:pt x="dx" y="h"/></a:moveTo><a:lnTo><a:pt x="rx" y="h"/></a:lnTo><a:lnTo><a:pt x="w" y="0"/></a:lnTo><a:lnTo><a:pt x="0" y="0"/></a:lnTo><a:close/></a:path></a:pathLst></a:custGeom>',
+  };
+  const shape = Object.hasOwn(element, "shape") ? element.shape : undefined;
+  const preset = typeof shape === "string" && Object.hasOwn(presets, shape) ? presets[shape] : "";
+  const customGeometry = typeof shape === "string" && Object.hasOwn(customGeometries, shape)
+    ? customGeometries[shape]
+    : "";
+  const geometry = customGeometry || (preset
       ? `<a:prstGeom prst="${preset}"><a:avLst/></a:prstGeom>`
-      : "";
+      : "");
   if (!geometry) {
     fail(
-      `${path}.shape must be rect, roundedRect, ellipse, diamond, triangle, hexagon, parallelogram, or sequenceTab`,
+      `${path}.shape must be rect, roundedRect, ellipse, diamond, triangle, hexagon, parallelogram, reverseParallelogram, trapezoid, invertedTrapezoid, or sequenceTab`,
     );
   }
   const opacity = optionalUnitInterval(element.opacity, `${path}.opacity`);

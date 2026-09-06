@@ -15,6 +15,8 @@ const architecture = {
 const classRelationsSlide = `# Class relationships\n\n\`\`\`mermaid\n${await readFile(new URL("../fixtures/mermaid/class-relations.mmd", import.meta.url), "utf8")}\n\`\`\``;
 const sequencePathsSlide = `# Sequence paths\n\n\`\`\`mermaid\n${await readFile(new URL("../fixtures/mermaid/sequence-paths.mmd", import.meta.url), "utf8")}\n\`\`\``;
 const sequenceDecorationsSlide = `# Sequence decorations\n\n\`\`\`mermaid\n${await readFile(new URL("../fixtures/mermaid/sequence-decorations.mmd", import.meta.url), "utf8")}\n\`\`\``;
+const flowchartAdditionalShapesSlide = `# Additional flowchart shapes\n\n\`\`\`mermaid\n${await readFile(new URL("../fixtures/mermaid/flowchart-additional-shapes.mmd", import.meta.url), "utf8")}\n\`\`\``;
+const classContainersSlide = `# Class containers\n\n\`\`\`mermaid\n${await readFile(new URL("../fixtures/mermaid/class-containers.mmd", import.meta.url), "utf8")}\n\`\`\``;
 const slides = [
   `# Architecture\n\n\`\`\`architecture\n${JSON.stringify(architecture)}\n\`\`\``,
   "# Mermaid\n\n```mermaid\nflowchart LR\nA[Client] -->|Request| B(API)\nB --> C[(Database)]\n```",
@@ -28,6 +30,8 @@ const slides = [
   classRelationsSlide,
   sequencePathsSlide,
   sequenceDecorationsSlide,
+  flowchartAdditionalShapesSlide,
+  classContainersSlide,
 ];
 
 const customThemeCss = ":root{--bg:#102030;--fg:#f8fafc;--body:#d7e3f0;--muted:#abbdd0;--surface:#203448;--border:#486580;--accent:#39b8f2;--accent-strong:#72d4ff;--accent-soft:#163b50;}";
@@ -120,6 +124,8 @@ test("normal, presenter, fixed preview, PNG and PDF use the same shared scene re
     classRelationsSlide,
     sequencePathsSlide,
     sequenceDecorationsSlide,
+    flowchartAdditionalShapesSlide,
+    classContainersSlide,
     ...slides.slice(7, 10),
   ];
   const harness = await startHarness({ slides: surfaceSlides });

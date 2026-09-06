@@ -212,6 +212,30 @@ export function sceneToSvg(scene, {
     if (presets[node.preset]) return dom("polygon", {
       points: presets[node.preset].map(([px, py]) => `${x + px * w},${y + py * h}`).join(" "), ...attrs,
     });
+    const halfHeight = h / 2;
+    const heightBasedPresets = {
+      reverseParallelogram: [
+        [x + halfHeight, y + h],
+        [x + w, y + h],
+        [x + w - halfHeight, y],
+        [x, y],
+      ],
+      trapezoid: [
+        [x, y + h],
+        [x + w, y + h],
+        [x + w - halfHeight, y],
+        [x + halfHeight, y],
+      ],
+      invertedTrapezoid: [
+        [x + halfHeight, y + h],
+        [x + w - halfHeight, y + h],
+        [x + w, y],
+        [x, y],
+      ],
+    };
+    if (heightBasedPresets[node.preset]) return dom("polygon", {
+      points: heightBasedPresets[node.preset].map(([px, py]) => `${px},${py}`).join(" "), ...attrs,
+    });
     if (node.preset === "cylinder") {
       const r = Math.min(h / 4, w / 8);
       return dom("path", { d: `M ${x} ${y + r} A ${w / 2} ${r} 0 0 1 ${x + w} ${y + r} L ${x + w} ${y + h - r} A ${w / 2} ${r} 0 0 1 ${x} ${y + h - r} Z M ${x} ${y + r} A ${w / 2} ${r} 0 0 0 ${x + w} ${y + r}`, ...attrs });

@@ -1,0 +1,23 @@
+%%{init: {"handDrawnSeed": 42}}%%
+classDiagram
+direction LR
+namespace Core {
+    class Account {
+        +String name
+        +save()
+    }
+    namespace Internal {
+        class Ledger {
+            +record()
+        }
+    }
+}
+namespace External {
+    class Gateway
+}
+note for Account "口座ノート<br/>Account note"
+note "全体ノート<br/>General note"
+Account "1" *-- "0..*" Ledger : 保持<br/>contains
+Ledger ..> Gateway : 公開<br/>publishes
+Gateway <|-- Account : inherits
+Account o-- Gateway : aggregates

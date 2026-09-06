@@ -781,6 +781,59 @@ test("emits the fixed editable geometry for Mermaid sequence frame tabs", () => 
   assert.match(slide, /<a:pt x="41600" y="20000"\/>/);
 });
 
+test("emits exact editable height-based geometry for Mermaid quadrilaterals", () => {
+  const shapes = ["trapezoid", "invertedTrapezoid", "reverseParallelogram"];
+  const files = readStoredZip(
+    buildPptxPackage({
+      slides: [{
+        elements: shapes.map((shape, index) => ({
+          type: "shape",
+          shape,
+          x: 20 + index * 160,
+          y: 40,
+          width: 120,
+          height: 40,
+          fill: "#ffffff",
+          stroke: "#000000",
+        })),
+      }],
+    }),
+  );
+  const slide = xml(files, "ppt/slides/slide1.xml");
+  assert.equal((slide.match(/<a:gd name="dx" fmla="\*\/ h 1 2"\/>/g) || []).length, 3);
+  assert.equal((slide.match(/<a:gd name="rx" fmla="\+- w 0 dx"\/>/g) || []).length, 3);
+  assert.match(slide, /<a:moveTo><a:pt x="0" y="h"\/><\/a:moveTo>/);
+  assert.match(slide, /<a:moveTo><a:pt x="dx" y="h"\/><\/a:moveTo>/);
+  assert.match(slide, /<a:lnTo><a:pt x="w" y="h"\/><\/a:lnTo>/);
+});
+
+test("rejects unknown, prototype-named, and inherited PowerPoint shape values", () => {
+  const base = { type: "shape", x: 10, y: 10, width: 100, height: 40 };
+  for (const shape of [
+    "toString",
+    "constructor",
+    "__proto__",
+    "hasOwnProperty",
+    "nearestTrapezoid",
+    null,
+    0,
+    true,
+    ["trapezoid"],
+    new String("trapezoid"),
+  ]) {
+    assert.throws(
+      () => buildPptxPackage({ slides: [{ elements: [{ ...base, shape }] }] }),
+      /shape must be/,
+      String(shape),
+    );
+  }
+  const inherited = Object.assign(Object.create({ shape: "trapezoid" }), base);
+  assert.throws(
+    () => buildPptxPackage({ slides: [{ elements: [inherited] }] }),
+    /shape must be/,
+  );
+});
+
 test("emits solid and dotted DrawingML connector styles", () => {
   const files = readStoredZip(
     buildPptxPackage({

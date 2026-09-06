@@ -30,6 +30,18 @@ test("classifies measured Mermaid polygon signatures", () => {
     classifyPolygonPreset("-19.5,0 60.75,0 80.25,-39 0,-39"),
     "parallelogram",
   );
+  assert.equal(
+    classifyPolygonPreset("-19.5,0 112.25,0 92.75,-39 0,-39"),
+    "trapezoid",
+  );
+  assert.equal(
+    classifyPolygonPreset("0,0 111.203125,0 138.203125,-54 -27,-54"),
+    "invertedTrapezoid",
+  );
+  assert.equal(
+    classifyPolygonPreset("0,0 144.796875,0 125.296875,-39 -19.5,-39"),
+    "reverseParallelogram",
+  );
   assert.equal(classifyPolygonPreset("0,0 100,0 50,100"), "rect");
   assert.equal(
     polygonPointsSignature("58.2501,0 116.499,-58.25"),
@@ -190,6 +202,7 @@ test("recognizes safe additional polygons without replacing unknown geometry wit
   assert.equal(classifyPolygonPreset("50,0 100,100 0,100"), "triangle");
   assert.equal(classifyPolygonPreset("0,0 100,0 50,100", { fallbackPreset: null }), null);
   assert.equal(classifyPolygonPreset("0,0 100,0 90,100 0,100", { fallbackPreset: null }), null);
+  assert.equal(classifyPolygonPreset("0,0 100,0 79,-40 -20,-40", { fallbackPreset: null }), null);
   assert.equal(classifyPolygonPreset("0,0 10,0 20,0 30,0 40,0 50,0", { fallbackPreset: null }), null);
 });
 
