@@ -212,9 +212,9 @@ function colorXml(value, path, opacity = 1) {
 
 function lineCapXml(value, path) {
   if (value === undefined) return "";
-  const cap = { butt: "flat", round: "rnd", square: "sq" }[value];
-  if (!cap) fail(`${path} is not a supported line cap`);
-  return ` cap="${cap}"`;
+  const caps = { butt: "flat", round: "rnd", square: "sq" };
+  if (typeof value !== "string" || !Object.hasOwn(caps, value)) fail(`${path} is not a supported line cap`);
+  return ` cap="${caps[value]}"`;
 }
 
 function lineXml(element, path) {

@@ -64,6 +64,20 @@ test("writes explicit flat, round and square caps for native strokes and rejects
   }
 });
 
+test("rejects inherited names and non-string line caps for connectors and shapes", () => {
+  const elements = [
+    { type: "connector", points: [{ x: 10, y: 10 }, { x: 20, y: 20 }], stroke: "#123456" },
+    { type: "shape", shape: "rect", x: 10, y: 10, width: 20, height: 20, stroke: "#123456" },
+  ];
+  for (const element of elements) {
+    for (const lineCap of ["toString", "constructor", "__proto__", "hasOwnProperty",
+      null, 0, true, ["butt"], new String("butt"), { toString: () => "butt" }]) {
+      assert.throws(() => buildPptxPackage({ slides: [{ elements: [{ ...element, lineCap }] }] }),
+        /lineCap is not a supported line cap/, `${element.type}: ${String(lineCap)}`);
+    }
+  }
+});
+
 function samplePackage() {
   return buildPptxPackage({
     title: 'Roadmap & "Next"',
