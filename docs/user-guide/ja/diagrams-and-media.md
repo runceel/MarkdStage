@@ -81,6 +81,29 @@ class 図ではクラスの区画、マーカーなしの関連、合成（`A *-
 共通 scene の深さ上限まで編集可能な枠とタイトルになります。namespace をまたぐ場合も、
 関係線、ラベル、多重度、マーカー、note、class ノードを独立して 1 回だけ保持します。
 
+ER 図では、大文字小文字を含めて正確な `erDiagram` を使います。同梱 Mermaid 11.15.0 は
+`erDiagram-beta` で始まる行も受理しますが、同等の beta alias ではありません。renderer は
+`-beta` を追加の可視 entity として扱うため、MarkdStage もその実際の出力を隠さず保持します。
+通常の ER 図には `erDiagram` を使ってください。`ERDIAGRAM`、`erdiagram`、`er`、その他の
+casing は受理されません。
+
+classic ER entity は、編集可能な box と entity name label になります。属性を持つ entity では、
+renderer が描いた外枠、交互の attribute row 背景、行・列 separator、表示されている attribute
+type／name／key／comment を保持します。`PK`、`FK`、`UK`、および `PK,FK` のように renderer が
+受理する複合 key も編集可能です。quoted entity alias、attribute comment、relationship label では
+`<br/>` を使え、日本語と複数行テキストは描画済みの bounds と行高を使います。空の key／comment
+cell に人工的な文字を追加することはありません。
+
+identifying relation の `--` と non-identifying relation の `..` は、Mermaid が描画した実線／破線の
+経路を使います。対応 cardinality は、exactly one（`||`）、zero or one（`o|`）、one or more
+（`|{`）、zero or more（`o{`）で、どちらの端にも指定できます。MarkdStage は、同梱版の 8 個の
+start／end marker 定義について、viewport size、reference point、`strokeWidth` units、自動向き、
+clip 境界、paint、cap、join を検証します。bar と crow's-foot curve は範囲を限定した編集可能な
+line 部品になり、zero marker は renderer が実際に描いた ellipse の fill／stroke（同梱 default
+theme では白 fill）を保持します。relationship label は独立したままです。entity position、row
+height、text box、relation route、terminal direction、label position は描画済み SVG から取得し、
+MarkdStage が ER source を再解釈して代替 layout を計算することはありません。
+
 同梱 Mermaid 11.15.0 の基本的な状態図では、`stateDiagram-v2` と従来の
 `stateDiagram` を使えます。`stateDiagram-beta`、`stateDiagram-v2-beta`、小文字表記など、
 実際に受理されない別名は対応名として扱いません。単純な角丸 state box とラベルを、
@@ -141,6 +164,14 @@ source ownership を分離できる場合、対応済みの兄弟メッセージ
 未対応エフェクト・transform、scene の深さ上限を超える namespace 階層も、影響する note、装飾、
 ラベル、コンテナーの最小単位だけを画像にします。その局所フォールバック外にある対応済みの
 class 関係線は消費も欠落もしません。
+ER 図では、不正な attributed entity はその entity だけを画像にします。分離可能な row の paint、
+clip、geometry、transform、label decoration は、影響する row、divider、text label だけを局所画像に
+します。未知の relation path、terminal geometry、marker paint／effect、安全でない transform、
+element opacity は、両端 terminal を含むその relation だけを画像にし、独立した relationship label は
+編集可能なまま残します。半透明 crow's-foot stroke も、curve を編集可能な線分に分割すると join の
+alpha 合成が変わるため relation 単位の局所画像にします。未対応 entity look／decoration、複雑な
+HTML／icon／image、gradient、mask、effect、同梱版以外の geometry は、分離できる最小単位で
+フォールバックします。
 1 つの node、connector、label、marker、制御枠、未知の視覚要素に未対応 transform があっても、
 対応済みの兄弟要素まで図全体の画像にはしません。子要素の重なり、marker の描画、label の
 source ownership を分割すると変えてしまう複合要素は 1 つの局所画像として保持します。

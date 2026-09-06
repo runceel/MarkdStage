@@ -8,6 +8,7 @@ import {
   decomposeSimpleSvgTransform,
   enforceSceneLimits,
   markerIdToArrow,
+  knownErMarkerGeometry,
   knownMarkerGeometry,
   markerEndpointTangents,
   polygonPointsSignature,
@@ -56,12 +57,16 @@ test("routes only bundled Mermaid SVG roles with their actual root signals", () 
   assert.equal(classifyMermaidDiagramRoute("treeView"), "treeView");
   assert.equal(classifyMermaidDiagramRoute("sequence"), "sequence");
   assert.equal(classifyMermaidDiagramRoute("class", "", true), "class");
+  assert.equal(classifyMermaidDiagramRoute("er", "erDiagram", true), "er");
   assert.equal(classifyMermaidDiagramRoute("stateDiagram", "statediagram", true), "state");
   assert.equal(classifyMermaidDiagramRoute("flowchart-v2", "flowchart", true), "flowchart");
   assert.equal(classifyMermaidDiagramRoute("packet-beta"), null);
   assert.equal(classifyMermaidDiagramRoute("treeView-beta"), null);
   assert.equal(classifyMermaidDiagramRoute("treeview"), null);
   assert.equal(classifyMermaidDiagramRoute("class", "", false), null);
+  assert.equal(classifyMermaidDiagramRoute("er", "flowchart", true), null);
+  assert.equal(classifyMermaidDiagramRoute("er", "erDiagram", false), null);
+  assert.equal(classifyMermaidDiagramRoute("class", "erDiagram", true), "class");
   assert.equal(classifyMermaidDiagramRoute("stateDiagram", "flowchart", true), null);
   assert.equal(classifyMermaidDiagramRoute("stateDiagram", "statediagram", false), null);
   assert.equal(classifyMermaidDiagramRoute("error", "statediagram", true), null);
@@ -75,7 +80,54 @@ test("maps Mermaid marker IDs and URL references to scene arrows", () => {
   assert.equal(markerIdToArrow("mermaid-1_flowchart-v2-pointStart-margin"), "triangle");
   assert.equal(markerIdToArrow("url(#mermaid-1_flowchart-v2-circleEnd)"), "oval");
   assert.equal(markerIdToArrow("url(#mermaid-1_flowchart-v2-crossEnd)"), "none");
+  assert.equal(markerIdToArrow("url(#fixture_er-zeroOrMoreEnd)"), "none");
   assert.equal(markerIdToArrow(""), "none");
+});
+
+test("recognizes only bundled Mermaid ER cardinality marker geometry", () => {
+  const cases = [
+    ["onlyOneStart", [{ tag: "path", d: "M9,0 L9,18 M15,0 L15,18" }], "only-one", "start"],
+    ["onlyOneEnd", [{ tag: "path", d: "M3,0 L3,18 M9,0 L9,18" }], "only-one", "end"],
+    ["zeroOrOneStart", [
+      { tag: "circle", cx: 21, cy: 9, r: 6 },
+      { tag: "path", d: "M9,0 L9,18" },
+    ], "zero-or-one", "start"],
+    ["zeroOrOneEnd", [
+      { tag: "circle", cx: 9, cy: 9, r: 6 },
+      { tag: "path", d: "M21,0 L21,18" },
+    ], "zero-or-one", "end"],
+    ["oneOrMoreStart", [{
+      tag: "path",
+      d: "M0,18 Q 18,0 36,18 Q 18,36 0,18 M42,9 L42,27",
+    }], "one-or-more", "start"],
+    ["oneOrMoreEnd", [{
+      tag: "path",
+      d: "M3,9 L3,27 M9,18 Q27,0 45,18 Q27,36 9,18",
+    }], "one-or-more", "end"],
+    ["zeroOrMoreStart", [
+      { tag: "circle", cx: 48, cy: 18, r: 6 },
+      { tag: "path", d: "M0,18 Q18,0 36,18 Q18,36 0,18" },
+    ], "zero-or-more", "start"],
+    ["zeroOrMoreEnd", [
+      { tag: "circle", cx: 9, cy: 18, r: 6 },
+      { tag: "path", d: "M21,18 Q39,0 57,18 Q39,36 21,18" },
+    ], "zero-or-more", "end"],
+  ];
+  for (const [name, primitives, cardinality, placement] of cases) {
+    const geometry = knownErMarkerGeometry(`url(#fixture_er-${name})`, primitives);
+    assert.equal(geometry.cardinality, cardinality);
+    assert.equal(geometry.placement, placement);
+    assert.equal(geometry.parts.length, 2);
+    assert.equal(markerIdToArrow(`fixture_er-${name}`), "none");
+    assert.equal(
+      knownErMarkerGeometry(`fixture_er-${name}`, [
+        ...primitives.slice(0, -1),
+        { ...primitives.at(-1), d: `${primitives.at(-1).d || ""} 0` },
+      ]),
+      null,
+    );
+  }
+  assert.equal(knownErMarkerGeometry("fixture_er-unknownEnd", []), null);
 });
 
 test("decomposes only finite orientation-preserving uniform SVG rotations", () => {

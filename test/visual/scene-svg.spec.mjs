@@ -21,6 +21,7 @@ const paintAlphaSlide = `# Paint alpha\n\n\`\`\`mermaid\n${await readFile(new UR
 const packetSlide = `# Packet\n\n\`\`\`mermaid\n${await readFile(new URL("../fixtures/mermaid/packet.mmd", import.meta.url), "utf8")}\n\`\`\``;
 const treeViewSlide = `# treeView\n\n\`\`\`mermaid\n${await readFile(new URL("../fixtures/mermaid/tree-view.mmd", import.meta.url), "utf8")}\n\`\`\``;
 const stateBasicSlide = `# State diagram\n\n\`\`\`mermaid\n${await readFile(new URL("../fixtures/mermaid/state-basic.mmd", import.meta.url), "utf8")}\n\`\`\``;
+const erBasicSlide = `# ER diagram\n\n\`\`\`mermaid\n${await readFile(new URL("../fixtures/mermaid/er-basic.mmd", import.meta.url), "utf8")}\n\`\`\``;
 const rotatedTextSlide = [
   "# Rotated Mermaid text",
   "",
@@ -53,6 +54,7 @@ const slides = [
   packetSlide,
   treeViewSlide,
   stateBasicSlide,
+  erBasicSlide,
 ];
 
 const customThemeCss = ":root{--bg:#102030;--fg:#f8fafc;--body:#d7e3f0;--muted:#abbdd0;--surface:#203448;--border:#486580;--accent:#39b8f2;--accent-strong:#72d4ff;--accent-soft:#163b50;}";
@@ -153,6 +155,7 @@ test("normal, presenter, fixed preview, PNG and PDF use the same shared scene re
     packetSlide,
     treeViewSlide,
     stateBasicSlide,
+    erBasicSlide,
     ...slides.slice(7, 10),
   ];
   const harness = await startHarness({ slides: surfaceSlides });

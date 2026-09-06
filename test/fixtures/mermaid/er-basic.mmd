@@ -1,0 +1,24 @@
+%%{init: {"handDrawnSeed": 42}}%%
+erDiagram
+direction LR
+ACCOUNT["顧客<br/>Account"] {
+  uuid id PK "顧客 ID<br/>primary"
+  string displayName UK "表示名"
+}
+PROFILE {
+  uuid accountId PK, FK "owner"
+}
+ORDER {
+  int id PK
+  uuid accountId FK
+  string code UK "external"
+}
+LINE_ITEM {
+  int id PK
+  int orderId FK
+  string note "明細"
+}
+ACCOUNT ||--o| PROFILE : "has<br/>所有"
+PROFILE o|..|{ ORDER : "opens<br/>注文"
+ORDER |{--o{ LINE_ITEM : contains
+LINE_ITEM o{..|| ACCOUNT : belongs

@@ -84,6 +84,30 @@ standalone `note "..."` forms, export as editable rectangles and localized text.
 Relations, labels, multiplicities, markers, notes, and class nodes remain independent and are
 retained exactly once even when they cross namespace boundaries.
 
+Entity-relationship diagrams use the exact `erDiagram` spelling. Bundled Mermaid 11.15.0 also
+accepts a line beginning with `erDiagram-beta`, but it is not an equivalent beta alias: the
+renderer treats the `-beta` suffix as an additional visible entity. MarkdStage preserves that
+actual output rather than hiding it. `ERDIAGRAM`, `erdiagram`, `er`, and alternate casing are not
+accepted, so use `erDiagram` for an ordinary ER diagram.
+
+Classic ER entities export as editable boxes and entity-name labels. Attributed entities preserve
+the renderer's outer box, alternating attribute-row backgrounds, row and column separators, and
+the visible attribute type, name, key, and comment text. `PK`, `FK`, `UK`, and renderer-accepted
+combined keys such as `PK,FK` remain editable. Quoted entity aliases, attribute comments, and
+relationship labels can contain `<br/>`; Japanese and multiline text use the rendered bounds and
+line heights. Empty key or comment cells remain empty instead of gaining synthetic text.
+
+Identifying `--` relations and non-identifying `..` relations use Mermaid's rendered solid or
+dashed route. The supported cardinalities are exactly one (`||`), zero or one (`o|`), one or more
+(`|{`), and zero or more (`o{`) at either end. MarkdStage validates all eight bundled start/end
+marker definitions, including their viewport size, reference point, `strokeWidth` units, automatic
+orientation, clipping boundary, paint, cap, and join. Bars and crow's-foot curves become bounded
+editable line components; zero markers keep the renderer's actual editable ellipse fill and
+stroke (white fill in the bundled default theme). Relationship labels stay independent. Entity
+positions, row heights, text boxes, relation routes, terminal direction, and label positions come
+from the rendered SVG; MarkdStage never parses the ER source again to calculate a replacement
+layout.
+
 Basic state diagrams from bundled Mermaid 11.15.0 accept `stateDiagram-v2` and the legacy
 `stateDiagram` spelling. `stateDiagram-beta`, `stateDiagram-v2-beta`, lowercase variants, and
 other invented aliases are not accepted. Simple rounded state boxes and their labels export as
@@ -146,6 +170,14 @@ or special-geometry class notes, namespace decoration with unknown children, nam
 unsupported transforms, and namespace hierarchies beyond the scene depth limit likewise fall back
 at the smallest safe note, decoration, label, or container. Supported class relations outside that
 local fallback are not consumed or dropped.
+For ER diagrams, a malformed attributed entity stays one entity-local picture, while separable
+unsupported row paint, clipping, geometry, transform, or label decoration falls back only for that
+row, divider, or text label. Unknown relation paths, terminal geometry, marker paint/effects,
+unsafe transforms, or element opacity keep only that relation (including both terminals) as local
+artwork; its independent relationship label remains editable. Translucent crow's-foot strokes also
+stay relation-local because splitting the curved stroke into editable segments would change alpha
+compositing at their joins. Unsupported entity looks/decorations, complex HTML/icons/images,
+gradients, masks, effects, and non-bundled geometry use the smallest separable local fallback.
 An unsupported transform on one node, connector, label, marker, control frame, or unknown visual
 no longer forces supported siblings into whole-diagram artwork. A transformed composite remains
 one local picture when splitting it would change descendant overlap, marker paint, or label

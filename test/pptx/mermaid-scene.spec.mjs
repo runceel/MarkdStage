@@ -548,6 +548,920 @@ test("accepts only the bundled state diagram aliases and routes their actual SVG
   }
 });
 
+test("accepts only the bundled ER diagram aliases and routes their actual SVG root", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# ER aliases"] });
+  try {
+    await page.goto(harness.url);
+    const aliases = await page.evaluate(async () => {
+      window.mermaid.initialize({
+        startOnLoad: false,
+        theme: "default",
+        securityLevel: "strict",
+      });
+      const results = {};
+      for (const alias of [
+        "erDiagram",
+        "erDiagram-beta",
+        "ERDIAGRAM",
+        "erdiagram",
+        "er",
+      ]) {
+        const source = `${alias}\nA ||--o{ B : owns\nA {\n  string id PK\n}`;
+        try {
+          await window.mermaid.parse(source);
+          const { svg } = await window.mermaid.render(
+            `er-alias-${alias.replace(/[^a-z0-9]+/gi, "-")}`,
+            source,
+          );
+          const root = new DOMParser()
+            .parseFromString(svg, "image/svg+xml")
+            .documentElement;
+          results[alias] = {
+            accepted: true,
+            role: root.getAttribute("aria-roledescription"),
+            class: root.getAttribute("class"),
+            root: root.querySelector("g.root")?.getAttribute("class") || "",
+            markers: [...root.querySelectorAll("marker.marker.er")]
+              .map((marker) => marker.id.split("_er-").at(-1)),
+            entities: [...root.querySelectorAll("g.nodes > g.node")]
+              .map((entity) => entity.textContent.replace(/\s+/g, "")),
+          };
+        } catch (_) {
+          results[alias] = { accepted: false };
+        }
+      }
+      return results;
+    });
+    const accepted = {
+      accepted: true,
+      role: "er",
+      class: "erDiagram",
+      root: "root",
+      markers: [
+        "onlyOneStart",
+        "onlyOneEnd",
+        "zeroOrOneStart",
+        "zeroOrOneEnd",
+        "oneOrMoreStart",
+        "oneOrMoreEnd",
+        "zeroOrMoreStart",
+        "zeroOrMoreEnd",
+      ],
+      entities: ["AstringidPK", "B"],
+    };
+    expect(aliases.erDiagram).toEqual(accepted);
+    expect(aliases["erDiagram-beta"]).toEqual({
+      ...accepted,
+      entities: ["-beta", "AstringidPK", "B"],
+    });
+    expect(aliases.ERDIAGRAM).toEqual({ accepted: false });
+    expect(aliases.erdiagram).toEqual({ accepted: false });
+    expect(aliases.er).toEqual({ accepted: false });
+  } finally {
+    await harness.close();
+  }
+});
+
+test("extracts pinned ER entities, rows, attributes, relations, labels and all cardinalities", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# ER fixture"] });
+  try {
+    await page.goto(harness.url);
+    const result = await sceneFromFixture(
+      page,
+      await readFixture("er-basic.svg"),
+      "er-basic.svg",
+    );
+    validateScene(result.scene);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.scene.nodes.map((node) => node.z))
+      .toEqual(Array.from({ length: 96 }, (_, index) => index));
+    expect(result.scene.nodes.filter((node) => node.kind === "group")).toHaveLength(4);
+    expect(result.scene.nodes.filter((node) => node.kind === "shape")).toHaveLength(21);
+    expect(result.scene.nodes.filter((node) => node.kind === "connector")).toHaveLength(36);
+    expect(result.scene.nodes.filter((node) => node.kind === "text")).toHaveLength(35);
+    expect(result.scene.nodes.filter((node) => node.kind === "fallback")).toEqual([]);
+
+    const relationGroups = result.scene.nodes.filter((node) =>
+      node.meta?.mermaid?.kind === "er-marked-relation");
+    const relations = result.scene.nodes.filter((node) =>
+      node.meta?.mermaid?.kind === "er-relation");
+    const terminals = result.scene.nodes.filter((node) =>
+      node.meta?.mermaid?.kind === "er-terminal");
+    expect(relationGroups).toHaveLength(4);
+    expect(relations.map((node) => [
+      node.meta.mermaid.identification,
+      node.style.dash,
+      node.style.lineCap,
+      node.points.length,
+      node.meta.mermaid.rawPointCount,
+    ])).toEqual([
+      ["identifying", "solid", "butt", 3, 29],
+      ["non-identifying", "dash", "butt", 2, 33],
+      ["identifying", "solid", "butt", 3, 35],
+      ["non-identifying", "dash", "butt", 6, 239],
+    ]);
+    expect(terminals.map((node) => [
+      node.sourcePath,
+      node.kind,
+      node.meta.mermaid.cardinality,
+      node.meta.mermaid.placement,
+      node.meta.mermaid.component,
+      node.points?.length,
+    ])).toEqual([
+      ["relations[0].terminals.start[0]", "connector", "only-one", "start", "bar", 2],
+      ["relations[0].terminals.start[1]", "connector", "only-one", "start", "bar", 2],
+      ["relations[0].terminals.end[0]", "shape", "zero-or-one", "end", "circle", undefined],
+      ["relations[0].terminals.end[1]", "connector", "zero-or-one", "end", "bar", 2],
+      ["relations[1].terminals.start[0]", "shape", "zero-or-one", "start", "circle", undefined],
+      ["relations[1].terminals.start[1]", "connector", "zero-or-one", "start", "bar", 2],
+      ["relations[1].terminals.end[0]", "connector", "one-or-more", "end", "bar", 2],
+      ["relations[1].terminals.end[1]", "connector", "one-or-more", "end", "crow-foot", 33],
+      ["relations[2].terminals.start[0]", "connector", "one-or-more", "start", "crow-foot", 33],
+      ["relations[2].terminals.start[1]", "connector", "one-or-more", "start", "bar", 2],
+      ["relations[2].terminals.end[0]", "shape", "zero-or-more", "end", "circle", undefined],
+      ["relations[2].terminals.end[1]", "connector", "zero-or-more", "end", "crow-foot", 33],
+      ["relations[3].terminals.start[0]", "shape", "zero-or-more", "start", "circle", undefined],
+      ["relations[3].terminals.start[1]", "connector", "zero-or-more", "start", "crow-foot", 33],
+      ["relations[3].terminals.end[0]", "connector", "only-one", "end", "bar", 2],
+      ["relations[3].terminals.end[1]", "connector", "only-one", "end", "bar", 2],
+    ]);
+    expect(terminals.filter((node) => node.kind === "shape").map((node) => [
+      node.preset,
+      node.style.fill,
+      node.style.stroke,
+      node.style.strokeWidth,
+    ])).toEqual(Array(4).fill([
+      "ellipse",
+      "rgb(255, 255, 255)",
+      "rgb(51, 51, 51)",
+      0.4,
+    ]));
+    expect(terminals.filter((node) =>
+      node.meta.mermaid.component === "crow-foot").every((node) =>
+      node.style.lineCap === "butt" &&
+      node.points[0].x === node.points.at(-1).x &&
+      node.points[0].y === node.points.at(-1).y)).toBe(true);
+    expect(terminals.map((node) => node.bounds)).toEqual([
+      { x: 137.7, y: 44.6, width: 2.9, height: 7.2 },
+      { x: 140.1, y: 43.7, width: 2.9, height: 7.2 },
+      { x: 170.5, y: 37.8, width: 5.2, height: 5.2 },
+      { x: 178.3, y: 36.5, width: 0, height: 7.7 },
+      { x: 312.4, y: 37.8, width: 5.2, height: 5.2 },
+      { x: 309.9, y: 36.5, width: 0, height: 7.7 },
+      { x: 350.6, y: 36.5, width: 0, height: 7.7 },
+      { x: 353.2, y: 36.5, width: 15.5, height: 7.7 },
+      { x: 478.3, y: 36.5, width: 15.6, height: 7.7 },
+      { x: 496.5, y: 36.5, width: 0, height: 7.7 },
+      { x: 528.8, y: 45.1, width: 5.2, height: 5.2 },
+      { x: 536.1, y: 48.7, width: 14.2, height: 8.5 },
+      { x: 528.8, y: 101.8, width: 5.2, height: 5.2 },
+      { x: 536.1, y: 95, width: 14.2, height: 8.4 },
+      { x: 140.1, y: 101.3, width: 2.9, height: 7.2 },
+      { x: 137.7, y: 100.3, width: 2.9, height: 7.2 },
+    ]);
+    expect(relations[3].points[0].x).toBeGreaterThan(relations[3].points.at(-1).x);
+
+    const boxes = result.scene.nodes.filter((node) =>
+      node.meta?.mermaid?.kind === "er-entity-box");
+    const rows = result.scene.nodes.filter((node) =>
+      node.meta?.mermaid?.kind === "er-attribute-row");
+    const dividers = result.scene.nodes.filter((node) =>
+      node.meta?.mermaid?.kind === "er-divider");
+    expect(boxes.map((node) => node.bounds)).toEqual([
+      { x: 3.5, y: 38, width: 132.1, height: 76.1 },
+      { x: 182.2, y: 21.9, width: 123.8, height: 36.9 },
+      { x: 361, y: 3.5, width: 125.1, height: 73.8 },
+      { x: 543.2, y: 39.2, width: 104.7, height: 73.8 },
+    ]);
+    expect(rows.map((node) => [
+      node.meta.mermaid.entity,
+      node.meta.mermaid.row,
+      node.meta.mermaid.parity,
+      node.bounds.height,
+    ])).toEqual([
+      [0, 0, "odd", 28.8],
+      [0, 1, "even", 18.5],
+      [1, 0, "odd", 18.5],
+      [2, 0, "odd", 18.5],
+      [2, 1, "even", 18.5],
+      [2, 2, "odd", 18.5],
+      [3, 0, "odd", 18.5],
+      [3, 1, "even", 18.5],
+      [3, 2, "odd", 18.5],
+    ]);
+    expect(dividers).toHaveLength(20);
+    expect(dividers.filter((node) =>
+      node.meta.mermaid.orientation === "horizontal")).toHaveLength(8);
+    expect(dividers.filter((node) =>
+      node.meta.mermaid.orientation === "vertical")).toHaveLength(12);
+
+    const textOf = (node) => node.text.paragraphs
+      .map((paragraph) => paragraph.runs.map((run) => run.text).join(""))
+      .join("\n");
+    expect(result.scene.nodes.filter((node) =>
+      node.meta?.mermaid?.kind === "er-entity-name").map(textOf)).toEqual([
+      "顧客\nAccount",
+      "PROFILE",
+      "ORDER",
+      "LINE_ITEM",
+    ]);
+    expect(result.scene.nodes.filter((node) =>
+      node.meta?.mermaid?.kind === "er-attribute-keys").map(textOf)).toEqual([
+      "PK",
+      "UK",
+      "PK,FK",
+      "PK",
+      "FK",
+      "UK",
+      "PK",
+      "FK",
+    ]);
+    expect(result.scene.nodes.filter((node) =>
+      node.meta?.mermaid?.kind === "er-attribute-comment").map(textOf)).toEqual([
+      "顧客 ID\nprimary",
+      "表示名",
+      "owner",
+      "external",
+      "明細",
+    ]);
+    expect(result.scene.nodes.filter((node) =>
+      node.meta?.mermaid?.kind === "edge-label").map(textOf)).toEqual([
+      "has\n所有",
+      "opens\n注文",
+      "contains",
+      "belongs",
+    ]);
+
+    const geometry = await page.evaluate(async () => {
+      const { mermaidSvgToScene } = await import("./renderer/mermaid-scene.mjs");
+      const deck = document.querySelector("#fixture-deck");
+      const result = mermaidSvgToScene(deck.querySelector("svg"), {
+        deck,
+        includeSourceElements: true,
+      });
+      const deckRect = deck.getBoundingClientRect();
+      const round = (value) => Math.round(value * 10) / 10;
+      const relationErrors = result.scene.nodes
+        .filter((node) => node.meta?.mermaid?.kind === "er-relation")
+        .map((node) => {
+          const source = result.sourceElements.get(node.sourcePath);
+          const count = Math.max(2, Math.round(source.getTotalLength() / 4) + 1);
+          const samples = Array.from({ length: count }, (_, index) => {
+            const point = source.getPointAtLength(
+              source.getTotalLength() * index / (count - 1),
+            );
+            const screen = new DOMPoint(point.x, point.y)
+              .matrixTransform(source.getScreenCTM());
+            return {
+              x: round(screen.x - deckRect.left),
+              y: round(screen.y - deckRect.top),
+            };
+          });
+          const error = (point) => Math.min(...node.points.slice(1).map((end, index) => {
+            const start = node.points[index];
+            const dx = end.x - start.x;
+            const dy = end.y - start.y;
+            const denominator = dx * dx + dy * dy;
+            const t = denominator === 0 ? 0 : Math.max(0, Math.min(
+              1,
+              ((point.x - start.x) * dx + (point.y - start.y) * dy) / denominator,
+            ));
+            return Math.hypot(
+              point.x - start.x - t * dx,
+              point.y - start.y - t * dy,
+            );
+          }));
+          return {
+            sourcePath: node.sourcePath,
+            maxError: Math.max(...samples.map(error)),
+          };
+        });
+      const selectedBounds = result.scene.nodes
+        .filter((node) => [
+          "entities[0].box",
+          "entities[0].rows[0]",
+          "entities[0].name",
+          "entities[0].attributes[0].comment",
+        ].includes(node.sourcePath))
+        .map((node) => {
+          const source = result.sourceElements.get(node.sourcePath);
+          const rect = source.getBoundingClientRect();
+          return {
+            sourcePath: node.sourcePath,
+            bounds: node.bounds,
+            expected: {
+              x: round(rect.left - deckRect.left),
+              y: round(rect.top - deckRect.top),
+              width: round(rect.width),
+              height: round(rect.height),
+            },
+            ctm: Object.fromEntries(["a", "b", "c", "d"].map((key) => [
+              key,
+              round(source.getScreenCTM()[key]),
+            ])),
+          };
+        });
+      return {
+        relationErrors,
+        selectedBounds,
+        markers: [...deck.querySelectorAll("marker.marker.er")].map((marker) => ({
+          name: marker.id.split("_er-").at(-1),
+          class: marker.getAttribute("class"),
+          markerUnits: marker.getAttribute("markerUnits"),
+          viewBox: marker.getAttribute("viewBox"),
+          preserveAspectRatio: marker.getAttribute("preserveAspectRatio"),
+          markerWidth: Number(marker.getAttribute("markerWidth")),
+          markerHeight: Number(marker.getAttribute("markerHeight")),
+          refX: Number(marker.getAttribute("refX")),
+          refY: Number(marker.getAttribute("refY")),
+          orient: marker.getAttribute("orient"),
+          overflow: getComputedStyle(marker).overflow,
+          children: [...marker.children].map((child) => {
+            const style = getComputedStyle(child);
+            return {
+              tag: child.localName,
+              d: child.getAttribute("d"),
+              circle: ["cx", "cy", "r"].map((name) =>
+                child.hasAttribute(name) ? Number(child.getAttribute(name)) : null),
+              fill: style.fill,
+              stroke: style.stroke,
+              strokeWidth: style.strokeWidth,
+              lineCap: style.strokeLinecap,
+              lineJoin: style.strokeLinejoin,
+            };
+          }),
+        })),
+        terminalOwnership: result.scene.nodes
+          .filter((node) => node.meta?.mermaid?.kind === "er-terminal")
+          .map((node) => {
+            const relationPath = node.sourcePath.split(".terminals.")[0];
+            return result.sourceElements.get(node.sourcePath) ===
+              result.sourceElements.get(relationPath);
+          }),
+        uniqueSourcePaths: new Set(result.scene.nodes.map((node) =>
+          node.sourcePath)).size,
+        mappedSources: result.scene.nodes.map((node) => ({
+          sourcePath: node.sourcePath,
+          tag: result.sourceElements.get(node.sourcePath)?.localName,
+        })),
+      };
+    });
+    for (const error of geometry.relationErrors) {
+      expect(error.maxError, error.sourcePath).toBeLessThanOrEqual(2);
+    }
+    for (const entry of geometry.selectedBounds) {
+      expect(entry.bounds, entry.sourcePath).toEqual(entry.expected);
+      expect(entry.ctm).toEqual({ a: 0.4, b: 0, c: 0, d: 0.4 });
+    }
+    expect(geometry.terminalOwnership).toEqual(Array(16).fill(true));
+    expect(geometry.uniqueSourcePaths).toBe(result.scene.nodes.length);
+    expect(geometry.markers.map((marker) => [
+      marker.name,
+      marker.markerUnits,
+      marker.viewBox,
+      marker.preserveAspectRatio,
+      marker.markerWidth,
+      marker.markerHeight,
+      marker.refX,
+      marker.refY,
+      marker.orient,
+      marker.overflow,
+    ])).toEqual([
+      ["onlyOneStart", null, null, null, 18, 18, 0, 9, "auto", "hidden"],
+      ["onlyOneEnd", null, null, null, 18, 18, 18, 9, "auto", "hidden"],
+      ["zeroOrOneStart", null, null, null, 30, 18, 0, 9, "auto", "hidden"],
+      ["zeroOrOneEnd", null, null, null, 30, 18, 30, 9, "auto", "hidden"],
+      ["oneOrMoreStart", null, null, null, 45, 36, 18, 18, "auto", "hidden"],
+      ["oneOrMoreEnd", null, null, null, 45, 36, 27, 18, "auto", "hidden"],
+      ["zeroOrMoreStart", null, null, null, 57, 36, 18, 18, "auto", "hidden"],
+      ["zeroOrMoreEnd", null, null, null, 57, 36, 39, 18, "auto", "hidden"],
+    ]);
+    expect(geometry.markers.flatMap((marker) => marker.children).every((child) =>
+      child.stroke === "rgb(51, 51, 51)" &&
+      child.strokeWidth === "1px" &&
+      child.lineCap === "butt" &&
+      child.lineJoin === "miter")).toBe(true);
+    expect(geometry.markers.flatMap((marker) => marker.children)
+      .filter((child) => child.tag === "circle")
+      .map((child) => [child.circle, child.fill])).toEqual([
+        [[21, 9, 6], "rgb(255, 255, 255)"],
+        [[9, 9, 6], "rgb(255, 255, 255)"],
+        [[48, 18, 6], "rgb(255, 255, 255)"],
+        [[9, 18, 6], "rgb(255, 255, 255)"],
+      ]);
+    expect(geometry.mappedSources.every((entry) => entry.tag)).toBe(true);
+    expect(geometry.mappedSources.filter((entry) =>
+      entry.sourcePath.includes(".terminals.")).every((entry) =>
+      entry.tag === "path")).toBe(true);
+
+    const mapped = sceneToPptxElements(result.scene);
+    expect(mapped.fallbacks).toEqual([]);
+    expect(mapped.elements.filter((element) => element.type === "shape")).toHaveLength(21);
+    expect(mapped.elements.filter((element) => element.type === "connector")).toHaveLength(36);
+    expect(mapped.elements.filter((element) => element.type === "text")).toHaveLength(35);
+    const buffer = buildPptxPackage({ slides: [{ elements: mapped.elements }] });
+    expect(inspectPptxPackage(buffer).valid).toBe(true);
+    const xml = buffer.toString("utf8");
+    const lineCount = mapped.elements
+      .filter((element) => element.type === "connector")
+      .reduce((sum, element) => sum + element.points.length - 1, 0);
+    expect((xml.match(/<a:prstGeom prst="line">/g) || [])).toHaveLength(lineCount);
+    expect((xml.match(/<a:ln w="\d+" cap="flat">/g) || [])).toHaveLength(lineCount);
+    expect((xml.match(/<a:prstGeom prst="ellipse">/g) || [])).toHaveLength(4);
+    expect(xml).not.toMatch(/<a:(?:headEnd|tailEnd)\b/);
+    expect(xml).toContain("顧客");
+    expect(xml).toContain("明細");
+  } finally {
+    await harness.close();
+  }
+});
+
+test("keeps ER relation, terminal and circle paint independent in native DrawingML", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# ER paint"] });
+  try {
+    await page.goto(harness.url);
+    await sceneFromFixture(page, await readFixture("er-basic.svg"), "er-paint.svg");
+    const result = await updateFixture(page, () => {
+      const relation = document.querySelector("path.relationshipLine");
+      relation.style.stroke = "rgba(12, 34, 56, 0.5)";
+      relation.style.strokeOpacity = "0.4";
+      const start = document.querySelector('[id$="_er-onlyOneStart"] > path');
+      start.style.setProperty("stroke", "rgba(90, 80, 70, 0.5)", "important");
+      start.style.strokeOpacity = "0.8";
+      const end = document.querySelector('[id$="_er-zeroOrOneEnd"]');
+      const circle = end.querySelector("circle");
+      circle.style.setProperty("fill", "rgba(20, 40, 60, 0.5)", "important");
+      circle.style.setProperty("stroke", "rgba(80, 100, 120, 0.5)", "important");
+      circle.style.fillOpacity = "0.6";
+      circle.style.strokeOpacity = "0.8";
+      circle.style.opacity = "0.7";
+      const bar = end.querySelector("path");
+      bar.style.setProperty("stroke", "rgb(130, 140, 150)", "important");
+    });
+    expect(result.diagnostics).toEqual([]);
+    const relation = result.scene.nodes.find((node) =>
+      node.sourcePath === "relations[0].line");
+    expect(relation.style).toMatchObject({
+      stroke: "rgba(12, 34, 56, 0.5)",
+      strokeOpacity: 0.4,
+      lineCap: "butt",
+    });
+    const startBars = result.scene.nodes.filter((node) =>
+      node.sourcePath.startsWith("relations[0].terminals.start"));
+    expect(startBars).toHaveLength(2);
+    expect(startBars.every((node) =>
+      node.style.stroke === "rgba(90, 80, 70, 0.5)" &&
+      node.style.strokeOpacity === 0.8)).toBe(true);
+    const circle = result.scene.nodes.find((node) =>
+      node.sourcePath === "relations[0].terminals.end[0]");
+    expect(circle).toMatchObject({
+      kind: "shape",
+      preset: "ellipse",
+      style: {
+        fill: "rgba(20, 40, 60, 0.5)",
+        stroke: "rgba(80, 100, 120, 0.5)",
+        opacity: 0.7,
+        fillOpacity: 0.6,
+        strokeOpacity: 0.8,
+      },
+    });
+    const endBar = result.scene.nodes.find((node) =>
+      node.sourcePath === "relations[0].terminals.end[1]");
+    expect(endBar.style.stroke).toBe("rgb(130, 140, 150)");
+    expect(relation.z).toBeLessThan(startBars[0].z);
+    expect(startBars[1].z).toBeLessThan(circle.z);
+    expect(circle.z).toBeLessThan(endBar.z);
+
+    const mapped = sceneToPptxElements(result.scene);
+    expect(mapped.fallbacks).toEqual([]);
+    const xml = buildPptxPackage({
+      slides: [{ elements: mapped.elements }],
+    }).toString("utf8");
+    expect(xml).toContain('<a:srgbClr val="0C2238"><a:alpha val="20000"/></a:srgbClr>');
+    expect(xml).toContain('<a:srgbClr val="5A5046"><a:alpha val="40000"/></a:srgbClr>');
+    expect(xml).toContain('<a:srgbClr val="14283C"><a:alpha val="21000"/></a:srgbClr>');
+    expect(xml).toContain('<a:srgbClr val="506478"><a:alpha val="28000"/></a:srgbClr>');
+    expect(xml).toContain('prst="ellipse"');
+  } finally {
+    await harness.close();
+  }
+});
+
+test("keeps malformed ER entities, rows, text, relations and terminals at local fallback boundaries", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# ER fallback boundaries"] });
+  try {
+    await page.goto(harness.url);
+    const fixture = await readFixture("er-basic.svg");
+    const cases = [
+      {
+        name: "malformed entity",
+        mutate: () => {
+          document.querySelector("g.node .attribute-name").remove();
+        },
+        fallback: {
+          sourcePath: "entities[0]",
+          reason: "unsupported-mermaid-er-entity-structure",
+        },
+        relationCount: 4,
+        terminalCount: 16,
+        rowCount: 7,
+        textCount: 26,
+        sourceTag: "g",
+      },
+      {
+        name: "row effect",
+        mutate: () => {
+          document.querySelector("g.row-rect-odd").style.filter = "blur(1px)";
+        },
+        fallback: {
+          sourcePath: "entities[0].rows[0]",
+          reason: "unsupported-mermaid-er-row-style",
+        },
+        relationCount: 4,
+        terminalCount: 16,
+        rowCount: 8,
+        textCount: 35,
+        sourceTag: "g",
+      },
+      {
+        name: "row transform",
+        mutate: () => {
+          document.querySelector("g.row-rect-even")
+            .setAttribute("transform", "skewX(8)");
+        },
+        fallback: {
+          sourcePath: "entities[0].rows[1]",
+          reason: "unsupported-mermaid-er-row-transform",
+        },
+        relationCount: 4,
+        terminalCount: 16,
+        rowCount: 8,
+        textCount: 35,
+        sourceTag: "g",
+      },
+      {
+        name: "row clip",
+        mutate: () => {
+          document.querySelector("g.row-rect-odd")
+            .style.clipPath = "circle(50%)";
+        },
+        fallback: {
+          sourcePath: "entities[0].rows[0]",
+          reason: "unsupported-mermaid-er-row-style",
+        },
+        relationCount: 4,
+        terminalCount: 16,
+        rowCount: 8,
+        textCount: 35,
+        sourceTag: "g",
+      },
+      {
+        name: "entity decoration",
+        mutate: () => {
+          document.querySelector("g.nodes > g.node").insertAdjacentHTML(
+            "beforeend",
+            '<circle cx="0" cy="0" r="5" fill="red"/>',
+          );
+        },
+        fallback: {
+          sourcePath: "entities[0].decorations[0]",
+          reason: "unsupported-mermaid-er-entity-decoration",
+        },
+        relationCount: 4,
+        terminalCount: 16,
+        rowCount: 9,
+        textCount: 35,
+        sourceTag: "circle",
+      },
+      {
+        name: "entity box geometry",
+        mutate: () => {
+          document.querySelector("g.outer-path > path")
+            .setAttribute("d", "M0 0 L10 10");
+        },
+        fallback: {
+          sourcePath: "entities[0].box",
+          reason: "unsupported-mermaid-er-entity-geometry",
+        },
+        relationCount: 4,
+        terminalCount: 16,
+        rowCount: 9,
+        textCount: 35,
+        sourceTag: "g",
+      },
+      {
+        name: "divider geometry",
+        mutate: () => {
+          document.querySelector("g.divider > path")
+            .setAttribute("d", "M0 0 L10 10");
+        },
+        fallback: {
+          sourcePath: "entities[0].dividers[0]",
+          reason: "unsupported-mermaid-er-divider-geometry",
+        },
+        relationCount: 4,
+        terminalCount: 16,
+        rowCount: 9,
+        textCount: 35,
+        sourceTag: "g",
+      },
+      {
+        name: "decorated comment",
+        mutate: () => {
+          document.querySelector("g.attribute-comment div")
+            .style.backgroundColor = "red";
+        },
+        fallback: {
+          sourcePath: "entities[0].attributes[0].comment",
+          reason: "unsupported-mermaid-er-text",
+        },
+        relationCount: 4,
+        terminalCount: 16,
+        rowCount: 9,
+        textCount: 34,
+        sourceTag: "g",
+      },
+      {
+        name: "multiple relation subpaths",
+        mutate: () => {
+          const relation = document.querySelectorAll("path.relationshipLine")[1];
+          relation.setAttribute("d", `${relation.getAttribute("d")} M0 0 L1 1`);
+        },
+        fallback: {
+          sourcePath: "relations[1]",
+          reason: "unsupported-mermaid-er-relation-path",
+        },
+        relationCount: 3,
+        terminalCount: 12,
+        rowCount: 9,
+        textCount: 35,
+        sourceTag: "path",
+      },
+      {
+        name: "relation transform",
+        mutate: () => {
+          document.querySelectorAll("path.relationshipLine")[1]
+            .setAttribute("transform", "skewX(8)");
+        },
+        fallback: {
+          sourcePath: "relations[1]",
+          reason: "unsupported-mermaid-er-relation-transform",
+        },
+        relationCount: 3,
+        terminalCount: 12,
+        rowCount: 9,
+        textCount: 35,
+        sourceTag: "path",
+      },
+      {
+        name: "relation style",
+        mutate: () => {
+          document.querySelectorAll("path.relationshipLine")[1]
+            .style.strokeLinejoin = "round";
+        },
+        fallback: {
+          sourcePath: "relations[1]",
+          reason: "unsupported-mermaid-er-relation-style",
+        },
+        relationCount: 3,
+        terminalCount: 12,
+        rowCount: 9,
+        textCount: 35,
+        sourceTag: "path",
+      },
+      {
+        name: "unknown terminal geometry",
+        mutate: () => {
+          document.querySelector('[id$="_er-onlyOneStart"] > path')
+            .setAttribute("d", "M0 0 L5 5");
+        },
+        fallback: {
+          sourcePath: "relations[0]",
+          reason: "unsupported-mermaid-er-terminal-geometry",
+        },
+        relationCount: 3,
+        terminalCount: 12,
+        rowCount: 9,
+        textCount: 35,
+        sourceTag: "path",
+      },
+      {
+        name: "terminal effect",
+        mutate: () => {
+          document.querySelector('[id$="_er-zeroOrOneEnd"]')
+            .style.filter = "blur(1px)";
+        },
+        fallback: {
+          sourcePath: "relations[0]",
+          reason: "unsupported-mermaid-er-terminal-style",
+        },
+        relationCount: 3,
+        terminalCount: 12,
+        rowCount: 9,
+        textCount: 35,
+        sourceTag: "path",
+      },
+      {
+        name: "terminal paint",
+        mutate: () => {
+          document.querySelector('[id$="_er-onlyOneStart"] > path')
+            .style.setProperty("fill", "red", "important");
+        },
+        fallback: {
+          sourcePath: "relations[0]",
+          reason: "unsupported-mermaid-er-terminal-style",
+        },
+        relationCount: 3,
+        terminalCount: 12,
+        rowCount: 9,
+        textCount: 35,
+        sourceTag: "path",
+      },
+      {
+        name: "terminal transform",
+        mutate: () => {
+          document.querySelector('[id$="_er-onlyOneStart"] > path')
+            .style.transform = "rotate(10deg)";
+        },
+        fallback: {
+          sourcePath: "relations[0]",
+          reason: "unsupported-mermaid-er-terminal-style",
+        },
+        relationCount: 3,
+        terminalCount: 12,
+        rowCount: 9,
+        textCount: 35,
+        sourceTag: "path",
+      },
+      {
+        name: "terminal units",
+        mutate: () => {
+          document.querySelector('[id$="_er-zeroOrOneEnd"]')
+            .setAttribute("markerUnits", "userSpaceOnUse");
+        },
+        fallback: {
+          sourcePath: "relations[0]",
+          reason: "unsupported-mermaid-er-terminal-geometry",
+        },
+        relationCount: 3,
+        terminalCount: 12,
+        rowCount: 9,
+        textCount: 35,
+        sourceTag: "path",
+      },
+      {
+        name: "crow foot alpha",
+        mutate: () => {
+          document.querySelector('[id$="_er-oneOrMoreEnd"] > path')
+            .style.opacity = "0.5";
+        },
+        fallback: {
+          sourcePath: "relations[1]",
+          reason: "unsupported-mermaid-er-terminal-compositing",
+        },
+        relationCount: 3,
+        terminalCount: 12,
+        rowCount: 9,
+        textCount: 35,
+        sourceTag: "path",
+      },
+      {
+        name: "relation opacity",
+        mutate: () => {
+          document.querySelectorAll("path.relationshipLine")[1]
+            .style.opacity = "0.5";
+        },
+        fallback: {
+          sourcePath: "relations[1]",
+          reason: "unsupported-mermaid-er-terminal-compositing",
+        },
+        relationCount: 3,
+        terminalCount: 12,
+        rowCount: 9,
+        textCount: 35,
+        sourceTag: "path",
+      },
+    ];
+    for (const entry of cases) {
+      await sceneFromFixture(page, fixture, `er-${entry.name}.svg`);
+      const result = await updateFixture(page, entry.mutate);
+      expect(result.scene.nodes.filter((node) => node.kind === "fallback"),
+        entry.name).toMatchObject([entry.fallback]);
+      expect(result.scene.nodes.filter((node) =>
+        node.meta?.mermaid?.kind === "er-relation"),
+      entry.name).toHaveLength(entry.relationCount);
+      expect(result.scene.nodes.filter((node) =>
+        node.meta?.mermaid?.kind === "er-terminal"),
+      entry.name).toHaveLength(entry.terminalCount);
+      expect(result.scene.nodes.filter((node) =>
+        node.meta?.mermaid?.kind === "er-attribute-row"),
+      entry.name).toHaveLength(entry.rowCount);
+      expect(result.scene.nodes.filter((node) => node.kind === "text"),
+        entry.name).toHaveLength(entry.textCount);
+      expect(result.scene.nodes.filter((node) =>
+        node.meta?.mermaid?.kind === "edge-label"),
+      entry.name).toHaveLength(4);
+      expect(result.sources.find((source) =>
+        source.path === entry.fallback.sourcePath),
+      entry.name).toMatchObject({ tag: entry.sourceTag });
+      expect(sceneToPptxElements(result.scene).fallbacks.map((fallback) => ({
+        sourcePath: fallback.sourcePath,
+        reason: fallback.reason,
+      })), entry.name).toEqual([entry.fallback]);
+    }
+  } finally {
+    await harness.close();
+  }
+});
+
+test("rejects malformed and excessive ER structures explicitly", async ({ page }) => {
+  test.setTimeout(180_000);
+  const harness = await startHarness({ slides: ["# ER limits"] });
+  try {
+    await page.goto(harness.url);
+    const fixture = await readFixture("er-basic.svg");
+
+    await sceneFromFixture(page, fixture, "er-malformed-root.svg");
+    const malformed = await updateFixture(page, () => {
+      const root = document.querySelector("g.root");
+      root.append(root.querySelector(":scope > g.edgePaths").cloneNode(true));
+    });
+    expect(malformed.scene.nodes).toMatchObject([{
+      kind: "fallback",
+      sourcePath: "svg",
+      reason: "unsupported-mermaid-er-structure",
+    }]);
+
+    await sceneFromFixture(page, fixture, "er-depth.svg");
+    const depth = await updateFixture(page, () => {
+      let root = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      root.setAttribute("class", "label");
+      document.querySelector("g.root").append(root);
+      for (let index = 0; index < 17; index += 1) {
+        const child = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        child.setAttribute("class", "label");
+        root.append(child);
+        root = child;
+      }
+      root.insertAdjacentHTML(
+        "beforeend",
+        '<circle cx="20" cy="20" r="5" fill="red"/>',
+      );
+    });
+    expect(depth.scene.nodes.filter((node) =>
+      node.reason === "unsupported-mermaid-er-depth")).toHaveLength(1);
+    expect(depth.scene.nodes.filter((node) =>
+      node.meta?.mermaid?.kind === "er-relation")).toHaveLength(4);
+    expect(depth.scene.nodes.filter((node) =>
+      node.meta?.mermaid?.kind === "er-entity-box")).toHaveLength(4);
+
+    await sceneFromFixture(page, fixture, "er-text-limit.svg");
+    const textLimit = await updateFixture(page, () => {
+      document.querySelector("g.label.name p").innerHTML =
+        Array.from({ length: 201 }, (_, index) => `line-${index}`).join("<br>");
+    });
+    expect(textLimit.scene.nodes).toMatchObject([{
+      kind: "fallback",
+      sourcePath: "svg",
+      reason: expect.stringContaining("mermaid-scene-limit-exceeded"),
+    }]);
+
+    await sceneFromFixture(page, fixture, "er-node-limit.svg");
+    const nodeLimit = await updateFixture(page, () => {
+      const svg = document.querySelector("svg");
+      const fragment = document.createDocumentFragment();
+      for (let index = 0; index < 4100; index += 1) {
+        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        text.setAttribute("x", String(index % 100));
+        text.setAttribute("y", String(20 + index % 50));
+        text.textContent = `x${index}`;
+        fragment.append(text);
+      }
+      svg.append(fragment);
+    });
+    expect(nodeLimit.scene.nodes).toMatchObject([{
+      kind: "fallback",
+      sourcePath: "svg",
+      reason: expect.stringContaining("mermaid-scene-limit-exceeded"),
+    }]);
+
+    await sceneFromFixture(page, fixture, "er-element-limit.svg");
+    const elementLimit = await updateFixture(page, () => {
+      document.querySelector("svg").insertAdjacentHTML(
+        "beforeend",
+        "<desc></desc>".repeat(40001),
+      );
+    });
+    expect(elementLimit.scene.nodes).toMatchObject([{
+      kind: "fallback",
+      sourcePath: "svg",
+      reason: "mermaid-scene-limit-exceeded: SVG element count",
+    }]);
+  } finally {
+    await harness.close();
+  }
+});
+
 test("extracts pinned basic state geometry, labels, routes, alpha and exact pseudo-states", async ({ page }) => {
   const harness = await startHarness({ slides: ["# State fixture"] });
   try {
@@ -3615,6 +4529,223 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
       expect((packetPackage.toString("utf8").match(/<p:sp>/g) || [])).toHaveLength(37);
       expect((treePackage.toString("utf8").match(/<a:prstGeom prst="line">/g) || []))
         .toHaveLength(15);
+    } finally {
+      await harness.close();
+    }
+  });
+}
+
+for (const theme of ["dark", "light", "microsoft", "custom"]) {
+  test(`real renderer exports ER aliases, crow feet and exact local fallback captures (${theme})`, async ({ page }) => {
+    const diagram = await readFixture("er-basic.mmd");
+    const fallbackDiagram = diagram.replace(
+      '{"handDrawnSeed": 42}',
+      '{"handDrawnSeed": 42, "themeCSS": ".row-rect-even{filter:blur(1px)} .edge-pattern-dashed{opacity:.5}"}',
+    );
+    const harness = await startHarness({
+      slides: [
+        `# ER\n\n\`\`\`mermaid\n${diagram}\n\`\`\``,
+        `# ER beta\n\n\`\`\`mermaid\n${diagram.replace(/^erDiagram$/m, "erDiagram-beta")}\n\`\`\``,
+        `# ER local fallback\n\n\`\`\`mermaid\n${fallbackDiagram}\n\`\`\``,
+      ],
+      theme,
+      customThemeCss: theme === "custom"
+        ? "--bg:#102030;--fg:#fefefe;--body:#e0e4e8;--accent:#ff6600;--surface:#203040;--border:#405060;"
+        : "",
+    });
+    try {
+      await page.goto(`${harness.url}/?pptx=1&token=${encodeURIComponent(harness.printToken)}`);
+      await page.waitForFunction(() =>
+        document.documentElement.hasAttribute("data-pptx-ready") ||
+        document.documentElement.hasAttribute("data-pptx-error"),
+      undefined, { timeout: 120_000 });
+      await expect(page.locator("html")).toHaveAttribute("data-pptx-ready", "true");
+      await expect(page.locator("pre.mermaid > svg[data-scene-backend=svg]")).toHaveCount(3);
+      const model = await page.evaluate(() => window.__presentationPptxModel);
+      const native = model.slides[0].elements.filter((element) =>
+        element.path?.startsWith("mermaid[0]."));
+      const beta = model.slides[1].elements.filter((element) =>
+        element.path?.startsWith("mermaid[0]."));
+      const fallback = model.slides[2];
+      const textOf = (element) =>
+        (element.text?.paragraphs || element.paragraphs || [])
+          .map((paragraph) => paragraph.runs.map((run) => run.text).join(""))
+          .join("\n");
+      for (const [elements, entityBoxes] of [[native, 4], [beta, 5]]) {
+        expect(elements.filter((element) =>
+          element.mermaid?.kind === "er-entity-box")).toHaveLength(entityBoxes);
+        expect(elements.filter((element) =>
+          element.mermaid?.kind === "er-attribute-row")).toHaveLength(9);
+        expect(elements.filter((element) =>
+          element.mermaid?.kind === "er-divider")).toHaveLength(20);
+        expect(elements.filter((element) =>
+          element.mermaid?.kind === "er-relation")).toHaveLength(4);
+        expect(elements.filter((element) =>
+          element.mermaid?.kind === "er-terminal")).toHaveLength(16);
+        expect(elements.filter((element) =>
+          element.mermaid?.kind === "edge-label")).toHaveLength(4);
+      }
+      expect(beta.filter((element) =>
+        element.mermaid?.kind === "er-entity-name").map(textOf))
+        .toEqual(["-beta", "顧客\nAccount", "PROFILE", "ORDER", "LINE_ITEM"]);
+      expect(model.slides.slice(0, 2).flatMap((slide) =>
+        slide.fallbacks.filter((entry) => entry.type === "mermaid"))).toEqual([]);
+      expect(native.map(textOf)).toEqual(expect.arrayContaining([
+        "顧客\nAccount",
+        "顧客 ID\nprimary",
+        "PK,FK",
+        "has\n所有",
+        "opens\n注文",
+        "明細",
+      ]));
+
+      const fallbackEntries = fallback.fallbacks
+        .filter((entry) => entry.type === "mermaid")
+        .map((entry) => ({
+          sourcePath: entry.sourcePath,
+          reason: entry.reason,
+          artwork: entry.artwork,
+        }));
+      expect(fallbackEntries).toEqual([
+        {
+          sourcePath: "relations[1]",
+          reason: "unsupported-mermaid-er-terminal-compositing",
+          artwork: undefined,
+        },
+        {
+          sourcePath: "relations[3]",
+          reason: "unsupported-mermaid-er-terminal-compositing",
+          artwork: undefined,
+        },
+        {
+          sourcePath: "entities[0].rows[1]",
+          reason: "unsupported-mermaid-er-row-style",
+          artwork: undefined,
+        },
+        {
+          sourcePath: "entities[2].rows[1]",
+          reason: "unsupported-mermaid-er-row-style",
+          artwork: undefined,
+        },
+        {
+          sourcePath: "entities[3].rows[1]",
+          reason: "unsupported-mermaid-er-row-style",
+          artwork: undefined,
+        },
+      ]);
+      expect(fallback.elements.filter((element) =>
+        element.mermaid?.kind === "er-relation")).toHaveLength(2);
+      expect(fallback.elements.filter((element) =>
+        element.mermaid?.kind === "er-terminal")).toHaveLength(8);
+      expect(fallback.elements.filter((element) =>
+        element.mermaid?.kind === "er-attribute-row")).toHaveLength(6);
+      expect(fallback.elements.filter((element) =>
+        element.mermaid?.kind === "edge-label")).toHaveLength(4);
+      expect(fallback.elements.filter((element) =>
+        element.mermaid?.kind?.startsWith("er-attribute-") &&
+        element.type === "text")).toHaveLength(31);
+
+      const basicSvg = page.locator("pre.mermaid > svg").nth(0);
+      const betaSvg = page.locator("pre.mermaid > svg").nth(1);
+      const fallbackSvg = page.locator("pre.mermaid > svg").nth(2);
+      for (const svg of [basicSvg, betaSvg, fallbackSvg]) {
+        await expect(svg).toHaveAttribute("aria-roledescription", "er");
+        await expect(svg).toHaveClass(/erDiagram/);
+      }
+      for (const [svg, labelCount] of [[basicSvg, 35], [betaSvg, 36]]) {
+        await expect(svg.locator(
+          "g.nodes > g.node > g.outer-path[data-pptx-native=shape]",
+        )).toHaveCount(4);
+        await expect(svg.locator(
+          "g.nodes > g.node > g.row-rect-odd[data-pptx-native=shape], " +
+          "g.nodes > g.node > g.row-rect-even[data-pptx-native=shape]",
+        )).toHaveCount(9);
+        await expect(svg.locator(
+          "g.nodes > g.node > g.label[data-pptx-native=text]",
+        )).toHaveCount(labelCount);
+        await expect(svg.locator(
+          "g.nodes > g.node > g.divider[data-pptx-native=connector]",
+        )).toHaveCount(20);
+        await expect(svg.locator(
+          "path.relationshipLine[data-pptx-native=connector]",
+        )).toHaveCount(4);
+        await expect(svg.locator(
+          "g.edgeLabel[data-pptx-native=shape]",
+        )).toHaveCount(4);
+        await expect(svg.locator("[data-pptx-fallback-ids]")).toHaveCount(0);
+      }
+      await expect(betaSvg.locator(
+        "g.nodes > g.node > rect.basic[data-pptx-native=shape]",
+      )).toHaveCount(1);
+      await expect(betaSvg.locator(
+        "g.nodes > g.node:has(> rect.basic) > g.label[data-pptx-native=text]",
+      )).toContainText("-beta");
+      const masks = await basicSvg.evaluate((svg) => ({
+        entityPaths: [...svg.querySelectorAll(
+          "g.outer-path[data-pptx-native] > path, " +
+          "g.row-rect-odd[data-pptx-native] > path, " +
+          "g.row-rect-even[data-pptx-native] > path",
+        )].map((path) => {
+          const style = getComputedStyle(path);
+          return [style.fill, style.stroke];
+        }),
+        labels: [...svg.querySelectorAll(
+          "g.node > g.label[data-pptx-native] span.nodeLabel",
+        )].map((label) => getComputedStyle(label).color),
+        dividers: [...svg.querySelectorAll(
+          "g.divider[data-pptx-native] > path",
+        )].map((path) => getComputedStyle(path).stroke),
+        relations: [...svg.querySelectorAll(
+          "path.relationshipLine[data-pptx-native]",
+        )].map((path) => {
+          const style = getComputedStyle(path);
+          return [style.stroke, style.markerStart, style.markerEnd];
+        }),
+        relationLabels: [...svg.querySelectorAll(
+          "g.edgeLabel[data-pptx-native] span.edgeLabel",
+        )].map((label) => getComputedStyle(label).color),
+      }));
+      expect(masks.entityPaths.every(([fill, stroke]) =>
+        fill === "rgba(0, 0, 0, 0)" &&
+        stroke === "rgba(0, 0, 0, 0)")).toBe(true);
+      expect(masks.labels).toEqual(Array(35).fill("rgba(0, 0, 0, 0)"));
+      expect(masks.dividers).toEqual(Array(40).fill("rgba(0, 0, 0, 0)"));
+      expect(masks.relations).toEqual(Array(4).fill([
+        "rgba(0, 0, 0, 0)",
+        "none",
+        "none",
+      ]));
+      expect(masks.relationLabels).toEqual(Array(4).fill("rgba(0, 0, 0, 0)"));
+
+      await expect(fallbackSvg.locator(
+        "g.nodes > g.node > g.row-rect-even[data-pptx-fallback-ids]",
+      )).toHaveCount(3);
+      await expect(fallbackSvg.locator(
+        "g.nodes > g.node > g.row-rect-even[data-pptx-native]",
+      )).toHaveCount(0);
+      await expect(fallbackSvg.locator(
+        "path.relationshipLine.edge-pattern-dashed[data-pptx-fallback-ids]",
+      )).toHaveCount(2);
+      await expect(fallbackSvg.locator(
+        "path.relationshipLine.edge-pattern-dashed[data-pptx-native]",
+      )).toHaveCount(0);
+      await expect(fallbackSvg.locator(
+        "path.relationshipLine[data-pptx-native=connector]",
+      )).toHaveCount(2);
+      await expect(fallbackSvg.locator(
+        "g.edgeLabel[data-pptx-native=shape]",
+      )).toHaveCount(4);
+      expect(await fallbackSvg.getAttribute("data-pptx-fallback-ids")).toBeNull();
+
+      const packageBytes = buildPptxPackage({
+        slides: [{ elements: native }],
+      });
+      expect(inspectPptxPackage(packageBytes).valid).toBe(true);
+      const packageXml = packageBytes.toString("utf8");
+      expect((packageXml.match(/<a:prstGeom prst="ellipse">/g) || []))
+        .toHaveLength(4);
+      expect(packageXml).not.toMatch(/<a:(?:headEnd|tailEnd)\b/);
+      expect(packageXml).toContain('cap="flat"');
     } finally {
       await harness.close();
     }
