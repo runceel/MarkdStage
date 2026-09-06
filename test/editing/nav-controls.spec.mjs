@@ -82,6 +82,9 @@ test("keeps Open Markdown as the only direct action for an empty deck", async ({
     await expect(page.locator("#navMorePanel")).toBeVisible();
     await expect(page.locator("#navImport")).toBeVisible();
     await expect(page.locator("#navMorePanel .nav-more-item:visible")).toHaveCount(1);
+    await expect(page.locator("#layoutWarning")).toBeHidden();
+    await expect(page.locator("body")).not.toHaveClass(/fixed-preview-overflow/);
+    await expect(page.locator("#navFixedPreview")).not.toHaveAttribute("data-state", "error");
   } finally {
     await harness.close();
   }

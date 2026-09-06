@@ -426,13 +426,14 @@ function collectDeckLayout(rendered) {
 function updateFixedPreviewWarning() {
   const warning = document.getElementById("layoutWarning");
   const button = document.getElementById("navFixedPreview");
-  if (!fixedPreviewMode || !layoutTarget) {
+  const empty = document.body.classList.contains("markdstage-empty");
+  if (!fixedPreviewMode || !layoutTarget || empty) {
     document.body.classList.remove("fixed-preview-overflow");
     if (warning) {
       warning.hidden = true;
       warning.textContent = "";
     }
-    if (button) button.dataset.state = fixedPreviewMode ? "active" : "";
+    if (button) button.dataset.state = fixedPreviewMode && !empty ? "active" : "";
     syncMoreControls();
     return;
   }
