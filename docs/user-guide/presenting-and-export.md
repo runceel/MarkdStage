@@ -89,7 +89,7 @@ fallback picture that is positioned individually rather than flattened into a fu
 | Architecture DSL icons | Transparent foreground pictures above those shapes |
 | Images, including supported SVG | Individual pictures |
 | Speaker notes | Plain text in the slide's notes pane |
-| Mermaid diagrams | Fallback picture |
+| Mermaid diagrams | Native editable shapes, text, and connectors, with per-element fallback pictures for unsupported SVG details |
 | Decorative backgrounds, gradients, and code-block shadows | Fallback picture |
 | Unsupported image effects and HTML/CSS | Fallback picture |
 

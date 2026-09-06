@@ -1,4 +1,7 @@
 import { powerPointDashStyle, renderArchitectureBlock } from "./architecture.mjs";
+import { architectureSnapshotToScene } from "./architecture-scene.mjs";
+import { mermaidSvgToScene } from "./mermaid-scene.mjs";
+import { sceneToPptxElements } from "./scene-pptx.mjs";
 import { attachArchitectureEditor } from "./architecture-editor.mjs";
 import {
   DEFAULT_THEME,
@@ -1671,51 +1674,7 @@ async function collectArchitectureObjects(wrapper, deck, blockIndex) {
     width: roundedMetric(object.width * scale),
     height: roundedMetric(object.height * scale),
   });
-  const mapColorFields = (object) => {
-    const mapped = { ...object };
-    const mapParagraphs = (paragraphs) =>
-      paragraphs.map((paragraph) => ({
-        ...paragraph,
-        runs: paragraph.runs.map((run) => ({
-          ...run,
-          color: resolveModelColor(run.color, deck),
-          fontFace: getComputedStyle(svg).fontFamily
-            .split(",")[0]
-            .trim()
-            .replace(/^["']|["']$/g, ""),
-          fontSize: roundedMetric(run.fontSize * scale),
-          bold: Number(run.fontWeight) >= 600,
-        })),
-      }));
-    if (mapped.dash !== undefined) mapped.dash = powerPointDashStyle(mapped.dash);
-    for (const key of ["fill", "stroke", "color"]) {
-      if (key in mapped) mapped[key] = resolveModelColor(mapped[key], deck);
-    }
-    if (Array.isArray(mapped.paragraphs)) {
-      mapped.paragraphs = mapParagraphs(mapped.paragraphs);
-    }
-    if (mapped.text?.paragraphs) {
-      mapped.text = {
-        ...mapped.text,
-        paragraphs: mapParagraphs(mapped.text.paragraphs),
-      };
-    }
-    if (mapped.textInsets) {
-      mapped.textInsets = Object.fromEntries(
-        Object.entries(mapped.textInsets).map(([key, value]) => [
-          key,
-          roundedMetric(value * scale),
-        ]),
-      );
-    }
-    return mapped;
-  };
-  const fallbacks = snapshot.fallbacks.map((fallback) => ({
-    ...fallback,
-    path: `architecture[${blockIndex}].${fallback.path}`,
-    ...mapBounds(fallback),
-  }));
-  const elements = [];
+  const fallbacks = [];
   const architectureGroups = [...wrapper.querySelectorAll("[data-architecture-type]")];
   const findById = (id) =>
     architectureGroups.find((element) => element.getAttribute("data-architecture-id") === id);
@@ -1746,13 +1705,6 @@ async function collectArchitectureObjects(wrapper, deck, blockIndex) {
           width: bounds.width,
           height: bounds.height,
         },
-        architecture: {
-          kind: "icon-picture",
-          id: icon.id,
-          sourcePath: icon.sourcePath,
-          order: icon.order,
-          z: icon.z,
-        },
       });
     }
   }
@@ -1780,10 +1732,6 @@ async function collectArchitectureObjects(wrapper, deck, blockIndex) {
           y: bounds.y - originY,
           width: bounds.width,
           height: bounds.height,
-        },
-        architecture: {
-          ...object.architecture,
-          kind: "image-picture",
         },
       });
     }
@@ -1824,15 +1772,6 @@ async function collectArchitectureObjects(wrapper, deck, blockIndex) {
       ),
     );
   }
-  const foregroundElement = (layer) => ({
-    type: "image",
-    src: layer.src,
-    alt: layer.alt,
-    fit: "fill",
-    opacity: 1,
-    ...layer.bounds,
-    architecture: layer.architecture,
-  });
   if (!foregroundReady) {
     fallbacks.push(
       pptxFallback(
@@ -1846,84 +1785,25 @@ async function collectArchitectureObjects(wrapper, deck, blockIndex) {
   }
 
   for (const sourceObject of snapshot.objects) {
-    const object = mapColorFields({
-      ...sourceObject,
-      ...mapBounds(sourceObject),
-      ...(sourceObject.points
-        ? {
-            points: sourceObject.points.map((point) => ({
-              x: roundedMetric(originX + point.x * scale),
-              y: roundedMetric(originY + point.y * scale),
-            })),
-          }
-        : {}),
-      ...(sourceObject.strokeWidth !== undefined
-        ? { strokeWidth: roundedMetric(sourceObject.strokeWidth * scale) }
-        : {}),
-      ...(sourceObject.cornerRadius !== undefined
-        ? { cornerRadius: roundedMetric(sourceObject.cornerRadius * scale) }
-        : {}),
-    });
-    if (object.type === "shape") {
-      const opacity = Number.isFinite(object.opacity) ? object.opacity : 1;
-      if (object.text?.paragraphs) {
-        object.text = {
-          ...object.text,
-          paragraphs: object.text.paragraphs.map((paragraph) => ({
-            ...paragraph,
-            runs: paragraph.runs.map((run) => ({
-              ...run,
-              opacity: (Number.isFinite(run.opacity) ? run.opacity : 1) * opacity,
-            })),
-          })),
-        };
-      }
-    }
-    if (object.type === "image") {
-      const layer = foregroundLayers.get(`image:${object.architecture.id}`);
+    if (sourceObject.type === "image") {
+      const layer = foregroundLayers.get(`image:${sourceObject.architecture.id}`);
       fallbacks.push({
         type: "architecture-image",
-        path: `architecture[${blockIndex}].${object.architecture.sourcePath}`,
-        reason: foregroundReady && layer
+        path: `architecture[${blockIndex}].${sourceObject.architecture.sourcePath}`,
+        reason: layer
           ? "architecture-image-rendered-as-foreground-picture"
           : "architecture-image-rendered-as-artwork",
         ...mapBounds(sourceObject),
-        ...(foregroundReady && layer ? { artwork: false } : {}),
+        ...(layer ? { artwork: false } : {}),
       });
-      if (foregroundReady && layer) elements.push(foregroundElement(layer));
-      continue;
     }
-    elements.push(object);
-    if (object.type === "shape" && object.architecture?.kind === "node" && sourceObject.icon) {
-      const layer = foregroundLayers.get(`icon:${object.architecture.id}`);
-      if (foregroundReady && layer) elements.push(foregroundElement(layer));
-    }
-  }
-  for (const icon of snapshot.icons || []) {
-    const layer = foregroundLayers.get(`icon:${icon.id}`);
-    fallbacks.push({
-      type: "architecture-icon",
-      path: `architecture[${blockIndex}].${icon.sourcePath}`,
-      reason: foregroundReady && layer
-        ? "icon-rendered-as-foreground-picture"
-        : "icon-rendered-as-artwork",
-      icon: icon.icon,
-      ...mapBounds(icon),
-      ...(foregroundReady && layer ? { artwork: false } : {}),
-    });
-  }
-  for (const sourceObject of snapshot.objects) {
     const architecture = sourceObject.architecture;
     if (!architecture) continue;
     if (architecture.kind === "group" || architecture.kind === "node") {
       const group = findById(architecture.id);
       if (!group) continue;
       [...group.children]
-        .filter((child) =>
-          foregroundReady
-            ? child.matches("rect, ellipse, text")
-            : child.matches("text"),
-        )
+        .filter((child) => child.matches("rect, ellipse, text"))
         .forEach((child) => child.setAttribute("data-pptx-native", sourceObject.type));
     } else if (architecture.kind === "connector") {
       architectureGroups
@@ -1945,13 +1825,24 @@ async function collectArchitectureObjects(wrapper, deck, blockIndex) {
         .forEach((label) => label.setAttribute("data-pptx-native", sourceObject.type));
     }
   }
-  if (foregroundReady) {
-    foregroundCandidates.forEach((candidate) => {
-      if (foregroundLayers.has(candidate.key)) {
-        candidate.source.setAttribute("data-pptx-native", "image");
-      }
+  for (const icon of snapshot.icons || []) {
+    const layer = foregroundLayers.get(`icon:${icon.id}`);
+    fallbacks.push({
+      type: "architecture-icon",
+      path: `architecture[${blockIndex}].${icon.sourcePath}`,
+      reason: layer
+        ? "icon-rendered-as-foreground-picture"
+        : "icon-rendered-as-artwork",
+      icon: icon.icon,
+      ...mapBounds(icon),
+      ...(layer ? { artwork: false } : {}),
     });
   }
+  foregroundCandidates.forEach((candidate) => {
+    if (foregroundLayers.has(candidate.key)) {
+      candidate.source.setAttribute("data-pptx-native", "image");
+    }
+  });
   if (snapshot.routing.degraded) {
     fallbacks.push(
       pptxFallback(
@@ -1962,7 +1853,178 @@ async function collectArchitectureObjects(wrapper, deck, blockIndex) {
       ),
     );
   }
-  return { elements, fallbacks };
+
+  const fontFace = getComputedStyle(svg).fontFamily
+    .split(",")[0]
+    .trim()
+    .replace(/^["']|["']$/g, "");
+  const { scene } = architectureSnapshotToScene(snapshot, {
+    path: `architecture[${blockIndex}]`,
+    resolveColor: (value) => resolveModelColor(value, deck),
+    resolveDash: powerPointDashStyle,
+    resolveImage: (entry, kind) => {
+      const key = kind === "icon-picture"
+        ? `icon:${entry.id}`
+        : `image:${entry.architecture?.id || entry.id}`;
+      return foregroundLayers.get(key) || "";
+    },
+    fontFace,
+    scale,
+    originX,
+    originY,
+  });
+  const mapped = sceneToPptxElements(scene, {
+    pathPrefix: `architecture[${blockIndex}]`,
+    emitPath: false,
+    emitZOrder: false,
+  });
+  return { elements: mapped.elements, fallbacks: [...fallbacks, ...mapped.fallbacks] };
+}
+
+function unprefixScenePath(path, prefix) {
+  return typeof path === "string" && path.startsWith(`${prefix}.`)
+    ? path.slice(prefix.length + 1)
+    : path;
+}
+
+function mermaidEdgeLabelElement(svg, id) {
+  if (!id) return null;
+  const root = svg.querySelector("g.root");
+  const labels = root ? [...root.querySelectorAll(":scope > g.edgeLabels > g.edgeLabel")] : [];
+  return labels.find((label) => {
+    const labelGroup = label.querySelector(":scope > g.label");
+    return labelGroup?.getAttribute("data-id") === id;
+  }) || null;
+}
+
+function mermaidElementForSourcePath(svg, sourcePath) {
+  const root = svg.querySelector("g.root");
+  if (!root) return sourcePath === "svg" ? svg : null;
+  const indexed = /^(nodes|clusters|edges)\[(\d+)\]$/.exec(sourcePath || "");
+  if (indexed) {
+    const [, kind, rawIndex] = indexed;
+    const index = Number(rawIndex);
+    const selectors = {
+      nodes: ":scope > g.nodes > g.node",
+      clusters: ":scope > g.clusters > g.cluster",
+      edges: ":scope > g.edgePaths > path.flowchart-link",
+    };
+    return [...root.querySelectorAll(selectors[kind])][index] || null;
+  }
+  if (sourcePath === "svg") return svg;
+  return null;
+}
+
+function mermaidFallbackElementForBounds(svg, deck, bounds) {
+  const ignored = new Set(["defs", "desc", "filter", "linearGradient", "marker", "metadata", "script", "style"]);
+  const containerClasses = new Set(["root", "clusters", "edgePaths", "edgeLabels", "edgeLabel", "label", "nodes"]);
+  const candidates = [...svg.querySelectorAll("circle, ellipse, foreignObject, g, image, line, path, polygon, polyline, rect, text, use")]
+    .filter((candidate) => {
+      if (candidate.closest("[data-pptx-native]")) return false;
+      if (ignored.has(String(candidate.localName || candidate.tagName).toLowerCase())) return false;
+      if (Array.from(candidate.classList || []).some((name) => containerClasses.has(name))) return false;
+      const rect = candidate.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    });
+  return candidates.find((candidate) => {
+    const candidateBounds = fallbackBounds(candidate, deck);
+    return (
+      Math.abs(candidateBounds.x - bounds.x) <= 1 &&
+      Math.abs(candidateBounds.y - bounds.y) <= 1 &&
+      Math.abs(candidateBounds.width - bounds.width) <= 1 &&
+      Math.abs(candidateBounds.height - bounds.height) <= 1
+    );
+  }) || null;
+}
+
+function markMermaidNativeElements(svg, mappedElements, pathPrefix) {
+  for (const element of mappedElements) {
+    const sourcePath = unprefixScenePath(element.path, pathPrefix);
+    const source = mermaidElementForSourcePath(svg, sourcePath);
+    if (source) {
+      const nativeKind = element.type === "shape" ? "shape" : element.type;
+      source.setAttribute("data-pptx-native", nativeKind);
+    }
+    if (element.type === "connector") {
+      const id = element.mermaid?.id || source?.getAttribute("data-id") || source?.getAttribute("id") || "";
+      mermaidEdgeLabelElement(svg, id)?.setAttribute("data-pptx-native", "text");
+    }
+  }
+}
+
+function mermaidWholeElementFallbackRequired(scene, diagnostics) {
+  const nodes = Array.isArray(scene?.nodes) ? scene.nodes : [];
+  const reason = nodes[0]?.reason || diagnostics.find((entry) => entry?.reason)?.reason || "";
+  return (
+    nodes.length === 1 &&
+    nodes[0]?.kind === "fallback" &&
+    nodes[0]?.sourcePath === "svg" &&
+    (
+      reason.startsWith("mermaid-scene-adapter-failed:") ||
+      reason.startsWith("mermaid-scene-limit-exceeded:") ||
+      reason === "unsupported-mermaid-svg-structure"
+    )
+  );
+}
+
+function collectMermaidObjects(element, deck, blockIndex) {
+  const svg = element.querySelector("svg");
+  if (!svg) {
+    return {
+      elements: [],
+      fallbacks: [pptxFallback("mermaid", element, deck, "mermaid-rendered-as-artwork")],
+    };
+  }
+  const pathPrefix = `mermaid[${blockIndex}]`;
+  const { scene, diagnostics } = mermaidSvgToScene(svg, {
+    path: pathPrefix,
+    deck,
+    resolveColor: (value) => resolveModelColor(value, deck),
+  });
+  if (mermaidWholeElementFallbackRequired(scene, diagnostics)) {
+    return {
+      elements: [],
+      fallbacks: [pptxFallback("mermaid", element, deck, "mermaid-rendered-as-artwork")],
+    };
+  }
+  const mapped = sceneToPptxElements(scene, {
+    pathPrefix,
+    groupPreset: "rect",
+    zOrderBase: Number(element.dataset.pptxZOrder),
+  });
+  markMermaidNativeElements(svg, mapped.elements, pathPrefix);
+  const fallbackNodes = new Map(
+    scene.nodes
+      .filter((node) => node.kind === "fallback")
+      .map((node) => [node.sourcePath, node]),
+  );
+  const fallbacks = mapped.fallbacks.map((fallback) => {
+    const sourcePath = fallback.sourcePath || unprefixScenePath(fallback.path, pathPrefix);
+    const node = fallbackNodes.get(sourcePath);
+    const source =
+      mermaidElementForSourcePath(svg, sourcePath) ||
+      mermaidFallbackElementForBounds(svg, deck, fallback) ||
+      svg;
+    const captured = pptxFallback("mermaid", source, deck, fallback.reason, {
+      captureElement: source,
+      includeDescendants: true,
+      artwork: fallback.artwork,
+    });
+    return {
+      ...captured,
+      path: fallback.path,
+      sourcePath,
+      reason: fallback.reason,
+      x: fallback.x,
+      y: fallback.y,
+      width: fallback.width,
+      height: fallback.height,
+      zOrder: fallback.zOrder,
+      ...(node?.id ? { id: node.id } : {}),
+      ...(fallback.artwork === false ? { artwork: false } : {}),
+    };
+  });
+  return { elements: mapped.elements, fallbacks };
 }
 
 async function collectPptxSlide(slide, index) {
@@ -2069,10 +2131,17 @@ async function collectPptxSlide(slide, index) {
         });
       }
     });
-  deck.querySelectorAll("pre.mermaid").forEach((element) => {
+  for (const [blockIndex, element] of [...deck.querySelectorAll("pre.mermaid")].entries()) {
     const covered = [...fallbackRoots].some((root) => root === element || root.contains(element));
-    if (!covered) addFallback("mermaid", element, "mermaid-rendered-as-artwork");
-  });
+    if (covered) continue;
+    try {
+      const mermaid = collectMermaidObjects(element, deck, blockIndex);
+      elements.push(...mermaid.elements);
+      fallbacks.push(...mermaid.fallbacks);
+    } catch (_) {
+      addFallback("mermaid", element, "mermaid-rendered-as-artwork");
+    }
+  }
 
   const insideFallback = (element) =>
     [...fallbackRoots].some((root) => root === element || root.contains(element));
