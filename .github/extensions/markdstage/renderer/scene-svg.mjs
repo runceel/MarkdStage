@@ -95,21 +95,41 @@ function pathGeometry(value) {
   };
 }
 
-function sameGeometryMetric(left, right) {
-  return left === right;
+function sameGeometryMetric(left, right, exact = true) {
+  if (exact) return left === right;
+  // CSSOM shortens computed path numbers. Treat sub-pixel serialization
+  // rounding as attribute-equivalent rather than rewriting precise paths.
+  return Math.abs(left - right) <= Math.max(
+    0.0001,
+    Math.max(Math.abs(left), Math.abs(right)) * 0.00001,
+  );
+}
+
+function canonicalPathCss(source, value) {
+  if (typeof value !== "string" || !value) return "";
+  const documentRef = source.ownerDocument || globalThis.document;
+  const reference = documentRef?.createElementNS?.(SVG_NS, "path");
+  if (!reference?.style?.setProperty) return null;
+  reference.style.setProperty("d", `path("${value}")`);
+  return reference.style.getPropertyValue?.("d") ||
+    reference.style.d ||
+    null;
 }
 
 function hasComputedGeometryOverride(source, property, value) {
   const attribute = source.getAttribute?.(property);
   if (property === "d") {
+    const canonical = canonicalPathCss(source, attribute);
+    if (canonical !== null) return String(value).trim() !== canonical.trim();
     const computed = pathGeometry(value);
     const declared = pathGeometry(attribute);
+    const exact = Boolean(source.closest?.("marker"));
     return computed === null ||
       declared === null ||
       computed.commands !== declared.commands ||
       computed.numbers.length !== declared.numbers.length ||
       computed.numbers.some((number, index) =>
-        !sameGeometryMetric(number, declared.numbers[index]));
+        !sameGeometryMetric(number, declared.numbers[index], exact));
   }
   const computed = simplePixelMetric(value);
   const declared = simplePixelMetric(attribute);
@@ -165,9 +185,12 @@ export function captureSvgTree(element, { slots = new Map(), computedStyle = glo
         }
         if (value && safeCss(value)) primitive.style[property] = value;
       }
-      for (const property of source.closest?.("marker")
-        ? SVG_GEOMETRY_BY_TAG[tag] || []
-        : []) {
+      const geometryProperties = tag === "path"
+        ? SVG_GEOMETRY_BY_TAG.path
+        : source.closest?.("marker")
+          ? SVG_GEOMETRY_BY_TAG[tag] || []
+          : [];
+      for (const property of geometryProperties) {
         const value = style.getPropertyValue(property);
         if (value && hasComputedGeometryOverride(source, property, value) &&
             safeCss(value)) {

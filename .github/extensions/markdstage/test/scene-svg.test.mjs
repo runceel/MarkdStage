@@ -321,7 +321,7 @@ test("SVG capture retains computed circle and path geometry overrides", () => {
     attributes: [{ name: "d", value: pathAttribute }],
     childNodes: [],
     getAttribute: (name) => name === "d" ? pathAttribute : null,
-    closest: (selector) => selector === "marker" ? {} : null,
+    closest: () => null,
   }, {
     computedStyle: () => ({
       getPropertyValue: (name) =>
@@ -359,7 +359,7 @@ test("SVG capture retains computed circle and path geometry overrides", () => {
     attributes: [{ name: "d", value: pathAttribute }],
     childNodes: [],
     getAttribute: (name) => name === "d" ? pathAttribute : null,
-    closest: (selector) => selector === "marker" ? {} : null,
+    closest: () => null,
   }, {
     computedStyle: () => ({
       getPropertyValue: (name) =>
@@ -367,6 +367,42 @@ test("SVG capture retains computed circle and path geometry overrides", () => {
     }),
   });
   assert.deepEqual(unchangedPath.style, {});
+
+  const precisePathAttribute =
+    "M-71.8203125 -72 C-30.511663936534845 -72 10.79698462693031 -72 71.8203125 -72";
+  const roundedComputedPath = captureSvgTree({
+    nodeType: 1,
+    localName: "path",
+    namespaceURI: "http://www.w3.org/2000/svg",
+    attributes: [{ name: "d", value: precisePathAttribute }],
+    childNodes: [],
+    getAttribute: (name) => name === "d" ? precisePathAttribute : null,
+    closest: () => null,
+  }, {
+    computedStyle: () => ({
+      getPropertyValue: (name) => name === "d"
+        ? 'path("M -71.8203 -72 C -30.5117 -72 10.797 -72 71.8203 -72")'
+        : "",
+    }),
+  });
+  assert.deepEqual(roundedComputedPath.style, {});
+
+  const longComputedD = `path("M 0 0 ${"L 10 20 ".repeat(2000)}")`;
+  const longPath = captureSvgTree({
+    nodeType: 1,
+    localName: "path",
+    namespaceURI: "http://www.w3.org/2000/svg",
+    attributes: [{ name: "d", value: "M 0 0 L 1 1" }],
+    childNodes: [],
+    getAttribute: (name) => name === "d" ? "M 0 0 L 1 1" : null,
+    closest: () => null,
+  }, {
+    computedStyle: () => ({
+      getPropertyValue: (name) => name === "d" ? longComputedD : "",
+    }),
+  });
+  assert.ok(Array.isArray(longPath.style.d));
+  assert.ok(longPath.style.d.every((chunk) => chunk.length <= 8192));
 
   const source = scene([
     {
@@ -385,14 +421,24 @@ test("SVG capture retains computed circle and path geometry overrides", () => {
       reason: "unsupported",
       meta: { svg: path },
     },
+    {
+      kind: "fallback",
+      sourcePath: "long-path",
+      z: 2,
+      bounds,
+      reason: "unsupported",
+      meta: { svg: longPath },
+    },
   ]);
   const restored = all(sceneToSvg(source, { document }));
   const restoredCircle = restored.find((element) => element.tagName === "circle");
-  const restoredPath = restored.find((element) => element.tagName === "path");
+  const restoredPaths = restored.filter((element) => element.tagName === "path");
+  const restoredPath = restoredPaths[0];
   assert.equal(restoredCircle.attributes.get("r"), "6");
   assert.equal(restoredCircle.attributes.get("style:cx"), "15px");
   assert.equal(restoredCircle.attributes.get("style:cy"), "18px");
   assert.equal(restoredCircle.attributes.get("style:r"), "12px");
   assert.equal(restoredPath.attributes.get("d"), "M9,0 L9,18");
   assert.equal(restoredPath.attributes.get("style:d"), 'path("M 0 0 L 18 18")');
+  assert.equal(restoredPaths[1].attributes.get("style:d"), longComputedD);
 });

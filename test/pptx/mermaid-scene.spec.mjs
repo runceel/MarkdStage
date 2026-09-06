@@ -4698,6 +4698,20 @@ test("actual ER CSS marker geometry overrides remain exact relation-local fallba
         computed: 'path("M 0 0 L 18 18")',
       },
     },
+    {
+      title: "Relation fallback geometry",
+      source: withThemeCss(
+        'marker[id$="zeroOrOneEnd"] circle{r:12px} ' +
+        'path.relationshipLine[data-id="id_entity-ACCOUNT-0_entity-PROFILE-1_0"]' +
+        '{d:path("M0,0 L100,0")}',
+      ),
+      expectedGeometry: {
+        tag: "circle",
+        attribute: "6",
+        computed: "12px",
+      },
+      expectedRelation: 'path("M 0 0 L 100 0")',
+    },
   ];
   const harness = await startHarness({
     slides: cases.map(({ title, source }) =>
@@ -4721,6 +4735,9 @@ test("actual ER CSS marker geometry overrides remain exact relation-local fallba
         const geometryProperty = overridden.localName === "circle" ? "r" : "d";
         const terminals = svg.__presentationScene.nodes.filter((node) =>
           node.meta?.mermaid?.kind === "er-terminal");
+        const fallbackRelation = svg.querySelector(
+          'path.relationshipLine[data-id="id_entity-ACCOUNT-0_entity-PROFILE-1_0"]',
+        );
         return {
           sceneFallbacks: svg.__presentationScene.nodes
             .filter((node) => node.kind === "fallback")
@@ -4736,6 +4753,11 @@ test("actual ER CSS marker geometry overrides remain exact relation-local fallba
             attribute: overridden.getAttribute(geometryProperty),
             computed: getComputedStyle(overridden)
               .getPropertyValue(geometryProperty),
+          },
+          relationGeometry: {
+            attribute: fallbackRelation.getAttribute("d"),
+            inline: fallbackRelation.style.d,
+            computed: getComputedStyle(fallbackRelation).d,
           },
           relations: [...svg.querySelectorAll("path.relationshipLine")]
             .map((relation) => ({
@@ -4756,6 +4778,14 @@ test("actual ER CSS marker geometry overrides remain exact relation-local fallba
       const slide = result.slides[index];
       const diagramResult = result.diagrams[index];
       expect(diagramResult.geometry).toEqual(entry.expectedGeometry);
+      if (entry.expectedRelation) {
+        expect(diagramResult.relationGeometry.attribute)
+          .not.toContain("M0,0 L100,0");
+        expect(diagramResult.relationGeometry.inline)
+          .toBe(entry.expectedRelation);
+        expect(diagramResult.relationGeometry.computed)
+          .toBe(entry.expectedRelation);
+      }
       expect(diagramResult.sceneFallbacks).toEqual([{
         sourcePath: "relations[0]",
         reason: "unsupported-mermaid-er-terminal-geometry",
