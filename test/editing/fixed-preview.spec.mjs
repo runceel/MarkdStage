@@ -23,15 +23,15 @@ async function settleFrames(page) {
   );
 }
 
-test("16:9 preview uses the fixed PDF surface and keeps navigation active", async ({ page }) => {
+test("16:9 preview is the default, uses the fixed PDF surface, and remains toggleable", async ({
+  page,
+}) => {
   const harness = await startHarness({ slides: SLIDES });
   try {
     await page.goto(`${harness.url}/`, { waitUntil: "load" });
     await waitForSlideReady(page);
 
     const button = page.locator("#navFixedPreview");
-    await expect(button).toHaveAttribute("aria-pressed", "false");
-    await clickMoreControl(page, "#navFixedPreview");
     await settleFrames(page);
 
     await expect(page.locator("body")).toHaveClass(/fixed-preview-mode/);
@@ -60,6 +60,11 @@ test("16:9 preview uses the fixed PDF surface and keeps navigation active", asyn
     await settleFrames(page);
     await expect(page.locator("body")).not.toHaveClass(/fixed-preview-mode/);
     await expect(button).toHaveAttribute("aria-pressed", "false");
+
+    await clickMoreControl(page, "#navFixedPreview");
+    await settleFrames(page);
+    await expect(page.locator("body")).toHaveClass(/fixed-preview-mode/);
+    await expect(button).toHaveAttribute("aria-pressed", "true");
   } finally {
     await harness.close();
   }
@@ -77,7 +82,6 @@ test("16:9 preview on a square display keeps the theme background covering the t
   try {
     await page.goto(`${harness.url}/`, { waitUntil: "load" });
     await waitForSlideReady(page);
-    await clickMoreControl(page, "#navFixedPreview");
     await settleFrames(page);
 
     const dimensions = await page.locator("#stage > .deck").evaluate((deck) => {
@@ -100,7 +104,6 @@ test("16:9 preview ignores one pixel but warns when PDF clipping exceeds the tol
   try {
     await page.goto(`${harness.url}/`, { waitUntil: "load" });
     await waitForSlideReady(page);
-    await clickMoreControl(page, "#navFixedPreview");
     await settleFrames(page);
 
     await page.locator(".body").evaluate((body) => {

@@ -60,7 +60,7 @@ function registerDeck(slides, names, prefix = "") {
               if (message.type() === "error") consoleErrors.push(message.text());
             });
 
-            await page.goto(`${harness.url}/`, { waitUntil: "load" });
+            await page.goto(`${harness.url}/?responsive=1`, { waitUntil: "load" });
             await waitForSlideReady(page);
             await page.addStyleTag({ content: DETERMINISTIC_CSS });
 

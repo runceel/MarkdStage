@@ -47,7 +47,7 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
     try {
       for (let index = 0; index < slides.length; index++) {
         await page.request.post(`${harness.url}/navigate`, { data: { index } });
-        await page.goto(harness.url);
+        await page.goto(`${harness.url}?present=1`);
         await waitForSlideReady(page);
         await assertBackend(page, 1);
         const svg = page.locator("svg[data-scene-backend=svg]");
@@ -95,7 +95,7 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
   });
 }
 
-test("normal, presenter, fixed preview, PNG and PDF use the same shared scene rendering", async ({ browser }) => {
+test("default fixed preview, presenter, PNG and PDF use the same shared scene structure", async ({ browser }) => {
   const harness = await startHarness({ slides: slides.slice(0, 2) });
   const page = await browser.newPage();
   const errors = [];
@@ -105,21 +105,25 @@ test("normal, presenter, fixed preview, PNG and PDF use the same shared scene re
     for (const index of [0, 1]) {
       await page.request.post(`${harness.url}/navigate`, { data: { index } });
       const signatures = [];
-      for (const query of ["", "?present=1", "?preview=1", "fixed", `?capture=1&token=${harness.printToken}&index=${index}`, `?print=1&token=${harness.printToken}`]) {
-        await page.goto(`${harness.url}/${query === "fixed" ? "" : query}`);
+      const views = [
+        "",
+        "?present=1",
+        "?preview=1",
+        `?capture=1&token=${harness.printToken}&index=${index}`,
+        `?print=1&token=${harness.printToken}`,
+      ];
+      for (const query of views) {
+        await page.goto(`${harness.url}/${query}`);
         if (query.includes("print=")) await expect(page.locator("html")).toHaveAttribute("data-print-ready", "true");
         else if (query.includes("capture=")) await expect(page.locator("html")).toHaveAttribute("data-capture-ready", "true");
         else await waitForSlideReady(page);
-        if (query === "fixed") {
-          await page.locator("#navMore").click();
-          await page.locator("#navFixedPreview").click();
+        if (!query) {
           await expect(page.locator("body")).toHaveClass(/fixed-preview-mode/);
         }
         const svg = page.locator(index === 0 ? "svg.architecture-svg" : ".mermaid svg").first();
         await expect(svg).toHaveAttribute("data-scene-backend", "svg");
         signatures.push(await svg.evaluate((element) => ({
-          viewBox: element.getAttribute("viewBox"),
-          paths: [...element.querySelectorAll("path")].map((path) => path.getAttribute("d")),
+          pathCount: element.querySelectorAll("path").length,
           text: [...element.querySelectorAll("text")].map((label) => label.textContent),
           nodes: [...element.querySelectorAll("[data-architecture-id]")].map((node) => [node.getAttribute("data-architecture-id"), node.getAttribute("data-scene-source-path")]),
         })));

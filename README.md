@@ -91,7 +91,7 @@ There is no need to create `slides.md` first. For a focused revision, try:
 > Keep the theme and shorten only the explanation on slide 2.
 
 1. Refine wording in Markdown or use the [Architecture Editor](#see-markdown-on-stage) for diagram changes.
-2. Ask Copilot, "Check whether the content fits on the slides." Use **More controls > Output preview** when reviewing the appearance yourself.
+2. Ask Copilot, "Check whether the content fits on the slides." The canvas starts in **More controls > Output preview**; toggle it to compare the retained responsive layout.
 3. Navigate with **◀ ▶**, the **arrow keys**, or the **☰ slide list**. Surface Pen navigation is available in supported environments.
 4. Open the presentation window or export PDF / PowerPoint from **More controls**. Check the final output before sharing.
 

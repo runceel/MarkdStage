@@ -118,12 +118,13 @@ The themed slide is displayed and updates automatically
   dismissed or another export starts. Success and error notifications also have
   a dismiss button and are announced to screen readers. Notifications never
   appear in exported files or the external presentation window.
-- Use **More controls > Output preview** to letterbox the current slide inside
-  the canvas with
-  the same fixed 1280×720 typography, spacing, diagram limits, and clipping used
-  by PDF output. This preview is local to the canvas and does not change deck
-  state. A visible and accessible warning identifies content that would be
-  clipped.
+- The canvas starts in **More controls > Output preview**, letterboxing the
+  current slide with the same fixed 1280×720 typography, spacing, diagram
+  limits, and clipping used by PDF output. Select **Output preview** to return
+  to the retained responsive canvas layout. This preview is local to the canvas
+  and does not change deck state. A visible and accessible warning identifies
+  content that would be clipped. Entering lightweight Architecture editing also
+  returns to the responsive layout so its placement controls remain available.
 - AI should call **`inspect_layout` before exporting a non-scrolling deck**. It
   renders the currently registered in-memory output snapshot in headless
   Chromium; it does not read or validate the source file named by `sourceName`.
