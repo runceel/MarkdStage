@@ -279,6 +279,63 @@ test("extracts pinned packet rows, bit ranges, labels and title at rendered boun
   }
 });
 
+test("accepts the bundled one-bit and showBits false packet structures", async ({ page }) => {
+  const packet = [
+    "packet",
+    "title Compact header",
+    '0: "Flag"',
+    '1-7: "Kind"',
+    '8-15: "Length"',
+  ].join("\n");
+  const harness = await startHarness({
+    slides: [
+      `# Packet bits\n\n\`\`\`mermaid\n${packet}\n\`\`\``,
+      `# Packet without bits\n\n\`\`\`mermaid\n%%{init:{"packet":{"showBits":false}}}%%\n${packet}\n\`\`\``,
+    ],
+  });
+  try {
+    await page.goto(`${harness.url}/?pptx=1&token=${encodeURIComponent(harness.printToken)}`);
+    await page.waitForFunction(() => document.documentElement.hasAttribute("data-pptx-ready") ||
+      document.documentElement.hasAttribute("data-pptx-error"), undefined, { timeout: 120_000 });
+    await expect(page.locator("html")).toHaveAttribute("data-pptx-ready", "true");
+    const model = await page.evaluate(() => window.__presentationPptxModel);
+    const withBits = model.slides[0].elements.filter((element) =>
+      element.path?.startsWith("mermaid[0].packet."));
+    const withoutBits = model.slides[1].elements.filter((element) =>
+      element.path?.startsWith("mermaid[0].packet."));
+    expect(withBits.filter((element) => element.type === "shape")).toHaveLength(3);
+    expect(withBits.filter((element) => element.type === "text")).toHaveLength(9);
+    expect(withoutBits.filter((element) => element.type === "shape")).toHaveLength(3);
+    expect(withoutBits.filter((element) => element.type === "text")).toHaveLength(4);
+    expect(model.slides.flatMap((slide) =>
+      slide.fallbacks.filter((fallback) => fallback.type === "mermaid"))).toEqual([]);
+
+    const withBitsSvg = page.locator("pre.mermaid > svg").nth(0);
+    const withoutBitsSvg = page.locator("pre.mermaid > svg").nth(1);
+    await expect(withBitsSvg.locator("text.packetByte.start[data-pptx-native=text]")).toHaveCount(3);
+    await expect(withBitsSvg.locator("text.packetByte.end[data-pptx-native=text]")).toHaveCount(2);
+    const oneBit = await withBitsSvg.evaluate((svg) => {
+      const field = svg.querySelector("rect.packetBlock");
+      const start = svg.querySelector("text.packetByte.start");
+      return {
+        fieldCenter: Number(field.getAttribute("x")) + Number(field.getAttribute("width")) / 2,
+        startX: Number(start.getAttribute("x")),
+        anchor: start.getAttribute("text-anchor"),
+      };
+    });
+    expect(oneBit.startX).toBe(oneBit.fieldCenter);
+    expect(oneBit.anchor).toBe("middle");
+    await expect(withoutBitsSvg.locator("text.packetByte")).toHaveCount(0);
+    await expect(withoutBitsSvg.locator("rect.packetBlock[data-pptx-native=shape]")).toHaveCount(3);
+    await expect(withoutBitsSvg.locator(
+      "text.packetLabel[data-pptx-native=text], text.packetTitle[data-pptx-native=text]",
+    )).toHaveCount(4);
+    await expect(withoutBitsSvg.locator("[data-pptx-fallback-ids]")).toHaveCount(0);
+  } finally {
+    await harness.close();
+  }
+});
+
 test("extracts pinned treeView hierarchy lines and labels at rendered CTMs", async ({ page }) => {
   const harness = await startHarness({ slides: ["# treeView fixture"] });
   try {
@@ -499,6 +556,36 @@ test("keeps unsupported packet fields and labels local while preserving sibling 
       paragraph.runs.some((run) => run.text === "Payload length")))).toBe(true);
     expect(row.sources.find((source) => source.path === "packet.rows[0]"))
       .toMatchObject({ tag: "g" });
+
+    for (const bitIndex of [0, 5, 9]) {
+      await sceneFromFixture(page, fixture, `packet-missing-bit-${bitIndex}.svg`);
+      await page.evaluate((index) => {
+        const row = [...document.querySelectorAll("svg > g")]
+          .find((group) => group.querySelector(":scope > rect.packetBlock"));
+        row.querySelectorAll("text.packetByte")[index].remove();
+      }, bitIndex);
+      const missing = await updateFixture(page, () => {});
+      expect(missing.scene.nodes.filter((node) => node.kind === "fallback"), `bit ${bitIndex}`)
+        .toMatchObject([{
+          sourcePath: "packet.rows[0]",
+          reason: "unsupported-mermaid-packet-row-structure",
+        }]);
+      expect(missing.diagnostics, `bit ${bitIndex}`).toEqual([{
+        path: "packet.rows[0]",
+        kind: "fallback",
+        reason: "unsupported-mermaid-packet-row-structure",
+      }]);
+      expect(missing.scene.nodes.filter((node) => node.kind === "shape"), `bit ${bitIndex}`)
+        .toHaveLength(4);
+      expect(missing.scene.nodes.filter((node) => node.kind === "text"), `bit ${bitIndex}`)
+        .toHaveLength(13);
+      expect(missing.scene.nodes.find((node) => node.sourcePath === "packet.title"), `bit ${bitIndex}`)
+        .toMatchObject({ kind: "text" });
+      expect(missing.scene.nodes.some((node) => node.text?.paragraphs.some((paragraph) =>
+        paragraph.runs.some((run) => run.text === "Payload length"))), `bit ${bitIndex}`).toBe(true);
+      expect(sceneToPptxElements(missing.scene).fallbacks.map((fallback) => fallback.sourcePath),
+        `bit ${bitIndex}`).toEqual(["packet.rows[0]"]);
+    }
   } finally {
     await harness.close();
   }

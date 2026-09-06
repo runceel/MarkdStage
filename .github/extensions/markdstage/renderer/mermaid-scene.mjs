@@ -2726,6 +2726,75 @@ function specialDiagramStructureFallback(svg, deck, size, options, reason) {
   };
 }
 
+function packetElementRole(element) {
+  const roles = [
+    hasClass(element, "packetBlock") ? "field" : "",
+    hasClass(element, "packetLabel") ? "label" : "",
+    hasClass(element, "packetByte") ? "bit" : "",
+  ].filter(Boolean);
+  if (roles.length !== 1) return roles.length ? "invalid" : "";
+  if (roles[0] !== "bit") return roles[0];
+  const start = hasClass(element, "start");
+  const end = hasClass(element, "end");
+  return start === end ? "invalid" : start ? "start" : "end";
+}
+
+function packetFieldBox(element) {
+  try {
+    const box = element.getBBox?.();
+    return box && [box.x, box.y, box.width, box.height].every(Number.isFinite) &&
+      box.width > 0 && box.height > 0
+      ? box
+      : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function packetBitLabelsMatchField(field, start, end) {
+  if (localName(start) !== "text" || (end && localName(end) !== "text")) return false;
+  const box = packetFieldBox(field);
+  const startX = Number(start.getAttribute("x"));
+  const startY = Number(start.getAttribute("y"));
+  const startAnchor = start.getAttribute("text-anchor") || getComputedStyle(start).textAnchor;
+  if (!box || !Number.isFinite(startX) || !Number.isFinite(startY) ||
+      !sameMetric(startY, box.y - 2)) return false;
+  if (!end) {
+    return startAnchor === "middle" && sameMetric(startX, box.x + box.width / 2);
+  }
+  const endX = Number(end.getAttribute("x"));
+  const endY = Number(end.getAttribute("y"));
+  const endAnchor = end.getAttribute("text-anchor") || getComputedStyle(end).textAnchor;
+  return startAnchor === "start" &&
+    endAnchor === "end" &&
+    Number.isFinite(endX) &&
+    Number.isFinite(endY) &&
+    sameMetric(startX, box.x) &&
+    sameMetric(endX, box.x + box.width) &&
+    sameMetric(endY, startY);
+}
+
+function validPacketRowStructure(row, showBits) {
+  const children = directChildren(row)
+    .filter((child) => packetElementRole(child));
+  let index = 0;
+  let fields = 0;
+  while (index < children.length) {
+    const field = children[index++];
+    const label = children[index++];
+    if (packetElementRole(field) !== "field" || packetElementRole(label) !== "label") {
+      return false;
+    }
+    fields += 1;
+    if (!showBits) continue;
+    const start = children[index++];
+    if (packetElementRole(start) !== "start") return false;
+    const end = packetElementRole(children[index]) === "end" ? children[index++] : null;
+    if (!packetBitLabelsMatchField(field, start, end)) return false;
+  }
+  return fields > 0;
+}
+
 function packetScene(svg, deck, size, options) {
   const nodes = [];
   const consumed = new Set();
@@ -2741,24 +2810,21 @@ function packetScene(svg, deck, size, options) {
       "unsupported-mermaid-packet-structure",
     );
   }
+  const showBits = rows.some((row) =>
+    directChildren(row).some((child) => hasClass(child, "packetByte")));
 
   for (const [rowIndex, row] of rows.entries()) {
     const children = directChildren(row);
-    const fields = children.filter((child) => hasClass(child, "packetBlock"));
-    const labels = children.filter((child) => hasClass(child, "packetLabel"));
-    const bits = children.filter((child) => hasClass(child, "packetByte"));
-    const validBitCount = bits.length === 0 ||
-      (bits.length >= fields.length && bits.length <= fields.length * 2);
     const sourcePath = `packet.rows[${rowIndex}]`;
-    if (fields.length === 0 || labels.length !== fields.length ||
-        !validBitCount || unsupportedVisualEffect(row, false)) {
+    const unsupportedRowStyle = unsupportedVisualEffect(row, false);
+    if (!validPacketRowStructure(row, showBits) || unsupportedRowStyle) {
       consumed.add(row);
       options.sourceElements.set(sourcePath, row);
       nodes.push(fallbackNode(
         row,
         nodes.length,
         deck,
-        unsupportedVisualEffect(row, false)
+        unsupportedRowStyle
           ? "unsupported-mermaid-packet-row-style"
           : "unsupported-mermaid-packet-row-structure",
         sourcePath,

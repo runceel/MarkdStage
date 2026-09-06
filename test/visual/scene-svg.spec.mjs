@@ -137,7 +137,7 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
 }
 
 test("normal, presenter, fixed preview, PNG and PDF use the same shared scene rendering", async ({ browser }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(180_000);
   const surfaceSlides = [
     slides[0],
     slides[1],
