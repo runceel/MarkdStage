@@ -12,6 +12,19 @@ import {
   inspectPptxPackage,
 } from "../runtime/pptx-package.mjs";
 
+test("preserves bounded marker stroke caps through scene normalization, mapping and DrawingML", () => {
+  const source = normalizeScene(createScene({
+    width: 100, height: 100, source: { kind: "mermaid", path: "markers.svg" },
+    nodes: [{ kind: "connector", z: 0, sourcePath: "edge.markers.end[0]",
+      points: [{ x: 10, y: 10 }, { x: 15, y: 15 }],
+      style: { stroke: "#123456", fill: null, strokeWidth: 2, lineCap: "butt" } }],
+  })).scene;
+  const { elements, fallbacks } = sceneToPptxElements(source);
+  assert.deepEqual(fallbacks, []);
+  assert.equal(elements[0].lineCap, "butt");
+  assert.match(buildPptxPackage({ slides: [{ elements }] }).toString("utf8"), /<a:ln w="19050" cap="flat">/);
+});
+
 function richText(text = "Text") {
   return {
     paragraphs: [

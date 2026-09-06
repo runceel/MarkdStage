@@ -210,16 +210,24 @@ function colorXml(value, path, opacity = 1) {
   return color ? `<a:solidFill>${color}</a:solidFill>` : "<a:noFill/>";
 }
 
+function lineCapXml(value, path) {
+  if (value === undefined) return "";
+  const cap = { butt: "flat", round: "rnd", square: "sq" }[value];
+  if (!cap) fail(`${path} is not a supported line cap`);
+  return ` cap="${cap}"`;
+}
+
 function lineXml(element, path) {
   const width = element.strokeWidth === undefined
     ? 1
     : positiveNumber(element.strokeWidth, `${path}.strokeWidth`);
   const color = colorOf(element.stroke, `${path}.stroke`);
-  if (!color) return `<a:ln w="${emu(width)}"><a:noFill/></a:ln>`;
+  const cap = lineCapXml(element.lineCap, `${path}.lineCap`);
+  if (!color) return `<a:ln w="${emu(width)}"${cap}><a:noFill/></a:ln>`;
   const opacity = optionalUnitInterval(element.opacity, `${path}.opacity`);
   const alpha = Math.round(color.alpha * opacity * 100000);
   const dash = dashXml(element.dash, `${path}.dash`);
-  return `<a:ln w="${emu(width)}"><a:solidFill><a:srgbClr val="${color.hex}">${
+  return `<a:ln w="${emu(width)}"${cap}><a:solidFill><a:srgbClr val="${color.hex}">${
     alpha < 100000 ? `<a:alpha val="${alpha}"/>` : ""
   }</a:srgbClr></a:solidFill>${dash}</a:ln>`;
 }
@@ -744,6 +752,7 @@ function connectorXml(element, path, nextId, relationships) {
   const opacity = optionalUnitInterval(element.opacity, `${path}.opacity`);
   const alpha = Math.round(color.alpha * opacity * 100000);
   const dash = dashXml(element.dash, `${path}.dash`);
+  const cap = lineCapXml(element.lineCap, `${path}.lineCap`);
   const shapes = [];
   for (let index = 0; index < points.length - 1; index += 1) {
     const start = points[index];
@@ -762,7 +771,7 @@ function connectorXml(element, path, nextId, relationships) {
         ? arrowXml(element.arrowEnd, `${path}.arrowEnd`)
         : "";
     shapes.push(
-      `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="Connector ${id}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm${flipH}${flipV}><a:off x="${emu(x)}" y="${emu(y)}"/><a:ext cx="${emu(Math.abs(end.x - start.x))}" cy="${emu(Math.abs(end.y - start.y))}"/></a:xfrm><a:prstGeom prst="line"><a:avLst/></a:prstGeom><a:ln w="${emu(width)}"><a:solidFill><a:srgbClr val="${color.hex}">${
+      `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="Connector ${id}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm${flipH}${flipV}><a:off x="${emu(x)}" y="${emu(y)}"/><a:ext cx="${emu(Math.abs(end.x - start.x))}" cy="${emu(Math.abs(end.y - start.y))}"/></a:xfrm><a:prstGeom prst="line"><a:avLst/></a:prstGeom><a:ln w="${emu(width)}"${cap}><a:solidFill><a:srgbClr val="${color.hex}">${
         alpha < 100000 ? `<a:alpha val="${alpha}"/>` : ""
       }</a:srgbClr></a:solidFill>${dash}${head}${tail}</a:ln></p:spPr></p:sp>`,
     );

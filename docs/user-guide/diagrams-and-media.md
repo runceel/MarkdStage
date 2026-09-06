@@ -39,7 +39,7 @@ single unfilled open path. Asynchronous messages (`A-)B`, `B--)A`, including sel
 use the bundled renderer's filled, notched **stealth** head, not an open arrow. Solid/dashed
 strokes and supported start/end heads (including bidirectional self messages) are preserved;
 simple Japanese and multiline message labels remain editable. Multiple subpaths, closed or
-filled message paths, unknown heads, cross ends, effects, and unsupported sequence decorations
+filled message paths, unknown heads, effects, and unsupported sequence decorations
 remain local pictures with their labels retained rather than rasterizing the supported diagram.
 
 Class diagrams export class compartments, unmarked associations, composition (`A *-- B`),
@@ -49,8 +49,20 @@ use the bundled renderer's filled, notched arrowhead. Markers at either end and 
 lines are preserved. Simple relationship and multiplicity labels remain editable, including
 Japanese and multiline text.
 
-Hollow inheritance/realization triangles (`<|--`, `<|..`) and aggregation diamonds (`o--`) remain
-local fallback pictures, not filled substitutes. Unsupported marker geometry or paint, decorated
+Hollow inheritance/realization triangles (`<|--`, `<|..`) and aggregation diamonds (`o--`) use
+editable, unfilled outline strokes, never filled arrow substitutes. Flowchart cross terminals
+(`--x`, `x--x`) and sequence cross terminals (`-x`, `--x`, including self messages) use an editable
+main connector plus two short strokes per cross. The bundled regular and `-margin` marker variants
+retain their start/end placement, endpoint tangent, reference point, units and uniform viewport
+scaling; reverse and bidirectional markers keep their original ends. Marker outlines retain their
+own solid stroke and color independently of the main line's dash and paint.
+
+The hollow interiors are transparent, so a light background can make them look white; they are
+not painted white. Opaque/white or translucent marker paint overrides, nonuniform marker scaling,
+viewports clipping the marker geometry, marker effects/transforms and unknown marker geometry
+remain local pictures of the affected connector, including its markers. A hollow/cross start
+combined with a filled preset end also stays local when the separate primitives cannot retain
+SVG marker paint order. Unsupported paint, decorated
 labels, complex sequence constructs, effects, and unknown geometry also remain fallback pictures.
 Other diagram types, including pie, mindmap, and gitGraph, can still use whole-diagram artwork.
 Check the export report for the reason and source path of each fallback.

@@ -33,6 +33,21 @@ function richText(text = "Text") {
   };
 }
 
+test("validates and normalizes explicit line caps without changing absent defaults", () => {
+  for (const lineCap of [undefined, "butt", "round", "square"]) {
+    const source = createScene({ width: 100, height: 100, source: { kind: "mermaid", path: "markers.svg" },
+      nodes: [{ kind: "connector", sourcePath: "marker", z: 0, points: [{ x: 10, y: 10 }, { x: 20, y: 20 }],
+        arrowStart: "none", arrowEnd: "none",
+        style: { stroke: "#123456", ...(lineCap ? { lineCap } : {}) } }] });
+    validateScene(source);
+    const normalized = normalizeScene(source).scene;
+    validateScene(normalized);
+    assert.equal(normalized.nodes[0].style.lineCap, lineCap);
+    source.nodes[0].style.lineCap = "unknown";
+    assert.throws(() => validateScene(source), /lineCap/);
+  }
+});
+
 function validScene(overrides = {}) {
   return createScene({
     width: 800,

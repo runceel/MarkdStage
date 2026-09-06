@@ -51,6 +51,19 @@ function xml(files, name) {
   return value.toString("utf8");
 }
 
+test("writes explicit flat, round and square caps for native strokes and rejects unknown caps", () => {
+  for (const [lineCap, cap] of [["butt", "flat"], ["round", "rnd"], ["square", "sq"]]) {
+    const elements = [
+      { type: "connector", points: [{ x: 10, y: 10 }, { x: 20, y: 20 }], stroke: "#123456", lineCap },
+      { type: "shape", shape: "rect", x: 10, y: 10, width: 20, height: 20, stroke: "#123456", lineCap },
+    ];
+    const slide = xml(readStoredZip(buildPptxPackage({ slides: [{ elements }] })), "ppt/slides/slide1.xml");
+    assert.equal((slide.match(new RegExp(`cap="${cap}"`, "g")) || []).length, 2);
+    elements[0].lineCap = "unknown";
+    assert.throws(() => buildPptxPackage({ slides: [{ elements }] }), /lineCap/);
+  }
+});
+
 function samplePackage() {
   return buildPptxPackage({
     title: 'Roadmap & "Next"',

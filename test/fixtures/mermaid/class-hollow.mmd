@@ -1,0 +1,13 @@
+%%{init: {"handDrawnSeed": 42}}%%
+classDiagram
+direction LR
+class A["親クラス"]
+class B["Child"]
+A <|-- B : 継承<br/>extends
+A <|.. B : 実現
+A o-- B : 集約
+A --|> B : reverse inheritance
+A ..|> B : reverse realization
+A --o B : reverse aggregation
+A <|--|> B : both triangles
+A o--o B : both diamonds
