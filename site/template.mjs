@@ -24,6 +24,11 @@ export function renderPage({ copy: c, product, sources, siteUrl }) {
     `<a class="${className}" href="${e(url)}">${e(text)}${external}</a>`;
   const copyButton = (id) =>
     `<button class="copy-button" type="button" data-copy="${id}" hidden>${e(c.copy)}</button>`;
+  const terminal = (id, command) => `
+    <div class="terminal">
+      <div class="terminal-bar"><span>Terminal</span>${copyButton(id)}</div>
+      <pre tabindex="0" aria-label="CLI"><code id="${id}">${e(command)}</code></pre>
+    </div>`;
   const example = (id, alt, description) => `
     <section class="example" id="example-${id}" aria-labelledby="example-title-${id}">
       <div class="example-output">
@@ -44,7 +49,7 @@ export function renderPage({ copy: c, product, sources, siteUrl }) {
    *
    * THESIS: An opening-night poster for a real Markdown presentation tool, not a grid of feature cards.
    * OWN-WORLD: Midnight Ink, Paper, one Spotlight Amber focus; the existing hash-and-spotlight mark and Segoe system typography.
-   * STORY: See actual output, inspect its source, choose an entry point, keep the Markdown.
+   * STORY: Draft with AI, refine directly, inspect, present and share; actual output and source support the workflow.
    * FIRST VIEWPORT: Oversized two-line promise and an immediate start action above a wide, real architecture slide on a lit stage.
    * FORM: Opening-poster composition; static stage reveal, no scroll hijacking.
    */
@@ -120,6 +125,23 @@ export function renderPage({ copy: c, product, sources, siteUrl }) {
       </ul>
     </section>
 
+    <section class="needs-section wrap section" aria-labelledby="needs-title">
+      <h2 id="needs-title">${e(c.needsTitle)}</h2>
+      <dl class="needs-list">
+        ${c.needs.map((need) => `<div><dt>${e(need.title)}</dt><dd>${e(need.body)}</dd></div>`).join("")}
+      </dl>
+    </section>
+
+    <section class="workflow wrap section" aria-labelledby="workflow-title">
+      <h2 id="workflow-title">${heading(c.workflowTitle)}</h2>
+      <ol class="workflow-steps">
+        ${c.steps.map((step, index) => `<li>
+          <span class="step-number" aria-hidden="true">${index + 1}</span>
+          <div><h3>${e(step.title)}</h3><p>${e(step.body)}</p><p class="step-detail">${e(step.detail)}</p></div>
+        </li>`).join("")}
+      </ol>
+    </section>
+
     <section class="examples-section wrap section" id="examples" aria-labelledby="examples-title">
       <div class="section-intro">
         <h2 id="examples-title">${heading(c.examplesTitle)}</h2>
@@ -148,14 +170,16 @@ export function renderPage({ copy: c, product, sources, siteUrl }) {
       </div>
     </section>
 
-    <section class="workflow wrap section" aria-labelledby="workflow-title">
-      <h2 id="workflow-title">${heading(c.workflowTitle)}</h2>
-      <ol class="workflow-steps">
-        ${c.steps.map((step, index) => `<li>
-          <span class="step-number" aria-hidden="true">${index + 1}</span>
-          <div><h3>${e(step.title)}</h3><p>${e(step.body)}</p><p class="step-detail">${e(step.detail)}</p></div>
-        </li>`).join("")}
-      </ol>
+    <section class="sharing wrap section" aria-labelledby="share-title">
+      <div class="section-intro">
+        <h2 id="share-title">${e(c.shareTitle)}</h2>
+        <p>${e(c.shareDescription)}</p>
+      </div>
+      <div class="share-formats">
+        <div><h3>${e(c.pdfTitle)}</h3><p>${e(c.pdfDescription)}</p></div>
+        <div><h3>${e(c.pptxTitle)}</h3><p>${e(c.pptxDescription)}</p></div>
+      </div>
+      ${link(`${docs}presenting-and-export.md`, c.shareLink)}
     </section>
 
     <section class="start-section section" id="get-started" aria-labelledby="start-title">
@@ -165,23 +189,46 @@ export function renderPage({ copy: c, product, sources, siteUrl }) {
           <p>${e(c.startDescription)}</p>
         </div>
         <div class="install-cli">
-          <div><h3>${e(c.cliTitle)}</h3><p>${e(c.cliDescription)}</p>${link(`${docs}cli.md`, c.cliLink)}</div>
           <div>
-            <div class="terminal">
-              <div class="terminal-bar"><span>Terminal</span>${copyButton("cli-command")}</div>
-              <pre tabindex="0" aria-label="CLI"><code id="cli-command">${e(product.cliCommand)}</code></pre>
-            </div>
-            <p class="install-next">${e(c.cliNext)}</p>
+            <h3>${e(c.cliTitle)}</h3>
+            <p>${e(c.cliDescription)}</p>
             <p class="requirements">${e(c.cliRequirements)}</p>
+            ${link(`${docs}installation.md`, c.cliInstallLink)}
+            ${link(`${docs}cli.md`, c.cliLink)}
           </div>
+          <ol class="cli-steps">
+            <li>
+              <h4>${e(c.cliInstallTitle)}</h4>
+              <p>${e(c.cliInstallDescription)}</p>
+              ${terminal("cli-setup", product.cliSetupCommand)}
+              <p class="install-next">${e(c.cliAlternative)}</p>
+              <pre class="alternative-command" tabindex="0" aria-label="Codex"><code>${e(product.cliAlternativeCommand)}</code></pre>
+            </li>
+            <li>
+              <h4>${e(c.cliAuthorTitle)}</h4>
+              <p>${e(c.cliAuthorDescription)}</p>
+              <blockquote class="author-request"><p>${e(c.authorPrompt)}</p></blockquote>
+              <blockquote class="author-request"><p>${e(c.refinePrompt)}</p></blockquote>
+            </li>
+            <li>
+              <h4>${e(c.cliPreviewTitle)}</h4>
+              <p>${e(c.cliPreviewDescription)}</p>
+              ${terminal("cli-preview", product.cliPreviewCommand)}
+              <p class="install-next">${e(c.cliInspectDescription)}</p>
+              <blockquote class="author-request"><p>${e(c.inspectPrompt)}</p></blockquote>
+              <details class="cli-output">
+                <summary>${e(c.cliOutputTitle)}</summary>
+                <p>${e(c.cliCheckDescription)}</p>
+                ${terminal("cli-check", product.cliCheckCommand)}
+                <p class="install-next">${e(c.cliDeliveryDescription)}</p>
+                ${terminal("cli-command", product.cliCommand)}
+                ${terminal("cli-export", product.cliExportCommand)}
+                <p class="install-next">${e(c.cliNext)}</p>
+              </details>
+            </li>
+          </ol>
         </div>
         <div class="install-options">
-          <article>
-            <h3>${e(c.desktopTitle)}</h3>
-            <p>${e(c.desktopDescription)}</p>
-            ${link(`${product.repository}/releases/latest`, c.desktopLink)}
-            <p class="requirements">${e(c.desktopDetail)}</p>
-          </article>
           <article>
             <h3>${e(c.canvasTitle)}</h3>
             <p>${e(c.canvasDescription)}</p>
@@ -193,7 +240,19 @@ export function renderPage({ copy: c, product, sources, siteUrl }) {
               </div>
               <p class="requirements">${e(c.canvasWarning)}</p>
             </details>
+            <p class="install-next">${e(c.canvasNext)}</p>
+            <blockquote class="author-request"><p>${e(c.canvasAuthorPrompt)}</p></blockquote>
+            <p>${e(c.canvasReview)}</p>
             ${link(`${docs}installation.md`, c.canvasLink)}
+          </article>
+          <article>
+            <h3>${e(c.directTitle)}</h3>
+            <p>${e(c.directDescription)}</p>
+            <a class="text-link" href="${prefix}examples/markdown.md" download>${e(c.downloadSource)}${arrow}</a>
+            <h3 class="native-title">${e(c.desktopTitle)}</h3>
+            <p>${e(c.desktopDescription)}</p>
+            ${link(`${product.repository}/releases/latest`, c.desktopLink)}
+            <p class="requirements">${e(c.desktopDetail)}</p>
           </article>
         </div>
         <p class="mac-note">${e(c.macDescription)} ${link(product.macUrl, c.macLink)} <span>${e(c.macNote)}</span></p>

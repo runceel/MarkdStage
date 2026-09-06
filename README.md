@@ -33,81 +33,36 @@
   <a href="https://github.com/runceel/markdstage/releases">Releases</a>
 </p>
 
-MarkdStage is an open-source presentation tool that turns Markdown directly into polished slides,
-with editing, synchronized presenting, speaker notes, PDF export, and PowerPoint export that keeps
-text, tables, code, and diagrams editable. Its native GitHub Copilot canvas Extension, standalone
-Windows app, and command-line interface share one renderer, so authors can keep Markdown as
-the source of truth from the first draft to the stage.
+MarkdStage is an open-source tool for creating slides with AI and refining them yourself.
+Ask for a draft from notes or source material, edit the wording and diagram positions directly,
+then inspect, present, and share. Content stays in Markdown and appearance is managed through
+themes. You can also write and present without AI or the GitHub Copilot App.
 
-## Why MarkdStage
+<a id="why-markdstage"></a>
 
-- **Markdown is the source**: Keep `.md` as the source of truth instead of moving to a proprietary format
-- **Write, then present immediately**: Open a file in the canvas or Desktop and it becomes a slide deck
-- **Present technical content directly**: Supports code, Mermaid, Architecture DSL, images, tables, and speaker notes
-- **Keep output consistent**: Use the same renderer in the canvas, presentation window, Desktop, PDF, and PowerPoint export, with fenced code remaining editable in PowerPoint
-- **Validate PDF fit before export**: Preview the fixed 16:9 layout, inspect clipping, and capture only pages that need visual review
-- **Keep controls focused on presenting**: Navigate with buttons, the keyboard, or Surface Pen in supported environments
+## From draft to shared slides
 
-### Choose the diagram format
+| Stage | What you can do |
+| --- | --- |
+| **Create** | Give AI your material, audience, and presentation length. Canvas guidance or a CLI Agent Skill provides the slide format and theme references. |
+| **Refine** | Edit wording in Markdown while keeping the theme. Adjust Architecture diagram positions visually instead of sending every small change back through AI. |
+| **Inspect** | Ask AI to check whether the content fits. It uses layout diagnostics and images of selected slides to identify areas that need revision. |
+| **Present** | Keep speaker notes and the next slide in view while a synchronized audience window shows the presentation. |
+| **Share** | Export PDF for viewing or hybrid editable PowerPoint for review and further editing. Recipients do not need MarkdStage. |
 
-Use Mermaid when the diagram should be generated from its relationships and laid out automatically.
-Use Architecture DSL when the diagram is part of the slide design and its positions, sizes, groups,
-icons, connectors, or theme treatment need to remain intentional and stable. Both formats can follow
-the deck theme, but they solve different authoring problems.
-
-MarkdStage is different because the Markdown file remains the source of truth through authoring,
-presentation, layout review, PDF export, and editable PowerPoint export. The same renderer carries
-the deck across those stages, so a diagram is not only something to display: it can remain part of
-the source, be edited visually, and be carried into the final deliverable.
-
-## See Markdown on stage
-
-The same Markdown renderer powers the GitHub Copilot canvas, presenter window, Desktop app, CLI, PDF
-export, and editable PowerPoint export.
-
-<table>
-  <tr>
-    <td width="50%">
-      <img src="./assets/readme/simple-slide.png" alt="A standard Markdown slide rendered by MarkdStage">
-    </td>
-    <td width="50%">
-      <img src="./assets/readme/architecture-dsl.png" alt="An Architecture DSL diagram rendered in a MarkdStage slide">
-    </td>
-  </tr>
-  <tr>
-    <td valign="top">
-      <strong>Standard Markdown</strong><br>
-      Write headings, lists, emphasis, code, tables, and images directly. Mermaid is also available
-      when automatic diagram layout is useful.
-    </td>
-    <td valign="top">
-      <strong>Architecture DSL</strong><br>
-      Put JSON in an <code>architecture</code> fence for stable groups, icons, placement, and
-      connector routing.
-    </td>
-  </tr>
-</table>
-
-Because the MarkdStage canvas contributes the active deck and Architecture DSL to the GitHub
-Copilot App context, you can describe the diagram you want and ask Copilot to write or revise the
-Markdown for you.
-
-For visual changes, use **More controls > Open Markdown**, choose **More controls > Shape editing >
-Advanced editing**, and use the dedicated Architecture Editor. It can add, remove, arrange, and
-inspect nodes, groups, images, and connectors; changes remain a draft until **Save** writes them
-back to Markdown.
-
-<p align="center">
-  <img src="./assets/readme/architecture-editor.png" alt="The MarkdStage Architecture Editor with an API node selected" width="100%">
-</p>
+Diagnostics supplement visual review; they do not judge every design decision. Review every page
+of the final output before distribution. PowerPoint keeps supported text, lists, tables, code, and
+Architecture diagrams editable, with image fallbacks for unsupported representations. PowerPoint
+changes do not round-trip to Markdown. See [presenting and export](./docs/user-guide/presenting-and-export.md)
+for supported elements and fallback details.
 
 ## Ways to use MarkdStage
 
 | Surface | Purpose |
 | --- | --- |
-| **MarkdStage canvas** | Ask GitHub Copilot to summarize and format Markdown, or load it directly with **More controls > Open Markdown** |
-| **MarkdStage Desktop** | Present on Windows while viewing the Markdown, next slide, and speaker notes without opening GitHub Copilot |
-| **MarkdStage CLI** | Present, validate, capture, and export from a terminal, CI, Codex, or Claude Code without the canvas |
+| **[Canvas with GitHub Copilot](#use-the-canvas-extension)** | Draft and revise in the GitHub Copilot App, refine Architecture diagrams visually, and present or export from Canvas. |
+| **[CLI + Agent Skill](#use-the-cli)** | Use Claude Code or Codex to create and review a deck, then refine it locally with `preview --watch`. No Canvas host is required. |
+| **[Direct editing and native presentation](#present-without-ai)** | Write Markdown yourself or start from an example. Open it directly in Canvas, the CLI, or the Windows presenter. |
 | **MarkStageForMac** (third-party) | Present on macOS with the community-built native app. Developed and supported outside this repository |
 
 ## Use the canvas Extension
@@ -126,10 +81,23 @@ the latest development version.
 
 ### Minimal workflow
 
-1. Edit `slides.md` and separate slides with `---` after a blank line.
-2. Ask Copilot, "Present this deck using `slides.md`."
-3. Navigate with **◀ ▶**, the **arrow keys**, or the **☰ slide list** in the MarkdStage canvas.
-4. Use **More controls > Output preview** before PDF or PowerPoint export. Copilot can run `inspect_layout` first and generate selected PNG previews only when needed.
+With the Extension installed, provide notes or a source file and ask Copilot:
+
+> Create five slides for a technical audience from these notes. Save them as `slides.md` with
+> the dark theme and display them in MarkdStage Canvas.
+
+There is no need to create `slides.md` first. For a focused revision, try:
+
+> Keep the theme and shorten only the explanation on slide 2.
+
+1. Refine wording in Markdown or use the [Architecture Editor](#see-markdown-on-stage) for diagram changes.
+2. Ask Copilot, "Check whether the content fits on the slides." Use **More controls > Output preview** when reviewing the appearance yourself.
+3. Navigate with **◀ ▶**, the **arrow keys**, or the **☰ slide list**. Surface Pen navigation is available in supported environments.
+4. Open the presentation window or export PDF / PowerPoint from **More controls**. Check the final output before sharing.
+
+For an existing deck, ask: "Present this deck using `slides.md`."
+The [AI authoring guide](./docs/user-guide/ai-assisted-authoring.md) explains how Copilot uses
+format references, the active deck, and diagnostics.
 
 You can also open Markdown directly from the workspace with **More controls > Open Markdown** or
 the `I` key, without using AI. In a Git repository, the workspace is the repository root;
@@ -140,49 +108,158 @@ use canvas ID **`MarkdStage`**.
 canvasId: MarkdStage
 ```
 
+## Use the CLI
+
+The [MarkdStage CLI](./docs/user-guide/cli.md) works without Canvas in Claude Code, Codex,
+terminals, and CI. It requires **Node.js 24 or later** and an installed **Microsoft Edge,
+Google Chrome, or Chromium**; it does not download a browser.
+See the [installation guide](./docs/user-guide/installation.md) for prerequisites and offline installation.
+
+### Install and ask for a draft
+
+Install the CLI, then run the Skill command in the folder where you will create your deck.
+This example selects Claude Code:
+
+```console
+npm install --global @markdstage/markdstage
+markdstage skill install --target claude
+```
+
+For Codex, replace the Skill registration line with `markdstage skill install --target codex`.
+**Choose one; both are not required.** Skills provide the format and command guidance from
+`markdstage guide`. They are installed in `.claude/skills/markdstage/` or
+`.agents/skills/markdstage/` in that folder.
+
+Open the same folder in your chosen agent, attach notes or source material, and ask:
+
+> Use the markdstage skill to create five slides for a technical audience from these notes in
+> `slides.md`. Use the dark theme, preview the deck, and check the layout.
+
+> Keep the theme and shorten only the explanation on slide 2.
+
+### Refine, inspect, and deliver
+
+```console
+markdstage preview slides.md --watch
+```
+
+Edit Markdown in your text editor; the preview reloads on save. `preview --watch` also enables the
+pencil placement editor and **Advanced edit** for Architecture diagrams. Placement changes save
+immediately; the detailed designer keeps a draft until **Save** writes it back to Markdown.
+
+Ask the same agent to check fit in natural language:
+
+> Check whether the content fits on the slides. Identify any clipping and review images of the pages that need a closer look.
+
+The AI follows the Skill's workflow to validate structure and inspect layout, using the results to
+identify areas that need revision. You do not need to name the diagnostic commands.
+
+<details>
+<summary>How AI uses the diagnostics</summary>
+
+`inspect` (CLI) and `inspect_layout` (Canvas) are intended primarily for AI to diagnose clipping
+after rendering. They return structured information about clipped pages and elements in fixed
+16:9 output, so the AI can narrow down areas needing revision without first capturing every slide.
+
+With the CLI, the AI uses `validate` for structure, themes, and DSL, and `inspect` for fit.
+It uses `capture --pages` when selected pages need image review. See the
+[CLI guide](./docs/user-guide/cli.md) for manual use and CI integration.
+
+</details>
+
+After refinement, ask AI to present or export, or run the following commands yourself:
+
+```console
+markdstage present slides.md
+markdstage export slides.md --output slides.pdf
+markdstage export slides.md --output slides.pptx
+```
+
+`present` opens the presenter dashboard. Select **Start presentation** there to open the
+synchronized audience window. Review every page of the final export before distribution.
+
+## Present without AI
+
+Write Markdown yourself, use the [minimal format below](#markdown-format), or download a
+[source-backed example](https://runceel.github.io/markdstage/en/#examples) and save it as `slides.md`.
+No Skill registration is needed. Without a global install, you can run:
+
+```console
+npx @markdstage/markdstage preview slides.md
+npx @markdstage/markdstage present slides.md
+```
+
+`preview` without `--watch` is read-only. Canvas also opens files directly through
+**More controls > Open Markdown**. Native presenters are another option:
+
 ## Use MarkdStage Desktop
 
 [MarkdStage Desktop](./apps/MarkdStage.Desktop/README.md) is a WinUI 3 app that opens Markdown
 from a file picker. It displays the current and next slides with the current slide's speaker notes,
-and launches a synchronized native presentation window.
+and launches a synchronized native presentation window without GitHub Copilot.
 
-The current **[v3.2.0 release](https://github.com/runceel/markdstage/releases/tag/v3.2.0)**
-includes portable builds and SHA-256 checksum files for Windows x64 and ARM64:
+It requires Windows and the Microsoft Edge WebView2 Runtime. The current
+**[v3.2.0 release](https://github.com/runceel/markdstage/releases/tag/v3.2.0)** includes portable
+builds and SHA-256 checksum files for Windows x64 and ARM64:
 
 - [MarkdStage-win-x64.zip](https://github.com/runceel/markdstage/releases/download/v3.2.0/MarkdStage-win-x64.zip)
 - [MarkdStage-win-arm64.zip](https://github.com/runceel/markdstage/releases/download/v3.2.0/MarkdStage-win-arm64.zip)
 
-## Use the CLI
-
-The [MarkdStage CLI](./docs/user-guide/cli.md) runs the same renderer without the canvas, so
-Markdown decks also work in terminals, CI jobs, Codex, and Claude Code. It needs Node.js 24 or
-later and an installed Microsoft Edge, Google Chrome, or Chromium.
-
-```console
-npx @markdstage/markdstage present slides.md
-npx @markdstage/markdstage preview slides.md --watch
-npx @markdstage/markdstage validate slides.md --json
-npx @markdstage/markdstage inspect slides.md
-npx @markdstage/markdstage export slides.md --output slides.pdf
-npx @markdstage/markdstage export slides.md --output slides.pptx
-```
-
-`present` opens the presenter dashboard; select **Start presentation** there
-to open the synchronized audience window.
-
-`preview --watch` starts in viewing mode and enables the pencil placement editor
-and detailed Architecture designer; saves update the matching Markdown fence
-atomically. `preview` without `--watch` is read-only.
-
-`markdstage skill install --target codex` and `--target claude` write portable Agent Skills that
-are generated from the same guide topics as the canvas `markdstage_guide` tool.
+Extract the whole folder, run `MarkdStageApp.exe`, and open your Markdown file.
 
 <a id="community-macos-app"></a>
 
 ## Community macOS app
 
 [MarkStageForMac](https://github.com/07JP27/MarkStageForMac) is a native macOS app built by the
-MarkdStage community.
+MarkdStage community. It is developed, released, and supported outside this repository.
+
+## See Markdown on stage
+
+The same source and renderer connect editing, preview, presentation, and export.
+The [website examples](https://runceel.github.io/markdstage/en/#examples) include rendered slides
+and downloadable Markdown.
+
+<table>
+  <tr>
+    <td width="50%">
+      <img src="./assets/readme/simple-slide.png" alt="A standard Markdown slide rendered by MarkdStage">
+    </td>
+    <td width="50%">
+      <img src="./assets/readme/architecture-dsl.png" alt="An Architecture DSL diagram rendered in a MarkdStage slide">
+    </td>
+  </tr>
+  <tr>
+    <td valign="top">
+      <strong>Standard Markdown</strong><br>
+      Write headings, lists, emphasis, code, tables, and images directly. Mermaid is also available
+      when automatic diagram layout is useful.
+    </td>
+    <td valign="top">
+      <strong>Architecture DSL</strong><br>
+      Put JSON in an <code>architecture</code> fence to specify groups, icons, placement, and
+      connector routing.
+    </td>
+  </tr>
+</table>
+
+### Choose the diagram format
+
+Use **Mermaid** for automatic, relationship-driven layout; its colors can follow the deck theme.
+Use **Architecture DSL** to specify positions, sizes, groups, and connectors as part of a slide's
+composition. Both are supported; choose by the kind of diagram you need.
+
+An AI-drafted Architecture diagram can be refined directly. In Canvas, load the source with
+**More controls > Open Markdown**, then choose **More controls > Shape editing > Advanced editing**.
+The Architecture Editor can add, remove, arrange, and inspect nodes, groups, images, and connectors.
+Changes remain a draft until **Save** writes them back to Markdown. The CLI's `preview --watch`
+also provides visual Architecture editing.
+
+<p align="center">
+  <img src="./assets/readme/architecture-editor.png" alt="The MarkdStage Architecture Editor with an API node selected" width="100%">
+</p>
+
+See the [diagrams and media guide](./docs/user-guide/diagrams-and-media.md) for both formats.
 
 ## Markdown format
 
@@ -201,12 +278,36 @@ layout: title
 
 - Use standard Markdown
 - Write code and Mermaid directly
+
+<!--
+Speaker notes:
+Introduce the Markdown and Mermaid examples here.
+-->
 ```
 
 The leading front matter supplies shared deck settings. Per-slide front matter can override values
 such as `layout`, `size`, and `theme`. Put speaker notes in a top-level HTML comment on each slide;
 they appear in presenter view and are exported as readable plain text in the corresponding
 PowerPoint notes pane. They remain absent from regular slides, the audience window, and PDF output.
+
+## Documentation
+
+- [User guide](./docs/user-guide/README.md)
+- [Installation and prerequisites](./docs/user-guide/installation.md)
+- [Create slides with GitHub Copilot](./docs/user-guide/ai-assisted-authoring.md)
+- [GitHub Copilot hands-on](./docs/user-guide/copilot-hands-on.md)
+- [MarkdStage Skill](./.github/skills/markdstage/SKILL.md)
+- [Canvas Extension specification and actions](./.github/extensions/markdstage/README.md)
+- [MarkdStage Desktop](./apps/MarkdStage.Desktop/README.md)
+- [MarkdStage CLI](./docs/user-guide/cli.md)
+- [Diagrams and media](./docs/user-guide/diagrams-and-media.md)
+- [Presenting and export compatibility](./docs/user-guide/presenting-and-export.md)
+- [Custom theme authoring](./.github/extensions/markdstage/docs/custom-theme-authoring.md)
+- [Product principles](./PRODUCT.md)
+- [Brand and design system](./DESIGN.md)
+- [Release process](./.github/RELEASING.md)
+- [Third-party notices](./.github/extensions/markdstage/THIRD-PARTY-NOTICES.md)
+- [MIT License](./LICENSE)
 
 ## Repository structure
 
@@ -265,22 +366,6 @@ The MarkdStage migration does not provide compatibility aliases for the former b
 
 Existing Markdown syntax, themes, Architecture DSL, and action contracts such as `load_deck` and
 `goto_slide` remain unchanged.
-
-## Documentation
-
-- [User guide](./docs/user-guide/README.md)
-- [Create slides with GitHub Copilot](./docs/user-guide/ai-assisted-authoring.md)
-- [GitHub Copilot hands-on](./docs/user-guide/copilot-hands-on.md)
-- [MarkdStage Skill](./.github/skills/markdstage/SKILL.md)
-- [Canvas Extension specification and actions](./.github/extensions/markdstage/README.md)
-- [MarkdStage Desktop](./apps/MarkdStage.Desktop/README.md)
-- [MarkdStage CLI](./docs/user-guide/cli.md)
-- [Custom theme authoring](./.github/extensions/markdstage/docs/custom-theme-authoring.md)
-- [Product principles](./PRODUCT.md)
-- [Brand and design system](./DESIGN.md)
-- [Release process](./.github/RELEASING.md)
-- [Third-party notices](./.github/extensions/markdstage/THIRD-PARTY-NOTICES.md)
-- [MIT License](./LICENSE)
 
 ## License
 
