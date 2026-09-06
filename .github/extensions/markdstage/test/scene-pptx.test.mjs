@@ -25,6 +25,22 @@ test("preserves bounded marker stroke caps through scene normalization, mapping 
   assert.match(buildPptxPackage({ slides: [{ elements }] }).toString("utf8"), /<a:ln w="19050" cap="flat">/);
 });
 
+test("maps a sequence frame tab through the scene and PowerPoint contracts", () => {
+  const scene = normalizeScene(createScene({
+    width: 100, height: 100, source: { kind: "mermaid", path: "sequence.svg" },
+    nodes: [{
+      kind: "shape", sourcePath: "sequence[0]", z: 0,
+      bounds: { x: 10, y: 20, width: 50, height: 20 },
+      preset: "sequenceTab",
+      style: { fill: "#ffffff", stroke: "#123456", strokeWidth: 1 },
+    }],
+  })).scene;
+  const { elements, fallbacks } = sceneToPptxElements(scene);
+  assert.deepEqual(fallbacks, []);
+  assert.equal(elements[0].shape, "sequenceTab");
+  assert.match(buildPptxPackage({ slides: [{ elements }] }).toString("utf8"), /<a:custGeom>/);
+});
+
 function richText(text = "Text") {
   return {
     paragraphs: [

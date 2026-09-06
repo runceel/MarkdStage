@@ -33,7 +33,10 @@ subgraphs, connectors, and labels export as editable objects; edge-label backgro
 from crossing the text. Stadium, cylinder, and double-circle nodes use multiple editable shapes
 when their paint can be reproduced safely.
 
-Basic sequence diagrams export participants, lifelines, messages, notes, and activations.
+Basic sequence diagrams export participant boxes, their mirrored lower boxes when Mermaid emits
+them, lifelines, messages, notes, and activations. Stick-figure actors export as editable head
+circles, body lines, and labels at both the top and mirrored bottom. Simple Japanese and multiline
+participant or actor labels remain editable.
 Self messages (`A->>A`, `A-->>A`) export as editable sampled connectors when the message is a
 single unfilled open path. Asynchronous messages (`A-)B`, `B--)A`, including self messages)
 use the bundled renderer's filled, notched **stealth** head, not an open arrow. Solid/dashed
@@ -41,6 +44,13 @@ strokes and supported start/end heads (including bidirectional self messages) ar
 simple Japanese and multiline message labels remain editable. Multiple subpaths, closed or
 filled message paths, unknown heads, effects, and unsupported sequence decorations
 remain local pictures with their labels retained rather than rasterizing the supported diagram.
+
+Effect-free `rect` regions export as editable background rectangles. `autonumber` exports both its
+editable number text and the bundled circular number background. `loop`, `alt`, `opt`, and `par`
+export editable frame outlines, section dividers, condition/section labels, and Mermaid 11.15.0's
+known five-sided frame tab; these frames can be nested. A `box` title is editable text. The bundled
+box's default drop-shadow background remains one tightly bounded picture, while its title,
+participants, lifelines, frames, and messages remain independent native objects.
 
 Class diagrams export class compartments, unmarked associations, composition (`A *-- B`),
 directed associations (`A --> B`), dependencies (`A ..> B`), and multiplicities
@@ -63,7 +73,10 @@ viewports clipping the marker geometry, marker effects/transforms and unknown ma
 remain local pictures of the affected connector, including its markers. A hollow/cross start
 combined with a filled preset end also stays local when the separate primitives cannot retain
 SVG marker paint order. Unsupported paint, decorated
-labels, complex sequence constructs, effects, and unknown geometry also remain fallback pictures.
+labels, actor variants or embedded icons/images, unknown sequence controls or tab geometry,
+decorated autonumber markers, complex clipping/transforms, effects, and unknown geometry remain
+fallback pictures of the smallest safe affected element or control frame. Supported sibling
+messages and labels stay native when source ownership permits.
 Other diagram types, including pie, mindmap, and gitGraph, can still use whole-diagram artwork.
 Check the export report for the reason and source path of each fallback.
 

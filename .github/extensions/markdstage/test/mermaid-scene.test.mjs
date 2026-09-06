@@ -9,6 +9,7 @@ import {
   knownMarkerGeometry,
   markerEndpointTangents,
   polygonPointsSignature,
+  isKnownSequenceTab,
   simplifyPolyline,
   textToSceneText,
   primaryFontFamily,
@@ -190,6 +191,14 @@ test("recognizes safe additional polygons without replacing unknown geometry wit
   assert.equal(classifyPolygonPreset("0,0 100,0 50,100", { fallbackPreset: null }), null);
   assert.equal(classifyPolygonPreset("0,0 100,0 90,100 0,100", { fallbackPreset: null }), null);
   assert.equal(classifyPolygonPreset("0,0 10,0 20,0 30,0 40,0 50,0", { fallbackPreset: null }), null);
+});
+
+test("recognizes only the bundled sequence frame tab profile", () => {
+  assert.equal(isKnownSequenceTab("269,297 319,297 319,310 310.6,317 269,317"), true);
+  assert.equal(isKnownSequenceTab("0,0 100,0 100,26 83.2,40 0,40"), true);
+  assert.equal(isKnownSequenceTab("0,0 100,0 100,25 80,40 0,40"), false);
+  assert.equal(isKnownSequenceTab("0,0 100,0 100,40 0,40"), false);
+  assert.equal(isKnownSequenceTab("0,40 83.2,40 100,26 100,0 0,0"), false);
 });
 
 test("recognizes sequence arrows while leaving unsupported markers conservative", () => {

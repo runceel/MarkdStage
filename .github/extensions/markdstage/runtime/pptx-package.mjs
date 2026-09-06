@@ -621,13 +621,18 @@ function nativeShapeXml(element, path, id, relationships) {
     hexagon: "hexagon",
     parallelogram: "parallelogram",
   }[element.shape];
-  if (!preset) {
+  const geometry = element.shape === "sequenceTab"
+    ? '<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="l" t="t" r="r" b="b"/><a:pathLst><a:path w="50000" h="20000"><a:moveTo><a:pt x="0" y="0"/></a:moveTo><a:lnTo><a:pt x="50000" y="0"/></a:lnTo><a:lnTo><a:pt x="50000" y="13000"/></a:lnTo><a:lnTo><a:pt x="41600" y="20000"/></a:lnTo><a:lnTo><a:pt x="0" y="20000"/></a:lnTo><a:close/></a:path></a:pathLst></a:custGeom>'
+    : preset
+      ? `<a:prstGeom prst="${preset}"><a:avLst/></a:prstGeom>`
+      : "";
+  if (!geometry) {
     fail(
-      `${path}.shape must be rect, roundedRect, ellipse, diamond, triangle, hexagon, or parallelogram`,
+      `${path}.shape must be rect, roundedRect, ellipse, diamond, triangle, hexagon, parallelogram, or sequenceTab`,
     );
   }
   const opacity = optionalUnitInterval(element.opacity, `${path}.opacity`);
-  const properties = `${xfrmXml(bounds)}<a:prstGeom prst="${preset}"><a:avLst/></a:prstGeom>${colorXml(
+  const properties = `${xfrmXml(bounds)}${geometry}${colorXml(
     element.fill,
     `${path}.fill`,
     opacity,

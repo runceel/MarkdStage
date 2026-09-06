@@ -1,0 +1,27 @@
+%%{init: {"handDrawnSeed": 42}}%%
+sequenceDiagram
+    autonumber
+    box rgba(230, 240, 255, 0.45) サービス層
+        actor U as 利用者<br/>User
+        participant A as API
+    end
+    participant D as DB
+    rect rgba(255, 245, 200, 0.35)
+        U->>A: 開始<br/>Start
+        loop 最大3回
+            A->>D: 読み取り
+            alt 成功
+                D-->>A: 結果
+            else 失敗
+                D-->>A: エラー
+            end
+        end
+        opt キャッシュ
+            A-->>U: Cached
+        end
+        par 監査
+            A->>D: Audit
+        and 通知
+            A-->>U: Notify
+        end
+    end

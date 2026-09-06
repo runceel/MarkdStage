@@ -25,6 +25,7 @@ const SHAPE_PRESETS = new Set([
   "triangle",
   "hexagon",
   "parallelogram",
+  "sequenceTab",
 ]);
 const DASH_STYLES = new Set(["", "solid", "dash", "dashDot", "dot"]);
 const LINE_CAPS = new Set(["butt", "round", "square"]);

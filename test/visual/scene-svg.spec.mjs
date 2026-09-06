@@ -12,6 +12,9 @@ const architecture = {
     { type: "connector", from: "client", to: "api", label: "Request", arrow: true, labelLayer: "front" },
   ],
 };
+const classRelationsSlide = `# Class relationships\n\n\`\`\`mermaid\n${await readFile(new URL("../fixtures/mermaid/class-relations.mmd", import.meta.url), "utf8")}\n\`\`\``;
+const sequencePathsSlide = `# Sequence paths\n\n\`\`\`mermaid\n${await readFile(new URL("../fixtures/mermaid/sequence-paths.mmd", import.meta.url), "utf8")}\n\`\`\``;
+const sequenceDecorationsSlide = `# Sequence decorations\n\n\`\`\`mermaid\n${await readFile(new URL("../fixtures/mermaid/sequence-decorations.mmd", import.meta.url), "utf8")}\n\`\`\``;
 const slides = [
   `# Architecture\n\n\`\`\`architecture\n${JSON.stringify(architecture)}\n\`\`\``,
   "# Mermaid\n\n```mermaid\nflowchart LR\nA[Client] -->|Request| B(API)\nB --> C[(Database)]\n```",
@@ -22,17 +25,19 @@ const slides = [
   "# Class Mermaid\n\n```mermaid\nclassDiagram\nclass Animal {\n+String name\n+walk()\n}\nAnimal <|-- Duck\n```",
   ...await Promise.all(["class-hollow", "flowchart-cross", "sequence-cross"].map(async (name) =>
     `# Hollow and cross markers\n\n\`\`\`mermaid\n${await readFile(new URL(`../fixtures/mermaid/${name}.mmd`, import.meta.url), "utf8")}\n\`\`\``)),
-  `# Class relationships\n\n\`\`\`mermaid\n${await readFile(new URL("../fixtures/mermaid/class-relations.mmd", import.meta.url), "utf8")}\n\`\`\``,
-  `# Sequence paths\n\n\`\`\`mermaid\n${await readFile(new URL("../fixtures/mermaid/sequence-paths.mmd", import.meta.url), "utf8")}\n\`\`\``,
+  classRelationsSlide,
+  sequencePathsSlide,
+  sequenceDecorationsSlide,
 ];
 
 const customThemeCss = ":root{--bg:#102030;--fg:#f8fafc;--body:#d7e3f0;--muted:#abbdd0;--surface:#203448;--border:#486580;--accent:#39b8f2;--accent-strong:#72d4ff;--accent-soft:#163b50;}";
 
 // Isolate message fidelity from Chromium's same-DOM reinsertion rounding at mirrored actor corners.
 // The full mirrored fixture remains covered by the cross-surface and PPTX tests.
-const fidelitySlides = [...slides.slice(0, -1), slides.at(-1).replace(
-  '"handDrawnSeed": 42', '"handDrawnSeed": 42, "sequence": {"mirrorActors": false}',
-)];
+const fidelitySlides = slides.map((slide) =>
+  slide === sequencePathsSlide || slide === sequenceDecorationsSlide
+    ? slide.replace('"handDrawnSeed": 42', '"handDrawnSeed": 42, "sequence": {"mirrorActors": false}')
+    : slide);
 
 async function assertBackend(page, count) {
   await expect(page.locator("svg[data-scene-backend=svg]")).toHaveCount(count);
@@ -109,7 +114,14 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
 
 test("normal, presenter, fixed preview, PNG and PDF use the same shared scene rendering", async ({ browser }) => {
   test.setTimeout(90_000);
-  const surfaceSlides = [slides[0], slides[1], slides.at(-2), slides.at(-1), ...slides.slice(7, 10)];
+  const surfaceSlides = [
+    slides[0],
+    slides[1],
+    classRelationsSlide,
+    sequencePathsSlide,
+    sequenceDecorationsSlide,
+    ...slides.slice(7, 10),
+  ];
   const harness = await startHarness({ slides: surfaceSlides });
   const page = await browser.newPage();
   const errors = [];
@@ -176,6 +188,7 @@ test("safe Mermaid primitive capture retains curves, HTML labels and unknown vis
       const { createScene, normalizeScene } = await import("./renderer/scene-graph.mjs");
       const source = new DOMParser().parseFromString(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100">
         <path d="M0 0 Q50 100 200 0" stroke="red"/>
+        <g name="Actor"><circle cx="10" cy="10" r="5"/></g>
         <foreignObject width="150" height="40"><div xmlns="http://www.w3.org/1999/xhtml"><b>Rich</b><br/>label<img src="javascript:alert(1)" onerror="alert(1)"/></div></foreignObject>
         <script>alert(1)</script><image href="javascript:alert(1)" onload="alert(1)"/>
       </svg>`, "image/svg+xml").documentElement;
@@ -186,10 +199,17 @@ test("safe Mermaid primitive capture retains curves, HTML labels and unknown vis
       const svg = sceneToSvg(scene);
       return {
         path: svg.querySelector("path").getAttribute("d"), label: svg.querySelector("foreignObject").textContent,
+        name: svg.querySelector("g").getAttribute("name"),
         executable: svg.querySelectorAll("script,[onload],[onerror],[href^='javascript:'],[src^='javascript:']").length,
         lineBreaks: svg.querySelectorAll("br").length,
       };
     });
-    expect(result).toEqual({ path: "M0 0 Q50 100 200 0", label: "Richlabel", executable: 0, lineBreaks: 1 });
+    expect(result).toEqual({
+      path: "M0 0 Q50 100 200 0",
+      label: "Richlabel",
+      name: "Actor",
+      executable: 0,
+      lineBreaks: 1,
+    });
   } finally { await harness.close(); }
 });

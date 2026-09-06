@@ -2032,7 +2032,7 @@ function markMermaidNativeElements(svg, mappedElements, pathPrefix, sourceElemen
       source = sourceElements.get(ownerPath);
     }
     if (source && !source.hasAttribute("data-pptx-native")) {
-      const nativeKind = element.type === "shape" ? "shape" : element.type;
+      const nativeKind = element.mermaid?.nativeMask || (element.type === "shape" ? "shape" : element.type);
       source.setAttribute("data-pptx-native", nativeKind);
     }
     if (!sourceElements && element.type === "connector") {

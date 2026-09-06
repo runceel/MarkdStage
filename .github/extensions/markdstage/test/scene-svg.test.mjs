@@ -41,6 +41,19 @@ test("renders explicit marker caps while retaining the existing connector defaul
   }
 });
 
+test("renders the fixed Mermaid sequence frame tab profile", () => {
+  const svg = sceneToSvg(scene([{
+    kind: "shape",
+    preset: "sequenceTab",
+    sourcePath: "sequence[0]",
+    z: 0,
+    bounds: { x: 10, y: 20, width: 50, height: 20 },
+    style: { fill: "#ffffff", stroke: "#000000", strokeWidth: 1 },
+  }]), { document });
+  const path = all(svg).find((node) => node.tagName === "path");
+  assert.equal(path.attributes.get("d"), "M 10 20 L 60 20 L 60 33 L 51.6 40 L 10 40 Z");
+});
+
 test("renders scene primitives, rich text, markers, images and stable stacking with DOM APIs", () => {
   const source = scene([
     { kind: "shape", preset: "diamond", sourcePath: "node", z: 2, bounds, style: { fill: "#ffffff", stroke: "#000000", strokeWidth: 2, dash: "dot" }, text: richText },

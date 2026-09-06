@@ -43,6 +43,8 @@ const VISUAL_TAGS = new Set([
   "text",
   "use",
 ]);
+const LINE_CAPS = new Set(["butt", "round", "square"]);
+const SEQUENCE_FRAME_KINDS = new Set(["loop", "alt", "opt", "par"]);
 
 function finiteNumberOr(value, fallback) {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
@@ -160,6 +162,18 @@ export function classifyPolygonPreset(points, options = {}) {
       normalized.some((point) => closeToPoint(point, 0, 1, tolerance)) &&
       normalized.some((point) => closeToPoint(point, 1, 1, tolerance))) return "triangle";
   return fallbackPreset;
+}
+
+export function isKnownSequenceTab(points, tolerance = 0.002) {
+  const normalized = normalizePolygon(points);
+  if (normalized.length !== 5) return false;
+  return [
+    [0, 0],
+    [1, 0],
+    [1, 0.65],
+    [0.832, 1],
+    [0, 1],
+  ].every(([x, y], index) => closeToPoint(normalized[index], x, y, tolerance));
 }
 
 function markerReferenceId(value) {
@@ -417,6 +431,16 @@ function computedSvgStyle(element, options) {
     opacity: effectiveOpacity(element),
     rx: element.getAttribute("rx"),
   }, options);
+}
+
+function computedConnectorStyle(element, options) {
+  const style = getComputedStyle(element);
+  const lineCap = LINE_CAPS.has(style.strokeLinecap) ? style.strokeLinecap : undefined;
+  return definedEntries({
+    ...computedSvgStyle(element, options),
+    fill: null,
+    lineCap,
+  });
 }
 
 function computedTextStyle(element, options) {
@@ -1324,17 +1348,244 @@ function preservePaintOrder(nodes, sourceElements) {
   nodes.forEach((node, index) => assignZ(node, index, 1));
 }
 
-function measuredText(element, sourcePath, z, deck, options) {
-  return {
+function measuredText(element, sourcePath, z, deck, options, meta) {
+  return definedEntries({
     kind: "text", sourcePath, z, bounds: boundsOf(element, deck),
     text: structuredLabelText(element, options),
     textLayout: { alignment: "center", verticalAlignment: "middle", textWrap: "none" },
+    meta,
+  });
+}
+
+function numericAttributes(element, names) {
+  const rawValues = names.map((name) => element.getAttribute(name));
+  if (rawValues.some((value) => value === null)) return null;
+  const values = rawValues.map(Number);
+  return values.every(Number.isFinite) ? values : null;
+}
+
+function sameMetric(left, right, tolerance = 0.01) {
+  return Math.abs(left - right) <= tolerance;
+}
+
+function hasUniformAxisAlignedScale(element) {
+  const matrix = element?.getScreenCTM?.();
+  return Boolean(matrix) &&
+    matrix.a > 0 &&
+    matrix.d > 0 &&
+    Math.abs(matrix.b) <= 0.001 &&
+    Math.abs(matrix.c) <= 0.001 &&
+    Math.abs(matrix.a - matrix.d) <= 0.001;
+}
+
+function sequenceActorInfo(group) {
+  if (!hasClass(group, "actor-man")) return null;
+  const placement = hasClass(group, "actor-top") ? "top"
+    : hasClass(group, "actor-bottom") ? "bottom" : "";
+  if (!placement || (hasClass(group, "actor-top") && hasClass(group, "actor-bottom"))) return null;
+  const name = group.getAttribute("name") || "";
+  const actorId = group.getAttribute("data-id") || name;
+  if (!name || !actorId) return null;
+  if (placement === "top" && (
+    group.getAttribute("data-et") !== "participant" ||
+    group.getAttribute("data-type") !== "actor" ||
+    group.getAttribute("data-id") !== name
+  )) return null;
+  const children = directChildren(group);
+  if (!hasUniformAxisAlignedScale(group) || children.some((child) => !hasUniformAxisAlignedScale(child))) return null;
+  const lines = children.filter((child) => localName(child) === "line");
+  const circles = children.filter((child) => localName(child) === "circle");
+  const labels = children.filter((child) => localName(child) === "text");
+  if (lines.length !== 4 || circles.length !== 1 || labels.length < 1 ||
+      children.length !== lines.length + circles.length + labels.length ||
+      labels.some((label) => !hasClass(label, "actor") || !hasClass(label, "actor-man") ||
+        label.querySelector(":not(tspan)"))) return null;
+  const torso = lines.find((line) => /^actor-man-torso\d+$/.test(line.id));
+  const arms = lines.find((line) => /^actor-man-arms\d+$/.test(line.id));
+  const legs = lines.filter((line) => line !== torso && line !== arms && !line.id);
+  const circle = circles[0];
+  const circleMetrics = numericAttributes(circle, ["cx", "cy", "r"]);
+  const torsoMetrics = torso && numericAttributes(torso, ["x1", "y1", "x2", "y2"]);
+  const armsMetrics = arms && numericAttributes(arms, ["x1", "y1", "x2", "y2"]);
+  const legMetrics = legs.map((line) => numericAttributes(line, ["x1", "y1", "x2", "y2"]));
+  if (!circleMetrics || !torsoMetrics || !armsMetrics || legMetrics.some((metrics) => !metrics)) return null;
+  const [cx, cy, radius] = circleMetrics;
+  const [torsoX1, torsoY1, torsoX2, torsoY2] = torsoMetrics;
+  const [armsX1, armsY1, armsX2, armsY2] = armsMetrics;
+  if (!(radius > 0) || !sameMetric(torsoX1, cx) || !sameMetric(torsoX2, cx) ||
+      !sameMetric(torsoY1, cy + radius) || !(torsoY2 > torsoY1) ||
+      !sameMetric(armsY1, armsY2) || !(armsX1 < cx && armsX2 > cx) ||
+      !sameMetric((armsX1 + armsX2) / 2, cx) ||
+      !(armsY1 > torsoY1 && armsY1 < torsoY2)) return null;
+  const hip = { x: torsoX2, y: torsoY2 };
+  const outerLegPoints = [];
+  for (const metrics of legMetrics) {
+    const [x1, y1, x2, y2] = metrics;
+    const firstIsHip = sameMetric(x1, hip.x) && sameMetric(y1, hip.y);
+    const secondIsHip = sameMetric(x2, hip.x) && sameMetric(y2, hip.y);
+    if (firstIsHip === secondIsHip) return null;
+    const outer = firstIsHip ? { x: x2, y: y2 } : { x: x1, y: y1 };
+    if (!(outer.y > hip.y) || sameMetric(outer.x, hip.x)) return null;
+    outerLegPoints.push(outer);
+  }
+  if (!(outerLegPoints.some((point) => point.x < hip.x) &&
+      outerLegPoints.some((point) => point.x > hip.x))) return null;
+  const parts = new Map([
+    [torso, "torso"],
+    [arms, "arms"],
+    [circle, "head"],
+  ]);
+  legs.forEach((line, index) => parts.set(line,
+    (legMetrics[index][0] < hip.x || legMetrics[index][2] < hip.x) ? "left-leg" : "right-leg"));
+  labels.forEach((label, index) => parts.set(label, `label[${index}]`));
+  return { actorId, placement, parts };
+}
+
+function straightSequenceConnector(element, sourcePath, z, deck, options, meta, reason) {
+  const coordinates = numericAttributes(element, ["x1", "y1", "x2", "y2"]);
+  const markers = connectorMarkers(element, deck, options);
+  if (!coordinates || markers.unsupported || markers.parts.length ||
+      markers.arrowStart !== "none" || markers.arrowEnd !== "none") {
+    return fallbackNode(element, z, deck, reason, sourcePath);
+  }
+  const [x1, y1, x2, y2] = coordinates;
+  const points = [
+    screenPoint(element, { x: x1, y: y1 }, deck),
+    screenPoint(element, { x: x2, y: y2 }, deck),
+  ];
+  if (pointKey(points[0]) === pointKey(points[1])) {
+    return fallbackNode(element, z, deck, reason, sourcePath);
+  }
+  return {
+    kind: "connector", sourcePath, z, points,
+    style: computedConnectorStyle(element, options),
+    arrowStart: "none", arrowEnd: "none", meta,
+  };
+}
+
+function sequenceFrameInfo(group) {
+  if (group.getAttribute("data-et") !== "control-structure") return null;
+  const children = directChildren(group);
+  if (!hasUniformAxisAlignedScale(group) || children.some((child) => !hasUniformAxisAlignedScale(child))) return null;
+  const lines = children.filter((child) => localName(child) === "line" && hasClass(child, "loopLine"));
+  const tabs = children.filter((child) => localName(child) === "polygon" && hasClass(child, "labelBox"));
+  const kindLabels = children.filter((child) => localName(child) === "text" && hasClass(child, "labelText"));
+  const conditionLabels = children.filter((child) => localName(child) === "text" && hasClass(child, "loopText"));
+  const sectionLabels = children.filter((child) => localName(child) === "text" && hasClass(child, "sectionTitle"));
+  if (tabs.length !== 1 || kindLabels.length !== 1 || conditionLabels.length !== 1 ||
+      children.length !== lines.length + tabs.length + kindLabels.length +
+        conditionLabels.length + sectionLabels.length ||
+      lines.length !== 4 + sectionLabels.length) return null;
+  const kind = kindLabels[0].textContent.trim();
+  const controlId = group.getAttribute("data-id") || "";
+  if (!controlId || !SEQUENCE_FRAME_KINDS.has(kind)) return null;
+  const lineMetrics = lines.map((line) => numericAttributes(line, ["x1", "y1", "x2", "y2"]));
+  if (lineMetrics.some((metrics) => !metrics)) return null;
+  const [[left, top, right, topEnd], [rightStart, topStart, rightEnd, bottom],
+    [leftEnd, bottomStart, rightBottom, bottomEnd], [leftStart, topLeft, leftBottom, bottomLeft]] = lineMetrics;
+  if (!(right > left && bottom > top) ||
+      !sameMetric(top, topEnd) ||
+      !sameMetric(rightStart, right) || !sameMetric(topStart, top) ||
+      !sameMetric(rightEnd, right) ||
+      !sameMetric(leftEnd, left) || !sameMetric(bottomStart, bottom) ||
+      !sameMetric(rightBottom, right) || !sameMetric(bottomEnd, bottom) ||
+      !sameMetric(leftStart, left) || !sameMetric(topLeft, top) ||
+      !sameMetric(leftBottom, left) || !sameMetric(bottomLeft, bottom)) return null;
+  for (const divider of lineMetrics.slice(4)) {
+    const [x1, y1, x2, y2] = divider;
+    if (!sameMetric(x1, left) || !sameMetric(x2, right) ||
+        !sameMetric(y1, y2) || !(y1 > top && y1 < bottom)) return null;
+  }
+  const parts = new Map();
+  lines.forEach((line, index) => parts.set(line, index < 4 ? `outline[${index}]` : `divider[${index - 4}]`));
+  parts.set(tabs[0], "tab");
+  parts.set(kindLabels[0], "kind");
+  parts.set(conditionLabels[0], "condition[0]");
+  sectionLabels.forEach((label, index) => parts.set(label, `condition[${index + 1}]`));
+  return {
+    controlId,
+    frameLeft: left,
+    frameTop: top,
+    kind,
+    parts,
+  };
+}
+
+function sequenceBoxInfo(group, svg) {
+  const allowedAttributes = new Set(["style", "data-pptx-z-order"]);
+  if (group.parentElement !== svg || [...group.attributes].some((attribute) => !allowedAttributes.has(attribute.name)) ||
+      hasClass(group, "actor-man")) return null;
+  const children = directChildren(group);
+  const backgrounds = children.filter((child) => localName(child) === "rect" && hasClass(child, "rect"));
+  const titles = children.filter((child) => localName(child) === "text" && hasClass(child, "text"));
+  if (backgrounds.length !== 1 || titles.length > 1 ||
+      children.length !== backgrounds.length + titles.length) return null;
+  return {
+    parts: new Map([
+      [backgrounds[0], "background"],
+      ...(titles.length ? [[titles[0], "title"]] : []),
+    ]),
+  };
+}
+
+function isSequenceNumberLine(element) {
+  return localName(element) === "line" &&
+    /-sequencenumber$/.test(markerReferenceId(element.getAttribute("marker-start")));
+}
+
+function sequenceNumberBackground(element, sourcePath, z, deck, options) {
+  const fallback = () => fallbackNode(element, z, deck,
+    "unsupported-mermaid-sequence-number-background", sourcePath);
+  const coordinates = numericAttributes(element, ["x1", "y1", "x2", "y2"]);
+  const style = getComputedStyle(element);
+  const markerId = markerReferenceId(style.markerStart || element.getAttribute("marker-start"));
+  const marker = element.ownerSVGElement.querySelector(`#${CSS.escape(markerId)}`);
+  const children = marker ? directChildren(marker) : [];
+  const circle = children[0];
+  if (!coordinates || !sameMetric(coordinates[0], coordinates[2]) ||
+      !sameMetric(coordinates[1], coordinates[3]) ||
+      (style.markerMid && style.markerMid !== "none") ||
+      (style.markerEnd && style.markerEnd !== "none") ||
+      localName(marker) !== "marker" || children.length !== 1 || localName(circle) !== "circle" ||
+      marker.hasAttribute("viewBox") ||
+      (marker.getAttribute("markerUnits") || "strokeWidth") !== "strokeWidth" ||
+      marker.getAttribute("orient") !== "auto" ||
+      unsupportedVisualEffect(marker) || unsupportedVisualEffect(element)) return fallback();
+  const markerMetrics = numericAttributes(marker, ["refX", "refY", "markerWidth", "markerHeight"]);
+  const circleMetrics = numericAttributes(circle, ["cx", "cy", "r"]);
+  if (!markerMetrics || !circleMetrics ||
+      ![15, 15, 60, 40].every((value, index) => sameMetric(markerMetrics[index], value)) ||
+      ![15, 15, 6].every((value, index) => sameMetric(circleMetrics[index], value))) return fallback();
+  const matrix = element.getScreenCTM();
+  const strokeWidth = parseMetric(style.strokeWidth);
+  const circleStyle = getComputedStyle(circle);
+  const fill = normalizeColor(circleStyle.fill, options.resolveColor);
+  if (!matrix || Math.abs(matrix.b) > 0.001 || Math.abs(matrix.c) > 0.001 ||
+      matrix.a <= 0 || matrix.d <= 0 || Math.abs(matrix.a - matrix.d) > 0.001 ||
+      !(strokeWidth > 0) || !fill ||
+      normalizeColor(circleStyle.stroke) ||
+      [element, marker, circle].some((part) => Number.parseFloat(getComputedStyle(part).opacity) !== 1 ||
+        getComputedStyle(part).transform !== "none")) return fallback();
+  const center = screenPoint(element, { x: coordinates[0], y: coordinates[1] }, deck);
+  const radiusX = circleMetrics[2] * strokeWidth * matrix.a;
+  const radiusY = circleMetrics[2] * strokeWidth * matrix.d;
+  return {
+    kind: "shape", sourcePath, z,
+    bounds: {
+      x: roundedMetric(center.x - radiusX),
+      y: roundedMetric(center.y - radiusY),
+      width: roundedMetric(radiusX * 2),
+      height: roundedMetric(radiusY * 2),
+    },
+    preset: "ellipse",
+    style: { fill, stroke: null, strokeWidth: 0, opacity: 1 },
+    meta: { mermaid: { kind: "sequence-number-background", nativeMask: "connector" } },
   };
 }
 
 function sequenceScene(svg, deck, size, options) {
   const nodes = [];
-  const walk = (element) => {
+  const walk = (element, context = null) => {
     const tag = localName(element);
     if (IGNORED_TAGS.has(tag)) return;
     if (getComputedStyle(element).display === "none") return;
@@ -1345,7 +1596,137 @@ function sequenceScene(svg, deck, size, options) {
       return;
     }
     if (tag === "g") {
-      for (const child of directChildren(element)) walk(child);
+      if (hasClass(element, "actor-man")) {
+        const actor = sequenceActorInfo(element);
+        if (!actor) {
+          nodes.push(fallbackNode(element, nodes.length, deck,
+            "unsupported-mermaid-sequence-actor", sourcePath));
+          return;
+        }
+        for (const child of directChildren(element)) {
+          walk(child, { kind: "actor", ...actor, part: actor.parts.get(child) });
+        }
+        return;
+      }
+      if (element.getAttribute("data-et") === "control-structure") {
+        const frame = sequenceFrameInfo(element);
+        if (!frame) {
+          nodes.push(fallbackNode(element, nodes.length, deck,
+            "unsupported-mermaid-sequence-frame", sourcePath));
+          return;
+        }
+        for (const child of directChildren(element)) {
+          walk(child, { contextType: "frame", ...frame, part: frame.parts.get(child) });
+        }
+        return;
+      }
+      const box = sequenceBoxInfo(element, svg);
+      if (box) {
+        for (const child of directChildren(element)) {
+          walk(child, { kind: "box", part: box.parts.get(child) });
+        }
+        return;
+      }
+      for (const child of directChildren(element)) walk(child, context);
+      return;
+    }
+    if (context?.kind === "actor" && tag === "line") {
+      nodes.push(straightSequenceConnector(element, sourcePath, nodes.length, deck, options, {
+        mermaid: {
+          kind: "sequence-actor-part",
+          actorId: context.actorId,
+          placement: context.placement,
+          part: context.part,
+        },
+      }, "unsupported-mermaid-sequence-actor-part"));
+      return;
+    }
+    if (context?.kind === "actor" && tag === "circle" && context.part === "head") {
+      nodes.push({
+        kind: "shape", sourcePath, z: nodes.length, bounds: boundsOf(element, deck),
+        preset: "ellipse", style: computedSvgStyle(element, options),
+        meta: { mermaid: {
+          kind: "sequence-actor-part",
+          actorId: context.actorId,
+          placement: context.placement,
+          part: context.part,
+        } },
+      });
+      return;
+    }
+    if (context?.contextType === "frame" && tag === "line") {
+      nodes.push(straightSequenceConnector(element, sourcePath, nodes.length, deck, options, {
+        mermaid: {
+          kind: "sequence-frame-line",
+          frame: context.kind,
+          controlId: context.controlId,
+          part: context.part,
+        },
+      }, "unsupported-mermaid-sequence-frame-line"));
+      return;
+    }
+    if (context?.contextType === "frame" && tag === "polygon" && context.part === "tab") {
+      const points = parsePoints(element.getAttribute("points"));
+      if (!isKnownSequenceTab(points) || !sameMetric(points[0]?.x, context.frameLeft) ||
+          !sameMetric(points[0]?.y, context.frameTop) ||
+          !sameMetric(points[1]?.x - points[0]?.x, 50) ||
+          !sameMetric(points[4]?.y - points[0]?.y, 20)) {
+        nodes.push(fallbackNode(element, nodes.length, deck,
+          "unsupported-mermaid-sequence-frame-tab", sourcePath));
+      } else {
+        nodes.push({
+          kind: "shape", sourcePath, z: nodes.length, bounds: boundsOf(element, deck),
+          preset: "sequenceTab", style: computedSvgStyle(element, options),
+          meta: { mermaid: {
+            kind: "sequence-frame-tab",
+            frame: context.kind,
+            controlId: context.controlId,
+          } },
+        });
+      }
+      return;
+    }
+    if (context?.contextType === "frame" && tag === "text") {
+      nodes.push(element.querySelector(":not(tspan)")
+        ? fallbackNode(element, nodes.length, deck,
+            "unsupported-mermaid-sequence-frame-label", sourcePath)
+        : measuredText(element, sourcePath, nodes.length, deck, options, {
+            mermaid: {
+              kind: "sequence-frame-label",
+              frame: context.kind,
+              controlId: context.controlId,
+              part: context.part,
+            },
+          }));
+      return;
+    }
+    if (context?.kind === "box" && tag === "rect" && context.part === "background") {
+      nodes.push({
+        kind: "shape", sourcePath, z: nodes.length, bounds: boundsOf(element, deck),
+        preset: rectPreset(element), style: computedSvgStyle(element, options),
+        meta: { mermaid: { kind: "sequence-box-background" } },
+      });
+      return;
+    }
+    if (context?.kind === "box" && tag === "text" && context.part === "title") {
+      nodes.push(element.querySelector(":not(tspan)")
+        ? fallbackNode(element, nodes.length, deck,
+            "unsupported-mermaid-sequence-box-title", sourcePath)
+        : measuredText(element, sourcePath, nodes.length, deck, options, {
+            mermaid: { kind: "sequence-box-title" },
+          }));
+      return;
+    }
+    if (tag === "rect" && hasClass(element, "rect") && element.parentElement === svg) {
+      nodes.push({
+        kind: "shape", sourcePath, z: nodes.length, bounds: boundsOf(element, deck),
+        preset: rectPreset(element), style: computedSvgStyle(element, options),
+        meta: { mermaid: { kind: "sequence-background" } },
+      });
+      return;
+    }
+    if (isSequenceNumberLine(element)) {
+      nodes.push(sequenceNumberBackground(element, sourcePath, nodes.length, deck, options));
       return;
     }
     if (tag === "rect" && /^(?:actor|activation\d+|note)(?:\s|$)/.test(element.getAttribute("class") || "")) {
@@ -1353,9 +1734,19 @@ function sequenceScene(svg, deck, size, options) {
         preset: rectPreset(element), style: computedSvgStyle(element, options) });
       return;
     }
-    if (tag === "text" && /^(?:actor|messageText|noteText)(?:\s|$)/.test(element.getAttribute("class") || "") &&
+    if (tag === "text" && /^(?:actor|messageText|noteText|sequenceNumber)(?:\s|$)/.test(element.getAttribute("class") || "") &&
         !element.querySelector(":not(tspan)")) {
-      nodes.push(measuredText(element, sourcePath, nodes.length, deck, options));
+      nodes.push(measuredText(element, sourcePath, nodes.length, deck, options,
+        hasClass(element, "sequenceNumber")
+          ? { mermaid: { kind: "sequence-number" } }
+          : context?.kind === "actor"
+            ? { mermaid: {
+                kind: "sequence-actor-label",
+                actorId: context.actorId,
+                placement: context.placement,
+                part: context.part,
+              } }
+            : undefined));
       return;
     }
     if (tag === "path" && (hasClass(element, "messageLine0") || hasClass(element, "messageLine1"))) {

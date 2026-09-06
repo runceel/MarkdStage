@@ -758,6 +758,29 @@ test("emits PowerPoint-native presets for the extended Architecture shapes", () 
   }
 });
 
+test("emits the fixed editable geometry for Mermaid sequence frame tabs", () => {
+  const files = readStoredZip(
+    buildPptxPackage({
+      slides: [{
+        elements: [{
+          type: "shape",
+          shape: "sequenceTab",
+          x: 20,
+          y: 40,
+          width: 50,
+          height: 20,
+          fill: "#ffffff",
+          stroke: "#000000",
+        }],
+      }],
+    }),
+  );
+  const slide = xml(files, "ppt/slides/slide1.xml");
+  assert.match(slide, /<a:custGeom><a:avLst\/><a:gdLst\/><a:ahLst\/><a:cxnLst\/>/);
+  assert.match(slide, /<a:path w="50000" h="20000">/);
+  assert.match(slide, /<a:pt x="41600" y="20000"\/>/);
+});
+
 test("emits solid and dotted DrawingML connector styles", () => {
   const files = readStoredZip(
     buildPptxPackage({

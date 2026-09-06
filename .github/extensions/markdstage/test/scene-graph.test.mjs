@@ -145,6 +145,24 @@ test("valid scenes for every node kind are JSON-serializable without drift", () 
   ]);
 });
 
+test("accepts the internal sequence frame tab preset without broadening unknown shapes", () => {
+  const { scene, diagnostics } = normalizeScene(validScene({
+    nodes: [
+      {
+        kind: "shape",
+        sourcePath: "sequence[0]",
+        z: 0,
+        bounds: { x: 10, y: 20, width: 50, height: 20 },
+        preset: "sequenceTab",
+      },
+    ],
+  }));
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(scene.nodes[0].preset, "sequenceTab");
+  assert.equal(validateScene(scene), scene);
+});
+
 test("nested group children flatten into absolute coordinates", () => {
   const { scene } = normalizeScene(validScene({
     nodes: [

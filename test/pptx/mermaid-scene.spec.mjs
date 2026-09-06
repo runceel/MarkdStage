@@ -237,6 +237,227 @@ test("extracts editable sequence participants, lifelines, messages, activation a
   }
 });
 
+test("extracts pinned sequence actors, backgrounds, autonumber and control frames", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# Sequence decorations"] });
+  try {
+    await page.goto(harness.url);
+    const fixture = await readFixture("sequence-decorations.svg");
+    const result = await sceneFromFixture(page, fixture, "sequence-decorations.svg");
+    validateScene(result.scene);
+    expect(result.diagnostics).toEqual([{
+      path: "sequence[0]",
+      kind: "fallback",
+      reason: "unsupported-mermaid-sequence-style",
+    }]);
+    expect(result.scene.nodes.map((node) => node.z))
+      .toEqual(Array.from({ length: result.scene.nodes.length }, (_, index) => index));
+    expect(result.scene.nodes.filter((node) => node.kind === "fallback")).toMatchObject([{
+      sourcePath: "sequence[0]",
+      reason: "unsupported-mermaid-sequence-style",
+    }]);
+    expect(result.scene.nodes.filter((node) => node.kind === "shape")).toHaveLength(18);
+    expect(result.scene.nodes.filter((node) => node.kind === "connector")).toHaveLength(36);
+    expect(result.scene.nodes.filter((node) => node.kind === "text")).toHaveLength(34);
+
+    const actors = result.scene.nodes.filter((node) =>
+      ["sequence-actor-part", "sequence-actor-label"].includes(node.meta?.mermaid?.kind));
+    expect(actors.filter((node) => node.meta.mermaid.placement === "top")).toHaveLength(7);
+    expect(actors.filter((node) => node.meta.mermaid.placement === "bottom")).toHaveLength(7);
+    expect(actors.filter((node) => node.kind === "connector")).toHaveLength(8);
+    expect(actors.filter((node) => node.preset === "ellipse")).toHaveLength(2);
+    expect(actors.filter((node) => node.kind === "text")
+      .map((node) => node.text.paragraphs[0].runs[0].text))
+      .toEqual(["利用者", "User", "利用者", "User"]);
+
+    const frameLines = result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "sequence-frame-line");
+    const frameTabs = result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "sequence-frame-tab");
+    const frameLabels = result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "sequence-frame-label");
+    expect(frameLines).toHaveLength(18);
+    expect(frameTabs.map((node) => [node.preset, node.meta.mermaid.frame]))
+      .toEqual([["sequenceTab", "alt"], ["sequenceTab", "loop"], ["sequenceTab", "opt"], ["sequenceTab", "par"]]);
+    expect(frameLabels.map((node) => node.text.paragraphs[0].runs[0].text))
+      .toEqual(["alt", "[成功]", "[失敗]", "loop", "[最大3回]", "opt", "[キャッシュ]", "par", "[監査]", "[通知]"]);
+
+    const numberBackgrounds = result.scene.nodes.filter((node) =>
+      node.meta?.mermaid?.kind === "sequence-number-background");
+    const numbers = result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "sequence-number");
+    expect(numberBackgrounds).toHaveLength(7);
+    expect(numberBackgrounds.every((node) =>
+      node.preset === "ellipse" && node.meta.mermaid.nativeMask === "connector")).toBe(true);
+    expect(numbers.map((node) => node.text.paragraphs[0].runs[0].text))
+      .toEqual(["1", "2", "3", "4", "5", "6", "7"]);
+    expect(result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "sequence-background"))
+      .toMatchObject([{ kind: "shape", preset: "rect" }]);
+    expect(result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "sequence-box-title")
+      .map((node) => node.text.paragraphs[0].runs[0].text)).toEqual(["サービス層"]);
+
+    const mapped = await updateFixture(page, () => {});
+    expect(mapped.sources).toHaveLength(result.scene.nodes.length + 1);
+    for (const node of result.scene.nodes) {
+      expect(mapped.sources.some((source) => source.path === node.sourcePath), node.sourcePath).toBe(true);
+    }
+    expect(mapped.sources.find((source) => source.path === "sequence[0]").tag).toBe("rect");
+    expect(mapped.sources.find((source) => source.path === frameTabs[0].sourcePath).tag).toBe("polygon");
+    expect(mapped.sources.find((source) => source.path === numberBackgrounds[0].sourcePath).tag).toBe("line");
+    expect(mapped.sources.find((source) => source.path === actors.find((node) => node.preset === "ellipse").sourcePath).tag)
+      .toBe("circle");
+
+    const { elements, fallbacks } = sceneToPptxElements(result.scene);
+    expect(fallbacks).toMatchObject([{
+      sourcePath: "sequence[0]",
+      reason: "unsupported-mermaid-sequence-style",
+    }]);
+    expect(elements.filter((element) => element.shape === "sequenceTab")).toHaveLength(4);
+    expect(elements.filter((element) => element.mermaid?.kind === "sequence-number-background" &&
+      element.shape === "ellipse")).toHaveLength(7);
+    const buffer = buildPptxPackage({ slides: [{ elements }] });
+    expect(inspectPptxPackage(buffer).valid).toBe(true);
+    expect((buffer.toString("utf8").match(/<a:custGeom>/g) || [])).toHaveLength(4);
+
+    const positioned = await page.evaluate(async () => {
+      document.querySelector("#fixture-deck").style.cssText = "margin:23px 0 0 31px";
+      document.querySelector("svg").style.cssText =
+        "width:400px;max-width:none;transform-origin:0 0;transform:translate(80px,50px) scale(1.25)";
+      const { mermaidSvgToScene } = await import("./renderer/mermaid-scene.mjs");
+      const deck = document.querySelector("#fixture-deck");
+      const result = mermaidSvgToScene(deck.querySelector("svg"), { deck, includeSourceElements: true });
+      const deckRect = deck.getBoundingClientRect();
+      const round = (value) => Math.round(value * 10) / 10;
+      const domBounds = (element) => {
+        const bounds = element.getBoundingClientRect();
+        return {
+          x: round(bounds.left - deckRect.left),
+          y: round(bounds.top - deckRect.top),
+          width: round(bounds.width),
+          height: round(bounds.height),
+        };
+      };
+      const point = (element, x, y) => {
+        const screen = new DOMPoint(x, y).matrixTransform(element.getScreenCTM());
+        return { x: round(screen.x - deckRect.left), y: round(screen.y - deckRect.top) };
+      };
+      return {
+        diagnostics: result.diagnostics,
+        ownership: result.scene.nodes.map((node) => result.sourceElements.has(node.sourcePath)),
+        shapes: result.scene.nodes
+          .filter((node) => ["sequence-background", "sequence-frame-tab"].includes(node.meta?.mermaid?.kind) ||
+            node.meta?.mermaid?.kind === "sequence-actor-part" && node.preset === "ellipse")
+          .map((node) => ({ bounds: node.bounds, expected: domBounds(result.sourceElements.get(node.sourcePath)) })),
+        connectors: result.scene.nodes
+          .filter((node) => ["sequence-frame-line", "sequence-actor-part"].includes(node.meta?.mermaid?.kind) &&
+            node.kind === "connector")
+          .map((node) => {
+            const source = result.sourceElements.get(node.sourcePath);
+            return {
+              points: node.points,
+              expected: [
+                point(source, +source.getAttribute("x1"), +source.getAttribute("y1")),
+                point(source, +source.getAttribute("x2"), +source.getAttribute("y2")),
+              ],
+            };
+          }),
+        numbers: result.scene.nodes
+          .filter((node) => node.meta?.mermaid?.kind === "sequence-number-background")
+          .map((node) => {
+            const source = result.sourceElements.get(node.sourcePath);
+            const matrix = source.getScreenCTM();
+            const center = point(source, +source.getAttribute("x1"), +source.getAttribute("y1"));
+            const strokeWidth = parseFloat(getComputedStyle(source).strokeWidth);
+            const radius = 6 * strokeWidth;
+            return {
+              bounds: node.bounds,
+              expected: {
+                x: round(center.x - radius * matrix.a),
+                y: round(center.y - radius * matrix.d),
+                width: round(radius * matrix.a * 2),
+                height: round(radius * matrix.d * 2),
+              },
+            };
+          }),
+      };
+    });
+    expect(positioned.diagnostics).toEqual(result.diagnostics);
+    expect(positioned.ownership.every(Boolean)).toBe(true);
+    for (const entry of [...positioned.shapes, ...positioned.numbers]) {
+      expect(entry.bounds).toEqual(entry.expected);
+    }
+    for (const entry of positioned.connectors) {
+      expect(entry.points).toEqual(entry.expected);
+    }
+  } finally {
+    await harness.close();
+  }
+});
+
+test("keeps unsupported sequence decoration details inside the smallest safe fallback", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# Sequence decoration boundaries"] });
+  try {
+    await page.goto(harness.url);
+    const fixture = await readFixture("sequence-decorations.svg");
+    const cases = [
+      {
+        mutate: () => { document.querySelector("g.actor-man.actor-top circle").setAttribute("r", "14"); },
+        reason: "unsupported-mermaid-sequence-actor",
+        count: 1,
+      },
+      {
+        mutate: () => { document.querySelector("g.actor-man.actor-top").setAttribute("transform", "scale(1.2,0.8)"); },
+        reason: "unsupported-mermaid-sequence-actor",
+        count: 1,
+      },
+      {
+        mutate: () => {
+          document.querySelector("g.actor-man.actor-top")
+            .insertAdjacentHTML("beforeend", '<use href="#fixture-sequence-decorations-computer"/>');
+        },
+        reason: "unsupported-mermaid-sequence-actor",
+        count: 1,
+      },
+      {
+        mutate: () => {
+          document.querySelector('g[data-et="control-structure"] polygon.labelBox')
+            .setAttribute("points", "269,297 319,297 319,310 307,317 269,317");
+        },
+        reason: "unsupported-mermaid-sequence-frame-tab",
+        count: 1,
+      },
+      {
+        mutate: () => {
+          document.querySelector('g[data-et="control-structure"]')
+            .insertAdjacentHTML("beforeend", '<circle cx="300" cy="320" r="4"/>');
+        },
+        reason: "unsupported-mermaid-sequence-frame",
+        count: 1,
+      },
+      {
+        mutate: () => { document.querySelector("svg > rect.rect").style.filter = "blur(1px)"; },
+        reason: "unsupported-mermaid-sequence-style",
+        count: 2,
+      },
+      {
+        mutate: () => { document.querySelector('[id$="-sequencenumber"] circle').setAttribute("r", "7"); },
+        reason: "unsupported-mermaid-sequence-number-background",
+        count: 7,
+      },
+    ];
+    for (const entry of cases) {
+      await sceneFromFixture(page, fixture, "sequence-decoration-fallback.svg");
+      const result = await updateFixture(page, entry.mutate);
+      const fallbacks = result.scene.nodes.filter((node) => node.kind === "fallback");
+      expect(fallbacks.filter((node) => node.reason === entry.reason)).toHaveLength(entry.count);
+      expect(fallbacks.every((node) => result.sources.some((source) => source.path === node.sourcePath))).toBe(true);
+      expect(result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "sequence-number")).toHaveLength(7);
+      expect(result.scene.nodes.filter((node) => node.text?.paragraphs.some((paragraph) =>
+        paragraph.runs.some((run) => run.text === "Notify")))).toHaveLength(1);
+      expect(result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "sequence-box-title")).toHaveLength(1);
+      expect(sceneToPptxElements(result.scene).fallbacks.map((fallback) => fallback.sourcePath))
+        .toEqual(fallbacks.map((fallback) => fallback.sourcePath));
+    }
+  } finally {
+    await harness.close();
+  }
+});
+
 test("exports pinned sequence self paths and asynchronous heads with exact ownership and scaled endpoints", async ({ page }) => {
   const harness = await startHarness({ slides: ["# Sequence paths"] });
   try {
@@ -947,7 +1168,7 @@ test("real renderer exports new Mermaid diagrams with exact native masks and par
 });
 
 for (const theme of ["dark", "light", "microsoft", "custom"]) {
-  test(`real renderer exports sequence self and asynchronous messages with local fallback masks (${theme})`, async ({ page }) => {
+  test(`real renderer exports sequence self, asynchronous messages and editable loop frames (${theme})`, async ({ page }) => {
     const diagram = (await readFixture("sequence-paths.mmd"))
       .replace("Check", "\u78ba\u8a8d<br/>\u51e6\u7406")
       .replace("Dispatch", "\u975e\u540c\u671f<br/>\u9001\u4fe1") +
@@ -965,27 +1186,30 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
       const slide = await page.evaluate(() => window.__presentationPptxModel.slides[0]);
       const connectors = slide.elements.filter((element) => element.type === "connector" &&
         element.path?.startsWith("mermaid[0].sequence["));
-      expect(connectors).toHaveLength(17);
+      expect(connectors).toHaveLength(21);
       expect(connectors.filter((element) => element.arrowEnd === "stealth")).toHaveLength(4);
       expect(connectors.filter((element) => element.arrowStart === "triangle")).toHaveLength(2);
       expect(connectors.filter((element) => element.points.length > 2)).toHaveLength(7);
       expect(connectors.filter((element) => element.mermaid?.shape === "cross")).toHaveLength(4);
+      expect(connectors.filter((element) => element.mermaid?.kind === "sequence-frame-line")).toHaveLength(4);
+      expect(slide.elements.filter((element) => element.shape === "sequenceTab")).toHaveLength(1);
       const labels = slide.elements.filter((element) => element.type === "text" &&
         element.path?.startsWith("mermaid[0].sequence["))
         .map((element) => element.paragraphs.map((paragraph) => paragraph.runs.map((run) => run.text).join("")).join("\n"));
       // The sequence renderer emits each line of a multiline message as a separate text element.
       expect(labels).toEqual([
-        "Service", "Client", "Service", "Client", "\u78ba\u8a8d", "\u51e6\u7406", "Retry",
+        "Service", "Client", "Service", "Client", "loop", "[Retry loop]", "\u78ba\u8a8d", "\u51e6\u7406", "Retry",
         "\u975e\u540c\u671f", "\u9001\u4fe1", "Notify", "Schedule", "Exchange", "Recheck", "Reschedule",
         "Cancel self", "Cancel remote", "Again",
       ]);
       const fallbacks = slide.fallbacks.filter((fallback) => fallback.type === "mermaid");
-      expect(fallbacks.length).toBeGreaterThan(0); // Unsupported loop decorations stay local.
-      expect(fallbacks.every((fallback) => fallback.path.startsWith("mermaid[0].sequence[") && fallback.reason)).toBe(true);
+      expect(fallbacks).toEqual([]);
       const svg = page.locator("pre.mermaid > svg");
       expect(await svg.getAttribute("data-pptx-fallback-ids")).toBeNull();
       await expect(svg.locator("path[data-et=message][data-pptx-native=connector]")).toHaveCount(7);
       await expect(svg.locator("line[data-et=message][data-pptx-native=connector]")).toHaveCount(4);
+      await expect(svg.locator('g[data-et="control-structure"] line.loopLine[data-pptx-native=connector]')).toHaveCount(4);
+      await expect(svg.locator('g[data-et="control-structure"] polygon.labelBox[data-pptx-native=shape]')).toHaveCount(1);
       await expect(svg.locator("[data-et=message][data-pptx-fallback-ids]")).toHaveCount(0);
       const masks = await svg.evaluate((svg) => ({
         messages: [...svg.querySelectorAll("[data-et=message][data-pptx-native]")].map((message) => {
@@ -1009,6 +1233,93 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
       }
       expect(masks.fallback).toEqual([]);
       expect(masks.labels).toEqual(Array(13).fill({ native: "text", fill: "rgba(0, 0, 0, 0)" }));
+    } finally {
+      await harness.close();
+    }
+  });
+
+  test(`real renderer masks native sequence decorations and keeps the box shadow local (${theme})`, async ({ page }) => {
+    const diagram = await readFixture("sequence-decorations.mmd");
+    const harness = await startHarness({
+      slides: [`# Sequence decorations\n\n\`\`\`mermaid\n${diagram}\n\`\`\``],
+      theme,
+      customThemeCss: theme === "custom" ? "--bg:#102030;--fg:#fefefe;--body:#e0e4e8;--accent:#ff6600;--surface:#203040;--border:#405060;" : "",
+    });
+    try {
+      await page.goto(`${harness.url}/?pptx=1&token=${encodeURIComponent(harness.printToken)}`);
+      await page.waitForFunction(() => document.documentElement.hasAttribute("data-pptx-ready") ||
+        document.documentElement.hasAttribute("data-pptx-error"), undefined, { timeout: 120_000 });
+      await expect(page.locator("html")).toHaveAttribute("data-pptx-ready", "true");
+      const slide = await page.evaluate(() => window.__presentationPptxModel.slides[0]);
+      const sequence = slide.elements.filter((element) => element.path?.startsWith("mermaid[0].sequence["));
+      expect(sequence.filter((element) => element.type === "shape")).toHaveLength(18);
+      expect(sequence.filter((element) => element.type === "connector")).toHaveLength(36);
+      expect(sequence.filter((element) => element.type === "text")).toHaveLength(34);
+      expect(sequence.filter((element) => element.shape === "sequenceTab")).toHaveLength(4);
+      expect(sequence.filter((element) => element.mermaid?.kind === "sequence-frame-line")).toHaveLength(18);
+      expect(sequence.filter((element) => element.mermaid?.kind === "sequence-frame-label")).toHaveLength(10);
+      expect(sequence.filter((element) => element.mermaid?.kind === "sequence-number-background")).toHaveLength(7);
+      expect(sequence.filter((element) => element.mermaid?.kind === "sequence-number")).toHaveLength(7);
+      expect(sequence.filter((element) => element.mermaid?.kind === "sequence-actor-part")).toHaveLength(10);
+      expect(sequence.filter((element) => element.mermaid?.kind === "sequence-actor-label")).toHaveLength(4);
+      expect(sequence.filter((element) => element.mermaid?.kind === "sequence-background")).toHaveLength(1);
+      expect(sequence.filter((element) => element.mermaid?.kind === "sequence-box-title")
+        .map((element) => element.paragraphs[0].runs[0].text)).toEqual(["サービス層"]);
+      expect(slide.fallbacks.filter((fallback) => fallback.type === "mermaid")).toMatchObject([{
+        path: "mermaid[0].sequence[0]",
+        sourcePath: "sequence[0]",
+        reason: "unsupported-mermaid-sequence-style",
+      }]);
+
+      const svg = page.locator("pre.mermaid > svg");
+      expect(await svg.getAttribute("data-pptx-fallback-ids")).toBeNull();
+      await expect(svg.locator(":scope > rect.rect[data-pptx-native=shape]")).toHaveCount(1);
+      await expect(svg.locator(":scope > g > rect.rect[data-pptx-fallback-ids]")).toHaveCount(1);
+      await expect(svg.locator(":scope > g > text.text[data-pptx-native=text]")).toHaveCount(1);
+      await expect(svg.locator("rect.actor[data-pptx-native=shape]")).toHaveCount(4);
+      await expect(svg.locator("text.actor.actor-box[data-pptx-native=text]")).toHaveCount(4);
+      await expect(svg.locator("g.actor-man line[data-pptx-native=connector]")).toHaveCount(8);
+      await expect(svg.locator("g.actor-man circle[data-pptx-native=shape]")).toHaveCount(2);
+      await expect(svg.locator("g.actor-man text[data-pptx-native=text]")).toHaveCount(4);
+      await expect(svg.locator("line.actor-line[data-pptx-native=connector]")).toHaveCount(3);
+      await expect(svg.locator('g[data-et="control-structure"] line.loopLine[data-pptx-native=connector]')).toHaveCount(18);
+      await expect(svg.locator('g[data-et="control-structure"] polygon.labelBox[data-pptx-native=shape]')).toHaveCount(4);
+      await expect(svg.locator('g[data-et="control-structure"] text[data-pptx-native=text]')).toHaveCount(10);
+      await expect(svg.locator('line[marker-start*="sequencenumber"][data-pptx-native=connector]')).toHaveCount(7);
+      await expect(svg.locator("text.sequenceNumber[data-pptx-native=text]")).toHaveCount(7);
+      await expect(svg.locator("[data-et=message][data-pptx-native=connector]")).toHaveCount(7);
+      await expect(svg.locator("[data-et=message][data-pptx-fallback-ids]")).toHaveCount(0);
+
+      const masks = await svg.evaluate((element) => ({
+        background: [...element.querySelectorAll(":scope > rect.rect[data-pptx-native]")].map((entry) => {
+          const style = getComputedStyle(entry);
+          return [style.fill, style.stroke];
+        }),
+        boxFallbacks: [...element.querySelectorAll(":scope > g > rect.rect[data-pptx-fallback-ids]")]
+          .map((entry) => entry.getAttribute("data-pptx-fallback-ids")),
+        actorLines: [...element.querySelectorAll("g.actor-man line[data-pptx-native]")].map((entry) =>
+          getComputedStyle(entry).stroke),
+        actorHeads: [...element.querySelectorAll("g.actor-man circle[data-pptx-native]")].map((entry) => {
+          const style = getComputedStyle(entry);
+          return [style.fill, style.stroke];
+        }),
+        tabs: [...element.querySelectorAll("polygon.labelBox[data-pptx-native]")].map((entry) => {
+          const style = getComputedStyle(entry);
+          return [style.fill, style.stroke];
+        }),
+        numberMarkers: [...element.querySelectorAll('line[marker-start*="sequencenumber"][data-pptx-native]')]
+          .map((entry) => getComputedStyle(entry).markerStart),
+        nativeText: [...element.querySelectorAll("text.sequenceNumber[data-pptx-native], :scope > g > text.text[data-pptx-native]")]
+          .map((entry) => getComputedStyle(entry).fill),
+      }));
+      expect(masks.background).toEqual([["rgba(0, 0, 0, 0)", "rgba(0, 0, 0, 0)"]]);
+      expect(masks.boxFallbacks).toHaveLength(1);
+      expect(masks.boxFallbacks[0]).toMatch(/^pptx-fallback-\d+$/);
+      expect(masks.actorLines).toEqual(Array(8).fill("rgba(0, 0, 0, 0)"));
+      expect(masks.actorHeads).toEqual(Array(2).fill(["rgba(0, 0, 0, 0)", "rgba(0, 0, 0, 0)"]));
+      expect(masks.tabs).toEqual(Array(4).fill(["rgba(0, 0, 0, 0)", "rgba(0, 0, 0, 0)"]));
+      expect(masks.numberMarkers).toEqual(Array(7).fill("none"));
+      expect(masks.nativeText).toEqual(Array(8).fill("rgba(0, 0, 0, 0)"));
     } finally {
       await harness.close();
     }
