@@ -91,6 +91,47 @@ export function serializeThemeVariables(variables) {
     .join("");
 }
 
+// Mermaid's "base" theme accepts a `themeVariables` palette instead of one of
+// its built-in named themes (dark/default/neutral/forest). Deriving that
+// palette from the rendered deck's custom properties makes Mermaid diagrams
+// share the slide's background, border, and text colors instead of only
+// approximating the deck theme, and it reuses the same primary/secondary
+// roles as the Architecture DSL (nodes: surface+border+fg, groups:
+// accent-soft+accent-line+accent-strong) so both diagram types match.
+export function mermaidThemeVariables(style) {
+  const read = (name) => style.getPropertyValue(name).trim();
+  const background = read("--bg");
+  const surface = read("--surface");
+  const border = read("--border");
+  const foreground = read("--fg");
+  const body = read("--body");
+  const accent = read("--accent");
+  const accentStrong = read("--accent-strong");
+  const accentSoft = read("--accent-soft");
+  const accentLine = read("--accent-line");
+
+  return {
+    background,
+    primaryColor: surface,
+    primaryTextColor: foreground,
+    primaryBorderColor: border,
+    secondaryColor: accentSoft,
+    secondaryTextColor: accentStrong,
+    secondaryBorderColor: accentLine,
+    tertiaryColor: background,
+    tertiaryTextColor: body,
+    tertiaryBorderColor: border,
+    lineColor: accent,
+    textColor: foreground,
+    mainBkg: surface,
+    nodeBorder: border,
+    clusterBkg: accentSoft,
+    clusterBorder: accentLine,
+    titleColor: foreground,
+    edgeLabelBackground: background,
+  };
+}
+
 function assertPlainObject(value, path) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error(`${path} must be an object`);
