@@ -144,13 +144,12 @@ Codex を使う場合は、スキル登録の行を `markdstage skill install --
 ### 調整・確認・発表
 
 ```console
-markdstage preview slides.md --watch
+markdstage slides.md
 ```
 
-Markdown をテキストエディターで編集すると、保存時にプレビューが更新されます。
-`preview --watch` では鉛筆ボタンから Architecture 図の配置を調整でき、**Advanced edit** で
-詳細な編集ができます。配置変更はその場で保存され、詳細デザイナーの下書きは **Save** で
-Markdown に書き戻されます。
+Markdown をテキストエディターで編集すると、保存時に UI が更新されます。同じ UI で
+鉛筆ボタンから Architecture 図の配置を調整でき、**Advanced edit** で詳細な編集ができます。
+配置変更はその場で保存され、詳細デザイナーの下書きは **Save** で Markdown に書き戻されます。
 
 収まりの確認は、同じエージェントに自然言語で依頼できます。
 
@@ -180,7 +179,7 @@ markdstage export slides.md --output slides.pdf
 markdstage export slides.md --output slides.pptx
 ```
 
-`present` は発表者用ダッシュボードを開きます。そこで **Start presentation** を選ぶと、
+`present` は同じフル UI を発表者ビューで開きます。そこで **Start presentation** を選ぶと、
 同期された観客向けウィンドウが開きます。配布前には最終出力の全ページを確認します。
 
 <a id="present-without-ai"></a>
@@ -193,12 +192,15 @@ Markdown を自分で書くか、[最小の記述例](#markdown-format)や
 次のように実行できます。
 
 ```console
-npx @markdstage/markdstage preview slides.md
+npx @markdstage/markdstage
+npx @markdstage/markdstage slides.md
 npx @markdstage/markdstage present slides.md
 ```
 
-`--watch` のない `preview` は読み取り専用です。Canvas の **More controls > Open Markdown**
-からも直接開けます。発表用のネイティブアプリも利用できます。
+最初のコマンドは現在のワークスペースを対象に Canvas と同等の空の UI を開きます。2つ目は
+`slides.md` を自動更新付きで開きます。CLI UI と Canvas のどちらでも
+**More controls > Open Markdown** からファイルを直接開けます。発表用のネイティブアプリも
+利用できます。
 
 <a id="desktop"></a>
 

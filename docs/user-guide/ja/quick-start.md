@@ -45,7 +45,18 @@ HTML コメントを置く場合は、コメントの終了行と次の `---` �
 
 ![Markdown デッキとプレゼンテーション操作を表示した Canvas Extension](../images/canvas-main.png)
 
-## 3. MarkdStage Desktop で開く
+## 3. CLI アプリケーションで開く
+
+Markdown のパスを指定して CLI を実行すると、Canvas と同等の UI が自動更新付きで開きます。
+
+```console
+npx @markdstage/markdstage docs/user-guide/examples/quick-start.md
+```
+
+ファイルを指定せずに `markdstage` を実行すると空の UI が開き、
+**More controls > Open Markdown** からファイルを選べます。
+
+## 4. MarkdStage Desktop で開く
 
 1. [MarkdStage の最新リリース](https://github.com/runceel/markdstage/releases/latest)から、
    環境に合ったポータブル ZIP をダウンロードします。
@@ -57,14 +68,15 @@ HTML コメントを置く場合は、コメントの終了行と次の `---` �
 
 ![現在と次のスライドおよびスピーカーノートを表示した MarkdStage Desktop](../images/desktop-main.png)
 
-## 4. プレゼンテーションを開始する
+## 5. プレゼンテーションを開始する
 
 - **Canvas Extension:** **More controls > External window** で外部の投影用ウィンドウを開くか、
   **More controls > Presenter view** で現在のスライド、次のスライド、ノートをまとめて表示します。
+- **CLI:** 同じ操作を使うか、`markdstage present slides.md` で発表者ビューから開始します。
 - **Desktop:** **Start presentation** を選ぶと、操作が同期する投影用ウィンドウが開きます。
 - 投影用ウィンドウで `F11` を押すと全画面表示になり、`Esc` で元に戻ります。
 
-## 5. PDF または PowerPoint をエクスポートする
+## 6. PDF または PowerPoint をエクスポートする
 
 Canvas Extension から書き出します。
 
@@ -81,7 +93,8 @@ npx @markdstage/markdstage export slides.md --output slides.pdf
 npx @markdstage/markdstage export slides.md --output slides.pptx
 ```
 
-MarkdStage Desktop にエクスポート機能はありません。Canvas Extension か CLI を使います。
+CLI アプリケーションの **More controls** からも **Export PDF** と
+**Export PowerPoint** を利用できます。MarkdStage Desktop にエクスポート機能はありません。
 
 ## 次のステップ
 

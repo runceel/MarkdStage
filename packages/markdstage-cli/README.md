@@ -16,8 +16,8 @@ exported PDF, or hybrid editable PowerPoint deck.
 ## Install
 
 ```console
-npx @markdstage/markdstage present slides.md
-npx @markdstage/markdstage preview slides.md
+npx @markdstage/markdstage
+npx @markdstage/markdstage slides.md
 npm install --global @markdstage/markdstage
 ```
 
@@ -31,6 +31,8 @@ npm install --global .\markdstage-markdstage-<version>.tgz
 ## Commands
 
 ```console
+markdstage
+markdstage slides.md
 markdstage present slides.md
 markdstage preview slides.md --watch
 markdstage validate slides.md --json
@@ -43,10 +45,14 @@ markdstage skill install --target codex
 markdstage skill install --target claude
 ```
 
+`markdstage` opens an empty Canvas-equivalent UI for the current workspace.
+Choose **Open Markdown** to load a deck. `markdstage slides.md` opens the same UI
+in slide view with automatic refresh enabled.
+
 | Command | Description |
 | --- | --- |
-| `present` | Opens the presenter view with the current slide, next-slide preview, speaker notes, and navigation. Select **Start presentation** to open the synchronized audience-facing window; select **End presentation** to close it. `--watch` reloads on save, and `--no-open` serves the presenter URL without launching a browser. |
-| `preview` | Serves the deck on loopback and opens the MarkdStage preview: navigation, presenter view, next-slide preview, speaker notes, overview, custom themes, Mermaid, Architecture DSL, and local assets. `--watch` reloads on save while preserving the current slide, keeps the last valid deck when a save is broken, and enables Architecture editing. Without `--watch`, the source is read-only. `--no-open` serves the deck only. |
+| `present` | Opens the full MarkdStage UI in presenter view. Open Markdown, automatic refresh, editing, export, and audience controls remain available. `--watch` starts in live mode, and `--no-open` serves the UI without launching a browser. |
+| `preview` | Opens the same full UI in slide view. It is a compatibility/convenience entry point; `--watch` starts in live mode, and `--no-open` serves the UI without launching a browser. |
 | `validate` | Checks deck structure, Architecture DSL blocks, themes, and theme paths. |
 | `inspect` | Reports the same compact 1280x720 clipping diagnostics as the canvas `inspect_layout` action. `--slide <n>` limits it to one page, `--all` includes slides that fit, `--fail-on-issues` exits with code 5. |
 | `capture` | Writes 1280x720 PNG files. Without `--pages` only the slides reported as clipped are captured. |
@@ -55,13 +61,14 @@ markdstage skill install --target claude
 | `skill` | Installs or checks the portable Agent Skills for Codex (`.agents/skills/markdstage/`), Claude Code (`.claude/skills/markdstage/`), and GitHub Copilot (`.github/skills/markdstage/`). Locally modified files are never overwritten without `--force`. |
 | `help` | Shows the overview, or the help for one command. `markdstage help <command>` prints the same text as `markdstage <command> --help`. |
 
-Global options: `--workspace <dir>`, `--theme <name>`, `--theme-file <path>`,
-`--json`, `--help`, `--version`.
+Application options: `--workspace <dir>`, `--theme <name>`,
+`--theme-file <path>`, `--no-open`, and `--json`. Use `--help` and `--version`
+for global information.
 
 ## Architecture editing
 
-Run `markdstage preview slides.md --watch` for the live authoring workflow. The
-browser starts in the fixed 16:9 output preview and remains in viewing mode.
+Run `markdstage slides.md` for the live authoring workflow. The browser starts
+in the fixed 16:9 output preview and remains in viewing mode.
 Select **Output preview** to switch to the retained responsive layout. Select
 the pencil control to move Architecture elements; editing automatically switches
 to the responsive layout, and those placement changes are saved atomically to
@@ -70,7 +77,8 @@ duplicate, reparent, or delete elements in the detailed designer, then select
 **Save**.
 
 The server rejects a save if the Markdown changed outside the editor. Successful
-saves reload the watched deck without changing the current slide. Presenter,
+saves reload the watched deck without changing the current slide. Automatic
+refresh can be toggled without disabling Architecture editing. Presenter,
 capture, inspect, and export views contain no editing UI.
 
 ```console

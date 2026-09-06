@@ -33,10 +33,13 @@ GitHub Copilot に次のように依頼します。
 `npx` で直接実行するか、グローバルにインストールします。
 
 ```console
-npx @markdstage/markdstage present slides.md
-npx @markdstage/markdstage preview slides.md
+npx @markdstage/markdstage
+npx @markdstage/markdstage slides.md
 npm install --global @markdstage/markdstage
 ```
+
+最初のコマンドは現在のワークスペース用の空の UI を開きます。2つ目は `slides.md` を
+自動更新付きのスライド表示で開きます。
 
 オフラインでインストールする場合は、[GitHub Release](https://github.com/runceel/markdstage/releases)
 からバージョン付きの `markdstage-markdstage-<version>.tgz` と `.sha256` チェックサムをダウンロードし、

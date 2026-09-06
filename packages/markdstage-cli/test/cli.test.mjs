@@ -2,12 +2,14 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
+import { EventEmitter } from "node:events";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 import { run } from "../src/cli.mjs";
 import { withDeckServer } from "../src/deck.mjs";
+import { applicationCommand } from "../src/commands/present.mjs";
 import { exportCommand } from "../src/commands/export.mjs";
 import { inspectCommand } from "../src/commands/inspect.mjs";
 import { EXIT_DECK, EXIT_ISSUES, EXIT_OK, EXIT_USAGE } from "../src/exit.mjs";
@@ -53,11 +55,13 @@ const VALID_DECK = [
   "",
 ].join("\n");
 
-test("bare invocation prints usage", async () => {
+test("bare invocation opens an empty application", async () => {
   const io = capture();
+  io.open = false;
+  io.until = Promise.resolve();
   assert.equal(await run([], io), EXIT_OK);
-  assert.match(io.stdout(), /Usage: markdstage <command>/);
-  assert.match(io.stdout(), /Exit codes:/);
+  assert.match(io.stdout(), /MarkdStage is ready in the workspace/);
+  assert.match(io.stdout(), /slides:\s+0/);
 });
 
 test("unknown commands and options fail with the usage exit code", async () => {
@@ -94,7 +98,7 @@ test("every command documents itself", async () => {
 test("the help command prints global and per-command help", async () => {
   const io = capture();
   assert.equal(await run(["help"], io), EXIT_OK);
-  assert.match(io.stdout(), /Usage: markdstage <command>/);
+  assert.match(io.stdout(), /markdstage <file\.md> \[options\]/);
   assert.match(io.stdout(), /Exit codes:/);
 
   const io2 = capture();
@@ -107,19 +111,19 @@ test("the help command prints global and per-command help", async () => {
   assert.equal(io2.stdout(), io3.stdout());
 });
 
-test("preview help explains watch-mode Architecture editing", async () => {
+test("preview help explains the shared slide-view application", async () => {
   const io = capture();
   assert.equal(await run(["preview", "--help"], io), EXIT_OK);
-  assert.match(io.stdout(), /--watch\s+Reload on save and enable Architecture editing/);
-  assert.match(io.stdout(), /Without --watch, preview is read-only/);
-  assert.match(io.stdout(), /detailed designer/);
+  assert.match(io.stdout(), /full MarkdStage UI in slide view/);
+  assert.match(io.stdout(), /--watch\s+Start with automatic refresh enabled/);
+  assert.match(io.stdout(), /Architecture editing and export remain available/);
 });
 
-test("present help explains the presenter and audience views", async () => {
+test("present help explains the shared presenter-view application", async () => {
   const io = capture();
   assert.equal(await run(["present", "--help"], io), EXIT_OK);
-  assert.match(io.stdout(), /Opens presenter view/);
-  assert.match(io.stdout(), /Start presentation.*audience window/);
+  assert.match(io.stdout(), /full MarkdStage UI in presenter view/);
+  assert.match(io.stdout(), /editing, export, and audience controls remain available/);
 });
 
 test("presentation is not retained as a compatibility alias", async () => {
@@ -235,6 +239,134 @@ test("preview --json writes only one machine-readable document", async () => {
     assert.equal(report.ok, true);
     assert.equal(report.total, 3);
   });
+
+  test("direct Markdown invocation starts live slide view", async () => {
+    await withDeck(VALID_DECK, async ({ file }) => {
+      const io = capture();
+      io.open = false;
+      io.until = Promise.resolve();
+      assert.equal(await run([file, "--json"], io), EXIT_OK);
+      const report = JSON.parse(io.stdout());
+      assert.equal(report.ok, true);
+      assert.equal(report.sourceMode, "live");
+      assert.equal(new URL(report.url).searchParams.has("presenter"), false);
+    });
+  });
+
+  test("bare invocation can report the empty application as JSON", async () => {
+    const io = capture();
+    io.open = false;
+    io.until = Promise.resolve();
+    assert.equal(await run(["--json"], io), EXIT_OK);
+    const report = JSON.parse(io.stdout());
+    assert.equal(report.ok, true);
+    assert.equal(report.total, 0);
+    assert.equal(report.sourceMode, "snapshot");
+  });
+
+  test("application reports the source mode selected before exit", async () => {
+    await withDeck(VALID_DECK, async ({ dir, file }) => {
+      let stop;
+      let publishUrl;
+      const until = new Promise((resolve) => {
+        stop = resolve;
+      });
+
+      test("concurrent audience requests launch only one browser process", async () => {
+        await withDeck(VALID_DECK, async ({ dir, file }) => {
+          let stop;
+          let publishUrl;
+          let spawnCount = 0;
+          let terminateCount = 0;
+          const until = new Promise((resolve) => {
+            stop = resolve;
+          });
+          const urlReady = new Promise((resolve) => {
+            publishUrl = resolve;
+          });
+          const running = applicationCommand(
+            {
+              file,
+              workspace: dir,
+              open: false,
+              until,
+            },
+            {
+              print: (message) => {
+                const match = /^  url:\s+(.+)$/.exec(message);
+                if (match) publishUrl(match[1]);
+              },
+              status: () => {},
+            },
+            {
+              findChromiumBrowser: () => "browser",
+              mkdtemp: async () => "profile",
+              rm: async () => {},
+              spawn: () => {
+                spawnCount += 1;
+                const process = new EventEmitter();
+                process.exitCode = null;
+                process.signalCode = null;
+                process.killed = false;
+                queueMicrotask(() => process.emit("spawn"));
+                return process;
+              },
+              terminateProcessTree: async (process) => {
+                terminateCount += 1;
+                process.exitCode = 0;
+              },
+            },
+          );
+          const url = await urlReady;
+          const request = () =>
+            fetch(new URL("present", url), {
+              method: "POST",
+              headers: { origin: new URL(url).origin },
+            }).then((response) => response.json());
+          const results = await Promise.all([request(), request()]);
+          assert.equal(spawnCount, 1);
+          assert.deepEqual(
+            results.map((result) => result.alreadyRunning).sort(),
+            [false, true],
+          );
+          stop();
+          await running;
+          assert.equal(terminateCount, 1);
+        });
+      });
+      const urlReady = new Promise((resolve) => {
+        publishUrl = resolve;
+      });
+      const running = applicationCommand(
+        {
+          file,
+          workspace: dir,
+          live: true,
+          open: false,
+          until,
+        },
+        {
+          print: (message) => {
+            const match = /^  url:\s+(.+)$/.exec(message);
+            if (match) publishUrl(match[1]);
+          },
+          status: () => {},
+        },
+      );
+      const url = await urlReady;
+      const changed = await fetch(new URL("source-mode", url), {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: new URL(url).origin,
+        },
+        body: JSON.stringify({ mode: "snapshot" }),
+      });
+      assert.equal(changed.status, 200);
+      stop();
+      assert.equal((await running).sourceMode, "snapshot");
+    });
+  });
 });
 
 test("preview and present identify their operation in terminal output", async () => {
@@ -260,6 +392,20 @@ test("present starts at the presenter view URL", async () => {
       EXIT_OK,
     );
     assert.equal(new URL(JSON.parse(io.stdout()).url).searchParams.get("presenter"), "1");
+  });
+
+  test("preview starts at slide view with snapshot refresh by default", async () => {
+    await withDeck(VALID_DECK, async ({ file }) => {
+      const io = capture();
+      io.until = Promise.resolve();
+      assert.equal(
+        await run(["preview", file, "--no-open", "--json"], io),
+        EXIT_OK,
+      );
+      const report = JSON.parse(io.stdout());
+      assert.equal(new URL(report.url).searchParams.has("presenter"), false);
+      assert.equal(report.sourceMode, "snapshot");
+    });
   });
 });
 

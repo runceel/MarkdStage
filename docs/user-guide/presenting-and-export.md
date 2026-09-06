@@ -16,14 +16,14 @@ available preparation and export tools differ by surface.
 | External/audience window | Yes | Yes | Yes |
 | Synchronized navigation | Yes | Yes | Yes |
 | Fullscreen audience view | `F11` | `F11` | `F11` |
-| 16:9 clipping preview | Yes | No | `markdstage inspect` |
-| PDF export | Yes | No | `markdstage export --output slides.pdf` |
-| Editable PowerPoint export | Yes | No | `markdstage export --output slides.pptx` |
+| 16:9 clipping preview | Yes | No | UI and `markdstage inspect` |
+| PDF export | Yes | No | UI and `markdstage export --output slides.pdf` |
+| Editable PowerPoint export | Yes | No | UI and `markdstage export --output slides.pptx` |
 | Surface Pen | Supported on Windows | Supported while audience window is open | No |
 
 ## Prepare presenter view
 
-Open presenter view in Canvas or use the Desktop main window. Confirm:
+Open presenter view in Canvas or the CLI application, or use the Desktop main window. Confirm:
 
 - The current slide is correct.
 - The next slide preview is useful.
@@ -36,6 +36,8 @@ Open presenter view in Canvas or use the Desktop main window. Confirm:
 
 - **Canvas:** Select **More controls > External window**, or select **Start presentation** in
   presenter view.
+- **CLI:** Use the same controls. `markdstage present slides.md` starts with
+  presenter view already open.
 - **Desktop:** Select **Start presentation**.
 
 Move the new window to the audience display. Press `F11` for fullscreen and `Esc` to leave
@@ -43,8 +45,8 @@ fullscreen. Navigation from the presenter and audience surfaces remains synchron
 
 ## Check fixed 16:9 output
 
-In the Canvas Extension, select **More controls > Output preview**. The slide is letterboxed with
-the exact 1280x720 typography, spacing, and content limits used by PDF output.
+In the Canvas Extension or CLI application, select **More controls > Output preview**. The slide
+is letterboxed with the exact 1280x720 typography, spacing, and content limits used by PDF output.
 
 If content exceeds the fixed page, MarkdStage shows a clipping warning:
 
@@ -62,8 +64,8 @@ You can also ask Copilot to inspect the deck's PDF layout and identify pages tha
 3. Select **More controls > Export PDF**.
 4. Open the generated PDF from the workspace and review every page.
 
-When the deck was loaded from Markdown, the Canvas Extension derives the PDF name from the source
-filename. The exported file contains one 16:9 page per slide, including the back cover, with
+When the deck was loaded from Markdown, Canvas and the CLI application derive the PDF name from
+the source filename. The exported file contains one 16:9 page per slide, including the back cover, with
 backgrounds, images, highlighted code, Mermaid, and Architecture diagrams.
 
 Speaker notes and Architecture editing controls are excluded.

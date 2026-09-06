@@ -2,6 +2,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
+import { writeFileSync } from "node:fs";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -35,6 +36,26 @@ async function withWorkspace(run) {
   }
 }
 
+async function post(baseUrl, route, body = {}) {
+  return fetch(new URL(route, baseUrl), {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      origin: new URL(baseUrl).origin,
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+async function waitFor(check, timeoutMs = 2_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await check()) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  assert.fail("Condition was not met before the timeout.");
+}
+
 test("parsePageList understands lists and ranges", () => {
   assert.deepEqual(parsePageList("2,4"), [1, 3]);
   assert.deepEqual(parsePageList("2-4"), [1, 2, 3]);
@@ -52,6 +73,265 @@ test("createDeckSession confines the deck to the workspace", async () => {
       createDeckSession({ file: join(dir, "..", "outside.md"), workspaceRoot: dir }),
       (error) => error instanceof MarkdStageError,
     );
+  });
+
+  test("createDeckSession can start empty and open a source later", async () => {
+    await withWorkspace(async ({ dir, file }) => {
+      const session = await createDeckSession({ workspaceRoot: dir });
+      assert.equal(session.file, "");
+      assert.equal(session.sourceName, "");
+      assert.deepEqual(session.slides, []);
+
+      await session.openFile(file);
+      assert.equal(session.sourceName, "slides.md");
+      assert.ok(session.slides.length >= 2);
+    });
+  });
+
+  test("application mode exposes the empty UI and imports a live source", async () => {
+    await withWorkspace(async ({ dir, file }) => {
+      const presenter = {
+        isRunning: () => false,
+        open: async () => ({ alreadyRunning: false }),
+        close: async () => ({ stopped: true }),
+      };
+      await withDeckServer(
+        {
+          workspace: dir,
+          application: true,
+          presenter,
+        },
+        async (session, server) => {
+          const empty = await fetch(new URL("state", server.url)).then((response) =>
+            response.json(),
+          );
+          assert.equal(empty.total, 0);
+          assert.equal(empty.markdownImportAvailable, true);
+          assert.equal(empty.sourceBacked, false);
+          assert.equal(empty.sourceModeAvailable, false);
+          assert.equal(empty.pdfExportAvailable, false);
+          assert.equal(empty.presenterViewAvailable, true);
+          assert.equal((await post(server.url, "export")).status, 409);
+          assert.equal((await post(server.url, "present")).status, 409);
+
+          const imported = await post(server.url, "import", {
+            path: "slides.md",
+            sourceMode: "live",
+          });
+          assert.equal(imported.status, 200);
+          assert.equal((await imported.json()).sourceMode, "live");
+          assert.equal(session.file, file);
+
+          const loaded = await fetch(new URL("state", server.url)).then((response) =>
+            response.json(),
+          );
+          assert.equal(loaded.sourceBacked, true);
+          assert.equal(loaded.sourceModeAvailable, true);
+          assert.equal(loaded.sourceMode, "live");
+          assert.equal(loaded.sourceWatchStatus, "watching");
+          assert.equal(loaded.architectureEditAvailable, true);
+          assert.equal(loaded.pdfExportAvailable, true);
+          assert.equal(loaded.pptxExportAvailable, true);
+        },
+      );
+    });
+  });
+
+  test("application source mode can stop and restart automatic refresh", async () => {
+    await withWorkspace(async ({ dir, file }) => {
+      await withDeckServer(
+        {
+          file,
+          workspace: dir,
+          application: true,
+          initialSourceMode: "live",
+        },
+        async (session, server) => {
+          assert.equal(session.slides.length, 3);
+
+          const snapshot = await post(server.url, "source-mode", { mode: "snapshot" });
+          assert.equal(snapshot.status, 200);
+          assert.equal((await snapshot.json()).sourceWatchStatus, "inactive");
+
+          await writeFile(file, `${DECK}\n---\n\n---\n### Snapshot only\n`, "utf8");
+          await new Promise((resolve) => setTimeout(resolve, 250));
+          assert.equal(session.slides.length, 3);
+
+          const live = await post(server.url, "source-mode", { mode: "live" });
+          assert.equal(live.status, 200);
+          assert.equal((await live.json()).sourceWatchStatus, "watching");
+          await waitFor(() => session.slides.length > 3);
+          const liveTotal = session.slides.length;
+
+          await writeFile(
+            file,
+            `${DECK}\n---\n\n---\n### Live reload\n\n---\n\n### Another slide\n`,
+            "utf8",
+          );
+          await waitFor(() => session.slides.length > liveTotal);
+        },
+      );
+    });
+  });
+
+  test("initial live mode catches a save made while the watcher starts", async () => {
+    await withWorkspace(async ({ dir, file }) => {
+      await withDeckServer(
+        {
+          file,
+          workspace: dir,
+          application: true,
+          initialSourceMode: "live",
+          watcherFactory: ({ path }) => {
+            writeFileSync(path, `${DECK}\n---\n\n---\n### Startup save\n`, "utf8");
+            return { close() {} };
+          },
+        },
+        async (session) => {
+          assert.match(session.sourceMarkdown, /Startup save/);
+          assert.ok(session.slides.length > 3);
+        },
+      );
+    });
+  });
+
+  test("watcher startup failure keeps an imported deck in live error state", async () => {
+    await withWorkspace(async ({ dir }) => {
+      await withDeckServer(
+        {
+          workspace: dir,
+          application: true,
+          watcherFactory: () => {
+            throw new Error("watch unavailable");
+          },
+        },
+        async (session, server) => {
+          const imported = await post(server.url, "import", {
+            path: "slides.md",
+            sourceMode: "live",
+          });
+          assert.equal(imported.status, 200);
+          const result = await imported.json();
+          assert.equal(result.ok, true);
+          assert.equal(result.sourceMode, "live");
+          assert.equal(result.sourceWatchStatus, "error");
+          assert.equal(session.sourceName, "slides.md");
+          assert.ok(session.slides.length > 0);
+        },
+      );
+    });
+  });
+
+  test("live refresh follows the Markdown file selected in the application", async () => {
+    await withWorkspace(async ({ dir, file }) => {
+      const second = join(dir, "second.md");
+      await writeFile(second, "# Second source\n", "utf8");
+      await withDeckServer(
+        {
+          file,
+          workspace: dir,
+          application: true,
+          initialSourceMode: "live",
+        },
+        async (session, server) => {
+          const imported = await post(server.url, "import", {
+            path: "second.md",
+            sourceMode: "live",
+          });
+          assert.equal(imported.status, 200);
+          assert.equal(session.sourceName, "second.md");
+          const importedTotal = session.slides.length;
+
+          await writeFile(file, `${DECK}\n---\n\n---\n### Old source changed\n`, "utf8");
+          await new Promise((resolve) => setTimeout(resolve, 250));
+          assert.equal(session.sourceName, "second.md");
+          assert.equal(session.slides.length, importedTotal);
+
+          await writeFile(second, "# Second source\n\n---\n\n## Reloaded\n", "utf8");
+          await waitFor(() => session.slides.length > importedTotal);
+        },
+      );
+    });
+  });
+
+  test("import waits for an in-flight live reload before switching sources", async () => {
+    await withWorkspace(async ({ dir, file }) => {
+      const second = join(dir, "second.md");
+      await writeFile(second, "# Second source\n", "utf8");
+      await withDeckServer(
+        {
+          file,
+          workspace: dir,
+          application: true,
+          initialSourceMode: "live",
+        },
+        async (session, server) => {
+          const originalLoad = session.load;
+          let releaseReload;
+          let announceReload;
+          const reloadStarted = new Promise((resolve) => {
+            announceReload = resolve;
+          });
+          const reloadReleased = new Promise((resolve) => {
+            releaseReload = resolve;
+          });
+          let blockNextReload = true;
+          session.load = async (options) => {
+            if (blockNextReload) {
+              blockNextReload = false;
+              announceReload();
+              await reloadReleased;
+            }
+            return originalLoad(options);
+          };
+
+          await writeFile(file, `${DECK}\n\n<!-- reload -->\n`, "utf8");
+          await reloadStarted;
+          const importing = post(server.url, "import", {
+            path: "second.md",
+            sourceMode: "live",
+          });
+          await new Promise((resolve) => setTimeout(resolve, 50));
+          assert.equal(session.sourceName, "slides.md");
+
+          releaseReload();
+          assert.equal((await importing).status, 200);
+          assert.equal(session.sourceName, "second.md");
+          assert.match(session.sourceMarkdown, /Second source/);
+        },
+      );
+    });
+  });
+
+  test("application export routes use workspace-safe default names", async () => {
+    await withWorkspace(async ({ dir, file }) => {
+      const calls = [];
+      await withDeckServer(
+        {
+          file,
+          workspace: dir,
+          application: true,
+          exporters: {
+            pdf: async (_session, output, theme) => {
+              calls.push({ format: "pdf", output, theme });
+              return { ok: true, path: output };
+            },
+            pptx: async (_session, output, theme) => {
+              calls.push({ format: "pptx", output, theme });
+              return { ok: true, path: output };
+            },
+          },
+        },
+        async (_session, server) => {
+          assert.equal((await post(server.url, "export")).status, 200);
+          assert.equal((await post(server.url, "export-pptx")).status, 200);
+        },
+      );
+      assert.deepEqual(calls, [
+        { format: "pdf", output: "slides.pdf", theme: "dark" },
+        { format: "pptx", output: "slides.pptx", theme: "dark" },
+      ]);
+    });
   });
 });
 

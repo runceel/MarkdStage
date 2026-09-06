@@ -112,14 +112,25 @@ export async function createDeckSession({
   // An explicit --workspace wins; otherwise confine the deck to its Git
   // repository root (or the folder holding the Markdown file).
   const deckDirectory = file ? resolve(file, "..") : process.cwd();
-  const root = workspaceRoot
+  const requestedRoot = workspaceRoot
     ? resolve(workspaceRoot)
     : resolveWorkspaceRoot(deckDirectory, deckDirectory);
-  const resolved = await resolveDeckFile(file, root);
+  let root;
+  try {
+    root = await realpath(requestedRoot);
+  } catch (_) {
+    throw new MarkdStageError(
+      "workspace_not_found",
+      `Could not read workspace directory: ${requestedRoot}`,
+    );
+  }
+  const resolved = file ? await resolveDeckFile(file, root) : null;
   const session = {
-    file: resolved.path,
-    workspaceRoot: resolved.workspaceRoot,
-    sourceName: workspaceRelative(resolved.workspaceRoot, resolved.path),
+    file: resolved?.path ?? "",
+    workspaceRoot: resolved?.workspaceRoot ?? root,
+    sourceName: resolved
+      ? workspaceRelative(resolved.workspaceRoot, resolved.path)
+      : "",
     url: "",
     version: 0,
     deckVersion: 0,
@@ -145,6 +156,9 @@ export async function createDeckSession({
   };
 
   session.load = async ({ preserveIndex = false } = {}) => {
+    if (!session.file) {
+      throw new MarkdStageError("no_deck", "Open a Markdown file first.");
+    }
     const { markdown, slides } = await readDeckSlides(session.file);
     const selection = resolveDeckTheme({
       slides,
@@ -176,6 +190,23 @@ export async function createDeckSession({
     return session.slides.length;
   };
 
+  session.openFile = async (nextFile, { preserveIndex = false } = {}) => {
+    const next = await resolveDeckFile(nextFile, session.workspaceRoot);
+    const previous = {
+      file: session.file,
+      sourceName: session.sourceName,
+    };
+    session.file = next.path;
+    session.sourceName = workspaceRelative(next.workspaceRoot, next.path);
+    try {
+      return await session.load({ preserveIndex });
+    } catch (error) {
+      session.file = previous.file;
+      session.sourceName = previous.sourceName;
+      throw error;
+    }
+  };
+
   session.navigate = (target) => {
     const next = clampIndex(target, session.slides.length);
     if (next === session.index) return false;
@@ -185,6 +216,6 @@ export async function createDeckSession({
     return true;
   };
 
-  await session.load();
+  if (session.file) await session.load();
   return session;
 }
