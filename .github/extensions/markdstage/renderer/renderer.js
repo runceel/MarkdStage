@@ -1,6 +1,7 @@
 import { powerPointDashStyle, renderArchitectureBlock } from "./architecture.mjs";
 import { architectureSnapshotToScene } from "./architecture-scene.mjs";
 import { mermaidSvgToScene } from "./mermaid-scene.mjs";
+import { captureSvgTree, sceneToSvg } from "./scene-svg.mjs";
 import { sceneToPptxElements } from "./scene-pptx.mjs";
 import { attachArchitectureEditor } from "./architecture-editor.mjs";
 import {
@@ -593,6 +594,13 @@ function runMermaid(scope, deckEl, token, revealWhenDone = true) {
       lastMermaidThemeVariables = serializedThemeVariables;
     }
     return Promise.resolve(window.mermaid.run({ nodes }))
+      .then(() => {
+        for (const [index, host] of [...nodes].entries()) {
+          const source = host.querySelector("svg");
+          if (!source || source.hasAttribute("data-scene-backend")) continue;
+          renderMermaidScene(source, deckEl, index);
+        }
+      })
       .catch((e) => console.error("Mermaid render failed", e))
       .finally(reveal);
   } catch (e) {
@@ -600,6 +608,76 @@ function runMermaid(scope, deckEl, token, revealWhenDone = true) {
     reveal();
     return Promise.resolve();
   }
+}
+
+function renderMermaidScene(svg, deck, blockIndex) {
+  const result = mermaidSvgToScene(svg, {
+    path: `mermaid[${blockIndex}]`,
+    deck,
+    includeSourceElements: true,
+    resolveColor: (value) => resolveModelColor(value, deck),
+  });
+  let { scene } = result;
+  const computedStyle = (element) => {
+    const style = getComputedStyle(element);
+    return {
+      getPropertyValue(property) {
+        // The loading veil is inherited by every SVG descendant, not diagram style.
+        if (property === "visibility" && document.body.classList.contains("mermaid-loading")) {
+          return element.style?.visibility || element.getAttribute("visibility") || "";
+        }
+        return style.getPropertyValue(property);
+      },
+    };
+  };
+  const slots = new Map();
+  try {
+    for (const [index, node] of scene.nodes.entries()) {
+      const owner = scene.nodes.find((candidate) =>
+        candidate !== node && node.sourcePath.startsWith(`${candidate.sourcePath}.`) &&
+        (result.sourceElements?.has(candidate.sourcePath) || mermaidElementForSourcePath(svg, candidate.sourcePath)),
+      );
+      if (owner) {
+        node.meta = { ...node.meta, svgOwner: owner.sourcePath };
+        continue;
+      }
+      const source = result.sourceElements?.get(node.sourcePath) ||
+        mermaidElementForSourcePath(svg, node.sourcePath) ||
+        mermaidFallbackElementForBounds(svg, deck, node.bounds);
+      if (!source) throw new Error(`Mermaid SVG source unavailable: ${node.sourcePath}`);
+      if (slots.has(source)) {
+        node.meta = { ...node.meta, svgOwner: slots.get(source) };
+        continue;
+      }
+      node.meta = { ...node.meta, svg: captureSvgTree(source, { computedStyle }) };
+      slots.set(source, index);
+    }
+    for (const [source, index] of slots) {
+      const ancestor = [...slots.keys()].find((candidate) => candidate !== source && candidate.contains(source));
+      if (ancestor) {
+        scene.nodes[index].meta.svgOwner = slots.get(ancestor);
+        slots.delete(source);
+      }
+    }
+  } catch (error) {
+    // A new Mermaid structure must stay visible even if its source mapping is
+    // not yet understood. Preserve the full safe artwork and report the reason.
+    const reason = `mermaid-svg-source-fallback: ${error.message}`;
+    console.warn(reason);
+    scene = { ...scene, nodes: [{
+      kind: "fallback", sourcePath: "svg", z: 0,
+      bounds: { x: 0, y: 0, width: scene.width, height: scene.height },
+      capability: { pptx: "fallback", reason }, reason,
+      meta: { svg: captureSvgTree(svg, { computedStyle }) },
+    }] };
+    slots.clear();
+    slots.set(svg, 0);
+  }
+  const template = slots.has(svg)
+    ? { sceneNode: slots.get(svg) }
+    : captureSvgTree(svg, { slots, computedStyle });
+  if (scene.nodes.length) scene.nodes[0].meta.svgRoot = template;
+  svg.replaceWith(sceneToSvg(scene, { document, template }));
 }
 
 // --- slide rendering -------------------------------------------------------
@@ -1937,15 +2015,24 @@ function mermaidFallbackElementForBounds(svg, deck, bounds) {
   }) || null;
 }
 
-function markMermaidNativeElements(svg, mappedElements, pathPrefix) {
+function markMermaidNativeElements(svg, mappedElements, pathPrefix, sourceElements) {
   for (const element of mappedElements) {
     const sourcePath = unprefixScenePath(element.path, pathPrefix);
-    const source = mermaidElementForSourcePath(svg, sourcePath);
-    if (source) {
+    let source = sourceElements?.get(sourcePath) || mermaidElementForSourcePath(svg, sourcePath);
+    let ownerPath = sourcePath;
+    while (!source && sourceElements && ownerPath.includes(".")) {
+      ownerPath = ownerPath.slice(0, ownerPath.lastIndexOf("."));
+      source = sourceElements.get(ownerPath);
+    }
+    // Class boxes have independently exported compartments and may contain a fallback divider.
+    if (/^classes\[\d+\]$/.test(sourcePath) && element.type === "shape") {
+      source = source?.querySelector(":scope > g.label-container") || source;
+    }
+    if (source && !source.hasAttribute("data-pptx-native")) {
       const nativeKind = element.type === "shape" ? "shape" : element.type;
       source.setAttribute("data-pptx-native", nativeKind);
     }
-    if (element.type === "connector") {
+    if (!sourceElements && element.type === "connector") {
       const id = element.mermaid?.id || source?.getAttribute("data-id") || source?.getAttribute("id") || "";
       mermaidEdgeLabelElement(svg, id)?.setAttribute("data-pptx-native", "text");
     }
@@ -1976,10 +2063,11 @@ function collectMermaidObjects(element, deck, blockIndex) {
     };
   }
   const pathPrefix = `mermaid[${blockIndex}]`;
-  const { scene, diagnostics } = mermaidSvgToScene(svg, {
+  const { scene, diagnostics, sourceElements } = mermaidSvgToScene(svg, {
     path: pathPrefix,
     deck,
     resolveColor: (value) => resolveModelColor(value, deck),
+    includeSourceElements: true,
   });
   if (mermaidWholeElementFallbackRequired(scene, diagnostics)) {
     return {
@@ -1992,7 +2080,7 @@ function collectMermaidObjects(element, deck, blockIndex) {
     groupPreset: "rect",
     zOrderBase: Number(element.dataset.pptxZOrder),
   });
-  markMermaidNativeElements(svg, mapped.elements, pathPrefix);
+  markMermaidNativeElements(svg, mapped.elements, pathPrefix, sourceElements);
   const fallbackNodes = new Map(
     scene.nodes
       .filter((node) => node.kind === "fallback")
@@ -2002,13 +2090,19 @@ function collectMermaidObjects(element, deck, blockIndex) {
     const sourcePath = fallback.sourcePath || unprefixScenePath(fallback.path, pathPrefix);
     const node = fallbackNodes.get(sourcePath);
     const source =
+      sourceElements?.get(sourcePath) ||
       mermaidElementForSourcePath(svg, sourcePath) ||
       mermaidFallbackElementForBounds(svg, deck, fallback) ||
       svg;
+    const sourceBounds = source.getBoundingClientRect();
+    const padding = ["path", "line", "polyline"].includes(source.localName)
+      ? Math.max(1, (fallback.width - sourceBounds.width) / 2, (fallback.height - sourceBounds.height) / 2)
+      : 0;
     const captured = pptxFallback("mermaid", source, deck, fallback.reason, {
       captureElement: source,
       includeDescendants: true,
       artwork: fallback.artwork,
+      padding,
     });
     return {
       ...captured,

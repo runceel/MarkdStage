@@ -1,4 +1,6 @@
 import { architectureContract } from "./architecture-contract.mjs";
+import { architectureSnapshotToScene } from "./architecture-scene.mjs";
+import { sceneToSvg, svgPrimitive } from "./scene-svg.mjs";
 import {
   ArchitectureError,
   architectureCompatibilityWarnings,
@@ -11,7 +13,6 @@ import {
   unknownArchitectureField,
 } from "./architecture-diagnostics.mjs";
 
-const SVG_NS = "http://www.w3.org/2000/svg";
 const DEFAULT_CANVAS = Object.freeze({ width: 1600, height: 900 });
 const DSL_VERSION = architectureContract.root.properties.version.const;
 const EMPTY_ARCHITECTURE_SOURCE = '{\n  "version": 1,\n  "elements": []\n}\n';
@@ -1307,11 +1308,8 @@ export function parseArchitecture(source) {
 }
 
 function svgElement(documentRef, tag, attributes = {}) {
-  const element = documentRef.createElementNS(SVG_NS, tag);
-  for (const [name, value] of Object.entries(attributes)) {
-    if (value !== undefined && value !== "") element.setAttribute(name, String(value));
-  }
-  return element;
+  // Produce portable visual detail; scene-svg is the only SVG DOM writer.
+  return svgPrimitive(tag, attributes);
 }
 
 function appendSvgTitle(documentRef, parent, text) {
@@ -3895,13 +3893,13 @@ export function architectureSemanticSnapshot(model) {
  * export. Coordinates remain in Architecture canvas units here; renderer.js
  * maps them through the rendered SVG viewBox into slide pixels.
  */
-export function architecturePowerPointSnapshot(model, documentRef = globalThis.document) {
+export function architecturePowerPointSnapshot(model, documentRef = globalThis.document, routingPlan) {
   const lookup = new Map(
     model.elements
       .filter((element) => element.type !== "connector")
       .map((element) => [element.id, element]),
   );
-  const { routes, diagnostics } = planConnectorRoutes(model, lookup);
+  const { routes, diagnostics } = routingPlan || planConnectorRoutes(model, lookup);
   const objects = [];
   const fallbacks = [];
   const icons = [];
@@ -4152,8 +4150,8 @@ export function renderArchitectureDiagram(
       .filter((element) => element.type !== "connector")
       .map((element) => [element.id, element]),
   );
-  const { routes: connectorRoutes, diagnostics: routingDiagnostics } =
-    planConnectorRoutes(model, lookup);
+  const routingPlan = planConnectorRoutes(model, lookup);
+  const { routes: connectorRoutes, diagnostics: routingDiagnostics } = routingPlan;
   model.elements.forEach((element, index) => {
     if (element.type === "image") {
       const clipPath = svgElement(documentRef, "clipPath", {
@@ -4195,16 +4193,21 @@ export function renderArchitectureDiagram(
   // Table for announcing connector endpoints by visible label; traverse elements only once.
   const endpointNames = endpointDisplayNames(model.elements);
   const frontLabels = [];
+  const visuals = new Map();
 
   model.elements.forEach((element, index) => {
     if (element.type === "group") {
-      svg.appendChild(renderGroup(documentRef, element));
+      const primitive = renderGroup(documentRef, element);
+      visuals.set(`group:${element.order}`, primitive);
+      svg.appendChild(primitive);
     } else if (element.type === "node") {
-      svg.appendChild(renderNode(documentRef, element));
+      const primitive = renderNode(documentRef, element);
+      visuals.set(`node:${element.order}`, primitive);
+      svg.appendChild(primitive);
     } else if (element.type === "image") {
-      svg.appendChild(
-        renderImage(documentRef, element, `architecture-image-clip-${renderId}-${index}`),
-      );
+      const primitive = renderImage(documentRef, element, `architecture-image-clip-${renderId}-${index}`);
+      visuals.set(`image-picture:${element.order}`, primitive);
+      svg.appendChild(primitive);
     } else {
       const rendered = renderConnector(
         documentRef,
@@ -4214,13 +4217,33 @@ export function renderArchitectureDiagram(
         endpointNames,
         model.canvas,
       );
+      visuals.set(`connector:${element.order}`, rendered.group);
       svg.appendChild(rendered.group);
-      if (rendered.frontLabel) frontLabels.push(rendered.frontLabel);
+      if (rendered.frontLabel) {
+        visuals.set(`connector-label:${element.order}`, rendered.frontLabel);
+        frontLabels.push(rendered.frontLabel);
+      }
     }
   });
   frontLabels.forEach((label) => svg.appendChild(label));
-  wrapper.appendChild(svg);
-  const powerPointSnapshot = architecturePowerPointSnapshot(model, documentRef);
+  const powerPointSnapshot = architecturePowerPointSnapshot(model, documentRef, routingPlan);
+  const { scene } = architectureSnapshotToScene(powerPointSnapshot);
+  const slots = new Map();
+  scene.nodes.forEach((node, index) => {
+    const source = node.meta?.architecture;
+    const visual = visuals.get(`${source?.kind}:${source?.order}`);
+    if (visual) {
+      node.meta.svg = visual;
+      slots.set(visual, index);
+    } else {
+      // Icons and back-layer labels are painted within their owning node/connector
+      // so opacity, accessible names and editor hit targets remain a single subtree.
+      node.meta = { ...node.meta, svgOwner: source?.order ?? index };
+    }
+  });
+  svg.children = svg.children.map((child) => slots.has(child) ? { sceneNode: slots.get(child) } : child);
+  if (scene.nodes.length) scene.nodes[0].meta.svgRoot = svg;
+  wrapper.appendChild(sceneToSvg(scene, { document: documentRef, template: svg }));
   Object.defineProperty(wrapper, "__presentationPptxSnapshot", {
     value: powerPointSnapshot,
     enumerable: true,

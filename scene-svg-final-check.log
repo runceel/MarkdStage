@@ -1,0 +1,26 @@
+
+Running 18 tests using 1 worker
+
+  ✓   1 [visual] › test/visual/scene-svg.spec.mjs:29:3 › shared backend displays both producers and faithful fallback in dark (7.1s)
+  ✓   2 [visual] › test/visual/scene-svg.spec.mjs:29:3 › shared backend displays both producers and faithful fallback in light (7.1s)
+  ✓   3 [visual] › test/visual/scene-svg.spec.mjs:29:3 › shared backend displays both producers and faithful fallback in microsoft (7.4s)
+  ✓   4 [visual] › test/visual/scene-svg.spec.mjs:69:1 › normal, presenter, fixed preview, PNG and PDF use the same shared scene rendering (10.7s)
+  ✓   5 [visual] › test/visual/scene-svg.spec.mjs:112:1 › safe Mermaid primitive capture retains curves, HTML labels and unknown visuals without executable DOM (849ms)
+  ✓   6 [a11y] › test/a11y/architecture-a11y.spec.mjs:38:3 › content the diagram exposes to assistive technology › axe-core reports no violations in the diagram in normal view (1.6s)
+  ✓   7 [a11y] › test/a11y/architecture-a11y.spec.mjs:51:3 › content the diagram exposes to assistive technology › axe-core reports no violations in the diagram in edit mode (1.4s)
+  ✓   8 [a11y] › test/a11y/architecture-a11y.spec.mjs:64:3 › content the diagram exposes to assistive technology › axe-core reports no WCAG A/AA violations across the full page (1.5s)
+  ✓   9 [a11y] › test/a11y/architecture-a11y.spec.mjs:82:3 › content the diagram exposes to assistive technology › the same string is not announced twice (861ms)
+  ✓  10 [a11y] › test/a11y/architecture-a11y.spec.mjs:102:3 › content the diagram exposes to assistive technology › all visible text is hidden from assistive technology (835ms)
+  ✓  11 [a11y] › test/a11y/architecture-a11y.spec.mjs:120:3 › content the diagram exposes to assistive technology › every element has a nonempty accessible name (833ms)
+  ✓  12 [a11y] › test/a11y/architecture-a11y.spec.mjs:139:3 › keyboard reachability › the whole diagram is exactly one tab stop in normal view (958ms)
+  ✓  13 [a11y] › test/a11y/architecture-a11y.spec.mjs:160:3 › keyboard reachability › elements become tab stops in edit mode without duplicating the diagram root (907ms)
+  ✓  14 [a11y] › test/a11y/architecture-a11y.spec.mjs:176:3 › keyboard reachability › the two edit UI live regions retain separate purposes (843ms)
+  ✓  15 [a11y] › test/a11y/architecture-a11y.spec.mjs:214:3 › announcement and declaration order › declaration order is exposed in the DOM and distinct from paint order (863ms)
+  ✓  16 [a11y] › test/a11y/architecture-a11y.spec.mjs:246:3 › announcement and declaration order › announcement order matches DOM order, fixing the sequence exposed to AT (818ms)
+[perf] 200 nodes = 19.60ms / with crossing connectors = 17.00ms (limit 250ms)
+  ✓  17 [perf] › test/perf/architecture-perf.spec.mjs:232:3 › Architecture rendering cost › the largest diagram accepted by the DSL stays within the rendering budget (2.8s)
+[perf] 25 elements = 2.20ms / 200 elements = 18.20ms / ratio 8.27 (limit 15)
+  ✓  18 [perf] › test/perf/architecture-perf.spec.mjs:262:3 › Architecture rendering cost › rendering cost does not become quadratic with element count (1.8s)
+::notice title=🎭 Playwright Run Summary::  18 passed (51.8s)
+
+  18 passed (51.8s)

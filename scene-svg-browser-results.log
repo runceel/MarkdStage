@@ -1,0 +1,103 @@
+
+Running 5 tests using 1 worker
+
+
+::error file=test/visual/scene-svg.spec.mjs,title=[visual] › test/visual/scene-svg.spec.mjs:28:3 › shared backend displays both producers and faithful fallback in dark,line=24,col=6::  1) [visual] › test/visual/scene-svg.spec.mjs:28:3 › shared backend displays both producers and faithful fallback in dark %0A    Error: expect(received).toBe(expected) // Object.is equality%0A%0A    Expected: true%0A    Received: false%0A%0A      22 |   expect(await page.locator("svg[data-scene-backend=svg]").evaluateAll((svgs) =>%0A      23 |     svgs.every((svg) => svg.__presentationScene && svg.querySelectorAll("[data-scene-source-path]").length > 0),%0A    > 24 |   )).toBe(true);%0A         |      ^%0A      25 | }%0A      26 |%0A      27 | for (const theme of ["dark", "light", "microsoft"]) {%0A        at assertBackend (/home/runner/work/markdstage/markdstage/test/visual/scene-svg.spec.mjs:24:6)%0A        at /home/runner/work/markdstage/markdstage/test/visual/scene-svg.spec.mjs:38:9
+  ✘  1 [visual] › test/visual/scene-svg.spec.mjs:28:3 › shared backend displays both producers and faithful fallback in dark (3.6s)
+
+::error file=test/visual/scene-svg.spec.mjs,title=[visual] › test/visual/scene-svg.spec.mjs:28:3 › shared backend displays both producers and faithful fallback in light,line=24,col=6::  2) [visual] › test/visual/scene-svg.spec.mjs:28:3 › shared backend displays both producers and faithful fallback in light %0A    Error: expect(received).toBe(expected) // Object.is equality%0A%0A    Expected: true%0A    Received: false%0A%0A      22 |   expect(await page.locator("svg[data-scene-backend=svg]").evaluateAll((svgs) =>%0A      23 |     svgs.every((svg) => svg.__presentationScene && svg.querySelectorAll("[data-scene-source-path]").length > 0),%0A    > 24 |   )).toBe(true);%0A         |      ^%0A      25 | }%0A      26 |%0A      27 | for (const theme of ["dark", "light", "microsoft"]) {%0A        at assertBackend (/home/runner/work/markdstage/markdstage/test/visual/scene-svg.spec.mjs:24:6)%0A        at /home/runner/work/markdstage/markdstage/test/visual/scene-svg.spec.mjs:38:9
+  ✘  2 [visual] › test/visual/scene-svg.spec.mjs:28:3 › shared backend displays both producers and faithful fallback in light (3.7s)
+
+::error file=test/visual/scene-svg.spec.mjs,title=[visual] › test/visual/scene-svg.spec.mjs:28:3 › shared backend displays both producers and faithful fallback in microsoft,line=24,col=6::  3) [visual] › test/visual/scene-svg.spec.mjs:28:3 › shared backend displays both producers and faithful fallback in microsoft %0A    Error: expect(received).toBe(expected) // Object.is equality%0A%0A    Expected: true%0A    Received: false%0A%0A      22 |   expect(await page.locator("svg[data-scene-backend=svg]").evaluateAll((svgs) =>%0A      23 |     svgs.every((svg) => svg.__presentationScene && svg.querySelectorAll("[data-scene-source-path]").length > 0),%0A    > 24 |   )).toBe(true);%0A         |      ^%0A      25 | }%0A      26 |%0A      27 | for (const theme of ["dark", "light", "microsoft"]) {%0A        at assertBackend (/home/runner/work/markdstage/markdstage/test/visual/scene-svg.spec.mjs:24:6)%0A        at /home/runner/work/markdstage/markdstage/test/visual/scene-svg.spec.mjs:38:9
+  ✘  3 [visual] › test/visual/scene-svg.spec.mjs:28:3 › shared backend displays both producers and faithful fallback in microsoft (3.7s)
+  ✓  4 [visual] › test/visual/scene-svg.spec.mjs:65:1 › normal, presenter, fixed preview, PNG and PDF use the same shared scene rendering (4.7s)
+  ✓  5 [visual] › test/visual/scene-svg.spec.mjs:105:1 › safe Mermaid primitive capture retains curves, HTML labels and unknown visuals without executable DOM (727ms)
+::notice title=🎭 Playwright Run Summary::  3 failed%0A    [visual] › test/visual/scene-svg.spec.mjs:28:3 › shared backend displays both producers and faithful fallback in dark %0A    [visual] › test/visual/scene-svg.spec.mjs:28:3 › shared backend displays both producers and faithful fallback in light %0A    [visual] › test/visual/scene-svg.spec.mjs:28:3 › shared backend displays both producers and faithful fallback in microsoft %0A  2 passed (19.1s)
+
+
+  1) [visual] › test/visual/scene-svg.spec.mjs:28:3 › shared backend displays both producers and faithful fallback in dark 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      22 |   expect(await page.locator("svg[data-scene-backend=svg]").evaluateAll((svgs) =>
+      23 |     svgs.every((svg) => svg.__presentationScene && svg.querySelectorAll("[data-scene-source-path]").length > 0),
+    > 24 |   )).toBe(true);
+         |      ^
+      25 | }
+      26 |
+      27 | for (const theme of ["dark", "light", "microsoft"]) {
+        at assertBackend (/home/runner/work/markdstage/markdstage/test/visual/scene-svg.spec.mjs:24:6)
+        at /home/runner/work/markdstage/markdstage/test/visual/scene-svg.spec.mjs:38:9
+
+    Error Context: scene-svg-test-results/scene-svg-shared-backend-d-bb697-d-faithful-fallback-in-dark-visual/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    scene-svg-test-results/scene-svg-shared-backend-d-bb697-d-faithful-fallback-in-dark-visual/trace.zip
+    Usage:
+
+        npx playwright show-trace scene-svg-test-results/scene-svg-shared-backend-d-bb697-d-faithful-fallback-in-dark-visual/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [visual] › test/visual/scene-svg.spec.mjs:28:3 › shared backend displays both producers and faithful fallback in light 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      22 |   expect(await page.locator("svg[data-scene-backend=svg]").evaluateAll((svgs) =>
+      23 |     svgs.every((svg) => svg.__presentationScene && svg.querySelectorAll("[data-scene-source-path]").length > 0),
+    > 24 |   )).toBe(true);
+         |      ^
+      25 | }
+      26 |
+      27 | for (const theme of ["dark", "light", "microsoft"]) {
+        at assertBackend (/home/runner/work/markdstage/markdstage/test/visual/scene-svg.spec.mjs:24:6)
+        at /home/runner/work/markdstage/markdstage/test/visual/scene-svg.spec.mjs:38:9
+
+    Error Context: scene-svg-test-results/scene-svg-shared-backend-d-ae5b5--faithful-fallback-in-light-visual/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    scene-svg-test-results/scene-svg-shared-backend-d-ae5b5--faithful-fallback-in-light-visual/trace.zip
+    Usage:
+
+        npx playwright show-trace scene-svg-test-results/scene-svg-shared-backend-d-ae5b5--faithful-fallback-in-light-visual/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [visual] › test/visual/scene-svg.spec.mjs:28:3 › shared backend displays both producers and faithful fallback in microsoft 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      22 |   expect(await page.locator("svg[data-scene-backend=svg]").evaluateAll((svgs) =>
+      23 |     svgs.every((svg) => svg.__presentationScene && svg.querySelectorAll("[data-scene-source-path]").length > 0),
+    > 24 |   )).toBe(true);
+         |      ^
+      25 | }
+      26 |
+      27 | for (const theme of ["dark", "light", "microsoft"]) {
+        at assertBackend (/home/runner/work/markdstage/markdstage/test/visual/scene-svg.spec.mjs:24:6)
+        at /home/runner/work/markdstage/markdstage/test/visual/scene-svg.spec.mjs:38:9
+
+    Error Context: scene-svg-test-results/scene-svg-shared-backend-d-79f23-thful-fallback-in-microsoft-visual/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    scene-svg-test-results/scene-svg-shared-backend-d-79f23-thful-fallback-in-microsoft-visual/trace.zip
+    Usage:
+
+        npx playwright show-trace scene-svg-test-results/scene-svg-shared-backend-d-79f23-thful-fallback-in-microsoft-visual/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3 failed
+    [visual] › test/visual/scene-svg.spec.mjs:28:3 › shared backend displays both producers and faithful fallback in dark 
+    [visual] › test/visual/scene-svg.spec.mjs:28:3 › shared backend displays both producers and faithful fallback in light 
+    [visual] › test/visual/scene-svg.spec.mjs:28:3 › shared backend displays both producers and faithful fallback in microsoft 
+  2 passed (19.1s)

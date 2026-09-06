@@ -137,3 +137,29 @@ test("collapses a CSS font stack to the single typeface PowerPoint can resolve",
   const text = textToSceneText("Japanese", { fontFamily: '"Segoe UI", "Yu Gothic UI", sans-serif' });
   assert.equal(text.paragraphs[0].runs[0].fontFace, "Segoe UI");
 });
+
+test("recognizes safe additional polygons without replacing unknown geometry with rectangles", () => {
+  assert.equal(classifyPolygonPreset("10,0 90,0 100,-20 90,-40 10,-40 0,-20"), "hexagon");
+  assert.equal(classifyPolygonPreset("50,0 100,100 0,100"), "triangle");
+  assert.equal(classifyPolygonPreset("0,0 100,0 50,100", { fallbackPreset: null }), null);
+  assert.equal(classifyPolygonPreset("0,0 100,0 90,100 0,100", { fallbackPreset: null }), null);
+  assert.equal(classifyPolygonPreset("0,0 10,0 20,0 30,0 40,0 50,0", { fallbackPreset: null }), null);
+});
+
+test("recognizes sequence arrows while leaving unsupported markers conservative", () => {
+  assert.equal(markerIdToArrow("url(#fixture-sequence-arrowhead)"), "triangle");
+  assert.equal(markerIdToArrow("url(#fixture-sequence-openarrowhead)"), "arrow");
+  assert.equal(markerIdToArrow("url(#fixture-sequence-crosshead)"), "none");
+  assert.equal(markerIdToArrow("url(#class-extensionStart)"), "none");
+});
+
+test("preserves zero-width strokes and does not silently truncate text over limits", () => {
+  assert.equal(cssStyleToSceneStyle({ strokeWidth: 0 }).strokeWidth, 0);
+  const text = textToSceneText(Array.from({ length: 201 }, () => "line").join("\n"));
+  assert.equal(text.paragraphs.length, 201);
+  const scene = createScene({
+    width: 100, height: 100, source: { kind: "mermaid", path: "text.svg" },
+    nodes: [{ kind: "text", sourcePath: "label", z: 0, bounds: { x: 0, y: 0, width: 100, height: 100 }, text }],
+  });
+  assert.match(enforceSceneLimits(scene).scene.nodes[0].reason, /text paragraphs exceed/);
+});

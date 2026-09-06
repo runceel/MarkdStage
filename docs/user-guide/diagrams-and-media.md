@@ -26,6 +26,19 @@ fixed color schemes.
 
 If Mermaid syntax is invalid, the slide shows an error while preserving the rest of the content.
 
+### Editable Mermaid in PowerPoint
+
+Flowcharts preserve `style`, `classDef`, and `class` colors and text styles. Supported nodes,
+subgraphs, connectors, and labels export as editable objects; edge-label backgrounds keep lines
+from crossing the text. Stadium, cylinder, and double-circle nodes use multiple editable shapes
+when their paint can be reproduced safely.
+
+Basic sequence diagrams export participants, lifelines, messages, notes, and activations.
+Class diagrams export class compartments and unmarked associations. Unsupported relationship
+markers, complex sequence constructs, effects, and unknown geometry remain fallback pictures.
+Other diagram types, including pie, mindmap, and gitGraph, can still use whole-diagram artwork.
+Check the export report for the reason and source path of each fallback.
+
 ## Use Architecture DSL for stable placement
 
 Write JSON in an `architecture` fence when element positions, dimensions, containers, or connector

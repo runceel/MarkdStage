@@ -1,0 +1,1139 @@
+
+Running 57 tests using 2 workers
+
+  ✓   2 [pdf] › test/pdf/layout-output.spec.mjs:36:3 › print output excludes export notifications and live announcements (1.1s)
+  ✓   3 [pdf] › test/pdf/layout-output.spec.mjs:36:3 › capture output excludes export notifications and live announcements (946ms)
+  ✓   4 [pdf] › test/pdf/layout-output.spec.mjs:36:3 › pptx output excludes export notifications and live announcements (940ms)
+  ✓   5 [pdf] › test/pdf/layout-output.spec.mjs:63:1 › print readiness reports bounded PDF layout diagnostics (936ms)
+  ✓   6 [pdf] › test/pdf/layout-output.spec.mjs:95:1 › capture mode matches print geometry and produces a 1280x720 image (1.8s)
+  ✓   1 [visual] › test/visual/scene-svg.spec.mjs:28:3 › shared backend displays both producers and faithful fallback in dark (6.1s)
+  ✓   7 [pdf] › test/pdf/print.spec.mjs:118:3 › an Architecture-only deck has one page per slide (theme: dark) (1.5s)
+  ✓   9 [pdf] › test/pdf/print.spec.mjs:118:3 › an Architecture-only deck has one page per slide (theme: light) (1.5s)
+  ✓  10 [pdf] › test/pdf/print.spec.mjs:136:1 › a deck containing Mermaid is also output at 16:9 (1.7s)
+  ✓  11 [pdf] › test/pdf/print.spec.mjs:155:1 › section dividers are output as 16:9 pages with backgrounds (896ms)
+  ✓   8 [visual] › test/visual/scene-svg.spec.mjs:28:3 › shared backend displays both producers and faithful fallback in light (5.9s)
+  ✓  12 [pdf] › test/pdf/print.spec.mjs:174:1 › standard slide titles remain fixed at the top in print (882ms)
+  ✓  14 [pdf] › test/pdf/print.spec.mjs:215:1 › print failure signals can be detected (733ms)
+  ✓  15 [pdf] › test/pdf/print.spec.mjs:239:1 › printing without a token is observable as a failure (736ms)
+  ✓  13 [visual] › test/visual/scene-svg.spec.mjs:28:3 › shared backend displays both producers and faithful fallback in microsoft (5.5s)
+  ✓  16 [pdf] › test/pdf/print.spec.mjs:291:1 › print mode starts neither SSE nor periodic polling (5.9s)
+  ✓  17 [visual] › test/visual/scene-svg.spec.mjs:65:1 › normal, presenter, fixed preview, PNG and PDF use the same shared scene rendering (4.9s)
+  ✓  19 [visual] › test/visual/scene-svg.spec.mjs:105:1 › safe Mermaid primitive capture retains curves, HTML labels and unknown visuals without executable DOM (728ms)
+  ✓  20 [pptx] › test/pptx/model.spec.mjs:133:1 › collects a serializable hybrid model for every layout and theme (1.1s)
+  ✓  18 [pdf] › test/pdf/print.spec.mjs:310:1 › normal view starts SSE and periodic polling (5.3s)
+  ✓  21 [pptx] › test/pptx/model.spec.mjs:278:1 › preserves decorated text insets and one-line footer wrapping (811ms)
+  ✓  22 [pptx] › test/pptx/model.spec.mjs:368:1 › applies custom theme variables and metadata assets (964ms)
+  ✓  24 [pptx] › test/pptx/model.spec.mjs:504:1 › collects native text, nested lists, links, tables, and raster images (964ms)
+  ✓  25 [pptx] › test/pptx/model.spec.mjs:659:1 › groups separate unordered and ordered lists into editable text boxes (776ms)
+  ✓  26 [pptx] › test/pptx/model.spec.mjs:704:1 › exports Architecture objects from the DSL and keeps fallback artwork visible (947ms)
+  ✓  27 [pptx] › test/pptx/model.spec.mjs:898:1 › marks fully off-slide fallbacks as non-artwork instead of aborting export (763ms)
+  ✓  28 [pptx] › test/pptx/model.spec.mjs:922:1 › collapses nested captures and preserves z-index and descendant effect bounds (816ms)
+
+::error file=test/editing/architecture-canvas.spec.mjs,title=[editing] › test/editing/architecture-canvas.spec.mjs:98:1 › changes remain in the draft until the save button writes them to Markdown,line=50,col=44::  1) [editing] › test/editing/architecture-canvas.spec.mjs:98:1 › changes remain in the draft until the save button writes them to Markdown %0A    Error: expect(locator).toHaveCount(expected) failed%0A%0A    Locator:  locator('.tree-item')%0A    Expected: 3%0A    Received: 0%0A    Timeout:  5000ms%0A%0A    Call log:%0A      - Expect "toHaveCount" with timeout 5000ms%0A      - waiting for locator('.tree-item')%0A        14 × locator resolved to 0 elements%0A           - unexpected value "0"%0A%0A%0A      48 |   });%0A      49 |   await page.goto(harness.url, { waitUntil: "load" });%0A    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);%0A         |                                            ^%0A      51 |   return harness;%0A      52 | }%0A      53 |%0A        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)%0A        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:99:19
+  ✘  23 [editing] › test/editing/architecture-canvas.spec.mjs:98:1 › changes remain in the draft until the save button writes them to Markdown (5.3s)
+  ✓  29 [pptx] › test/pptx/model.spec.mjs:1036:1 › preserves zero opacity in Architecture icon picture layers (839ms)
+  ✓  30 [pptx] › test/pptx/model.spec.mjs:1094:1 › PowerPoint bootstrap failures are observable (788ms)
+
+::error file=test/editing/architecture-canvas.spec.mjs,title=[editing] › test/editing/architecture-canvas.spec.mjs:118:1 › connector label overlap can be placed in front of or behind boxes,line=50,col=44::  2) [editing] › test/editing/architecture-canvas.spec.mjs:118:1 › connector label overlap can be placed in front of or behind boxes %0A    Error: expect(locator).toHaveCount(expected) failed%0A%0A    Locator:  locator('.tree-item')%0A    Expected: 3%0A    Received: 0%0A    Timeout:  5000ms%0A%0A    Call log:%0A      - Expect "toHaveCount" with timeout 5000ms%0A      - waiting for locator('.tree-item')%0A        14 × locator resolved to 0 elements%0A           - unexpected value "0"%0A%0A%0A      48 |   });%0A      49 |   await page.goto(harness.url, { waitUntil: "load" });%0A    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);%0A         |                                            ^%0A      51 |   return harness;%0A      52 | }%0A      53 |%0A        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)%0A        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:119:19
+  ✘  31 [editing] › test/editing/architecture-canvas.spec.mjs:118:1 › connector label overlap can be placed in front of or behind boxes (5.3s)
+
+::error file=test/editing/architecture-canvas.spec.mjs,title=[editing] › test/editing/architecture-canvas.spec.mjs:151:1 › connector line-style presets preserve the Architecture v1 dash contract,line=50,col=44::  3) [editing] › test/editing/architecture-canvas.spec.mjs:151:1 › connector line-style presets preserve the Architecture v1 dash contract %0A    Error: expect(locator).toHaveCount(expected) failed%0A%0A    Locator:  locator('.tree-item')%0A    Expected: 3%0A    Received: 0%0A    Timeout:  5000ms%0A%0A    Call log:%0A      - Expect "toHaveCount" with timeout 5000ms%0A      - waiting for locator('.tree-item')%0A        14 × locator resolved to 0 elements%0A           - unexpected value "0"%0A%0A%0A      48 |   });%0A      49 |   await page.goto(harness.url, { waitUntil: "load" });%0A    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);%0A         |                                            ^%0A      51 |   return harness;%0A      52 | }%0A      53 |%0A        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)%0A        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:152:19
+  ✘  32 [editing] › test/editing/architecture-canvas.spec.mjs:151:1 › connector line-style presets preserve the Architecture v1 dash contract (5.3s)
+
+::error file=test/editing/architecture-canvas.spec.mjs,title=[editing] › test/editing/architecture-canvas.spec.mjs:174:1 › selection, keyboard movement, resizing, and undo/redo share one draft,line=50,col=44::  4) [editing] › test/editing/architecture-canvas.spec.mjs:174:1 › selection, keyboard movement, resizing, and undo/redo share one draft %0A    Error: expect(locator).toHaveCount(expected) failed%0A%0A    Locator:  locator('.tree-item')%0A    Expected: 3%0A    Received: 0%0A    Timeout:  5000ms%0A%0A    Call log:%0A      - Expect "toHaveCount" with timeout 5000ms%0A      - waiting for locator('.tree-item')%0A        14 × locator resolved to 0 elements%0A           - unexpected value "0"%0A%0A%0A      48 |   });%0A      49 |   await page.goto(harness.url, { waitUntil: "load" });%0A    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);%0A         |                                            ^%0A      51 |   return harness;%0A      52 | }%0A      53 |%0A        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)%0A        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:175:19
+  ✘  33 [editing] › test/editing/architecture-canvas.spec.mjs:174:1 › selection, keyboard movement, resizing, and undo/redo share one draft (5.3s)
+
+::error file=test/editing/architecture-canvas.spec.mjs,title=[editing] › test/editing/architecture-canvas.spec.mjs:207:1 › the shape palette stays bounded and adds PowerPoint-compatible shapes,line=50,col=44::  5) [editing] › test/editing/architecture-canvas.spec.mjs:207:1 › the shape palette stays bounded and adds PowerPoint-compatible shapes %0A    Error: expect(locator).toHaveCount(expected) failed%0A%0A    Locator:  locator('.tree-item')%0A    Expected: 3%0A    Received: 0%0A    Timeout:  5000ms%0A%0A    Call log:%0A      - Expect "toHaveCount" with timeout 5000ms%0A      - waiting for locator('.tree-item')%0A        14 × locator resolved to 0 elements%0A           - unexpected value "0"%0A%0A%0A      48 |   });%0A      49 |   await page.goto(harness.url, { waitUntil: "load" });%0A    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);%0A         |                                            ^%0A      51 |   return harness;%0A      52 | }%0A      53 |%0A        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)%0A        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:209:19
+  ✘  34 [editing] › test/editing/architecture-canvas.spec.mjs:207:1 › the shape palette stays bounded and adds PowerPoint-compatible shapes (5.3s)
+
+::error file=test/editing/architecture-canvas.spec.mjs,title=[editing] › test/editing/architecture-canvas.spec.mjs:231:1 › an empty diagram offers a direct first-shape action,line=238,col=84::  6) [editing] › test/editing/architecture-canvas.spec.mjs:231:1 › an empty diagram offers a direct first-shape action %0A    Error: expect(locator).toBeVisible() failed%0A%0A    Locator: locator('.editor-empty-state').getByRole('heading', { name: 'Build your first diagram' })%0A    Expected: visible%0A    Timeout: 5000ms%0A    Error: element(s) not found%0A%0A    Call log:%0A      - Expect "toBeVisible" with timeout 5000ms%0A      - waiting for locator('.editor-empty-state').getByRole('heading', { name: 'Build your first diagram' })%0A%0A%0A      236 |     await page.goto(harness.url, { waitUntil: "load" });%0A      237 |     const empty = page.locator(".editor-empty-state");%0A    > 238 |     await expect(empty.getByRole("heading", { name: "Build your first diagram" })).toBeVisible();%0A          |                                                                                    ^%0A      239 |     await expect(page.locator("#status")).toContainText("Add the first shape");%0A      240 |     await empty.getByRole("button", { name: "Add first shape" }).click();%0A      241 |     await expect(page.locator('[data-ref="node"].tree-item')).toBeVisible();%0A        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:238:84
+  ✘  35 [editing] › test/editing/architecture-canvas.spec.mjs:231:1 › an empty diagram offers a direct first-shape action (5.3s)
+
+::error file=test/editing/architecture-canvas.spec.mjs,title=[editing] › test/editing/architecture-canvas.spec.mjs:249:1 › toolbar-added shapes avoid occupied siblings,line=50,col=44::  7) [editing] › test/editing/architecture-canvas.spec.mjs:249:1 › toolbar-added shapes avoid occupied siblings %0A    Error: expect(locator).toHaveCount(expected) failed%0A%0A    Locator:  locator('.tree-item')%0A    Expected: 3%0A    Received: 0%0A    Timeout:  5000ms%0A%0A    Call log:%0A      - Expect "toHaveCount" with timeout 5000ms%0A      - waiting for locator('.tree-item')%0A        14 × locator resolved to 0 elements%0A           - unexpected value "0"%0A%0A%0A      48 |   });%0A      49 |   await page.goto(harness.url, { waitUntil: "load" });%0A    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);%0A         |                                            ^%0A      51 |   return harness;%0A      52 | }%0A      53 |%0A        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)%0A        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:250:19
+  ✘  36 [editing] › test/editing/architecture-canvas.spec.mjs:249:1 › toolbar-added shapes avoid occupied siblings (5.3s)
+
+::error file=test/editing/architecture-canvas.spec.mjs,title=[editing] › test/editing/architecture-canvas.spec.mjs:272:1 › medium and narrow layouts expose Elements and Properties as responsive drawers,line=50,col=44::  8) [editing] › test/editing/architecture-canvas.spec.mjs:272:1 › medium and narrow layouts expose Elements and Properties as responsive drawers %0A    Error: expect(locator).toHaveCount(expected) failed%0A%0A    Locator:  locator('.tree-item')%0A    Expected: 3%0A    Received: 0%0A    Timeout:  5000ms%0A%0A    Call log:%0A      - Expect "toHaveCount" with timeout 5000ms%0A      - waiting for locator('.tree-item')%0A        14 × locator resolved to 0 elements%0A           - unexpected value "0"%0A%0A%0A      48 |   });%0A      49 |   await page.goto(harness.url, { waitUntil: "load" });%0A    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);%0A         |                                            ^%0A      51 |   return harness;%0A      52 | }%0A      53 |%0A        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)%0A        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:276:19
+  ✘  37 [editing] › test/editing/architecture-canvas.spec.mjs:272:1 › medium and narrow layouts expose Elements and Properties as responsive drawers (5.3s)
+
+::error file=test/editing/architecture-canvas.spec.mjs,title=[editing] › test/editing/architecture-canvas.spec.mjs:356:1 › breakpoint changes preserve the focused panel without stale Escape handling,line=50,col=44::  9) [editing] › test/editing/architecture-canvas.spec.mjs:356:1 › breakpoint changes preserve the focused panel without stale Escape handling %0A    Error: expect(locator).toHaveCount(expected) failed%0A%0A    Locator:  locator('.tree-item')%0A    Expected: 3%0A    Received: 0%0A    Timeout:  5000ms%0A%0A    Call log:%0A      - Expect "toHaveCount" with timeout 5000ms%0A      - waiting for locator('.tree-item')%0A        14 × locator resolved to 0 elements%0A           - unexpected value "0"%0A%0A%0A      48 |   });%0A      49 |   await page.goto(harness.url, { waitUntil: "load" });%0A    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);%0A         |                                            ^%0A      51 |   return harness;%0A      52 | }%0A      53 |%0A        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)%0A        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:360:19
+  ✘  38 [editing] › test/editing/architecture-canvas.spec.mjs:356:1 › breakpoint changes preserve the focused panel without stale Escape handling (5.3s)
+
+::error file=test/editing/architecture-canvas.spec.mjs,title=[editing] › test/editing/architecture-canvas.spec.mjs:388:1 › move and resize gestures show live transforms before committing,line=50,col=44::  10) [editing] › test/editing/architecture-canvas.spec.mjs:388:1 › move and resize gestures show live transforms before committing %0A    Error: expect(locator).toHaveCount(expected) failed%0A%0A    Locator:  locator('.tree-item')%0A    Expected: 3%0A    Received: 0%0A    Timeout:  5000ms%0A%0A    Call log:%0A      - Expect "toHaveCount" with timeout 5000ms%0A      - waiting for locator('.tree-item')%0A        14 × locator resolved to 0 elements%0A           - unexpected value "0"%0A%0A%0A      48 |   });%0A      49 |   await page.goto(harness.url, { waitUntil: "load" });%0A    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);%0A         |                                            ^%0A      51 |   return harness;%0A      52 | }%0A      53 |%0A        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)%0A        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:389:19
+  ✘  39 [editing] › test/editing/architecture-canvas.spec.mjs:388:1 › move and resize gestures show live transforms before committing (5.3s)
+
+::error file=test/editing/architecture-canvas.spec.mjs,title=[editing] › test/editing/architecture-canvas.spec.mjs:431:1 › large diagrams scroll and pan to the edges, then fit centered in the viewport,line=50,col=44::  11) [editing] › test/editing/architecture-canvas.spec.mjs:431:1 › large diagrams scroll and pan to the edges, then fit centered in the viewport %0A    Error: expect(locator).toHaveCount(expected) failed%0A%0A    Locator:  locator('.tree-item')%0A    Expected: 3%0A    Received: 0%0A    Timeout:  5000ms%0A%0A    Call log:%0A      - Expect "toHaveCount" with timeout 5000ms%0A      - waiting for locator('.tree-item')%0A        14 × locator resolved to 0 elements%0A           - unexpected value "0"%0A%0A%0A      48 |   });%0A      49 |   await page.goto(harness.url, { waitUntil: "load" });%0A    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);%0A         |                                            ^%0A      51 |   return harness;%0A      52 | }%0A      53 |%0A        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)%0A        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:433:19
+  ✘  40 [editing] › test/editing/architecture-canvas.spec.mjs:431:1 › large diagrams scroll and pan to the edges, then fit centered in the viewport (5.2s)
+
+::error file=test/editing/architecture-canvas.spec.mjs,title=[editing] › test/editing/architecture-canvas.spec.mjs:508:1 › adding connectors and deleting nodes preserves reference integrity,line=50,col=44::  12) [editing] › test/editing/architecture-canvas.spec.mjs:508:1 › adding connectors and deleting nodes preserves reference integrity %0A    Error: expect(locator).toHaveCount(expected) failed%0A%0A    Locator:  locator('.tree-item')%0A    Expected: 3%0A    Received: 0%0A    Timeout:  5000ms%0A%0A    Call log:%0A      - Expect "toHaveCount" with timeout 5000ms%0A      - waiting for locator('.tree-item')%0A        14 × locator resolved to 0 elements%0A           - unexpected value "0"%0A%0A%0A      48 |   });%0A      49 |   await page.goto(harness.url, { waitUntil: "load" });%0A    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);%0A         |                                            ^%0A      51 |   return harness;%0A      52 | }%0A      53 |%0A        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)%0A        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:509:19
+  ✘  41 [editing] › test/editing/architecture-canvas.spec.mjs:508:1 › adding connectors and deleting nodes preserves reference integrity (5.3s)
+
+::error file=test/editing/architecture-canvas.spec.mjs,title=[editing] › test/editing/architecture-canvas.spec.mjs:525:1 › the asset picker edits standalone images and node icons,line=50,col=44::  13) [editing] › test/editing/architecture-canvas.spec.mjs:525:1 › the asset picker edits standalone images and node icons %0A    Error: expect(locator).toHaveCount(expected) failed%0A%0A    Locator:  locator('.tree-item')%0A    Expected: 3%0A    Received: 0%0A    Timeout:  5000ms%0A%0A    Call log:%0A      - Expect "toHaveCount" with timeout 5000ms%0A      - waiting for locator('.tree-item')%0A        14 × locator resolved to 0 elements%0A           - unexpected value "0"%0A%0A%0A      48 |   });%0A      49 |   await page.goto(harness.url, { waitUntil: "load" });%0A    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);%0A         |                                            ^%0A      51 |   return harness;%0A      52 | }%0A      53 |%0A        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)%0A        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:526:19
+  ✘  42 [editing] › test/editing/architecture-canvas.spec.mjs:525:1 › the asset picker edits standalone images and node icons (5.3s)
+
+::error file=test/editing/architecture-canvas.spec.mjs,title=[editing] › test/editing/architecture-canvas.spec.mjs:575:1 › importing an image from the computer numbers duplicate names and diagram undo keeps the asset,line=50,col=44::  14) [editing] › test/editing/architecture-canvas.spec.mjs:575:1 › importing an image from the computer numbers duplicate names and diagram undo keeps the asset %0A    Error: expect(locator).toHaveCount(expected) failed%0A%0A    Locator:  locator('.tree-item')%0A    Expected: 3%0A    Received: 0%0A    Timeout:  5000ms%0A%0A    Call log:%0A      - Expect "toHaveCount" with timeout 5000ms%0A      - waiting for locator('.tree-item')%0A        14 × locator resolved to 0 elements%0A           - unexpected value "0"%0A%0A%0A      48 |   });%0A      49 |   await page.goto(harness.url, { waitUntil: "load" });%0A    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);%0A         |                                            ^%0A      51 |   return harness;%0A      52 | }%0A      53 |%0A        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)%0A        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:578:19
+  ✘  43 [editing] › test/editing/architecture-canvas.spec.mjs:575:1 › importing an image from the computer numbers duplicate names and diagram undo keeps the asset (5.3s)
+
+::error file=test/editing/architecture-canvas.spec.mjs,title=[editing] › test/editing/architecture-canvas.spec.mjs:609:1 › external-change conflicts remain visible without overwriting Markdown,line=50,col=44::  15) [editing] › test/editing/architecture-canvas.spec.mjs:609:1 › external-change conflicts remain visible without overwriting Markdown %0A    Error: expect(locator).toHaveCount(expected) failed%0A%0A    Locator:  locator('.tree-item')%0A    Expected: 3%0A    Received: 0%0A    Timeout:  5000ms%0A%0A    Call log:%0A      - Expect "toHaveCount" with timeout 5000ms%0A      - waiting for locator('.tree-item')%0A        14 × locator resolved to 0 elements%0A           - unexpected value "0"%0A%0A%0A      48 |   });%0A      49 |   await page.goto(harness.url, { waitUntil: "load" });%0A    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);%0A         |                                            ^%0A      51 |   return harness;%0A      52 | }%0A      53 |%0A        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)%0A        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:610:19
+  ✘  44 [editing] › test/editing/architecture-canvas.spec.mjs:609:1 › external-change conflicts remain visible without overwriting Markdown (5.3s)
+
+::error file=test/editing/architecture-canvas.spec.mjs,title=[editing] › test/editing/architecture-canvas.spec.mjs:635:1 › editing can continue with the current revision after reloading an unsaved draft,line=50,col=44::  16) [editing] › test/editing/architecture-canvas.spec.mjs:635:1 › editing can continue with the current revision after reloading an unsaved draft %0A    Error: expect(locator).toHaveCount(expected) failed%0A%0A    Locator:  locator('.tree-item')%0A    Expected: 3%0A    Received: 0%0A    Timeout:  5000ms%0A%0A    Call log:%0A      - Expect "toHaveCount" with timeout 5000ms%0A      - waiting for locator('.tree-item')%0A        14 × locator resolved to 0 elements%0A           - unexpected value "0"%0A%0A%0A      48 |   });%0A      49 |   await page.goto(harness.url, { waitUntil: "load" });%0A    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);%0A         |                                            ^%0A      51 |   return harness;%0A      52 | }%0A      53 |%0A        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)%0A        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:636:19
+  ✘  45 [editing] › test/editing/architecture-canvas.spec.mjs:635:1 › editing can continue with the current revision after reloading an unsaved draft (5.3s)
+
+::error file=test/editing/architecture-canvas.spec.mjs,title=[editing] › test/editing/architecture-canvas.spec.mjs:653:1 › reloading source Markdown does not carry over a draft from the old generation,line=50,col=44::  17) [editing] › test/editing/architecture-canvas.spec.mjs:653:1 › reloading source Markdown does not carry over a draft from the old generation %0A    Error: expect(locator).toHaveCount(expected) failed%0A%0A    Locator:  locator('.tree-item')%0A    Expected: 3%0A    Received: 0%0A    Timeout:  5000ms%0A%0A    Call log:%0A      - Expect "toHaveCount" with timeout 5000ms%0A      - waiting for locator('.tree-item')%0A        14 × locator resolved to 0 elements%0A           - unexpected value "0"%0A%0A%0A      48 |   });%0A      49 |   await page.goto(harness.url, { waitUntil: "load" });%0A    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);%0A         |                                            ^%0A      51 |   return harness;%0A      52 | }%0A      53 |%0A        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)%0A        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:654:19
+  ✘  46 [editing] › test/editing/architecture-canvas.spec.mjs:653:1 › reloading source Markdown does not carry over a draft from the old generation (5.2s)
+
+::error file=test/editing/architecture-canvas.spec.mjs,title=[editing] › test/editing/architecture-canvas.spec.mjs:673:1 › a delayed stale state response does not roll back the generation after reload,line=50,col=44::  18) [editing] › test/editing/architecture-canvas.spec.mjs:673:1 › a delayed stale state response does not roll back the generation after reload %0A    Error: expect(locator).toHaveCount(expected) failed%0A%0A    Locator:  locator('.tree-item')%0A    Expected: 3%0A    Received: 0%0A    Timeout:  5000ms%0A%0A    Call log:%0A      - Expect "toHaveCount" with timeout 5000ms%0A      - waiting for locator('.tree-item')%0A        14 × locator resolved to 0 elements%0A           - unexpected value "0"%0A%0A%0A      48 |   });%0A      49 |   await page.goto(harness.url, { waitUntil: "load" });%0A    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);%0A         |                                            ^%0A      51 |   return harness;%0A      52 | }%0A      53 |%0A        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)%0A        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:674:19
+  ✘  47 [editing] › test/editing/architecture-canvas.spec.mjs:673:1 › a delayed stale state response does not roll back the generation after reload (5.2s)
+
+::error file=test/editing/architecture-canvas.spec.mjs,title=[editing] › test/editing/architecture-canvas.spec.mjs:694:1 › edits made during save remain dirty instead of being marked saved,line=701,col=46::  19) [editing] › test/editing/architecture-canvas.spec.mjs:694:1 › edits made during save remain dirty instead of being marked saved %0A    Error: expect(locator).toHaveCount(expected) failed%0A%0A    Locator:  locator('.tree-item')%0A    Expected: 3%0A    Received: 0%0A    Timeout:  5000ms%0A%0A    Call log:%0A      - Expect "toHaveCount" with timeout 5000ms%0A      - waiting for locator('.tree-item')%0A        14 × locator resolved to 0 elements%0A           - unexpected value "0"%0A%0A%0A      699 |   try {%0A      700 |     await page.goto(harness.url, { waitUntil: "load" });%0A    > 701 |     await expect(page.locator(".tree-item")).toHaveCount(3);%0A          |                                              ^%0A      702 |     await addShape(page);%0A      703 |     await page.locator('[data-action="save"]').click();%0A      704 |     await expect(page.locator("#status")).toContainText("Saving");%0A        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:701:46
+  ✘  48 [editing] › test/editing/architecture-canvas.spec.mjs:694:1 › edits made during save remain dirty instead of being marked saved (5.3s)
+
+::error file=test/editing/architecture-canvas.spec.mjs,title=[editing] › test/editing/architecture-canvas.spec.mjs:720:1 › save server communication failures appear in the UI,line=50,col=44::  20) [editing] › test/editing/architecture-canvas.spec.mjs:720:1 › save server communication failures appear in the UI %0A    Error: expect(locator).toHaveCount(expected) failed%0A%0A    Locator:  locator('.tree-item')%0A    Expected: 3%0A    Received: 0%0A    Timeout:  5000ms%0A%0A    Call log:%0A      - Expect "toHaveCount" with timeout 5000ms%0A      - waiting for locator('.tree-item')%0A        14 × locator resolved to 0 elements%0A           - unexpected value "0"%0A%0A%0A      48 |   });%0A      49 |   await page.goto(harness.url, { waitUntil: "load" });%0A    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);%0A         |                                            ^%0A      51 |   return harness;%0A      52 | }%0A      53 |%0A        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)%0A        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:721:19
+  ✘  49 [editing] › test/editing/architecture-canvas.spec.mjs:720:1 › save server communication failures appear in the UI (5.4s)
+
+::error file=test/editing/architecture-canvas.spec.mjs,title=[editing] › test/editing/architecture-canvas.spec.mjs:735:1 › context menus on the canvas and element tree expose target-specific edit actions,line=50,col=44::  21) [editing] › test/editing/architecture-canvas.spec.mjs:735:1 › context menus on the canvas and element tree expose target-specific edit actions %0A    Error: expect(locator).toHaveCount(expected) failed%0A%0A    Locator:  locator('.tree-item')%0A    Expected: 3%0A    Received: 0%0A    Timeout:  5000ms%0A%0A    Call log:%0A      - Expect "toHaveCount" with timeout 5000ms%0A      - waiting for locator('.tree-item')%0A        14 × locator resolved to 0 elements%0A           - unexpected value "0"%0A%0A%0A      48 |   });%0A      49 |   await page.goto(harness.url, { waitUntil: "load" });%0A    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);%0A         |                                            ^%0A      51 |   return harness;%0A      52 | }%0A      53 |%0A        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)%0A        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:736:19
+  ✘  50 [editing] › test/editing/architecture-canvas.spec.mjs:735:1 › context menus on the canvas and element tree expose target-specific edit actions (5.3s)
+
+::error file=test/editing/architecture-canvas.spec.mjs,title=[editing] › test/editing/architecture-canvas.spec.mjs:759:1 › adds at a blank-area context-menu position and converts to parent-relative coordinates in groups,line=50,col=44::  22) [editing] › test/editing/architecture-canvas.spec.mjs:759:1 › adds at a blank-area context-menu position and converts to parent-relative coordinates in groups %0A    Error: expect(locator).toHaveCount(expected) failed%0A%0A    Locator:  locator('.tree-item')%0A    Expected: 3%0A    Received: 0%0A    Timeout:  5000ms%0A%0A    Call log:%0A      - Expect "toHaveCount" with timeout 5000ms%0A      - waiting for locator('.tree-item')%0A        14 × locator resolved to 0 elements%0A           - unexpected value "0"%0A%0A%0A      48 |   });%0A      49 |   await page.goto(harness.url, { waitUntil: "load" });%0A    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);%0A         |                                            ^%0A      51 |   return harness;%0A      52 | }%0A      53 |%0A        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)%0A        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:760:19
+  ✘  51 [editing] › test/editing/architecture-canvas.spec.mjs:759:1 › adds at a blank-area context-menu position and converts to parent-relative coordinates in groups (5.3s)
+
+::error file=test/editing/architecture-canvas.spec.mjs,title=[editing] › test/editing/architecture-canvas.spec.mjs:787:1 › context menus support ordering, connector duplication, undo, and save,line=50,col=44::  23) [editing] › test/editing/architecture-canvas.spec.mjs:787:1 › context menus support ordering, connector duplication, undo, and save %0A    Error: expect(locator).toHaveCount(expected) failed%0A%0A    Locator:  locator('.tree-item')%0A    Expected: 3%0A    Received: 0%0A    Timeout:  5000ms%0A%0A    Call log:%0A      - Expect "toHaveCount" with timeout 5000ms%0A      - waiting for locator('.tree-item')%0A        14 × locator resolved to 0 elements%0A           - unexpected value "0"%0A%0A%0A      48 |   });%0A      49 |   await page.goto(harness.url, { waitUntil: "load" });%0A    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);%0A         |                                            ^%0A      51 |   return harness;%0A      52 | }%0A      53 |%0A        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)%0A        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:788:19
+  ✘  52 [editing] › test/editing/architecture-canvas.spec.mjs:787:1 › context menus support ordering, connector duplication, undo, and save (5.3s)
+
+::error file=test/editing/architecture-canvas.spec.mjs,title=[editing] › test/editing/architecture-canvas.spec.mjs:820:1 › blank space in the element tree adds near the visible canvas without overlap,line=50,col=44::  24) [editing] › test/editing/architecture-canvas.spec.mjs:820:1 › blank space in the element tree adds near the visible canvas without overlap %0A    Error: expect(locator).toHaveCount(expected) failed%0A%0A    Locator:  locator('.tree-item')%0A    Expected: 3%0A    Received: 0%0A    Timeout:  5000ms%0A%0A    Call log:%0A      - Expect "toHaveCount" with timeout 5000ms%0A      - waiting for locator('.tree-item')%0A        14 × locator resolved to 0 elements%0A           - unexpected value "0"%0A%0A%0A      48 |   });%0A      49 |   await page.goto(harness.url, { waitUntil: "load" });%0A    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);%0A         |                                            ^%0A      51 |   return harness;%0A      52 | }%0A      53 |%0A        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)%0A        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:821:19
+  ✘  53 [editing] › test/editing/architecture-canvas.spec.mjs:820:1 › blank space in the element tree adds near the visible canvas without overlap (5.3s)
+
+::error file=test/editing/architecture-canvas.spec.mjs,title=[editing] › test/editing/architecture-canvas.spec.mjs:847:1 › layout actions appear only in the group context submenu::  25) [editing] › test/editing/architecture-canvas.spec.mjs:847:1 › layout actions appear only in the group context submenu %0A    Test timeout of 30000ms exceeded.
+::error file=test/editing/architecture-canvas.spec.mjs,title=[editing] › test/editing/architecture-canvas.spec.mjs:847:1 › layout actions appear only in the group context submenu,line=882,col=54::  25) [editing] › test/editing/architecture-canvas.spec.mjs:847:1 › layout actions appear only in the group context submenu %0A    Error: locator.click: Test timeout of 30000ms exceeded.%0A    Call log:%0A      - waiting for locator('[data-ref="api"].tree-item')%0A%0A%0A      880 |     await page.goto(harness.url, { waitUntil: "load" });%0A      881 |     const menu = page.locator("#contextMenu");%0A    > 882 |     await page.locator('[data-ref="api"].tree-item').click({ button: "right" });%0A          |                                                      ^%0A      883 |     await expect(menu.getByRole("menuitem", { name: "Layout", exact: true })).toHaveCount(0);%0A      884 |     await expect(menu.getByRole("menuitem", { name: "Release layout" })).toHaveCount(0);%0A      885 |     await expect(page.locator('[data-action="release-layout"]')).toBeDisabled();%0A        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:882:54
+  ✘  54 [editing] › test/editing/architecture-canvas.spec.mjs:847:1 › layout actions appear only in the group context submenu (30.0s)
+
+::error file=test/editing/architecture-canvas.spec.mjs,title=[editing] › test/editing/architecture-canvas.spec.mjs:952:1 › group layout submenu supports left/right arrows and Escape returns focus to the target::  26) [editing] › test/editing/architecture-canvas.spec.mjs:952:1 › group layout submenu supports left/right arrows and Escape returns focus to the target %0A    Test timeout of 30000ms exceeded.
+::error file=test/editing/architecture-canvas.spec.mjs,title=[editing] › test/editing/architecture-canvas.spec.mjs:952:1 › group layout submenu supports left/right arrows and Escape returns focus to the target,line=977,col=17::  26) [editing] › test/editing/architecture-canvas.spec.mjs:952:1 › group layout submenu supports left/right arrows and Escape returns focus to the target %0A    Error: locator.focus: Test timeout of 30000ms exceeded.%0A    Call log:%0A      - waiting for locator('[data-ref="zone"].tree-item')%0A%0A%0A      975 |     await page.goto(harness.url, { waitUntil: "load" });%0A      976 |     const group = page.locator('[data-ref="zone"].tree-item');%0A    > 977 |     await group.focus();%0A          |                 ^%0A      978 |     await page.keyboard.press("Shift+F10");%0A      979 |     const trigger = page.getByRole("menuitem", { name: "Layout", exact: true });%0A      980 |     await trigger.focus();%0A        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:977:17
+  ✘  55 [editing] › test/editing/architecture-canvas.spec.mjs:952:1 › group layout submenu supports left/right arrows and Escape returns focus to the target (30.0s)
+
+::error file=test/editing/architecture-canvas.spec.mjs,title=[editing] › test/editing/architecture-canvas.spec.mjs:1022:1 › keyboard controls the context menu and closing returns focus to the target,line=50,col=44::  27) [editing] › test/editing/architecture-canvas.spec.mjs:1022:1 › keyboard controls the context menu and closing returns focus to the target %0A    Error: expect(locator).toHaveCount(expected) failed%0A%0A    Locator:  locator('.tree-item')%0A    Expected: 3%0A    Received: 0%0A    Timeout:  5000ms%0A%0A    Call log:%0A      - Expect "toHaveCount" with timeout 5000ms%0A      - waiting for locator('.tree-item')%0A        14 × locator resolved to 0 elements%0A           - unexpected value "0"%0A%0A%0A      48 |   });%0A      49 |   await page.goto(harness.url, { waitUntil: "load" });%0A    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);%0A         |                                            ^%0A      51 |   return harness;%0A      52 | }%0A      53 |%0A        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)%0A        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:1023:19
+  ✘  56 [editing] › test/editing/architecture-canvas.spec.mjs:1022:1 › keyboard controls the context menu and closing returns focus to the target (5.3s)
+
+::error file=test/editing/architecture-canvas.spec.mjs,title=[editing] › test/editing/architecture-canvas.spec.mjs:1051:1 › Ctrl+S while editing an inspector field commits and saves the change,line=50,col=44::  28) [editing] › test/editing/architecture-canvas.spec.mjs:1051:1 › Ctrl+S while editing an inspector field commits and saves the change %0A    Error: expect(locator).toHaveCount(expected) failed%0A%0A    Locator:  locator('.tree-item')%0A    Expected: 3%0A    Received: 0%0A    Timeout:  5000ms%0A%0A    Call log:%0A      - Expect "toHaveCount" with timeout 5000ms%0A      - waiting for locator('.tree-item')%0A        14 × locator resolved to 0 elements%0A           - unexpected value "0"%0A%0A%0A      48 |   });%0A      49 |   await page.goto(harness.url, { waitUntil: "load" });%0A    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);%0A         |                                            ^%0A      51 |   return harness;%0A      52 | }%0A      53 |%0A        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)%0A        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:1052:19
+  ✘  57 [editing] › test/editing/architecture-canvas.spec.mjs:1051:1 › Ctrl+S while editing an inspector field commits and saves the change (5.3s)
+::notice title=🎭 Playwright Run Summary::  28 failed%0A    [editing] › test/editing/architecture-canvas.spec.mjs:98:1 › changes remain in the draft until the save button writes them to Markdown %0A    [editing] › test/editing/architecture-canvas.spec.mjs:118:1 › connector label overlap can be placed in front of or behind boxes %0A    [editing] › test/editing/architecture-canvas.spec.mjs:151:1 › connector line-style presets preserve the Architecture v1 dash contract %0A    [editing] › test/editing/architecture-canvas.spec.mjs:174:1 › selection, keyboard movement, resizing, and undo/redo share one draft %0A    [editing] › test/editing/architecture-canvas.spec.mjs:207:1 › the shape palette stays bounded and adds PowerPoint-compatible shapes %0A    [editing] › test/editing/architecture-canvas.spec.mjs:231:1 › an empty diagram offers a direct first-shape action %0A    [editing] › test/editing/architecture-canvas.spec.mjs:249:1 › toolbar-added shapes avoid occupied siblings %0A    [editing] › test/editing/architecture-canvas.spec.mjs:272:1 › medium and narrow layouts expose Elements and Properties as responsive drawers %0A    [editing] › test/editing/architecture-canvas.spec.mjs:356:1 › breakpoint changes preserve the focused panel without stale Escape handling %0A    [editing] › test/editing/architecture-canvas.spec.mjs:388:1 › move and resize gestures show live transforms before committing %0A    [editing] › test/editing/architecture-canvas.spec.mjs:431:1 › large diagrams scroll and pan to the edges, then fit centered in the viewport %0A    [editing] › test/editing/architecture-canvas.spec.mjs:508:1 › adding connectors and deleting nodes preserves reference integrity %0A    [editing] › test/editing/architecture-canvas.spec.mjs:525:1 › the asset picker edits standalone images and node icons %0A    [editing] › test/editing/architecture-canvas.spec.mjs:575:1 › importing an image from the computer numbers duplicate names and diagram undo keeps the asset %0A    [editing] › test/editing/architecture-canvas.spec.mjs:609:1 › external-change conflicts remain visible without overwriting Markdown %0A    [editing] › test/editing/architecture-canvas.spec.mjs:635:1 › editing can continue with the current revision after reloading an unsaved draft %0A    [editing] › test/editing/architecture-canvas.spec.mjs:653:1 › reloading source Markdown does not carry over a draft from the old generation %0A    [editing] › test/editing/architecture-canvas.spec.mjs:673:1 › a delayed stale state response does not roll back the generation after reload %0A    [editing] › test/editing/architecture-canvas.spec.mjs:694:1 › edits made during save remain dirty instead of being marked saved %0A    [editing] › test/editing/architecture-canvas.spec.mjs:720:1 › save server communication failures appear in the UI %0A    [editing] › test/editing/architecture-canvas.spec.mjs:735:1 › context menus on the canvas and element tree expose target-specific edit actions %0A    [editing] › test/editing/architecture-canvas.spec.mjs:759:1 › adds at a blank-area context-menu position and converts to parent-relative coordinates in groups %0A    [editing] › test/editing/architecture-canvas.spec.mjs:787:1 › context menus support ordering, connector duplication, undo, and save %0A    [editing] › test/editing/architecture-canvas.spec.mjs:820:1 › blank space in the element tree adds near the visible canvas without overlap %0A    [editing] › test/editing/architecture-canvas.spec.mjs:847:1 › layout actions appear only in the group context submenu %0A    [editing] › test/editing/architecture-canvas.spec.mjs:952:1 › group layout submenu supports left/right arrows and Escape returns focus to the target %0A    [editing] › test/editing/architecture-canvas.spec.mjs:1022:1 › keyboard controls the context menu and closing returns focus to the target %0A    [editing] › test/editing/architecture-canvas.spec.mjs:1051:1 › Ctrl+S while editing an inspector field commits and saves the change %0A  29 passed (4.1m)
+
+
+  1) [editing] › test/editing/architecture-canvas.spec.mjs:98:1 › changes remain in the draft until the save button writes them to Markdown 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.tree-item')
+    Expected: 3
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for locator('.tree-item')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      48 |   });
+      49 |   await page.goto(harness.url, { waitUntil: "load" });
+    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);
+         |                                            ^
+      51 |   return harness;
+      52 | }
+      53 |
+        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)
+        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:99:19
+
+    Error Context: scene-svg-regression-results/architecture-canvas-change-6ff26-ton-writes-them-to-Markdown-editing/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    scene-svg-regression-results/architecture-canvas-change-6ff26-ton-writes-them-to-Markdown-editing/trace.zip
+    Usage:
+
+        npx playwright show-trace scene-svg-regression-results/architecture-canvas-change-6ff26-ton-writes-them-to-Markdown-editing/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [editing] › test/editing/architecture-canvas.spec.mjs:118:1 › connector label overlap can be placed in front of or behind boxes 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.tree-item')
+    Expected: 3
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for locator('.tree-item')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      48 |   });
+      49 |   await page.goto(harness.url, { waitUntil: "load" });
+    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);
+         |                                            ^
+      51 |   return harness;
+      52 | }
+      53 |
+        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)
+        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:119:19
+
+    Error Context: scene-svg-regression-results/architecture-canvas-connec-c8104-in-front-of-or-behind-boxes-editing/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    scene-svg-regression-results/architecture-canvas-connec-c8104-in-front-of-or-behind-boxes-editing/trace.zip
+    Usage:
+
+        npx playwright show-trace scene-svg-regression-results/architecture-canvas-connec-c8104-in-front-of-or-behind-boxes-editing/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [editing] › test/editing/architecture-canvas.spec.mjs:151:1 › connector line-style presets preserve the Architecture v1 dash contract 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.tree-item')
+    Expected: 3
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for locator('.tree-item')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      48 |   });
+      49 |   await page.goto(harness.url, { waitUntil: "load" });
+    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);
+         |                                            ^
+      51 |   return harness;
+      52 | }
+      53 |
+        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)
+        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:152:19
+
+    Error Context: scene-svg-regression-results/architecture-canvas-connec-910f2-chitecture-v1-dash-contract-editing/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    scene-svg-regression-results/architecture-canvas-connec-910f2-chitecture-v1-dash-contract-editing/trace.zip
+    Usage:
+
+        npx playwright show-trace scene-svg-regression-results/architecture-canvas-connec-910f2-chitecture-v1-dash-contract-editing/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [editing] › test/editing/architecture-canvas.spec.mjs:174:1 › selection, keyboard movement, resizing, and undo/redo share one draft 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.tree-item')
+    Expected: 3
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for locator('.tree-item')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      48 |   });
+      49 |   await page.goto(harness.url, { waitUntil: "load" });
+    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);
+         |                                            ^
+      51 |   return harness;
+      52 | }
+      53 |
+        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)
+        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:175:19
+
+    Error Context: scene-svg-regression-results/architecture-canvas-select-d0400-d-undo-redo-share-one-draft-editing/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    scene-svg-regression-results/architecture-canvas-select-d0400-d-undo-redo-share-one-draft-editing/trace.zip
+    Usage:
+
+        npx playwright show-trace scene-svg-regression-results/architecture-canvas-select-d0400-d-undo-redo-share-one-draft-editing/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) [editing] › test/editing/architecture-canvas.spec.mjs:207:1 › the shape palette stays bounded and adds PowerPoint-compatible shapes 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.tree-item')
+    Expected: 3
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for locator('.tree-item')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      48 |   });
+      49 |   await page.goto(harness.url, { waitUntil: "load" });
+    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);
+         |                                            ^
+      51 |   return harness;
+      52 | }
+      53 |
+        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)
+        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:209:19
+
+    Error Context: scene-svg-regression-results/architecture-canvas-the-sh-d447f-owerPoint-compatible-shapes-editing/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    scene-svg-regression-results/architecture-canvas-the-sh-d447f-owerPoint-compatible-shapes-editing/trace.zip
+    Usage:
+
+        npx playwright show-trace scene-svg-regression-results/architecture-canvas-the-sh-d447f-owerPoint-compatible-shapes-editing/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) [editing] › test/editing/architecture-canvas.spec.mjs:231:1 › an empty diagram offers a direct first-shape action 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.editor-empty-state').getByRole('heading', { name: 'Build your first diagram' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for locator('.editor-empty-state').getByRole('heading', { name: 'Build your first diagram' })
+
+
+      236 |     await page.goto(harness.url, { waitUntil: "load" });
+      237 |     const empty = page.locator(".editor-empty-state");
+    > 238 |     await expect(empty.getByRole("heading", { name: "Build your first diagram" })).toBeVisible();
+          |                                                                                    ^
+      239 |     await expect(page.locator("#status")).toContainText("Add the first shape");
+      240 |     await empty.getByRole("button", { name: "Add first shape" }).click();
+      241 |     await expect(page.locator('[data-ref="node"].tree-item')).toBeVisible();
+        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:238:84
+
+    Error Context: scene-svg-regression-results/architecture-canvas-an-emp-e02df-a-direct-first-shape-action-editing/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    scene-svg-regression-results/architecture-canvas-an-emp-e02df-a-direct-first-shape-action-editing/trace.zip
+    Usage:
+
+        npx playwright show-trace scene-svg-regression-results/architecture-canvas-an-emp-e02df-a-direct-first-shape-action-editing/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  7) [editing] › test/editing/architecture-canvas.spec.mjs:249:1 › toolbar-added shapes avoid occupied siblings 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.tree-item')
+    Expected: 3
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for locator('.tree-item')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      48 |   });
+      49 |   await page.goto(harness.url, { waitUntil: "load" });
+    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);
+         |                                            ^
+      51 |   return harness;
+      52 | }
+      53 |
+        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)
+        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:250:19
+
+    Error Context: scene-svg-regression-results/architecture-canvas-toolba-a5c08-pes-avoid-occupied-siblings-editing/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    scene-svg-regression-results/architecture-canvas-toolba-a5c08-pes-avoid-occupied-siblings-editing/trace.zip
+    Usage:
+
+        npx playwright show-trace scene-svg-regression-results/architecture-canvas-toolba-a5c08-pes-avoid-occupied-siblings-editing/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  8) [editing] › test/editing/architecture-canvas.spec.mjs:272:1 › medium and narrow layouts expose Elements and Properties as responsive drawers 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.tree-item')
+    Expected: 3
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for locator('.tree-item')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      48 |   });
+      49 |   await page.goto(harness.url, { waitUntil: "load" });
+    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);
+         |                                            ^
+      51 |   return harness;
+      52 | }
+      53 |
+        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)
+        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:276:19
+
+    Error Context: scene-svg-regression-results/architecture-canvas-medium-3a444-rties-as-responsive-drawers-editing/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    scene-svg-regression-results/architecture-canvas-medium-3a444-rties-as-responsive-drawers-editing/trace.zip
+    Usage:
+
+        npx playwright show-trace scene-svg-regression-results/architecture-canvas-medium-3a444-rties-as-responsive-drawers-editing/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  9) [editing] › test/editing/architecture-canvas.spec.mjs:356:1 › breakpoint changes preserve the focused panel without stale Escape handling 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.tree-item')
+    Expected: 3
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for locator('.tree-item')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      48 |   });
+      49 |   await page.goto(harness.url, { waitUntil: "load" });
+    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);
+         |                                            ^
+      51 |   return harness;
+      52 | }
+      53 |
+        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)
+        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:360:19
+
+    Error Context: scene-svg-regression-results/architecture-canvas-breakp-1e8b1-thout-stale-Escape-handling-editing/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    scene-svg-regression-results/architecture-canvas-breakp-1e8b1-thout-stale-Escape-handling-editing/trace.zip
+    Usage:
+
+        npx playwright show-trace scene-svg-regression-results/architecture-canvas-breakp-1e8b1-thout-stale-Escape-handling-editing/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  10) [editing] › test/editing/architecture-canvas.spec.mjs:388:1 › move and resize gestures show live transforms before committing 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.tree-item')
+    Expected: 3
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for locator('.tree-item')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      48 |   });
+      49 |   await page.goto(harness.url, { waitUntil: "load" });
+    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);
+         |                                            ^
+      51 |   return harness;
+      52 | }
+      53 |
+        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)
+        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:389:19
+
+    Error Context: scene-svg-regression-results/architecture-canvas-move-a-dd1d9-ransforms-before-committing-editing/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    scene-svg-regression-results/architecture-canvas-move-a-dd1d9-ransforms-before-committing-editing/trace.zip
+    Usage:
+
+        npx playwright show-trace scene-svg-regression-results/architecture-canvas-move-a-dd1d9-ransforms-before-committing-editing/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  11) [editing] › test/editing/architecture-canvas.spec.mjs:431:1 › large diagrams scroll and pan to the edges, then fit centered in the viewport 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.tree-item')
+    Expected: 3
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for locator('.tree-item')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      48 |   });
+      49 |   await page.goto(harness.url, { waitUntil: "load" });
+    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);
+         |                                            ^
+      51 |   return harness;
+      52 | }
+      53 |
+        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)
+        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:433:19
+
+    Error Context: scene-svg-regression-results/architecture-canvas-large--b2f5d-it-centered-in-the-viewport-editing/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    scene-svg-regression-results/architecture-canvas-large--b2f5d-it-centered-in-the-viewport-editing/trace.zip
+    Usage:
+
+        npx playwright show-trace scene-svg-regression-results/architecture-canvas-large--b2f5d-it-centered-in-the-viewport-editing/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  12) [editing] › test/editing/architecture-canvas.spec.mjs:508:1 › adding connectors and deleting nodes preserves reference integrity 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.tree-item')
+    Expected: 3
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for locator('.tree-item')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      48 |   });
+      49 |   await page.goto(harness.url, { waitUntil: "load" });
+    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);
+         |                                            ^
+      51 |   return harness;
+      52 | }
+      53 |
+        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)
+        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:509:19
+
+    Error Context: scene-svg-regression-results/architecture-canvas-adding-eb8d2-eserves-reference-integrity-editing/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    scene-svg-regression-results/architecture-canvas-adding-eb8d2-eserves-reference-integrity-editing/trace.zip
+    Usage:
+
+        npx playwright show-trace scene-svg-regression-results/architecture-canvas-adding-eb8d2-eserves-reference-integrity-editing/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  13) [editing] › test/editing/architecture-canvas.spec.mjs:525:1 › the asset picker edits standalone images and node icons 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.tree-item')
+    Expected: 3
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for locator('.tree-item')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      48 |   });
+      49 |   await page.goto(harness.url, { waitUntil: "load" });
+    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);
+         |                                            ^
+      51 |   return harness;
+      52 | }
+      53 |
+        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)
+        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:526:19
+
+    Error Context: scene-svg-regression-results/architecture-canvas-the-as-22d7e-alone-images-and-node-icons-editing/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    scene-svg-regression-results/architecture-canvas-the-as-22d7e-alone-images-and-node-icons-editing/trace.zip
+    Usage:
+
+        npx playwright show-trace scene-svg-regression-results/architecture-canvas-the-as-22d7e-alone-images-and-node-icons-editing/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  14) [editing] › test/editing/architecture-canvas.spec.mjs:575:1 › importing an image from the computer numbers duplicate names and diagram undo keeps the asset 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.tree-item')
+    Expected: 3
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for locator('.tree-item')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      48 |   });
+      49 |   await page.goto(harness.url, { waitUntil: "load" });
+    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);
+         |                                            ^
+      51 |   return harness;
+      52 | }
+      53 |
+        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)
+        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:578:19
+
+    Error Context: scene-svg-regression-results/architecture-canvas-import-0aec8-iagram-undo-keeps-the-asset-editing/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    scene-svg-regression-results/architecture-canvas-import-0aec8-iagram-undo-keeps-the-asset-editing/trace.zip
+    Usage:
+
+        npx playwright show-trace scene-svg-regression-results/architecture-canvas-import-0aec8-iagram-undo-keeps-the-asset-editing/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  15) [editing] › test/editing/architecture-canvas.spec.mjs:609:1 › external-change conflicts remain visible without overwriting Markdown 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.tree-item')
+    Expected: 3
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for locator('.tree-item')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      48 |   });
+      49 |   await page.goto(harness.url, { waitUntil: "load" });
+    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);
+         |                                            ^
+      51 |   return harness;
+      52 | }
+      53 |
+        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)
+        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:610:19
+
+    Error Context: scene-svg-regression-results/architecture-canvas-extern-bc8a4-ithout-overwriting-Markdown-editing/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    scene-svg-regression-results/architecture-canvas-extern-bc8a4-ithout-overwriting-Markdown-editing/trace.zip
+    Usage:
+
+        npx playwright show-trace scene-svg-regression-results/architecture-canvas-extern-bc8a4-ithout-overwriting-Markdown-editing/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  16) [editing] › test/editing/architecture-canvas.spec.mjs:635:1 › editing can continue with the current revision after reloading an unsaved draft 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.tree-item')
+    Expected: 3
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for locator('.tree-item')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      48 |   });
+      49 |   await page.goto(harness.url, { waitUntil: "load" });
+    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);
+         |                                            ^
+      51 |   return harness;
+      52 | }
+      53 |
+        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)
+        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:636:19
+
+    Error Context: scene-svg-regression-results/architecture-canvas-editin-a279e--reloading-an-unsaved-draft-editing/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    scene-svg-regression-results/architecture-canvas-editin-a279e--reloading-an-unsaved-draft-editing/trace.zip
+    Usage:
+
+        npx playwright show-trace scene-svg-regression-results/architecture-canvas-editin-a279e--reloading-an-unsaved-draft-editing/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  17) [editing] › test/editing/architecture-canvas.spec.mjs:653:1 › reloading source Markdown does not carry over a draft from the old generation 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.tree-item')
+    Expected: 3
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for locator('.tree-item')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      48 |   });
+      49 |   await page.goto(harness.url, { waitUntil: "load" });
+    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);
+         |                                            ^
+      51 |   return harness;
+      52 | }
+      53 |
+        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)
+        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:654:19
+
+    Error Context: scene-svg-regression-results/architecture-canvas-reload-9144b-aft-from-the-old-generation-editing/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    scene-svg-regression-results/architecture-canvas-reload-9144b-aft-from-the-old-generation-editing/trace.zip
+    Usage:
+
+        npx playwright show-trace scene-svg-regression-results/architecture-canvas-reload-9144b-aft-from-the-old-generation-editing/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  18) [editing] › test/editing/architecture-canvas.spec.mjs:673:1 › a delayed stale state response does not roll back the generation after reload 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.tree-item')
+    Expected: 3
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for locator('.tree-item')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      48 |   });
+      49 |   await page.goto(harness.url, { waitUntil: "load" });
+    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);
+         |                                            ^
+      51 |   return harness;
+      52 | }
+      53 |
+        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)
+        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:674:19
+
+    Error Context: scene-svg-regression-results/architecture-canvas-a-dela-002bd-the-generation-after-reload-editing/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    scene-svg-regression-results/architecture-canvas-a-dela-002bd-the-generation-after-reload-editing/trace.zip
+    Usage:
+
+        npx playwright show-trace scene-svg-regression-results/architecture-canvas-a-dela-002bd-the-generation-after-reload-editing/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  19) [editing] › test/editing/architecture-canvas.spec.mjs:694:1 › edits made during save remain dirty instead of being marked saved 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.tree-item')
+    Expected: 3
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for locator('.tree-item')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      699 |   try {
+      700 |     await page.goto(harness.url, { waitUntil: "load" });
+    > 701 |     await expect(page.locator(".tree-item")).toHaveCount(3);
+          |                                              ^
+      702 |     await addShape(page);
+      703 |     await page.locator('[data-action="save"]').click();
+      704 |     await expect(page.locator("#status")).toContainText("Saving");
+        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:701:46
+
+    Error Context: scene-svg-regression-results/architecture-canvas-edits--1cd1b-stead-of-being-marked-saved-editing/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    scene-svg-regression-results/architecture-canvas-edits--1cd1b-stead-of-being-marked-saved-editing/trace.zip
+    Usage:
+
+        npx playwright show-trace scene-svg-regression-results/architecture-canvas-edits--1cd1b-stead-of-being-marked-saved-editing/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  20) [editing] › test/editing/architecture-canvas.spec.mjs:720:1 › save server communication failures appear in the UI 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.tree-item')
+    Expected: 3
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for locator('.tree-item')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      48 |   });
+      49 |   await page.goto(harness.url, { waitUntil: "load" });
+    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);
+         |                                            ^
+      51 |   return harness;
+      52 | }
+      53 |
+        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)
+        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:721:19
+
+    Error Context: scene-svg-regression-results/architecture-canvas-save-s-86261-n-failures-appear-in-the-UI-editing/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    scene-svg-regression-results/architecture-canvas-save-s-86261-n-failures-appear-in-the-UI-editing/trace.zip
+    Usage:
+
+        npx playwright show-trace scene-svg-regression-results/architecture-canvas-save-s-86261-n-failures-appear-in-the-UI-editing/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  21) [editing] › test/editing/architecture-canvas.spec.mjs:735:1 › context menus on the canvas and element tree expose target-specific edit actions 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.tree-item')
+    Expected: 3
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for locator('.tree-item')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      48 |   });
+      49 |   await page.goto(harness.url, { waitUntil: "load" });
+    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);
+         |                                            ^
+      51 |   return harness;
+      52 | }
+      53 |
+        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)
+        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:736:19
+
+    Error Context: scene-svg-regression-results/architecture-canvas-contex-d8a8f-arget-specific-edit-actions-editing/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    scene-svg-regression-results/architecture-canvas-contex-d8a8f-arget-specific-edit-actions-editing/trace.zip
+    Usage:
+
+        npx playwright show-trace scene-svg-regression-results/architecture-canvas-contex-d8a8f-arget-specific-edit-actions-editing/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  22) [editing] › test/editing/architecture-canvas.spec.mjs:759:1 › adds at a blank-area context-menu position and converts to parent-relative coordinates in groups 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.tree-item')
+    Expected: 3
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for locator('.tree-item')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      48 |   });
+      49 |   await page.goto(harness.url, { waitUntil: "load" });
+    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);
+         |                                            ^
+      51 |   return harness;
+      52 | }
+      53 |
+        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)
+        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:760:19
+
+    Error Context: scene-svg-regression-results/architecture-canvas-adds-a-b3fdb-ative-coordinates-in-groups-editing/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    scene-svg-regression-results/architecture-canvas-adds-a-b3fdb-ative-coordinates-in-groups-editing/trace.zip
+    Usage:
+
+        npx playwright show-trace scene-svg-regression-results/architecture-canvas-adds-a-b3fdb-ative-coordinates-in-groups-editing/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  23) [editing] › test/editing/architecture-canvas.spec.mjs:787:1 › context menus support ordering, connector duplication, undo, and save 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.tree-item')
+    Expected: 3
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for locator('.tree-item')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      48 |   });
+      49 |   await page.goto(harness.url, { waitUntil: "load" });
+    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);
+         |                                            ^
+      51 |   return harness;
+      52 | }
+      53 |
+        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)
+        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:788:19
+
+    Error Context: scene-svg-regression-results/architecture-canvas-contex-4bf16-r-duplication-undo-and-save-editing/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    scene-svg-regression-results/architecture-canvas-contex-4bf16-r-duplication-undo-and-save-editing/trace.zip
+    Usage:
+
+        npx playwright show-trace scene-svg-regression-results/architecture-canvas-contex-4bf16-r-duplication-undo-and-save-editing/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  24) [editing] › test/editing/architecture-canvas.spec.mjs:820:1 › blank space in the element tree adds near the visible canvas without overlap 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.tree-item')
+    Expected: 3
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for locator('.tree-item')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      48 |   });
+      49 |   await page.goto(harness.url, { waitUntil: "load" });
+    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);
+         |                                            ^
+      51 |   return harness;
+      52 | }
+      53 |
+        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)
+        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:821:19
+
+    Error Context: scene-svg-regression-results/architecture-canvas-blank--d76e9-ible-canvas-without-overlap-editing/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    scene-svg-regression-results/architecture-canvas-blank--d76e9-ible-canvas-without-overlap-editing/trace.zip
+    Usage:
+
+        npx playwright show-trace scene-svg-regression-results/architecture-canvas-blank--d76e9-ible-canvas-without-overlap-editing/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  25) [editing] › test/editing/architecture-canvas.spec.mjs:847:1 › layout actions appear only in the group context submenu 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.click: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for locator('[data-ref="api"].tree-item')
+
+
+      880 |     await page.goto(harness.url, { waitUntil: "load" });
+      881 |     const menu = page.locator("#contextMenu");
+    > 882 |     await page.locator('[data-ref="api"].tree-item').click({ button: "right" });
+          |                                                      ^
+      883 |     await expect(menu.getByRole("menuitem", { name: "Layout", exact: true })).toHaveCount(0);
+      884 |     await expect(menu.getByRole("menuitem", { name: "Release layout" })).toHaveCount(0);
+      885 |     await expect(page.locator('[data-action="release-layout"]')).toBeDisabled();
+        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:882:54
+
+    Error Context: scene-svg-regression-results/architecture-canvas-layout-ba115-n-the-group-context-submenu-editing/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    scene-svg-regression-results/architecture-canvas-layout-ba115-n-the-group-context-submenu-editing/trace.zip
+    Usage:
+
+        npx playwright show-trace scene-svg-regression-results/architecture-canvas-layout-ba115-n-the-group-context-submenu-editing/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  26) [editing] › test/editing/architecture-canvas.spec.mjs:952:1 › group layout submenu supports left/right arrows and Escape returns focus to the target 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.focus: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for locator('[data-ref="zone"].tree-item')
+
+
+      975 |     await page.goto(harness.url, { waitUntil: "load" });
+      976 |     const group = page.locator('[data-ref="zone"].tree-item');
+    > 977 |     await group.focus();
+          |                 ^
+      978 |     await page.keyboard.press("Shift+F10");
+      979 |     const trigger = page.getByRole("menuitem", { name: "Layout", exact: true });
+      980 |     await trigger.focus();
+        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:977:17
+
+    Error Context: scene-svg-regression-results/architecture-canvas-group--2e76a-returns-focus-to-the-target-editing/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    scene-svg-regression-results/architecture-canvas-group--2e76a-returns-focus-to-the-target-editing/trace.zip
+    Usage:
+
+        npx playwright show-trace scene-svg-regression-results/architecture-canvas-group--2e76a-returns-focus-to-the-target-editing/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  27) [editing] › test/editing/architecture-canvas.spec.mjs:1022:1 › keyboard controls the context menu and closing returns focus to the target 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.tree-item')
+    Expected: 3
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for locator('.tree-item')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      48 |   });
+      49 |   await page.goto(harness.url, { waitUntil: "load" });
+    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);
+         |                                            ^
+      51 |   return harness;
+      52 | }
+      53 |
+        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)
+        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:1023:19
+
+    Error Context: scene-svg-regression-results/architecture-canvas-keyboa-1ca6b-returns-focus-to-the-target-editing/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    scene-svg-regression-results/architecture-canvas-keyboa-1ca6b-returns-focus-to-the-target-editing/trace.zip
+    Usage:
+
+        npx playwright show-trace scene-svg-regression-results/architecture-canvas-keyboa-1ca6b-returns-focus-to-the-target-editing/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  28) [editing] › test/editing/architecture-canvas.spec.mjs:1051:1 › Ctrl+S while editing an inspector field commits and saves the change 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('.tree-item')
+    Expected: 3
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for locator('.tree-item')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      48 |   });
+      49 |   await page.goto(harness.url, { waitUntil: "load" });
+    > 50 |   await expect(page.locator(".tree-item")).toHaveCount(3);
+         |                                            ^
+      51 |   return harness;
+      52 | }
+      53 |
+        at openEditor (/home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:50:44)
+        at /home/runner/work/markdstage/markdstage/test/editing/architecture-canvas.spec.mjs:1052:19
+
+    Error Context: scene-svg-regression-results/architecture-canvas-Ctrl-S-e6514-ommits-and-saves-the-change-editing/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    scene-svg-regression-results/architecture-canvas-Ctrl-S-e6514-ommits-and-saves-the-change-editing/trace.zip
+    Usage:
+
+        npx playwright show-trace scene-svg-regression-results/architecture-canvas-Ctrl-S-e6514-ommits-and-saves-the-change-editing/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  28 failed
+    [editing] › test/editing/architecture-canvas.spec.mjs:98:1 › changes remain in the draft until the save button writes them to Markdown 
+    [editing] › test/editing/architecture-canvas.spec.mjs:118:1 › connector label overlap can be placed in front of or behind boxes 
+    [editing] › test/editing/architecture-canvas.spec.mjs:151:1 › connector line-style presets preserve the Architecture v1 dash contract 
+    [editing] › test/editing/architecture-canvas.spec.mjs:174:1 › selection, keyboard movement, resizing, and undo/redo share one draft 
+    [editing] › test/editing/architecture-canvas.spec.mjs:207:1 › the shape palette stays bounded and adds PowerPoint-compatible shapes 
+    [editing] › test/editing/architecture-canvas.spec.mjs:231:1 › an empty diagram offers a direct first-shape action 
+    [editing] › test/editing/architecture-canvas.spec.mjs:249:1 › toolbar-added shapes avoid occupied siblings 
+    [editing] › test/editing/architecture-canvas.spec.mjs:272:1 › medium and narrow layouts expose Elements and Properties as responsive drawers 
+    [editing] › test/editing/architecture-canvas.spec.mjs:356:1 › breakpoint changes preserve the focused panel without stale Escape handling 
+    [editing] › test/editing/architecture-canvas.spec.mjs:388:1 › move and resize gestures show live transforms before committing 
+    [editing] › test/editing/architecture-canvas.spec.mjs:431:1 › large diagrams scroll and pan to the edges, then fit centered in the viewport 
+    [editing] › test/editing/architecture-canvas.spec.mjs:508:1 › adding connectors and deleting nodes preserves reference integrity 
+    [editing] › test/editing/architecture-canvas.spec.mjs:525:1 › the asset picker edits standalone images and node icons 
+    [editing] › test/editing/architecture-canvas.spec.mjs:575:1 › importing an image from the computer numbers duplicate names and diagram undo keeps the asset 
+    [editing] › test/editing/architecture-canvas.spec.mjs:609:1 › external-change conflicts remain visible without overwriting Markdown 
+    [editing] › test/editing/architecture-canvas.spec.mjs:635:1 › editing can continue with the current revision after reloading an unsaved draft 
+    [editing] › test/editing/architecture-canvas.spec.mjs:653:1 › reloading source Markdown does not carry over a draft from the old generation 
+    [editing] › test/editing/architecture-canvas.spec.mjs:673:1 › a delayed stale state response does not roll back the generation after reload 
+    [editing] › test/editing/architecture-canvas.spec.mjs:694:1 › edits made during save remain dirty instead of being marked saved 
+    [editing] › test/editing/architecture-canvas.spec.mjs:720:1 › save server communication failures appear in the UI 
+    [editing] › test/editing/architecture-canvas.spec.mjs:735:1 › context menus on the canvas and element tree expose target-specific edit actions 
+    [editing] › test/editing/architecture-canvas.spec.mjs:759:1 › adds at a blank-area context-menu position and converts to parent-relative coordinates in groups 
+    [editing] › test/editing/architecture-canvas.spec.mjs:787:1 › context menus support ordering, connector duplication, undo, and save 
+    [editing] › test/editing/architecture-canvas.spec.mjs:820:1 › blank space in the element tree adds near the visible canvas without overlap 
+    [editing] › test/editing/architecture-canvas.spec.mjs:847:1 › layout actions appear only in the group context submenu 
+    [editing] › test/editing/architecture-canvas.spec.mjs:952:1 › group layout submenu supports left/right arrows and Escape returns focus to the target 
+    [editing] › test/editing/architecture-canvas.spec.mjs:1022:1 › keyboard controls the context menu and closing returns focus to the target 
+    [editing] › test/editing/architecture-canvas.spec.mjs:1051:1 › Ctrl+S while editing an inspector field commits and saves the change 
+  29 passed (4.1m)

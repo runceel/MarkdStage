@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: renders scene primitives, rich text, markers, images and stable stacking with DOM APIs
+ok 1 - renders scene primitives, rich text, markers, images and stable stacking with DOM APIs
+  ---
+  duration_ms: 6.448921
+  type: 'test'
+  ...
+# Subtest: does not silently discard fallback content and permits safe primitive recovery
+ok 2 - does not silently discard fallback content and permits safe primitive recovery
+  ---
+  duration_ms: 0.785386
+  type: 'test'
+  ...
+# Subtest: primitive trees reject executable tags and strip active attributes and URLs
+ok 3 - primitive trees reject executable tags and strip active attributes and URLs
+  ---
+  duration_ms: 0.768945
+  type: 'test'
+  ...
+# Subtest: primitive scene templates preserve source slots exactly once
+ok 4 - primitive scene templates preserve source slots exactly once
+  ---
+  duration_ms: 0.626871
+  type: 'test'
+  ...
+# Subtest: preserves long generated SVG geometry within portable scene string limits
+ok 5 - preserves long generated SVG geometry within portable scene string limits
+  ---
+  duration_ms: 0.886914
+  type: 'test'
+  ...
+# Subtest: Architecture displayed SVG is produced from a portable shared scene with icons and editor metadata
+ok 6 - Architecture displayed SVG is produced from a portable shared scene with icons and editor metadata
+  ---
+  duration_ms: 7.245157
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 100.226947

@@ -119,7 +119,7 @@ function normalizedScene(overrides = {}) {
           dash: "dot",
           opacity: 0.95,
         },
-        arrowStart: "none",
+        arrowStart: "oval",
         arrowEnd: "triangle",
         label: {
           text: richText("calls"),
@@ -256,7 +256,7 @@ test("maps every scene node kind to the PowerPoint model shape", () => {
   ]);
 });
 
-test("connectors keep points, arrow end, and editable label fields", () => {
+test("connectors keep points, both arrow ends, and editable label fields", () => {
   const { elements } = sceneToPptxElements(normalizedScene(), {
     pathPrefix: "mermaid[0]",
     zOrderBase: 4,
@@ -268,6 +268,7 @@ test("connectors keep points, arrow end, and editable label fields", () => {
     { x: 430, y: 170 },
     { x: 540, y: 120 },
   ]);
+  assert.equal(connector.arrowStart, "oval");
   assert.equal(connector.arrowEnd, "triangle");
   assert.equal(connector.stroke, "#2563eb");
   assert.equal(connector.strokeWidth, 1.5);

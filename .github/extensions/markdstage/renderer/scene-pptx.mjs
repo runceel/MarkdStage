@@ -199,6 +199,7 @@ function connectorElement(node, index, options) {
     type: "connector",
     points: node.points.map((point) => ({ ...point })),
     ...connectorBounds(node),
+    arrowStart: node.arrowStart,
     arrowEnd: node.arrowEnd,
     ...styleFields(node.style),
   };

@@ -1,0 +1,1916 @@
+
+> test:unit
+> cd .github/extensions/markdstage && node --test
+
+TAP version 13
+# Subtest: normalizes imported filenames to the Architecture asset contract
+ok 1 - normalizes imported filenames to the Architecture asset contract
+  ---
+  duration_ms: 4.626275
+  type: 'test'
+  ...
+# Subtest: imports supported images without overwriting collisions and lists nested assets
+ok 2 - imports supported images without overwriting collisions and lists nested assets
+  ---
+  duration_ms: 39.999161
+  type: 'test'
+  ...
+# Subtest: validates content type, signature, size, and supported extensions
+ok 3 - validates content type, signature, size, and supported extensions
+  ---
+  duration_ms: 10.699251
+  type: 'test'
+  ...
+# Subtest: returns an empty library when assets is absent
+ok 4 - returns an empty library when assets is absent
+  ---
+  duration_ms: 2.031886
+  type: 'test'
+  ...
+# Subtest: lists Markdown-adjacent assets before workspace assets and removes shadowed paths
+ok 5 - lists Markdown-adjacent assets before workspace assets and removes shadowed paths
+  ---
+  duration_ms: 10.830114
+  type: 'test'
+  ...
+# Subtest: rejects an assets junction that leaves the workspace
+ok 6 - rejects an assets junction that leaves the workspace
+  ---
+  duration_ms: 3.803039
+  type: 'test'
+  ...
+# Subtest: contract generation is deterministic, preserves schema declaration order, and has no checked-in drift
+ok 7 - contract generation is deterministic, preserves schema declaration order, and has no checked-in drift
+  ---
+  duration_ms: 360.354288
+  type: 'test'
+  ...
+# Subtest: generator detects missing/stale output without writing and does not rewrite unchanged output
+ok 8 - generator detects missing/stale output without writing and does not rewrite unchanged output
+  ---
+  duration_ms: 292.637533
+  type: 'test'
+  ...
+# Subtest: root, all element types including image, fields, and definition names come from schema
+ok 9 - root, all element types including image, fields, and definition names come from schema
+  ---
+  duration_ms: 0.586747
+  type: 'test'
+  ...
+# Subtest: requirements depend on the parent layout, not a group's own layout
+ok 10 - requirements depend on the parent layout, not a group's own layout
+  ---
+  duration_ms: 0.328128
+  type: 'test'
+  ...
+# Subtest: resolved metadata preserves ranges, patterns, enums, explicit defaults, and JSON Schema conditions
+ok 11 - resolved metadata preserves ranges, patterns, enums, explicit defaults, and JSON Schema conditions
+  ---
+  duration_ms: 0.387899
+  type: 'test'
+  ...
+# Subtest: only element array boundaries retain local references; cyclic scalar references fail explicitly
+ok 12 - only element array boundaries retain local references; cyclic scalar references fail explicitly
+  ---
+  duration_ms: 8.791165
+  type: 'test'
+  ...
+# Subtest: schema additions automatically update root, element and shared fields, constraints, and reference
+ok 13 - schema additions automatically update root, element and shared fields, constraints, and reference
+  ---
+  duration_ms: 151.786088
+  type: 'test'
+  ...
+# Subtest: new schema element discriminators and branches add types without a maintained type list
+ok 14 - new schema element discriminators and branches add types without a maintained type list
+  ---
+  duration_ms: 58.803333
+  type: 'test'
+  ...
+# Subtest: allOf combines fields and numeric bounds rather than omitting later assertions
+ok 15 - allOf combines fields and numeric bounds rather than omitting later assertions
+  ---
+  duration_ms: 56.220625
+  type: 'test'
+  ...
+# Subtest: element-level allOf conditions survive alongside resolved fields and parent requirements
+ok 16 - element-level allOf conditions survive alongside resolved fields and parent requirements
+  ---
+  duration_ms: 58.088174
+  type: 'test'
+  ...
+# Subtest: new conditional requirements are included in the authoring reference automatically
+ok 17 - new conditional requirements are included in the authoring reference automatically
+  ---
+  duration_ms: 62.460394
+  type: 'test'
+  ...
+# Subtest: derivation cannot weaken closed allOf or conditional object boundaries
+ok 18 - derivation cannot weaken closed allOf or conditional object boundaries
+  ---
+  duration_ms: 5.060239
+  type: 'test'
+  ...
+# Subtest: unsupported references, keywords, missing branches and varying parent-context fields fail explicitly
+ok 19 - unsupported references, keywords, missing branches and varying parent-context fields fail explicitly
+  ---
+  duration_ms: 18.256889
+  type: 'test'
+  ...
+# Subtest: complete reference includes all fields and authoring conditions within the UTF-8 budget
+ok 20 - complete reference includes all fields and authoring conditions within the UTF-8 budget
+  ---
+  duration_ms: 5.829044
+  type: 'test'
+  ...
+# Subtest: reference budget counts UTF-8 bytes and fails rather than truncating schema additions
+ok 21 - reference budget counts UTF-8 bytes and fails rather than truncating schema additions
+  ---
+  duration_ms: 14.44254
+  type: 'test'
+  ...
+# Subtest: self-contained reference example has two nodes and a connector and is valid at runtime
+ok 22 - self-contained reference example has two nodes and a connector and is valid at runtime
+  ---
+  duration_ms: 8.312678
+  type: 'test'
+  ...
+# Subtest: rejected-input diagnostics consume connector conditions as well as independent field errors
+ok 23 - rejected-input diagnostics consume connector conditions as well as independent field errors
+  ---
+  duration_ms: 7.926612
+  type: 'test'
+  ...
+# Subtest: reports four independent unknown fields without changing the input
+ok 24 - reports four independent unknown fields without changing the input
+  ---
+  duration_ms: 8.396741
+  type: 'test'
+  ...
+# Subtest: exception-based parse exposes the same primary and aggregate diagnostics
+ok 25 - exception-based parse exposes the same primary and aggregate diagnostics
+  ---
+  duration_ms: 1.958941
+  type: 'test'
+  ...
+# Subtest: unknown field pointers escape JSON Pointer tokens instead of parsing error messages
+ok 26 - unknown field pointers escape JSON Pointer tokens instead of parsing error messages
+  ---
+  duration_ms: 0.522889
+  type: 'test'
+  ...
+# Subtest: suggestions detect existing values and never silently merge or delete data
+ok 27 - suggestions detect existing values and never silently merge or delete data
+  ---
+  duration_ms: 2.580543
+  type: 'test'
+  ...
+# Subtest: collects independent scalar, style, required-field and conditional violations
+ok 28 - collects independent scalar, style, required-field and conditional violations
+  ---
+  duration_ms: 1.498958
+  type: 'test'
+  ...
+# Subtest: aggregates duplicate IDs, both missing endpoints and self-references as semantic errors
+ok 29 - aggregates duplicate IDs, both missing endpoints and self-references as semantic errors
+  ---
+  duration_ms: 1.120327
+  type: 'test'
+  ...
+# Subtest: invalid JSON does not pretend to run structural, semantic or layout validation
+ok 30 - invalid JSON does not pretend to run structural, semantic or layout validation
+  ---
+  duration_ms: 0.256886
+  type: 'test'
+  ...
+# Subtest: diagnostic and processing limits produce explicit incomplete results
+ok 31 - diagnostic and processing limits produce explicit incomplete results
+  ---
+  duration_ms: 0.757184
+  type: 'test'
+  ...
+# Subtest: element and depth caps stop diagnostic traversal without certifying the remainder
+ok 32 - element and depth caps stop diagnostic traversal without certifying the remainder
+  ---
+  duration_ms: 9.796649
+  type: 'test'
+  ...
+# Subtest: v1 source length remains a code-unit limit, not a new UTF-8 byte rejection
+ok 33 - v1 source length remains a code-unit limit, not a new UTF-8 byte rejection
+  ---
+  duration_ms: 2.061972
+  type: 'test'
+  ...
+# Subtest: an empty fence is still a valid canonical empty diagram
+ok 34 - an empty fence is still a valid canonical empty diagram
+  ---
+  duration_ms: 0.547845
+  type: 'test'
+  ...
+# Subtest: flow-coordinate and ignored-schema differences are warnings, not new rejections
+ok 35 - flow-coordinate and ignored-schema differences are warnings, not new rejections
+  ---
+  duration_ms: 1.263232
+  type: 'test'
+  ...
+# Subtest: schema-only differences do not obscure a real independent semantic error
+ok 36 - schema-only differences do not obscure a real independent semantic error
+  ---
+  duration_ms: 0.855977
+  type: 'test'
+  ...
+# Subtest: layout failures remain distinct from structural and reference failures
+ok 37 - layout failures remain distinct from structural and reference failures
+  ---
+  duration_ms: 0.537566
+  type: 'test'
+  ...
+# Subtest: malformed flow dimensions are structural errors, not duplicate layout failures
+ok 38 - malformed flow dimensions are structural errors, not duplicate layout failures
+  ---
+  duration_ms: 2.356918
+  type: 'test'
+  ...
+# Subtest: a late connector-lane failure preserves completed semantic validation
+ok 39 - a late connector-lane failure preserves completed semantic validation
+  ---
+  duration_ms: 0.770468
+  type: 'test'
+  ...
+# Subtest: malformed children in a layout are diagnosed rather than throwing a TypeError
+ok 40 - malformed children in a layout are diagnosed rather than throwing a TypeError
+  ---
+  duration_ms: 0.396325
+  type: 'test'
+  ...
+# Subtest: a group's own layout does not waive its parent's fixed-placement requirements
+ok 41 - a group's own layout does not waive its parent's fixed-placement requirements
+  ---
+  duration_ms: 0.630438
+  type: 'test'
+  ...
+# Subtest: preflight and parser agree on every v1 conformance corpus case
+ok 42 - preflight and parser agree on every v1 conformance corpus case
+  ---
+  duration_ms: 42.342945
+  type: 'test'
+  ...
+# Subtest: explaining a bad reference never invents structural errors in otherwise accepted v1 content
+ok 43 - explaining a bad reference never invents structural errors in otherwise accepted v1 content
+  ---
+  duration_ms: 22.583146
+  type: 'test'
+  ...
+# Subtest: generated architecture contract stays below the installer single-file limit
+ok 44 - generated architecture contract stays below the installer single-file limit
+  ---
+  duration_ms: 4.761546
+  type: 'test'
+  ...
+# Subtest: creates a canonical editable document from an empty block
+ok 45 - creates a canonical editable document from an empty block
+  ---
+  duration_ms: 6.400834
+  type: 'test'
+  ...
+# Subtest: updates root and element properties and renames while preserving connector references
+ok 46 - updates root and element properties and renames while preserving connector references
+  ---
+  duration_ms: 5.947284
+  type: 'test'
+  ...
+# Subtest: adding and duplicating nodes, groups, and connectors creates valid DSL with unique IDs
+ok 47 - adding and duplicating nodes, groups, and connectors creates valid DSL with unique IDs
+  ---
+  duration_ms: 3.69012
+  type: 'test'
+  ...
+# Subtest: duplicating a connector returns an existing source path that can be duplicated again
+ok 48 - duplicating a connector returns an existing source path that can be duplicated again
+  ---
+  duration_ms: 2.446464
+  type: 'test'
+  ...
+# Subtest: node and group coordinates apply to fixed placement and are omitted under layout management
+ok 49 - node and group coordinates apply to fixed placement and are omitted under layout management
+  ---
+  duration_ms: 3.132586
+  type: 'test'
+  ...
+# Subtest: images integrate with add, edit, placement, connectors, and undo/redo
+ok 50 - images integrate with add, edit, placement, connectors, and undo/redo
+  ---
+  duration_ms: 5.622812
+  type: 'test'
+  ...
+# Subtest: deleting a group cascades to connectors referencing descendants
+ok 51 - deleting a group cascades to connectors referencing descendants
+  ---
+  duration_ms: 0.743488
+  type: 'test'
+  ...
+# Subtest: rejects layout-managed geometry instead of silently ignoring it and permits edits after release
+ok 52 - rejects layout-managed geometry instead of silently ignoring it and permits edits after release
+  ---
+  duration_ms: 1.49463
+  type: 'test'
+  ...
+# Subtest: reenabling group layout atomically returns child coordinates to layout management
+ok 53 - reenabling group layout atomically returns child coordinates to layout management
+  ---
+  duration_ms: 2.18562
+  type: 'test'
+  ...
+# Subtest: reparenting preserves visual absolute position and rejects cycles
+ok 54 - reparenting preserves visual absolute position and rejects cycles
+  ---
+  duration_ms: 3.305246
+  type: 'test'
+  ...
+# Subtest: undo and redo traverse additions, deletions, and property changes only within the draft
+ok 55 - undo and redo traverse additions, deletions, and property changes only within the draft
+  ---
+  duration_ms: 2.106965
+  type: 'test'
+  ...
+# Subtest: sourcePath is parsed strictly and unexpected forms abort write-back
+ok 56 - sourcePath is parsed strictly and unexpected forms abort write-back
+  ---
+  duration_ms: 3.396376
+  type: 'test'
+  ...
+# Subtest: children of a group with layout are immovable and identify the group to release
+ok 57 - children of a group with layout are immovable and identify the group to release
+  ---
+  duration_ms: 5.217931
+  type: 'test'
+  ...
+# Subtest: movement writes back coordinates relative to the parent group's absolute coordinates
+ok 58 - movement writes back coordinates relative to the parent group's absolute coordinates
+  ---
+  duration_ms: 2.714541
+  type: 'test'
+  ...
+# Subtest: attempting to move a layout-managed element does not change one character of DSL
+ok 59 - attempting to move a layout-managed element does not change one character of DSL
+  ---
+  duration_ms: 0.618857
+  type: 'test'
+  ...
+# Subtest: coordinates are clamped to schema bounds and only reparsable DSL enters history
+ok 60 - coordinates are clamped to schema bounds and only reparsable DSL enters history
+  ---
+  duration_ms: 1.703958
+  type: 'test'
+  ...
+# Subtest: releaseLayout materializes layout as coordinates without changing appearance
+ok 61 - releaseLayout materializes layout as coordinates without changing appearance
+  ---
+  duration_ms: 2.133915
+  type: 'test'
+  ...
+# Subtest: releaseLayout rejects nongroup elements and groups without layout
+ok 62 - releaseLayout rejects nongroup elements and groups without layout
+  ---
+  duration_ms: 0.537487
+  type: 'test'
+  ...
+# Subtest: undo and redo traverse complete DSL and a new edit discards the redo branch
+ok 63 - undo and redo traverse complete DSL and a new edit discards the redo branch
+  ---
+  duration_ms: 1.186098
+  type: 'test'
+  ...
+# Subtest: history discards oldest entries after reaching its limit
+ok 64 - history discards oldest entries after reaching its limit
+  ---
+  duration_ms: 1.869204
+  type: 'test'
+  ...
+# Subtest: edited output returns to the nth architecture block in the source Markdown
+ok 65 - edited output returns to the nth architecture block in the source Markdown
+  ---
+  duration_ms: 1.825634
+  type: 'test'
+  ...
+# Subtest: indented fences and ~~~ fences retain the same indexing
+ok 66 - indented fences and ~~~ fences retain the same indexing
+  ---
+  duration_ms: 0.466094
+  type: 'test'
+  ...
+# Subtest: saving CRLF Markdown does not change newlines outside the fence
+ok 67 - saving CRLF Markdown does not change newlines outside the fence
+  ---
+  duration_ms: 0.293734
+  type: 'test'
+  ...
+# Subtest: LF Markdown remains LF
+ok 68 - LF Markdown remains LF
+  ---
+  duration_ms: 0.175455
+  type: 'test'
+  ...
+# Subtest: maps a slide-local block index to the complete imported Markdown
+ok 69 - maps a slide-local block index to the complete imported Markdown
+  ---
+  duration_ms: 0.294166
+  type: 'test'
+  ...
+# Subtest: counts Architecture fences case-insensitively like the renderer
+ok 70 - counts Architecture fences case-insensitively like the renderer
+  ---
+  duration_ms: 0.16696
+  type: 'test'
+  ...
+# Subtest: imported source rewrites only the expected fence and rejects external changes
+ok 71 - imported source rewrites only the expected fence and rejects external changes
+  ---
+  duration_ms: 0.412003
+  type: 'test'
+  ...
+# Subtest: maps a representative Architecture snapshot to scene nodes
+ok 72 - maps a representative Architecture snapshot to scene nodes
+  ---
+  duration_ms: 18.78581
+  type: 'test'
+  ...
+# Subtest: nested group geometry is preserved as absolute scene coordinates
+ok 73 - nested group geometry is preserved as absolute scene coordinates
+  ---
+  duration_ms: 1.760333
+  type: 'test'
+  ...
+# Subtest: applies injected color resolution before scene validation
+ok 74 - applies injected color resolution before scene validation
+  ---
+  duration_ms: 1.018868
+  type: 'test'
+  ...
+# Subtest: snapshot fallbacks become scene fallbacks with reasons preserved
+ok 75 - snapshot fallbacks become scene fallbacks with reasons preserved
+  ---
+  duration_ms: 1.509919
+  type: 'test'
+  ...
+# Subtest: connectors keep points, arrows, dash, and label shapes
+ok 76 - connectors keep points, arrows, dash, and label shapes
+  ---
+  duration_ms: 4.944154
+  type: 'test'
+  ...
+# Subtest: icons and images route through the injected image resolver
+ok 77 - icons and images route through the injected image resolver
+  ---
+  duration_ms: 0.951854
+  type: 'test'
+  ...
+# Subtest: scene PowerPoint elements are accepted by the package writer
+ok 78 - scene PowerPoint elements are accepted by the package writer
+  ---
+  duration_ms: 13.484653
+  type: 'test'
+  ...
+# Subtest: invalid source save propagates all diagnostics and leaves the file untouched
+ok 79 - invalid source save propagates all diagnostics and leaves the file untouched
+  ---
+  duration_ms: 11.505595
+  type: 'test'
+  ...
+# Subtest: invalid source reads preserve primary diagnostics and the canonical validation report
+ok 80 - invalid source reads preserve primary diagnostics and the canonical validation report
+  ---
+  duration_ms: 7.961897
+  type: 'test'
+  ...
+# Subtest: unloaded DSL returns a compact canonical report without invented slide positions
+ok 81 - unloaded DSL returns a compact canonical report without invented slide positions
+  ---
+  duration_ms: 3.235968
+  type: 'test'
+  ...
+# Subtest: nonblocking compatibility warnings preserve valid and complete reports
+ok 82 - nonblocking compatibility warnings preserve valid and complete reports
+  ---
+  duration_ms: 0.62565
+  type: 'test'
+  ...
+# Subtest: explicit slides collect four independent errors in one block
+ok 83 - explicit slides collect four independent errors in one block
+  ---
+  duration_ms: 3.130312
+  type: 'test'
+  ...
+# Subtest: JSON failure does not prevent later blocks or slides from being inspected
+ok 84 - JSON failure does not prevent later blocks or slides from being inspected
+  ---
+  duration_ms: 1.188202
+  type: 'test'
+  ...
+# Subtest: enclosing non-Architecture fences are ignored by the shared Markdown scanner
+ok 85 - enclosing non-Architecture fences are ignored by the shared Markdown scanner
+  ---
+  duration_ms: 0.430558
+  type: 'test'
+  ...
+# Subtest: closed and unclosed fences retain exact slide, block, and CRLF line positions
+ok 86 - closed and unclosed fences retain exact slide, block, and CRLF line positions
+  ---
+  duration_ms: 0.780927
+  type: 'test'
+  ...
+# Subtest: diagnostic pointers escape slash and tilde according to RFC 6901
+ok 87 - diagnostic pointers escape slash and tilde according to RFC 6901
+  ---
+  duration_ms: 0.393039
+  type: 'test'
+  ...
+# Subtest: API input is explicit and rejects ambiguous fields, malformed fragments, and caps
+ok 88 - API input is explicit and rejects ambiguous fields, malformed fragments, and caps
+  ---
+  duration_ms: 1.306803
+  type: 'test'
+  ...
+# Subtest: the diagnostic cap is shared across a deck and records skipped blocks and stages
+ok 89 - the diagnostic cap is shared across a deck and records skipped blocks and stages
+  ---
+  duration_ms: 2.259358
+  type: 'test'
+  ...
+# Subtest: hitting the cap exactly on the last fully checked block does not imply truncation
+ok 90 - hitting the cap exactly on the last fully checked block does not imply truncation
+  ---
+  duration_ms: 0.95509
+  type: 'test'
+  ...
+# Subtest: an omitted unclosed-fence diagnostic still makes a capped check incomplete
+ok 91 - an omitted unclosed-fence diagnostic still makes a capped check incomplete
+  ---
+  duration_ms: 0.445936
+  type: 'test'
+  ...
+# Subtest: runtime element caps retain the actual reason and limit instead of maxDiagnostics
+ok 92 - runtime element caps retain the actual reason and limit instead of maxDiagnostics
+  ---
+  duration_ms: 5.966038
+  type: 'test'
+  ...
+# Subtest: runtime depth caps retain the actual reason and limit instead of maxDiagnostics
+ok 93 - runtime depth caps retain the actual reason and limit instead of maxDiagnostics
+  ---
+  duration_ms: 1.027965
+  type: 'test'
+  ...
+# Subtest: declared source and slide inspection limits never claim unchecked content is valid
+ok 94 - declared source and slide inspection limits never claim unchecked content is valid
+  ---
+  duration_ms: 0.263799
+  type: 'test'
+  ...
+# Subtest: budget and unclosed-fence suggestions use the canonical nonautomatic object shape
+ok 95 - budget and unclosed-fence suggestions use the canonical nonautomatic object shape
+  ---
+  duration_ms: 0.459001
+  type: 'test'
+  ...
+# Subtest: declared block and slide processing limits are deck-wide
+ok 96 - declared block and slide processing limits are deck-wide
+  ---
+  duration_ms: 2.668686
+  type: 'test'
+  ...
+# Subtest: slide count limits do not read or type-check the uninspectable array tail
+ok 97 - slide count limits do not read or type-check the uninspectable array tail
+  ---
+  duration_ms: 0.339269
+  type: 'test'
+  ...
+# Subtest: total inspected characters have a separate deck-wide budget
+ok 98 - total inspected characters have a separate deck-wide budget
+  ---
+  duration_ms: 4.047462
+  type: 'test'
+  ...
+# Subtest: the registered pure tool separates invocation success from invalid content
+ok 99 - the registered pure tool separates invocation success from invalid content
+  ---
+  duration_ms: 17.829998
+  type: 'test'
+  ...
+# Subtest: Canvas renderer uses the generic route and shared static module-serving helper
+ok 100 - Canvas renderer uses the generic route and shared static module-serving helper
+  ---
+  duration_ms: 3.275749
+  type: 'test'
+  ...
+# Subtest: parses nested groups, theme tokens, connectors, and stable z-order
+ok 101 - parses nested groups, theme tokens, connectors, and stable z-order
+  ---
+  duration_ms: 9.06948
+  type: 'test'
+  ...
+# Subtest: treats an empty fenced body as an empty architecture diagram
+ok 102 - treats an empty fenced body as an empty architecture diagram
+  ---
+  duration_ms: 3.804802
+  type: 'test'
+  ...
+# Subtest: renders additive PowerPoint-compatible node shapes as native SVG geometry
+ok 103 - renders additive PowerPoint-compatible node shapes as native SVG geometry
+  ---
+  duration_ms: 9.763436
+  type: 'test'
+  ...
+# Subtest: maps Architecture dash patterns to PowerPoint solid, dotted, and dashed presets
+ok 104 - maps Architecture dash patterns to PowerPoint solid, dotted, and dashed presets
+  ---
+  duration_ms: 0.347184
+  type: 'test'
+  ...
+# Subtest: rejects malformed JSON, unknown references, unsafe colors, and unsupported fields
+ok 105 - rejects malformed JSON, unknown references, unsafe colors, and unsupported fields
+  ---
+  duration_ms: 6.144959
+  type: 'test'
+  ...
+# Subtest: builds only allowlisted SVG DOM and keeps DSL text inert
+ok 106 - builds only allowlisted SVG DOM and keeps DSL text inert
+  ---
+  duration_ms: 14.963726
+  type: 'test'
+  ...
+# Subtest: renders an explicit in-place error without throwing
+ok 107 - renders an explicit in-place error without throwing
+  ---
+  duration_ms: 0.328359
+  type: 'test'
+  ...
+# Subtest: the mixed Mermaid and architecture fixture contains a renderable DSL block
+ok 108 - the mixed Mermaid and architecture fixture contains a renderable DSL block
+  ---
+  duration_ms: 379.578393
+  type: 'test'
+  ...
+# Subtest: row, column, and grid layouts place and size children inside their groups
+ok 109 - row, column, and grid layouts place and size children inside their groups
+  ---
+  duration_ms: 1.507865
+  type: 'test'
+  ...
+# Subtest: cardinal ports, lane allocation, and obstacle-aware orthogonal routing are stable
+ok 110 - cardinal ports, lane allocation, and obstacle-aware orthogonal routing are stable
+  ---
+  duration_ms: 2.00721
+  type: 'test'
+  ...
+# Subtest: short facing orthogonal ports do not overshoot and backtrack
+ok 111 - short facing orthogonal ports do not overshoot and backtrack
+  ---
+  duration_ms: 0.750952
+  type: 'test'
+  ...
+# Subtest: narrow facing ports retain an 8px visible span when possible
+ok 112 - narrow facing ports retain an 8px visible span when possible
+  ---
+  duration_ms: 7.933515
+  type: 'test'
+  ...
+# Subtest: automatic routes approach both requested ports in the required direction
+ok 113 - automatic routes approach both requested ports in the required direction
+  ---
+  duration_ms: 9.190525
+  type: 'test'
+  ...
+# Subtest: stub fitting preserves a corridor between offset facing ports
+ok 114 - stub fitting preserves a corridor between offset facing ports
+  ---
+  duration_ms: 1.541247
+  type: 'test'
+  ...
+# Subtest: touching facing nodes report invalid endpoint geometry
+ok 115 - touching facing nodes report invalid endpoint geometry
+  ---
+  duration_ms: 2.617331
+  type: 'test'
+  ...
+# Subtest: invalid endpoint fallback never renders an immediate reversal
+ok 116 - invalid endpoint fallback never renders an immediate reversal
+  ---
+  duration_ms: 3.551022
+  type: 'test'
+  ...
+# Subtest: near-aligned facing ports stay within their forward span
+ok 117 - near-aligned facing ports stay within their forward span
+  ---
+  duration_ms: 0.468538
+  type: 'test'
+  ...
+# Subtest: explicit polyline routing preserves its endpoint stubs
+ok 118 - explicit polyline routing preserves its endpoint stubs
+  ---
+  duration_ms: 0.384803
+  type: 'test'
+  ...
+# Subtest: zero-length stubs never send a route backward through its endpoint
+ok 119 - zero-length stubs never send a route backward through its endpoint
+  ---
+  duration_ms: 1.789507
+  type: 'test'
+  ...
+# Subtest: grid fallback keeps connector endpoints excluded from obstacles
+ok 120 - grid fallback keeps connector endpoints excluded from obstacles
+  ---
+  duration_ms: 1.252882
+  type: 'test'
+  ...
+# Subtest: the slides.md dense sample has no spurs or excessive detours
+ok 121 - the slides.md dense sample has no spurs or excessive detours
+  ---
+  duration_ms: 245.323275
+  type: 'test'
+  ...
+# Subtest: planned routes stay within the standalone detour limit
+ok 122 - planned routes stay within the standalone detour limit
+  ---
+  duration_ms: 203.314715
+  type: 'test'
+  ...
+# Subtest: backtrack replacement obeys the standalone detour limit during refinement
+ok 123 - backtrack replacement obeys the standalone detour limit during refinement
+  ---
+  duration_ms: 16.047454
+  type: 'test'
+  ...
+# Subtest: hidden-content filtering never leaves a backtracking route
+ok 124 - hidden-content filtering never leaves a backtracking route
+  ---
+  duration_ms: 4.072789
+  type: 'test'
+  ...
+# Subtest: orthogonal routing avoids occupied diagonal connectors
+ok 125 - orthogonal routing avoids occupied diagonal connectors
+  ---
+  duration_ms: 1.572966
+  type: 'test'
+  ...
+# Subtest: mixed-port orthogonal routes preserve source and target directions
+ok 126 - mixed-port orthogonal routes preserve source and target directions
+  ---
+  duration_ms: 0.951283
+  type: 'test'
+  ...
+# Subtest: renders only built-in primitive icons and exposes semantic accessibility labels
+ok 127 - renders only built-in primitive icons and exposes semantic accessibility labels
+  ---
+  duration_ms: 3.222303
+  type: 'test'
+  ...
+# Subtest: built-in icons inherit the theme text colour instead of hard-coding one
+ok 128 - built-in icons inherit the theme text colour instead of hard-coding one
+  ---
+  duration_ms: 7.231635
+  type: 'test'
+  ...
+# Subtest: every theme keeps built-in icon strokes legible against the slide surface
+ok 129 - every theme keeps built-in icon strokes legible against the slide surface
+  ---
+  duration_ms: 17.732167
+  type: 'test'
+  ...
+# Subtest: user-supplied icons render as a sandboxed same-origin image reference
+ok 130 - user-supplied icons render as a sandboxed same-origin image reference
+  ---
+  duration_ms: 10.328053
+  type: 'test'
+  ...
+# Subtest: asset references follow a nested loopback renderer base path
+ok 131 - asset references follow a nested loopback renderer base path
+  ---
+  duration_ms: 0.964007
+  type: 'test'
+  ...
+# Subtest: standalone images support safe fit modes, accessibility, layout, and connectors
+ok 132 - standalone images support safe fit modes, accessibility, layout, and connectors
+  ---
+  duration_ms: 5.990366
+  type: 'test'
+  ...
+# Subtest: standalone images reject unsafe sources and unknown fit modes
+ok 133 - standalone images reject unsafe sources and unknown fit modes
+  ---
+  duration_ms: 1.70524
+  type: 'test'
+  ...
+# Subtest: rejects icon references that leave the assets folder or name a remote resource
+ok 134 - rejects icon references that leave the assets folder or name a remote resource
+  ---
+  duration_ms: 2.894014
+  type: 'test'
+  ...
+# Subtest: fits connector labels inside a bounded Unicode-aware background
+ok 135 - fits connector labels inside a bounded Unicode-aware background
+  ---
+  duration_ms: 4.471439
+  type: 'test'
+  ...
+# Subtest: connector labels default in front of boxes and can retain the connector z-order
+ok 136 - connector labels default in front of boxes and can retain the connector z-order
+  ---
+  duration_ms: 2.256823
+  type: 'test'
+  ...
+# Subtest: rejects unsupported connector label layers
+ok 137 - rejects unsupported connector label layers
+  ---
+  duration_ms: 0.482494
+  type: 'test'
+  ...
+# Subtest: connector accessible names use the visible labels of both endpoints
+ok 138 - connector accessible names use the visible labels of both endpoints
+  ---
+  duration_ms: 1.902346
+  type: 'test'
+  ...
+# Subtest: enforces DSL version, icon allowlist, nested JSON paths, and resource limits
+ok 139 - enforces DSL version, icon allowlist, nested JSON paths, and resource limits
+  ---
+  duration_ms: 5.320041
+  type: 'test'
+  ...
+# Subtest: accepts a root $schema reference and keeps it out of the model
+ok 140 - accepts a root $schema reference and keeps it out of the model
+  ---
+  duration_ms: 0.43182
+  type: 'test'
+  ...
+# Subtest: diagnostics pair every problem with remediation guidance
+ok 141 - diagnostics pair every problem with remediation guidance
+  ---
+  duration_ms: 0.999162
+  type: 'test'
+  ...
+# Subtest: semantic snapshot contains deterministic geometry only
+ok 142 - semantic snapshot contains deterministic geometry only
+  ---
+  duration_ms: 0.434536
+  type: 'test'
+  ...
+# Subtest: automatic lanes reserve explicit lanes and resolve equivalent auto ports
+ok 143 - automatic lanes reserve explicit lanes and resolve equivalent auto ports
+  ---
+  duration_ms: 0.262877
+  type: 'test'
+  ...
+# Subtest: shared endpoint offsets remain unique when fixed lane spacing would clamp
+ok 144 - shared endpoint offsets remain unique when fixed lane spacing would clamp
+  ---
+  duration_ms: 1.314557
+  type: 'test'
+  ...
+# Subtest: dense diagrams stay within the routing work budget
+ok 145 - dense diagrams stay within the routing work budget
+  ---
+  duration_ms: 85.156304
+  type: 'test'
+  ...
+# Subtest: dense 9-node diagrams route around every node without manual polylines
+ok 146 - dense 9-node diagrams route around every node without manual polylines
+  ---
+  duration_ms: 771.011482
+  type: 'test'
+  ...
+# Subtest: dense 12-node diagrams never route a path through an unrelated node
+ok 147 - dense 12-node diagrams never route a path through an unrelated node
+  ---
+  duration_ms: 868.224893
+  type: 'test'
+  ...
+# Subtest: unavoidable label collisions are reported rather than silently drawn
+ok 148 - unavoidable label collisions are reported rather than silently drawn
+  ---
+  duration_ms: 1.335115
+  type: 'test'
+  ...
+# Subtest: global refinement lowers crossings below the greedy-only result
+ok 149 - global refinement lowers crossings below the greedy-only result
+  ---
+  duration_ms: 946.897374
+  type: 'test'
+  ...
+# Subtest: refinement never trades a crossing away for label placement
+ok 150 - refinement never trades a crossing away for label placement
+  ---
+  duration_ms: 326.877398
+  type: 'test'
+  ...
+# Subtest: routing avoids parking a connector label on top of an unrelated node
+ok 151 - routing avoids parking a connector label on top of an unrelated node
+  ---
+  duration_ms: 0.755931
+  type: 'test'
+  ...
+# Subtest: label area cost buys a crossing to stop a label from hiding a node
+ok 152 - label area cost buys a crossing to stop a label from hiding a node
+  ---
+  duration_ms: 257.822132
+  type: 'test'
+  ...
+# Subtest: routing budget exhaustion is reported instead of silently drawing through nodes
+ok 153 - routing budget exhaustion is reported instead of silently drawing through nodes
+  ---
+  duration_ms: 2.955307
+  type: 'test'
+  ...
+# Subtest: degraded routing surfaces a non-fatal warning in the rendered diagram
+ok 154 - degraded routing surfaces a non-fatal warning in the rendered diagram
+  ---
+  duration_ms: 7.913456
+  type: 'test'
+  ...
+# Subtest: clean diagrams emit no routing warning at all
+ok 155 - clean diagrams emit no routing warning at all
+  ---
+  duration_ms: 2.170382
+  type: 'test'
+  ...
+# Subtest: routing is deterministic: the same source renders identical markup twice
+ok 156 - routing is deterministic: the same source renders identical markup twice
+  ---
+  duration_ms: 2886.432678
+  type: 'test'
+  ...
+# Subtest: connector declaration order does not depend on object identity across parses
+ok 157 - connector declaration order does not depend on object identity across parses
+  ---
+  duration_ms: 1868.172945
+  type: 'test'
+  ...
+# Subtest: layered layout stacks children by connector depth
+ok 158 - layered layout stacks children by connector depth
+  ---
+  duration_ms: 0.990956
+  type: 'test'
+  ...
+# Subtest: layered layout honours direction right
+ok 159 - layered layout honours direction right
+  ---
+  duration_ms: 0.403208
+  type: 'test'
+  ...
+# Subtest: layered layout breaks cycles deterministically instead of hanging
+ok 160 - layered layout breaks cycles deterministically instead of hanging
+  ---
+  duration_ms: 0.683367
+  type: 'test'
+  ...
+# Subtest: direction is rejected on layouts other than layered
+ok 161 - direction is rejected on layouts other than layered
+  ---
+  duration_ms: 1.04687
+  type: 'test'
+  ...
+# Subtest: unknown layered direction is rejected with the allowed values
+ok 162 - unknown layered direction is rejected with the allowed values
+  ---
+  duration_ms: 0.344839
+  type: 'test'
+  ...
+# Subtest: every architecture diagram shipped in this repository routes without degrading
+ok 163 - every architecture diagram shipped in this repository routes without degrading
+  ---
+  duration_ms: 1207.376763
+  type: 'test'
+  ...
+# Subtest: shipped diagrams stay deterministic across independent parses
+ok 164 - shipped diagrams stay deterministic across independent parses
+  ---
+  duration_ms: 1009.371982
+  type: 'test'
+  ...
+# Subtest: a shipped diagram actually covers the 8-12 node dense case
+ok 165 - a shipped diagram actually covers the 8-12 node dense case
+  ---
+  duration_ms: 507.104657
+  type: 'test'
+  ...
+# Subtest: connector label no longer hides its own line and arrowhead
+ok 166 - connector label no longer hides its own line and arrowhead
+  ---
+  duration_ms: 1.081233
+  type: 'test'
+  ...
+# Subtest: label anchor stays on the midpoint when the line has room
+ok 167 - label anchor stays on the midpoint when the line has room
+  ---
+  duration_ms: 0.375696
+  type: 'test'
+  ...
+# Subtest: label escapes perpendicular to its own segment
+ok 168 - label escapes perpendicular to its own segment
+  ---
+  duration_ms: 0.553576
+  type: 'test'
+  ...
+# Subtest: escaped labels stay inside the canvas near folded edge routes
+ok 169 - escaped labels stay inside the canvas near folded edge routes
+  ---
+  duration_ms: 0.27533
+  type: 'test'
+  ...
+# Subtest: near-edge arrowless labels prefer the escape side that already fits
+ok 170 - near-edge arrowless labels prefer the escape side that already fits
+  ---
+  duration_ms: 0.252548
+  type: 'test'
+  ...
+# Subtest: wide labels try another route axis before clamping over their route
+ok 171 - wide labels try another route axis before clamping over their route
+  ---
+  duration_ms: 0.30216
+  type: 'test'
+  ...
+# Subtest: single-axis routes can move wide labels beyond an endpoint
+ok 172 - single-axis routes can move wide labels beyond an endpoint
+  ---
+  duration_ms: 2.824214
+  type: 'test'
+  ...
+# Subtest: impossible label placement is reported instead of silently hiding the connector
+ok 173 - impossible label placement is reported instead of silently hiding the connector
+  ---
+  duration_ms: 1.393703
+  type: 'test'
+  ...
+# Subtest: escaped labels keep the terminal marker footprint visible
+ok 174 - escaped labels keep the terminal marker footprint visible
+  ---
+  duration_ms: 0.289486
+  type: 'test'
+  ...
+# Subtest: connector labels are capped to the canvas dimensions
+ok 175 - connector labels are capped to the canvas dimensions
+  ---
+  duration_ms: 0.304405
+  type: 'test'
+  ...
+# Subtest: pointAtHalfLength reports a unit direction, including the degenerate span
+ok 176 - pointAtHalfLength reports a unit direction, including the degenerate span
+  ---
+  duration_ms: 1.128832
+  type: 'test'
+  ...
+# Subtest: the rendered label matches the box used for routing
+ok 177 - the rendered label matches the box used for routing
+  ---
+  duration_ms: 2.087569
+  type: 'test'
+  ...
+# Subtest: orthogonal labels never cover their own route across a generated space
+ok 178 - orthogonal labels never cover their own route across a generated space
+  ---
+  duration_ms: 3344.821873
+  type: 'test'
+  ...
+# Subtest: prefers Markdown-adjacent assets and falls back to workspace assets
+ok 179 - prefers Markdown-adjacent assets and falls back to workspace assets
+  ---
+  duration_ms: 28.416498
+  type: 'test'
+  ...
+# Subtest: deduplicates the asset root for a Markdown file at workspace root
+ok 180 - deduplicates the asset root for a Markdown file at workspace root
+  ---
+  duration_ms: 2.233732
+  type: 'test'
+  ...
+# Subtest: rejects source and asset paths that leave the workspace
+ok 181 - rejects source and asset paths that leave the workspace
+  ---
+  duration_ms: 6.396887
+  type: 'test'
+  ...
+# Subtest: rejects a Markdown-adjacent assets junction that leaves the workspace
+ok 182 - rejects a Markdown-adjacent assets junction that leaves the workspace
+  ---
+  duration_ms: 7.472808
+  type: 'test'
+  ...
+# Subtest: classifies omitted input as refocus and rejects source or theme metadata without slides
+ok 183 - classifies omitted input as refocus and rejects source or theme metadata without slides
+  ---
+  duration_ms: 2.202473
+  type: 'test'
+  ...
+# Subtest: treats an automatically appended back cover as the same deck
+ok 184 - treats an automatically appended back cover as the same deck
+  ---
+  duration_ms: 0.684078
+  type: 'test'
+  ...
+# Subtest: replaces a changed deck instead of preserving its current index
+ok 185 - replaces a changed deck instead of preserving its current index
+  ---
+  duration_ms: 0.279107
+  type: 'test'
+  ...
+# Subtest: includes a temporary show_slide replacement in the output snapshot
+ok 186 - includes a temporary show_slide replacement in the output snapshot
+  ---
+  duration_ms: 0.446197
+  type: 'test'
+  ...
+# Subtest: the real extension starts on a host without an advisory hook processor
+ok 187 - the real extension starts on a host without an advisory hook processor
+  ---
+  duration_ms: 187.238187
+  type: 'test'
+  ...
+# Subtest: splits Markdown import paths into filename and parent directory
+ok 188 - splits Markdown import paths into filename and parent directory
+  ---
+  duration_ms: 1.78583
+  type: 'test'
+  ...
+# Subtest: canvas exposes layout, PNG, PDF, and editable PowerPoint output
+ok 189 - canvas exposes layout, PNG, PDF, and editable PowerPoint output
+  ---
+  duration_ms: 9.969491
+  type: 'test'
+  ...
+# Subtest: print, capture, and fixed preview share one 1280x720 output surface
+ok 190 - print, capture, and fixed preview share one 1280x720 output surface
+  ---
+  duration_ms: 6.801517
+  type: 'test'
+  ...
+# Subtest: shared Markdown deck corpus matches the JavaScript parser
+ok 191 - shared Markdown deck corpus matches the JavaScript parser
+  ---
+  duration_ms: 10.848627
+  type: 'test'
+  ...
+# Subtest: splits slides on top-level --- separators
+ok 192 - splits slides on top-level --- separators
+  ---
+  duration_ms: 4.129925
+  type: 'test'
+  ...
+# Subtest: keeps the deck front matter out of the slide list
+ok 193 - keeps the deck front matter out of the slide list
+  ---
+  duration_ms: 0.595513
+  type: 'test'
+  ...
+# Subtest: inherits deck front matter into every slide
+ok 194 - inherits deck front matter into every slide
+  ---
+  duration_ms: 0.542225
+  type: 'test'
+  ...
+# Subtest: reads per-slide front matter placed right after a separator
+ok 195 - reads per-slide front matter placed right after a separator
+  ---
+  duration_ms: 0.601275
+  type: 'test'
+  ...
+# Subtest: per-slide front matter wins over the deck front matter
+ok 196 - per-slide front matter wins over the deck front matter
+  ---
+  duration_ms: 0.40487
+  type: 'test'
+  ...
+# Subtest: applies the file front matter layout to the first slide only
+ok 197 - applies the file front matter layout to the first slide only
+  ---
+  duration_ms: 0.353025
+  type: 'test'
+  ...
+# Subtest: assigns page/total automatically and keeps handwritten values
+ok 198 - assigns page/total automatically and keeps handwritten values
+  ---
+  duration_ms: 0.385535
+  type: 'test'
+  ...
+# Subtest: excludes an explicit backcover from the page count
+ok 199 - excludes an explicit backcover from the page count
+  ---
+  duration_ms: 0.301909
+  type: 'test'
+  ...
+# Subtest: does not split on --- inside a code fence
+ok 200 - does not split on --- inside a code fence
+  ---
+  duration_ms: 0.849465
+  type: 'test'
+  ...
+# Subtest: does not split on --- inside a tilde fence
+ok 201 - does not split on --- inside a tilde fence
+  ---
+  duration_ms: 0.716117
+  type: 'test'
+  ...
+# Subtest: treats --- under a paragraph line as a setext heading
+ok 202 - treats --- under a paragraph line as a setext heading
+  ---
+  duration_ms: 0.324131
+  type: 'test'
+  ...
+# Subtest: normalizes CRLF input
+ok 203 - normalizes CRLF input
+  ---
+  duration_ms: 0.327798
+  type: 'test'
+  ...
+# Subtest: drops empty slides
+ok 204 - drops empty slides
+  ---
+  duration_ms: 0.216171
+  type: 'test'
+  ...
+# Subtest: handles a plain markdown file without any front matter
+ok 205 - handles a plain markdown file without any front matter
+  ---
+  duration_ms: 0.206553
+  type: 'test'
+  ...
+# Subtest: returns an empty deck for blank input
+ok 206 - returns an empty deck for blank input
+  ---
+  duration_ms: 0.838484
+  type: 'test'
+  ...
+# Subtest: keeps front matter keys that the deck does not know about
+ok 207 - keeps front matter keys that the deck does not know about
+  ---
+  duration_ms: 1.207148
+  type: 'test'
+  ...
+# Subtest: emits front matter the existing slide parser can read
+ok 208 - emits front matter the existing slide parser can read
+  ---
+  duration_ms: 1.612682
+  type: 'test'
+  ...
+# Subtest: atomic Markdown replace keeps an external edit when validation detects a race
+ok 209 - atomic Markdown replace keeps an external edit when validation detects a race
+  ---
+  duration_ms: 17.958338
+  type: 'test'
+  ...
+# Subtest: all editor surfaces serialize writes to the same Markdown path
+ok 210 - all editor surfaces serialize writes to the same Markdown path
+  ---
+  duration_ms: 2.981285
+  type: 'test'
+  ...
+# Subtest: watches only the selected Markdown and follows atomic replacement
+ok 211 - watches only the selected Markdown and follows atomic replacement
+  ---
+  duration_ms: 308.097578
+  type: 'test'
+  ...
+# Subtest: readGuide returns every document-backed topic
+ok 212 - readGuide returns every document-backed topic
+  ---
+  duration_ms: 86.077425
+  type: 'test'
+  ...
+# Subtest: deck validation reports missing front matter and architecture errors
+ok 213 - deck validation reports missing front matter and architecture errors
+  ---
+  duration_ms: 4.9477
+  type: 'test'
+  ...
+# Subtest: deck validation accepts valid front matter and architecture
+ok 214 - deck validation accepts valid front matter and architecture
+  ---
+  duration_ms: 1.467771
+  type: 'test'
+  ...
+# Subtest: deck validation finds an unclosed architecture fence after a valid block
+ok 215 - deck validation finds an unclosed architecture fence after a valid block
+  ---
+  duration_ms: 0.488565
+  type: 'test'
+  ...
+# Subtest: architecture validation returns structured errors for the whole deck
+ok 216 - architecture validation returns structured errors for the whole deck
+  ---
+  duration_ms: 2.326303
+  type: 'test'
+  ...
+# Subtest: architecture validation can target one slide by zero-based index
+ok 217 - architecture validation can target one slide by zero-based index
+  ---
+  duration_ms: 0.833836
+  type: 'test'
+  ...
+# Subtest: overview explicitly sequences the authoring contract and unloaded preflight
+ok 218 - overview explicitly sequences the authoring contract and unloaded preflight
+  ---
+  duration_ms: 4.083389
+  type: 'test'
+  ...
+# Subtest: legacy errors stay one per invalid block while feedback includes all canonical errors
+ok 219 - legacy errors stay one per invalid block while feedback includes all canonical errors
+  ---
+  duration_ms: 1.402349
+  type: 'test'
+  ...
+# Subtest: supplied validation reports are reused rather than inspecting content twice
+ok 220 - supplied validation reports are reused rather than inspecting content twice
+  ---
+  duration_ms: 0.760058
+  type: 'test'
+  ...
+# Subtest: targeted canonical reports retain actual deck positions without checking other slides
+ok 221 - targeted canonical reports retain actual deck positions without checking other slides
+  ---
+  duration_ms: 0.734261
+  type: 'test'
+  ...
+# Subtest: legacy validation ignores nested example fences and accepts an empty slide list
+ok 222 - legacy validation ignores nested example fences and accepts an empty slide list
+  ---
+  duration_ms: 0.425779
+  type: 'test'
+  ...
+# Subtest: legacy Architecture errors do not classify compatibility warnings as invalid diagrams
+ok 223 - legacy Architecture errors do not classify compatibility warnings as invalid diagrams
+  ---
+  duration_ms: 3.453731
+  type: 'test'
+  ...
+# Subtest: classifies measured Mermaid polygon signatures
+ok 224 - classifies measured Mermaid polygon signatures
+  ---
+  duration_ms: 2.031746
+  type: 'test'
+  ...
+# Subtest: maps Mermaid marker IDs and URL references to scene arrows
+ok 225 - maps Mermaid marker IDs and URL references to scene arrows
+  ---
+  duration_ms: 0.793501
+  type: 'test'
+  ...
+# Subtest: simplifies collinear runs while preserving genuine corners
+ok 226 - simplifies collinear runs while preserving genuine corners
+  ---
+  duration_ms: 1.29537
+  type: 'test'
+  ...
+# Subtest: maps CSS paint, opacity, stroke dash, and font strings into scene fields
+ok 227 - maps CSS paint, opacity, stroke dash, and font strings into scene fields
+  ---
+  duration_ms: 1.129843
+  type: 'test'
+  ...
+# Subtest: limit overflow degrades the whole diagram to one fallback scene
+ok 228 - limit overflow degrades the whole diagram to one fallback scene
+  ---
+  duration_ms: 6.628604
+  type: 'test'
+  ...
+# Subtest: collapses a CSS font stack to the single typeface PowerPoint can resolve
+ok 229 - collapses a CSS font stack to the single typeface PowerPoint can resolve
+  ---
+  duration_ms: 0.398388
+  type: 'test'
+  ...
+# Subtest: recognizes safe additional polygons without replacing unknown geometry with rectangles
+ok 230 - recognizes safe additional polygons without replacing unknown geometry with rectangles
+  ---
+  duration_ms: 0.302781
+  type: 'test'
+  ...
+# Subtest: recognizes sequence arrows while leaving unsupported markers conservative
+ok 231 - recognizes sequence arrows while leaving unsupported markers conservative
+  ---
+  duration_ms: 0.36732
+  type: 'test'
+  ...
+# Subtest: preserves zero-width strokes and does not silently truncate text over limits
+ok 232 - preserves zero-width strokes and does not silently truncate text over limits
+  ---
+  duration_ms: 1.911152
+  type: 'test'
+  ...
+# Subtest: derives safe PowerPoint names from Markdown sources
+ok 233 - derives safe PowerPoint names from Markdown sources
+  ---
+  duration_ms: 1.191709
+  type: 'test'
+  ...
+# Subtest: confines PowerPoint output to the workspace and requires .pptx
+ok 234 - confines PowerPoint output to the workspace and requires .pptx
+  ---
+  duration_ms: 1.750695
+  type: 'test'
+  ...
+# Subtest: rejects PowerPoint parent links that escape the workspace
+ok 235 - rejects PowerPoint parent links that escape the workspace
+  ---
+  duration_ms: 11.841505
+  type: 'test'
+  ...
+# Subtest: Architecture PowerPoint snapshot integrates labels into AutoShapes
+ok 236 - Architecture PowerPoint snapshot integrates labels into AutoShapes
+  ---
+  duration_ms: 13.216694
+  type: 'test'
+  ...
+# Subtest: Architecture PowerPoint snapshot preserves native node shape presets
+ok 237 - Architecture PowerPoint snapshot preserves native node shape presets
+  ---
+  duration_ms: 1.242583
+  type: 'test'
+  ...
+# Subtest: prepares clipped fallback images, notes, and deduplicated native images
+ok 238 - prepares clipped fallback images, notes, and deduplicated native images
+  ---
+  duration_ms: 44.067802
+  type: 'test'
+  ...
+# Subtest: prepares SVG images on layouts and slides as shared native assets
+ok 239 - prepares SVG images on layouts and slides as shared native assets
+  ---
+  duration_ms: 0.91716
+  type: 'test'
+  ...
+# Subtest: decodes parameterized UTF-8 SVG data URLs without corrupting text
+ok 240 - decodes parameterized UTF-8 SVG data URLs without corrupting text
+  ---
+  duration_ms: 0.898986
+  type: 'test'
+  ...
+# Subtest: orders fallback pictures with native elements by renderer z-order
+ok 241 - orders fallback pictures with native elements by renderer z-order
+  ---
+  duration_ms: 1.07351
+  type: 'test'
+  ...
+# Subtest: rejects mismatched artwork and non-workspace image URLs
+ok 242 - rejects mismatched artwork and non-workspace image URLs
+  ---
+  duration_ms: 1.460928
+  type: 'test'
+  ...
+# Subtest: failed PowerPoint export preserves the destination and removes temporary files
+ok 243 - failed PowerPoint export preserves the destination and removes temporary files
+  ---
+  duration_ms: 19.650777
+  type: 'test'
+  ...
+# Subtest: writes a valid stored ZIP with the required editable PowerPoint parts
+ok 244 - writes a valid stored ZIP with the required editable PowerPoint parts
+  ---
+  duration_ms: 18.557622
+  type: 'test'
+  ...
+# Subtest: writes theme-specific masters and five named layouts with shared artwork
+ok 245 - writes theme-specific masters and five named layouts with shared artwork
+  ---
+  duration_ms: 5.893993
+  type: 'test'
+  ...
+# Subtest: writes speaker notes with the required PowerPoint relationships
+ok 246 - writes speaker notes with the required PowerPoint relationships
+  ---
+  duration_ms: 2.830726
+  type: 'test'
+  ...
+# Subtest: omits PowerPoint notes parts when every slide has empty notes
+ok 247 - omits PowerPoint notes parts when every slide has empty notes
+  ---
+  duration_ms: 1.497825
+  type: 'test'
+  ...
+# Subtest: replaces XML-prohibited characters in speaker notes
+ok 248 - replaces XML-prohibited characters in speaker notes
+  ---
+  duration_ms: 1.710019
+  type: 'test'
+  ...
+# Subtest: emits native text, hyperlinks, tables, images, shapes, and connector segments
+ok 249 - emits native text, hyperlinks, tables, images, shapes, and connector segments
+  ---
+  duration_ms: 2.278162
+  type: 'test'
+  ...
+# Subtest: emits grouped list paragraphs with explicit marker colors and offsets
+ok 250 - emits grouped list paragraphs with explicit marker colors and offsets
+  ---
+  duration_ms: 2.844232
+  type: 'test'
+  ...
+# Subtest: uses Yu Gothic for Japanese theme fonts and native text
+ok 251 - uses Yu Gothic for Japanese theme fonts and native text
+  ---
+  duration_ms: 1.002198
+  type: 'test'
+  ...
+# Subtest: keeps rich text and visible styling together in a configured AutoShape
+ok 252 - keeps rich text and visible styling together in a configured AutoShape
+  ---
+  duration_ms: 2.546419
+  type: 'test'
+  ...
+# Subtest: writes editable syntax-colored code with exact line and paragraph spacing
+ok 253 - writes editable syntax-colored code with exact line and paragraph spacing
+  ---
+  duration_ms: 1.594334
+  type: 'test'
+  ...
+# Subtest: emits PowerPoint-native presets for the extended Architecture shapes
+ok 254 - emits PowerPoint-native presets for the extended Architecture shapes
+  ---
+  duration_ms: 1.112662
+  type: 'test'
+  ...
+# Subtest: emits solid and dotted DrawingML connector styles
+ok 255 - emits solid and dotted DrawingML connector styles
+  ---
+  duration_ms: 1.525367
+  type: 'test'
+  ...
+# Subtest: places arrow heads only on the first and last connector segments
+ok 256 - places arrow heads only on the first and last connector segments
+  ---
+  duration_ms: 1.537079
+  type: 'test'
+  ...
+# Subtest: places a full-slide PNG background before every native element
+ok 257 - places a full-slide PNG background before every native element
+  ---
+  duration_ms: 1.296242
+  type: 'test'
+  ...
+# Subtest: rejects duplicate and missing asset references
+ok 258 - rejects duplicate and missing asset references
+  ---
+  duration_ms: 0.380856
+  type: 'test'
+  ...
+# Subtest: rejects invalid slide and element models explicitly
+ok 259 - rejects invalid slide and element models explicitly
+  ---
+  duration_ms: 0.404951
+  type: 'test'
+  ...
+# Subtest: rejects invalid AutoShape text body options and text models
+ok 260 - rejects invalid AutoShape text body options and text models
+  ---
+  duration_ms: 2.742011
+  type: 'test'
+  ...
+# Subtest: presenter opens as a movable window instead of fullscreen
+ok 261 - presenter opens as a movable window instead of fullscreen
+  ---
+  duration_ms: 0.801826
+  type: 'test'
+  ...
+# Subtest: preview mode only enables pointer navigation for an explicit current-slide preview
+ok 262 - preview mode only enables pointer navigation for an explicit current-slide preview
+  ---
+  duration_ms: 8.703791
+  type: 'test'
+  ...
+# Subtest: preview state resolves the requested slide offset
+ok 263 - preview state resolves the requested slide offset
+  ---
+  duration_ms: 2.440132
+  type: 'test'
+  ...
+# Subtest: valid scenes for every node kind are JSON-serializable without drift
+ok 264 - valid scenes for every node kind are JSON-serializable without drift
+  ---
+  duration_ms: 6.360014
+  type: 'test'
+  ...
+# Subtest: nested group children flatten into absolute coordinates
+ok 265 - nested group children flatten into absolute coordinates
+  ---
+  duration_ms: 1.381942
+  type: 'test'
+  ...
+# Subtest: z-order is deterministic and stable for equal z values
+ok 266 - z-order is deterministic and stable for equal z values
+  ---
+  duration_ms: 1.083388
+  type: 'test'
+  ...
+# Subtest: node meta survives normalize and validate unchanged
+ok 267 - node meta survives normalize and validate unchanged
+  ---
+  duration_ms: 0.926628
+  type: 'test'
+  ...
+# Subtest: node meta rejects non-plain objects
+ok 268 - node meta rejects non-plain objects
+  ---
+  duration_ms: 1.131857
+  type: 'test'
+  ...
+# Subtest: node meta does not affect ordering
+ok 269 - node meta does not affect ordering
+  ---
+  duration_ms: 0.487984
+  type: 'test'
+  ...
+# Subtest: validation failures throw SceneGraphError with the offending path
+ok 270 - validation failures throw SceneGraphError with the offending path
+  ---
+  duration_ms: 4.561153
+  type: 'test'
+  ...
+# Subtest: scene limits are enforced
+ok 271 - scene limits are enforced
+  ---
+  duration_ms: 32.780752
+  type: 'test'
+  ...
+# Subtest: unsupported native input becomes a fallback node with a diagnostic
+ok 272 - unsupported native input becomes a fallback node with a diagnostic
+  ---
+  duration_ms: 1.871549
+  type: 'test'
+  ...
+# Subtest: normalizeScene is idempotent
+ok 273 - normalizeScene is idempotent
+  ---
+  duration_ms: 1.150822
+  type: 'test'
+  ...
+# Subtest: color syntax accepts serializable CSS colors and rejects unresolved CSS variables
+ok 274 - color syntax accepts serializable CSS colors and rejects unresolved CSS variables
+  ---
+  duration_ms: 0.915416
+  type: 'test'
+  ...
+# Subtest: maps every scene node kind to the PowerPoint model shape
+ok 275 - maps every scene node kind to the PowerPoint model shape
+  ---
+  duration_ms: 7.644277
+  type: 'test'
+  ...
+# Subtest: connectors keep points, both arrow ends, and editable label fields
+ok 276 - connectors keep points, both arrow ends, and editable label fields
+  ---
+  duration_ms: 2.495505
+  type: 'test'
+  ...
+# Subtest: node meta is passed through to PowerPoint elements
+ok 277 - node meta is passed through to PowerPoint elements
+  ---
+  duration_ms: 0.569996
+  type: 'test'
+  ...
+# Subtest: node meta cannot override standard PowerPoint element fields
+ok 278 - node meta cannot override standard PowerPoint element fields
+  ---
+  duration_ms: 0.495658
+  type: 'test'
+  ...
+# Subtest: emitPath and emitZOrder can be disabled for elements only
+ok 279 - emitPath and emitZOrder can be disabled for elements only
+  ---
+  duration_ms: 0.926136
+  type: 'test'
+  ...
+# Subtest: fallback nodes never become elements and zero-area bounds disable artwork
+ok 280 - fallback nodes never become elements and zero-area bounds disable artwork
+  ---
+  duration_ms: 0.336594
+  type: 'test'
+  ...
+# Subtest: group frame geometry follows the producer's groupPreset option
+ok 281 - group frame geometry follows the producer's groupPreset option
+  ---
+  duration_ms: 0.986929
+  type: 'test'
+  ...
+# Subtest: output is JSON-serializable and deterministic across runs
+ok 282 - output is JSON-serializable and deterministic across runs
+  ---
+  duration_ms: 0.901861
+  type: 'test'
+  ...
+# Subtest: produced editable elements are accepted by the real PowerPoint writer
+ok 283 - produced editable elements are accepted by the real PowerPoint writer
+  ---
+  duration_ms: 12.834537
+  type: 'test'
+  ...
+# Subtest: renders scene primitives, rich text, markers, images and stable stacking with DOM APIs
+ok 284 - renders scene primitives, rich text, markers, images and stable stacking with DOM APIs
+  ---
+  duration_ms: 6.40495
+  type: 'test'
+  ...
+# Subtest: does not silently discard fallback content and permits safe primitive recovery
+ok 285 - does not silently discard fallback content and permits safe primitive recovery
+  ---
+  duration_ms: 0.768113
+  type: 'test'
+  ...
+# Subtest: primitive trees reject executable tags and strip active attributes and URLs
+ok 286 - primitive trees reject executable tags and strip active attributes and URLs
+  ---
+  duration_ms: 0.769286
+  type: 'test'
+  ...
+# Subtest: primitive scene templates preserve source slots exactly once
+ok 287 - primitive scene templates preserve source slots exactly once
+  ---
+  duration_ms: 0.661576
+  type: 'test'
+  ...
+# Subtest: preserves long generated SVG geometry within portable scene string limits
+ok 288 - preserves long generated SVG geometry within portable scene string limits
+  ---
+  duration_ms: 0.869913
+  type: 'test'
+  ...
+# Subtest: Architecture displayed SVG is produced from a portable shared scene with icons and editor metadata
+ok 289 - Architecture displayed SVG is produced from a portable shared scene with icons and editor metadata
+  ---
+  duration_ms: 7.119464
+  type: 'test'
+  ...
+# Subtest: extracts and joins top-level HTML comments as speaker notes
+ok 290 - extracts and joins top-level HTML comments as speaker notes
+  ---
+  duration_ms: 2.096685
+  type: 'test'
+  ...
+# Subtest: ignores comments in fenced examples and presentation directives
+ok 291 - ignores comments in fenced examples and presentation directives
+  ---
+  duration_ms: 0.476342
+  type: 'test'
+  ...
+# Subtest: keeps fenced code written inside a speaker note
+ok 292 - keeps fenced code written inside a speaker note
+  ---
+  duration_ms: 0.435276
+  type: 'test'
+  ...
+# Subtest: strips notes but preserves HTML comment examples in fenced code
+ok 293 - strips notes but preserves HTML comment examples in fenced code
+  ---
+  duration_ms: 0.252708
+  type: 'test'
+  ...
+# Subtest: does not treat inline or indented-code comment markers as notes
+ok 294 - does not treat inline or indented-code comment markers as notes
+  ---
+  duration_ms: 0.345771
+  type: 'test'
+  ...
+# Subtest: converts speaker-note Markdown to readable plain text
+ok 295 - converts speaker-note Markdown to readable plain text
+  ---
+  duration_ms: 18.53458
+  type: 'test'
+  ...
+# Subtest: decodes entities and preserves escaped Markdown characters
+ok 296 - decodes entities and preserves escaped Markdown characters
+  ---
+  duration_ms: 0.987069
+  type: 'test'
+  ...
+# Subtest: preserves valid literal text and complex Markdown destinations
+ok 297 - preserves valid literal text and complex Markdown destinations
+  ---
+  duration_ms: 0.677816
+  type: 'test'
+  ...
+# Subtest: keeps nested list and paragraph order
+ok 298 - keeps nested list and paragraph order
+  ---
+  duration_ms: 0.757905
+  type: 'test'
+  ...
+# Subtest: removes HTML tags without leaking quoted attributes
+ok 299 - removes HTML tags without leaking quoted attributes
+  ---
+  duration_ms: 0.835999
+  type: 'test'
+  ...
+# Subtest: preserves entity syntax inside fenced code
+ok 300 - preserves entity syntax inside fenced code
+  ---
+  duration_ms: 0.24829
+  type: 'test'
+  ...
+# Subtest: Surface Pen listener emits navigation only
+ok 301 - Surface Pen listener emits navigation only
+  ---
+  duration_ms: 5.221507
+  type: 'test'
+  ...
+# Subtest: Surface Pen messages cannot open or close the presenter
+ok 302 - Surface Pen messages cannot open or close the presenter
+  ---
+  duration_ms: 2.277971
+  type: 'test'
+  ...
+# Subtest: prefers a Markdown-relative theme and falls back to the repository theme
+ok 303 - prefers a Markdown-relative theme and falls back to the repository theme
+  ---
+  duration_ms: 19.29005
+  type: 'test'
+  ...
+# Subtest: deduplicates theme candidates for Markdown at the workspace root
+ok 304 - deduplicates theme candidates for Markdown at the workspace root
+  ---
+  duration_ms: 1.371813
+  type: 'test'
+  ...
+# Subtest: rejects theme sources and paths outside their search roots
+ok 305 - rejects theme sources and paths outside their search roots
+  ---
+  duration_ms: 1.752288
+  type: 'test'
+  ...
+# Subtest: rejects a Markdown-relative theme link that leaves the repository
+ok 306 - rejects a Markdown-relative theme link that leaves the repository
+  ---
+  duration_ms: 4.700368
+  type: 'test'
+  ...
+# Subtest: theme resolution defaults to dark and reads front matter
+ok 307 - theme resolution defaults to dark and reads front matter
+  ---
+  duration_ms: 2.245161
+  type: 'test'
+  ...
+# Subtest: theme CSS accepts custom properties and a root wrapper
+ok 308 - theme CSS accepts custom properties and a root wrapper
+  ---
+  duration_ms: 0.854123
+  type: 'test'
+  ...
+# Subtest: Mermaid colors are derived from the rendered slide theme
+ok 309 - Mermaid colors are derived from the rendered slide theme
+  ---
+  duration_ms: 1.441161
+  type: 'test'
+  ...
+# Subtest: section backgrounds accept layered gradients and a print override
+ok 310 - section backgrounds accept layered gradients and a print override
+  ---
+  duration_ms: 0.382038
+  type: 'test'
+  ...
+# Subtest: theme CSS rejects selectors and unsafe values
+ok 311 - theme CSS rejects selectors and unsafe values
+  ---
+  duration_ms: 0.68543
+  type: 'test'
+  ...
+# Subtest: theme metadata accepts folder-local assets and maps them to served URLs
+ok 312 - theme metadata accepts folder-local assets and maps them to served URLs
+  ---
+  duration_ms: 1.293397
+  type: 'test'
+  ...
+# Subtest: theme metadata rejects unsafe paths and invalid shapes
+ok 313 - theme metadata rejects unsafe paths and invalid shapes
+  ---
+  duration_ms: 0.514864
+  type: 'test'
+  ...
+# Subtest: reconstructs ordered chunks and rejects tampering
+ok 314 - reconstructs ordered chunks and rejects tampering
+  ---
+  duration_ms: 13.298135
+  type: 'test'
+  ...
+# Subtest: uses the Git root when the working directory is inside a repository
+ok 315 - uses the Git root when the working directory is inside a repository
+  ---
+  duration_ms: 16.030149
+  type: 'test'
+  ...
+# Subtest: uses the opened working directory outside Git
+ok 316 - uses the opened working directory outside Git
+  ---
+  duration_ms: 9.961485
+  type: 'test'
+  ...
+# Subtest: uses the extension fallback when the working directory is unavailable
+ok 317 - uses the extension fallback when the working directory is unavailable
+  ---
+  duration_ms: 1.359399
+  type: 'test'
+  ...
+1..317
+# tests 317
+# suites 0
+# pass 317
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 15795.971938

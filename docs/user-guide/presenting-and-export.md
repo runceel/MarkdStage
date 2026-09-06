@@ -110,4 +110,8 @@ PDF export, including temporary slide replacements and the automatic back cover.
 editing controls are excluded. The result aims for practical fidelity, not pixel-perfect Chromium
 equivalence or general HTML/CSS conversion.
 
+For release validation, follow the [presentation-application verification procedure](../../test/fixtures/README.md#editable-diagram-verification-in-presentation-applications).
+It covers independent object editing in PowerPoint desktop, PowerPoint for Web, and LibreOffice
+Impress, plus tolerance-based comparison of PNGs rendered by PowerPoint itself.
+
 [Next: Troubleshooting →](troubleshooting.md)
