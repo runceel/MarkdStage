@@ -32,8 +32,8 @@ button:focus-visible, a:focus-visible, summary:focus-visible, pre:focus-visible 
 ::selection { color: var(--ink); background: var(--warm); }
 [hidden] { display: none !important; }
 img { display: block; max-width: 100%; height: auto; }
-figure, h1, h2, h3, p, pre { margin: 0; }
-h1, h2, h3 { text-wrap: balance; }
+figure, h1, h2, h3, h4, p, pre { margin: 0; }
+h1, h2, h3, h4, dt { text-wrap: balance; }
 p { line-height: 1.8; overflow-wrap: anywhere; }
 svg { flex: 0 0 auto; }
 .wrap { width: min(1184px, calc(100% - 96px)); margin-inline: auto; }
@@ -80,6 +80,12 @@ h2 { font-size: clamp(30px, 3.4vw, 48px); line-height: 1.3; letter-spacing: -.03
 h3 { font-size: 23px; letter-spacing: -.02em; line-height: 1.45; font-weight: 650; }
 .section-intro { display: grid; grid-template-columns: 1.2fr 1fr; gap: 70px; align-items: end; margin-bottom: 48px; }
 .section-intro > p { color: var(--copy); max-width: 46ch; }
+.needs-section { display: grid; grid-template-columns: 1fr 1.15fr; gap: 100px; border-bottom: 1px solid var(--line); }
+.needs-list { margin: 0; }
+.needs-list > div + div { margin-top: 28px; }
+.needs-list dt { font-size: 20px; font-weight: 650; line-height: 1.5; }
+.needs-list dd { margin: 10px 0 0; color: var(--copy); line-height: 1.8; }
+.examples-section { border-top: 1px solid var(--line); }
 .gallery-controls { display: flex; gap: 8px; border-bottom: 1px solid var(--line); margin-bottom: 28px; }
 .gallery-controls button { color: var(--copy); background: none; border: 0; border-bottom: 2px solid transparent; padding: 16px 22px; min-height: 52px; }
 .gallery-controls button[aria-pressed="true"] { border-bottom-color: var(--amber); color: var(--amber); }
@@ -116,6 +122,9 @@ pre code { font: inherit; }
 .workflow-steps h3 { margin-bottom: 13px; }
 .workflow-steps p { color: var(--copy); }
 .workflow-steps .step-detail { color: var(--amber); margin-top: 15px; font-size: 12px; }
+.share-formats { display: grid; grid-template-columns: 1fr 1fr; gap: 72px; }
+.share-formats p { color: var(--copy); margin-top: 16px; }
+.sharing > .text-link { margin-top: 24px; }
 .start-section { background: var(--paper); color: var(--ink); color-scheme: light; }
 .start-section .section-intro > p { color: #485165; }
 .start-section .text-link { color: #6d4505; text-decoration-color: #bea77f; }
@@ -123,6 +132,18 @@ pre code { font: inherit; }
 .start-section :focus-visible { outline-color: #714807; }
 .install-cli { display: grid; grid-template-columns: .85fr 1.15fr; gap: 72px; padding: 36px 0 46px; border-block: 1px solid #c7c7c6; }
 .install-cli > div { min-width: 0; }
+.cli-steps { margin: 0; padding-left: 24px; min-width: 0; }
+.cli-steps > li { padding-left: 8px; }
+.cli-steps > li + li { margin-top: 32px; }
+.cli-steps h4 { font-size: 19px; line-height: 1.5; margin-bottom: 12px; }
+.cli-steps p { color: #485165; }
+.cli-steps .terminal { margin-top: 16px; }
+.alternative-command { margin-top: 10px; padding: 12px; background: #e8e5dd; }
+.author-request { margin: 16px 0; padding: 16px; background: #e8e5dd; }
+.author-request p { color: var(--ink); font-size: 14px; }
+.cli-output { margin-top: 20px; border-block: 1px solid #c7c7c6; }
+.cli-output[open] { padding-bottom: 18px; }
+.install-options .native-title { margin-top: 32px; }
 .install-cli h3, .install-options h3 { margin-bottom: 16px; }
 .install-cli > div > p, .install-options article > p { color: #485165; }
 .install-cli .text-link { margin-top: 15px; }
@@ -132,7 +153,7 @@ pre code { font: inherit; }
 .terminal :focus-visible { outline-color: var(--amber); outline-offset: -4px; }
 .copy-button { padding: 8px 12px; border: 1px solid #535d72; color: var(--paper); background: transparent; border-radius: 3px; min-height: 36px; font-size: 12px; }
 .copy-button:hover { background: #263149; }
-.install-cli .install-next { font-size: 13px; margin-top: 16px; }
+.install-next { font-size: 13px; margin-top: 16px; }
 .requirements { font-size: 12px; margin-top: 12px; }
 .install-options { display: grid; grid-template-columns: 1fr 1fr; gap: 72px; padding-top: 44px; }
 .install-options article > .text-link { margin-top: 17px; }
@@ -171,7 +192,7 @@ pre code { font: inherit; }
   .stage { padding-inline: 44px; }
   .surfaces { font-size: 13px; }
   .surfaces li + li::before { margin-right: 16px; }
-  .section-intro, .editor-layout, .workflow, .install-cli, .install-options { gap: 40px; }
+  .section-intro, .editor-layout, .workflow, .needs-section, .share-formats, .install-cli, .install-options { gap: 40px; }
   .example { grid-template-columns: 1.5fr 1fr; gap: 24px; }
   .footer nav { gap: 18px; }
 }
@@ -206,8 +227,8 @@ pre code { font: inherit; }
   .gallery-controls button { padding: 14px 16px; font-size: 13px; }
   .example { grid-template-columns: 1fr; gap: 24px; }
   .example-detail > p { font-size: 15px; }
-  .editor-layout, .workflow, .install-cli, .install-options { grid-template-columns: 1fr; gap: 32px; }
-  .editor-copy p, .workflow-steps p, .install-options p, .install-cli p { font-size: 15px; }
+  .editor-layout, .workflow, .needs-section, .share-formats, .install-cli, .install-options { grid-template-columns: 1fr; gap: 32px; }
+  .editor-copy p, .workflow-steps p, .needs-list dd, .share-formats p, .install-options p, .install-cli p { font-size: 15px; }
   .workflow > h2 { position: static; }
   .workflow { gap: 38px; }
   .workflow-steps li { gap: 18px; margin-bottom: 30px; padding-bottom: 30px; }

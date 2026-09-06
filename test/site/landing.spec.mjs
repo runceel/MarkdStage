@@ -24,8 +24,18 @@ for (const basePath of ["/", "/markdstage/"]) {
         await expectNoHorizontalOverflow(page);
         await expectVisibleImagesLoaded(page);
         if (lang === "ja") {
-          await expect(page.locator("#editor-title")).toHaveCSS("line-break", "strict");
-          await expect(page.locator("#editor-title")).toHaveCSS("word-break", "auto-phrase");
+          for (const selector of ["#editor-title", "#needs-title", ".needs-list dd",
+            "#workflow-title", "#share-title", ".share-formats p", "#start-title",
+            ".cli-steps h4", ".author-request p"]) {
+            const elements = page.locator(selector);
+            for (const element of await elements.all()) {
+              await expect(element).toHaveCSS("line-break", "strict");
+              await expect(element).toHaveCSS("word-break", "auto-phrase");
+            }
+          }
+          for (const heading of await page.locator("h2, h3, h4, dt").all()) {
+            await expect(heading).toHaveCSS("text-wrap", "balance");
+          }
         }
 
         await page.locator("[data-example='architecture']").click();
@@ -34,6 +44,9 @@ for (const basePath of ["/", "/markdstage/"]) {
         await page.locator("#example-architecture summary").click();
         await page.locator(".canvas-install summary").focus();
         await page.keyboard.press("Enter");
+        await page.locator(".cli-output summary").focus();
+        await page.keyboard.press("Enter");
+        await expect(page.locator("#cli-command")).toBeVisible();
         await expectNoHorizontalOverflow(page);
 
         const startLink = page.locator(".hero-actions .button");
@@ -101,6 +114,38 @@ for (const basePath of ["/", "/markdstage/"]) {
         expect(Buffer.concat(chunks).toString("utf8")).toBe(site.sources[id]);
       }
     });
+
+    test(`${lang}: onboarding offers an AI draft, direct editing, and sharing at ${basePath}`, async ({ page, site }) => {
+      await page.goto(localeUrl(site, basePath, lang));
+      const copy = site[lang];
+      await expect(page.locator(".needs-list > div")).toHaveCount(3);
+      await expect(page.locator(".workflow-steps li")).toHaveCount(3);
+      await expect(page.locator(".cli-steps > li")).toHaveCount(3);
+      await expect(page.locator(".sharing")).toContainText(copy.pptxDescription);
+      await expect(page.locator(".cli-steps")).toContainText(copy.authorPrompt);
+      await expect(page.locator(".cli-steps")).toContainText(copy.refinePrompt);
+      await expect(page.locator(".cli-steps > li > .author-request").filter({ hasText: copy.inspectPrompt })).toBeVisible();
+      await expect(page.locator(".cli-output")).not.toHaveAttribute("open", "");
+      await expect(page.locator(".cli-output")).toContainText(copy.cliCheckDescription);
+      await expect(page.locator(".cli-output")).toContainText(copy.cliDeliveryDescription);
+      await expect(page.locator(".cli-steps")).toContainText(copy.cliAlternative);
+      await expect(page.locator("#cli-setup")).toHaveText(site.product.cliSetupCommand);
+      await expect(page.locator(".alternative-command")).toHaveText(site.product.cliAlternativeCommand);
+      await expect(page.locator("#cli-preview")).toHaveText(site.product.cliPreviewCommand);
+      await expect(page.locator(".install-options")).toContainText(copy.canvasAuthorPrompt);
+      await expect(page.locator(".install-options")).toContainText(copy.directDescription);
+      await expect(page.locator(".install-options a[download]")).toHaveAttribute("href", `${lang === "en" ? "../" : "./"}examples/markdown.md`);
+      await expect(page.locator(".mac-note a")).toHaveAttribute("href", site.product.macUrl);
+
+      await page.locator(".cli-output summary").focus();
+      await page.keyboard.press("Enter");
+      await expect(page.locator("#cli-check")).toBeVisible();
+      await expect(page.locator("#cli-check")).toHaveText(site.product.cliCheckCommand);
+      await expect(page.locator("#cli-command")).toHaveText(site.product.cliCommand);
+      await expect(page.locator("#cli-export")).toHaveText(site.product.cliExportCommand);
+      await page.keyboard.press("Tab");
+      await expectVisibleFocus(page.locator("[data-copy='cli-check']"));
+    });
   }
 }
 
@@ -131,6 +176,14 @@ test.describe("progressive enhancement without JavaScript", () => {
         await page.keyboard.press("Enter");
         await expect(page.locator("#canvas-prompt")).toBeVisible();
         await expect(page.locator("[data-copy='canvas-prompt']")).toBeHidden();
+        await expect(page.locator("#cli-setup")).toHaveText(site.product.cliSetupCommand);
+        await expect(page.locator(".cli-steps")).toContainText(site[lang].authorPrompt);
+        await expect(page.locator(".cli-steps > li > .author-request").filter({ hasText: site[lang].inspectPrompt })).toBeVisible();
+        await expect(page.locator(".install-options")).toContainText(site[lang].directDescription);
+        await page.locator(".cli-output summary").focus();
+        await page.keyboard.press("Enter");
+        await expect(page.locator("#cli-export")).toBeVisible();
+        await expect(page.locator("#cli-export")).toHaveText(site.product.cliExportCommand);
         await expect(page.locator("#cli-command")).toHaveText(site.product.cliCommand);
         await expectVisibleImagesLoaded(page);
         await expectNoHorizontalOverflow(page);
@@ -173,11 +226,16 @@ for (const lang of ["ja", "en"]) {
       }, outcome);
       await page.goto(localeUrl(site, "/markdstage/", lang));
       await page.locator(".canvas-install summary").click();
+      await page.locator(".cli-output summary").click();
       const status = page.getByRole("status", { includeHidden: true });
       await expect(status).toHaveAttribute("aria-live", "polite");
       await expect(status).toHaveText("");
       const expectedSources = [
+        ["cli-setup", site.product.cliSetupCommand],
+        ["cli-preview", site.product.cliPreviewCommand],
+        ["cli-check", site.product.cliCheckCommand],
         ["cli-command", site.product.cliCommand],
+        ["cli-export", site.product.cliExportCommand],
         ["canvas-prompt", `${site[lang].canvasPrompt}\n\n${site.product.repository}/tree/${site.product.releaseTag}/.github/extensions/markdstage`],
       ];
       for (const [index, [id, source]] of expectedSources.entries()) {
@@ -269,6 +327,9 @@ for (const lang of ["ja", "en"]) {
       await audit(page, ["#get-started"]);
       await page.keyboard.press("Tab");
       await expectVisibleFocus(page.locator("[data-copy='canvas-prompt']"));
+      await audit(page, ["#get-started"]);
+      await page.locator(".cli-output summary").focus();
+      await page.keyboard.press("Enter");
       await audit(page, ["#get-started"]);
     });
   }

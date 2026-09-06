@@ -117,6 +117,49 @@ test("translation validation accepts complete localized content and reordered ke
   }));
 });
 
+test("both pages connect needs and workflow to examples, sharing, and actionable onboarding", async () => {
+  const { ja, en, product, sources } = await readContent();
+  for (const copy of [ja, en]) {
+    const html = renderPage({ copy, product, sources, siteUrl: "https://example.test/markdstage/" });
+    const sections = ["needs-title", "workflow-title", "examples-title", "editor-title", "share-title", "start-title"];
+    const positions = sections.map((id) => html.indexOf(`id="${id}"`));
+    assert.ok(positions.every((position) => position >= 0), `${copy.lang}: every section exists`);
+    assert.deepEqual(positions, [...positions].sort((a, b) => a - b), `${copy.lang}: reading order`);
+    assert.equal(copy.needs.length, 3);
+    assert.equal(copy.steps.length, 3);
+    for (const item of [...copy.needs, ...copy.steps]) {
+      assert.ok(html.includes(escapeHtml(item.title)));
+      assert.ok(html.includes(escapeHtml(item.body)));
+    }
+    for (const key of ["shareDescription", "pdfDescription", "pptxDescription", "cliAlternative",
+      "authorPrompt", "refinePrompt", "inspectPrompt", "cliInspectDescription", "cliCheckDescription",
+      "cliDeliveryDescription", "canvasAuthorPrompt", "canvasReview", "directDescription", "macNote"]) {
+      assert.ok(html.includes(escapeHtml(copy[key])), `${copy.lang}: ${key}`);
+    }
+    for (const [id, key] of [
+      ["cli-setup", "cliSetupCommand"], ["cli-preview", "cliPreviewCommand"],
+      ["cli-check", "cliCheckCommand"], ["cli-command", "cliCommand"], ["cli-export", "cliExportCommand"],
+    ]) {
+      assert.ok(html.includes(`<code id="${id}">${escapeHtml(product[key])}</code>`), key);
+      assert.ok(html.includes(`data-copy="${id}" hidden`), `${id}: progressive enhancement`);
+    }
+    assert.ok(html.includes(`<code>${escapeHtml(product.cliAlternativeCommand)}</code>`));
+    for (const guide of ["installation.md", "cli.md", "presenting-and-export.md"]) {
+      assert.ok(html.includes(`${product.repository}/blob/main/docs/user-guide/${copy.lang === "ja" ? "ja/" : ""}${guide}`));
+    }
+    assert.ok(html.includes(`${product.repository}/tree/${product.releaseTag}/.github/extensions/markdstage`));
+    assert.ok(html.includes('id="examples"'));
+    assert.ok(html.includes('id="get-started"'));
+    assert.ok(html.includes(`${copy.heroLine1}<br><span>${copy.heroLine2}</span>`), "Keep the intentional tagline break");
+  }
+  assert.equal(product.cliSetupCommand, "npm install --global @markdstage/markdstage\nmarkdstage skill install --target claude");
+  assert.equal(product.cliAlternativeCommand, "markdstage skill install --target codex");
+  assert.equal(product.cliPreviewCommand, "markdstage preview slides.md --watch");
+  assert.equal(product.cliCheckCommand, "markdstage validate slides.md --json\nmarkdstage inspect slides.md --json");
+  assert.equal(product.cliCommand, "markdstage present slides.md");
+  assert.equal(product.cliExportCommand, "markdstage export slides.md --output slides.pdf\nmarkdstage export slides.md --output slides.pptx");
+});
+
 const reference = { title: "Title", steps: [{ body: "Body" }] };
 const invalidTranslations = [
   ["missing key", { steps: [{ body: "本文" }] }, /keys differ at content/],
@@ -176,10 +219,13 @@ test("rendered headings, metadata, sources, links, and copy messages escape HTML
   const copy = {
     ...en, title: hostile, description: hostile, heroLine1: hostile, heroAlt: hostile,
     examplesTitle: `${hostile}\nSecond line`, copied: hostile, canvasPrompt: hostile,
+    needs: [{ title: hostile, body: hostile }], pptxDescription: hostile, authorPrompt: hostile,
   };
   const html = renderPage({
     copy,
-    product: { ...product, repository: `https://example.test/"'<>&`, cliCommand: hostile },
+    product: { ...product, repository: `https://example.test/"'<>&`, cliCommand: hostile,
+      cliSetupCommand: hostile, cliAlternativeCommand: hostile, cliPreviewCommand: hostile,
+      cliCheckCommand: hostile, cliExportCommand: hostile },
     sources: { ...sources, markdown: hostile },
     siteUrl: "https://example.test/markdstage/",
   });
@@ -189,6 +235,12 @@ test("rendered headings, metadata, sources, links, and copy messages escape HTML
   assert.ok(html.includes(`<h2 id="examples-title">${escaped}<br>Second line</h2>`));
   assert.ok(html.includes(`<code>${escaped}</code>`));
   assert.ok(html.includes(`<code id="cli-command">${escaped}</code>`));
+  assert.ok(html.includes(`<code id="cli-setup">${escaped}</code>`));
+  assert.ok(html.includes(`<code id="cli-preview">${escaped}</code>`));
+  assert.ok(html.includes(`<code id="cli-check">${escaped}</code>`));
+  assert.ok(html.includes(`<code id="cli-export">${escaped}</code>`));
+  assert.ok(html.includes(`<dt>${escaped}</dt><dd>${escaped}</dd>`));
+  assert.ok(html.includes(`<blockquote class="author-request"><p>${escaped}</p></blockquote>`));
   assert.ok(html.includes(`alt="${escaped}"`));
   assert.ok(html.includes(`data-copied="${escaped}"`));
   assert.ok(html.includes('href="https://example.test/&quot;&#39;&lt;&gt;&amp;"'));

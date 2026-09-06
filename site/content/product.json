@@ -3,6 +3,11 @@
   "tagline": "Markdown, ready for the stage.",
   "repository": "https://github.com/runceel/markdstage",
   "releaseTag": "v3.2.0",
-  "cliCommand": "npx @markdstage/markdstage present slides.md",
+  "cliSetupCommand": "npm install --global @markdstage/markdstage\nmarkdstage skill install --target claude",
+  "cliAlternativeCommand": "markdstage skill install --target codex",
+  "cliPreviewCommand": "markdstage preview slides.md --watch",
+  "cliCheckCommand": "markdstage validate slides.md --json\nmarkdstage inspect slides.md --json",
+  "cliCommand": "markdstage present slides.md",
+  "cliExportCommand": "markdstage export slides.md --output slides.pdf\nmarkdstage export slides.md --output slides.pptx",
   "macUrl": "https://github.com/07JP27/MarkStageForMac"
 }
