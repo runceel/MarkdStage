@@ -327,6 +327,59 @@ test("connectors keep points, both arrow ends, and editable label fields", () =>
   assert.deepEqual(connector.labelBounds, { x: 390, y: 130, width: 80, height: 24 });
 });
 
+test("maps fill and stroke opacity independently without folding element opacity", () => {
+  const { elements } = sceneToPptxElements(normalizedScene({
+    nodes: [
+      {
+        kind: "shape",
+        sourcePath: "nodes[0]",
+        z: 0,
+        bounds: { x: 10, y: 20, width: 100, height: 50 },
+        preset: "rect",
+        style: {
+          fill: "rgba(51, 102, 153, 0.5)",
+          stroke: "#cc330080",
+          strokeWidth: 2,
+          opacity: 0.8,
+          fillOpacity: 0.5,
+          strokeOpacity: 0.25,
+        },
+      },
+      {
+        kind: "connector",
+        sourcePath: "connectors[0]",
+        z: 1,
+        points: [{ x: 0, y: 0 }, { x: 100, y: 50 }],
+        style: {
+          stroke: "rgba(0, 136, 204, 0.5)",
+          strokeWidth: 3,
+          opacity: 0.5,
+          strokeOpacity: 0.4,
+        },
+        arrowStart: "none",
+        arrowEnd: "none",
+      },
+    ],
+  }));
+
+  assert.deepEqual(
+    {
+      opacity: elements[0].opacity,
+      fillOpacity: elements[0].fillOpacity,
+      strokeOpacity: elements[0].strokeOpacity,
+    },
+    { opacity: 0.8, fillOpacity: 0.5, strokeOpacity: 0.25 },
+  );
+  assert.deepEqual(
+    {
+      opacity: elements[1].opacity,
+      fillOpacity: elements[1].fillOpacity,
+      strokeOpacity: elements[1].strokeOpacity,
+    },
+    { opacity: 0.5, fillOpacity: undefined, strokeOpacity: 0.4 },
+  );
+});
+
 test("node meta is passed through to PowerPoint elements", () => {
   const scene = normalizedScene({
     nodes: [

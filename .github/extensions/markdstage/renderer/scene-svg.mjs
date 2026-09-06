@@ -195,6 +195,8 @@ export function sceneToSvg(scene, {
     return {
       fill: style.fill ?? "none", stroke: style.stroke ?? "none",
       "stroke-width": style.strokeWidth ?? 0, opacity: style.opacity ?? 1,
+      "fill-opacity": style.fillOpacity ?? 1,
+      "stroke-opacity": style.strokeOpacity ?? 1,
       "stroke-linecap": style.lineCap,
       "stroke-dasharray": { dash: "8 5", dashDot: "8 4 2 4", dot: "2 4" }[style.dash],
     };
@@ -312,8 +314,8 @@ export function sceneToSvg(scene, {
           const id = `scene-arrow-${renderId}-${index}-${end}`;
           const marker = dom("marker", { id, viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse", markerUnits: "strokeWidth" });
           marker.appendChild(arrow === "oval"
-            ? dom("circle", { cx: 5, cy: 5, r: 4, fill: node.style?.stroke })
-            : dom("path", { d: arrow === "diamond" ? "M 0 5 L 5 0 L 10 5 L 5 10 Z" : arrow === "stealth" ? "M 0 0 L 10 5 L 0 10 L 3 5 Z" : "M 0 0 L 10 5 L 0 10 Z", fill: node.style?.stroke }));
+            ? dom("circle", { cx: 5, cy: 5, r: 4, fill: node.style?.stroke, "fill-opacity": node.style?.strokeOpacity ?? 1 })
+            : dom("path", { d: arrow === "diamond" ? "M 0 5 L 5 0 L 10 5 L 5 10 Z" : arrow === "stealth" ? "M 0 0 L 10 5 L 0 10 L 3 5 Z" : "M 0 0 L 10 5 L 0 10 Z", fill: node.style?.stroke, "fill-opacity": node.style?.strokeOpacity ?? 1 }));
           defs.appendChild(marker);
           attrs[`marker-${end}`] = `url(#${id})`;
         }

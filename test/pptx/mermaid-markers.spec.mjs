@@ -230,8 +230,6 @@ test("unsupported hollow marker variants keep just their source connector and it
     const mutations = [
       (marker) => { marker.firstElementChild.style.fill = "white"; },
       (marker) => { marker.firstElementChild.style.fill = "red"; },
-      (marker) => { marker.firstElementChild.style.stroke = "rgba(0,0,0,.5)"; },
-      (marker) => { marker.firstElementChild.style.strokeOpacity = ".5"; },
       (marker) => { marker.firstElementChild.style.strokeWidth = ".001"; },
       (marker) => { marker.firstElementChild.style.strokeDasharray = "3 2"; },
       (marker) => { marker.firstElementChild.style.strokeDashoffset = "2"; },
@@ -241,7 +239,6 @@ test("unsupported hollow marker variants keep just their source connector and it
       (marker) => { marker.firstElementChild.setAttribute("d", "M0 0L5 5L0 10Z"); },
       (marker) => { marker.firstElementChild.style.d = 'path("M0 0L5 5L0 10Z")'; },
       (marker) => { marker.style.filter = "blur(1px)"; },
-      (marker) => { marker.style.opacity = ".5"; },
       (marker) => { marker.style.mixBlendMode = "multiply"; },
       (marker) => { marker.style.transform = "translate(1px,2px)"; },
       (marker) => { marker.setAttribute("markerWidth", "2"); },
@@ -275,6 +272,71 @@ test("unsupported hollow marker variants keep just their source connector and it
       expect(result.sources.find((source) => source.path === "edges[0]").tag).toBe("path");
       expect(sceneToPptxElements(result.scene).fallbacks.map((fallback) => fallback.sourcePath)).toEqual(["edges[0]"]);
     }
+  } finally { await h.close(); }
+});
+
+test("hollow marker alpha stays editable while translucent cross overlap remains local fallback", async ({ page }) => {
+  const h = await startHarness({ slides: ["# Marker alpha"] });
+  try {
+    await page.goto(h.url);
+    await load(page, "class-hollow");
+    await page.evaluate(() => {
+      const edge = document.querySelector("path.relation");
+      const original = document.querySelector('[id$="-extensionStart"]');
+      const marker = original.cloneNode(true);
+      marker.id = "alpha-extensionStart";
+      marker.style.opacity = "0.5";
+      marker.firstElementChild.style.stroke = "rgba(90, 80, 70, 0.5)";
+      marker.firstElementChild.style.strokeOpacity = "0.4";
+      original.parentElement.append(marker);
+      edge.setAttribute("marker-start", `url(#${marker.id})`);
+    });
+    const hollow = await extract(page);
+    expect(hollow.diagnostics).toEqual([]);
+    const alphaMarkers = hollow.scene.nodes.filter((node) =>
+      node.meta?.mermaid?.kind === "marker" && node.style.stroke === "rgba(90, 80, 70, 0.5)");
+    expect(alphaMarkers).toHaveLength(1);
+    expect(alphaMarkers[0].style).toMatchObject({
+      fill: null,
+      opacity: 0.5,
+      strokeOpacity: 0.4,
+      lineCap: "butt",
+    });
+    const { xml } = assertPackage(hollow.scene);
+    expect(xml).toContain('<a:srgbClr val="5A5046"><a:alpha val="10000"/></a:srgbClr>');
+    const rendered = await page.evaluate(async () => {
+      const { sceneToSvg } = await import("./renderer/scene-svg.mjs");
+      const svg = sceneToSvg(window.markerResult.scene);
+      const marker = [...svg.querySelectorAll("[data-scene-source-path]")]
+        .find((node) => node.getAttribute("data-scene-source-path")?.includes(".markers.start"));
+      const path = marker?.querySelector("path");
+      return {
+        opacity: path?.getAttribute("opacity"),
+        strokeOpacity: path?.getAttribute("stroke-opacity"),
+        stroke: path?.getAttribute("stroke"),
+      };
+    });
+    expect(rendered).toEqual({
+      opacity: "0.5",
+      strokeOpacity: "0.4",
+      stroke: "rgba(90, 80, 70, 0.5)",
+    });
+
+    await load(page, "sequence-cross");
+    await page.evaluate(() => {
+      const edge = document.querySelector("[data-et=message]");
+      const original = document.querySelector('[id$="-crosshead"]');
+      const marker = original.cloneNode(true);
+      marker.id = "alpha-crosshead";
+      marker.firstElementChild.style.strokeOpacity = "0.5";
+      original.parentElement.append(marker);
+      edge.setAttribute("marker-end", `url(#${marker.id})`);
+    });
+    const cross = await extract(page);
+    expect(cross.scene.nodes.filter((node) => node.kind === "fallback")).toMatchObject([
+      { reason: "unsupported-mermaid-sequence-element" },
+    ]);
+    expect(cross.scene.nodes.filter((node) => node.meta?.mermaid?.shape === "cross")).toHaveLength(6);
   } finally { await h.close(); }
 });
 

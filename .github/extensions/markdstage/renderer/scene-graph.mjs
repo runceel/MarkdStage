@@ -113,6 +113,14 @@ function exactKeys(value, allowed, path) {
   }
 }
 
+function rejectInheritedKeys(value, allowed, path) {
+  for (const key of allowed) {
+    if (!Object.hasOwn(value, key) && key in value) {
+      fail(`${path}.${key} must be an own property`);
+    }
+  }
+}
+
 function requiredObject(value, path) {
   if (!isPlainObject(value)) fail(`${path} must be an object`);
   return value;
@@ -277,14 +285,27 @@ function validateCapability(value, path) {
 function validateStyle(value, path) {
   if (value === undefined) return;
   requiredObject(value, path);
-  exactKeys(value, new Set(["fill", "stroke", "strokeWidth", "dash", "lineCap", "opacity", "cornerRadius"]), path);
+  const keys = new Set([
+    "fill",
+    "stroke",
+    "strokeWidth",
+    "dash",
+    "lineCap",
+    "opacity",
+    "fillOpacity",
+    "strokeOpacity",
+    "cornerRadius",
+  ]);
+  exactKeys(value, keys, path);
+  rejectInheritedKeys(value, keys, path);
   if (value.fill !== undefined) validateColor(value.fill, `${path}.fill`);
   if (value.stroke !== undefined) validateColor(value.stroke, `${path}.stroke`);
   if (value.strokeWidth !== undefined) nonNegativeNumber(value.strokeWidth, `${path}.strokeWidth`);
   if (value.cornerRadius !== undefined) nonNegativeNumber(value.cornerRadius, `${path}.cornerRadius`);
-  if (value.opacity !== undefined) {
-    const opacity = finiteNumber(value.opacity, `${path}.opacity`);
-    if (opacity < 0 || opacity > 1) fail(`${path}.opacity must be between 0 and 1`);
+  for (const key of ["opacity", "fillOpacity", "strokeOpacity"]) {
+    if (value[key] === undefined) continue;
+    const opacity = finiteNumber(value[key], `${path}.${key}`);
+    if (opacity < 0 || opacity > 1) fail(`${path}.${key} must be between 0 and 1`);
   }
   if (value.dash !== undefined && !DASH_STYLES.has(value.dash)) {
     fail(`${path}.dash must be "", "solid", "dash", "dashDot", or "dot"`);
@@ -461,7 +482,9 @@ function normalizeStyle(value) {
   return Object.fromEntries(
     Object.entries(value).map(([key, entry]) => {
       if (key === "strokeWidth" || key === "cornerRadius") return [key, roundedMetric(entry)];
-      if (key === "opacity") return [key, clampOpacity(entry)];
+      if (key === "opacity" || key === "fillOpacity" || key === "strokeOpacity") {
+        return [key, clampOpacity(entry)];
+      }
       return [key, entry];
     }),
   );

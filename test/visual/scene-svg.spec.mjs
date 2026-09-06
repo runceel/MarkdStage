@@ -17,6 +17,7 @@ const sequencePathsSlide = `# Sequence paths\n\n\`\`\`mermaid\n${await readFile(
 const sequenceDecorationsSlide = `# Sequence decorations\n\n\`\`\`mermaid\n${await readFile(new URL("../fixtures/mermaid/sequence-decorations.mmd", import.meta.url), "utf8")}\n\`\`\``;
 const flowchartAdditionalShapesSlide = `# Additional flowchart shapes\n\n\`\`\`mermaid\n${await readFile(new URL("../fixtures/mermaid/flowchart-additional-shapes.mmd", import.meta.url), "utf8")}\n\`\`\``;
 const classContainersSlide = `# Class containers\n\n\`\`\`mermaid\n${await readFile(new URL("../fixtures/mermaid/class-containers.mmd", import.meta.url), "utf8")}\n\`\`\``;
+const paintAlphaSlide = `# Paint alpha\n\n\`\`\`mermaid\n${await readFile(new URL("../fixtures/mermaid/paint-alpha.mmd", import.meta.url), "utf8")}\n\`\`\``;
 const slides = [
   `# Architecture\n\n\`\`\`architecture\n${JSON.stringify(architecture)}\n\`\`\``,
   "# Mermaid\n\n```mermaid\nflowchart LR\nA[Client] -->|Request| B(API)\nB --> C[(Database)]\n```",
@@ -32,6 +33,7 @@ const slides = [
   sequenceDecorationsSlide,
   flowchartAdditionalShapesSlide,
   classContainersSlide,
+  paintAlphaSlide,
 ];
 
 const customThemeCss = ":root{--bg:#102030;--fg:#f8fafc;--body:#d7e3f0;--muted:#abbdd0;--surface:#203448;--border:#486580;--accent:#39b8f2;--accent-strong:#72d4ff;--accent-soft:#163b50;}";
@@ -126,6 +128,7 @@ test("normal, presenter, fixed preview, PNG and PDF use the same shared scene re
     sequenceDecorationsSlide,
     flowchartAdditionalShapesSlide,
     classContainersSlide,
+    paintAlphaSlide,
     ...slides.slice(7, 10),
   ];
   const harness = await startHarness({ slides: surfaceSlides });
@@ -153,6 +156,13 @@ test("normal, presenter, fixed preview, PNG and PDF use the same shared scene re
         signatures.push(await svg.evaluate((element) => ({
           viewBox: element.getAttribute("viewBox"),
           paths: [...element.querySelectorAll("path")].map((path) => path.getAttribute("d")),
+          paint: [...element.querySelectorAll("circle, ellipse, line, path, polygon, rect")].map((shape) => ({
+            fill: shape.getAttribute("fill"),
+            stroke: shape.getAttribute("stroke"),
+            opacity: shape.getAttribute("opacity"),
+            fillOpacity: shape.getAttribute("fill-opacity"),
+            strokeOpacity: shape.getAttribute("stroke-opacity"),
+          })),
           text: [...element.querySelectorAll("text, span.edgeLabel")].map((label) => label.textContent),
           nodes: [...element.querySelectorAll("[data-architecture-id]")].map((node) => [node.getAttribute("data-architecture-id"), node.getAttribute("data-scene-source-path")]),
         })));

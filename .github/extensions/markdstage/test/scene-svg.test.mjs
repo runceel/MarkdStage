@@ -41,6 +41,49 @@ test("renders explicit marker caps while retaining the existing connector defaul
   }
 });
 
+test("renders element, fill, and stroke opacity independently for shapes and connector heads", () => {
+  const svg = sceneToSvg(scene([
+    {
+      kind: "shape",
+      preset: "rect",
+      sourcePath: "shape",
+      z: 0,
+      bounds,
+      style: {
+        fill: "rgba(51, 102, 153, 0.5)",
+        stroke: "#cc330080",
+        strokeWidth: 2,
+        opacity: 0.8,
+        fillOpacity: 0.5,
+        strokeOpacity: 0.25,
+      },
+    },
+    {
+      kind: "connector",
+      sourcePath: "connector",
+      z: 1,
+      points: [{ x: 1, y: 2 }, { x: 6, y: 7 }],
+      arrowEnd: "triangle",
+      style: {
+        stroke: "rgba(0, 136, 204, 0.5)",
+        strokeWidth: 3,
+        opacity: 0.5,
+        strokeOpacity: 0.4,
+      },
+    },
+  ]), { document });
+  const rect = all(svg).find((node) => node.tagName === "rect");
+  assert.equal(rect.attributes.get("opacity"), "0.8");
+  assert.equal(rect.attributes.get("fill-opacity"), "0.5");
+  assert.equal(rect.attributes.get("stroke-opacity"), "0.25");
+  const path = all(svg).find((node) => node.tagName === "path" && node.attributes.get("marker-end"));
+  assert.equal(path.attributes.get("opacity"), "0.5");
+  assert.equal(path.attributes.get("stroke-opacity"), "0.4");
+  const markerShape = all(svg).find((node) => node.tagName === "marker").children[0];
+  assert.equal(markerShape.attributes.get("fill"), "rgba(0, 136, 204, 0.5)");
+  assert.equal(markerShape.attributes.get("fill-opacity"), "0.4");
+});
+
 test("renders the fixed Mermaid sequence frame tab profile", () => {
   const svg = sceneToSvg(scene([{
     kind: "shape",

@@ -135,6 +135,8 @@ test("maps CSS paint, opacity, stroke dash, and font strings into scene fields",
       strokeWidth: "1px",
       strokeDasharray: "9px 5px",
       opacity: "0.7",
+      fillOpacity: "0.4",
+      strokeOpacity: "0.25",
     }),
     {
       fill: "rgba(24, 32, 52, 0.8)",
@@ -142,8 +144,18 @@ test("maps CSS paint, opacity, stroke dash, and font strings into scene fields",
       strokeWidth: 1,
       dash: "dash",
       opacity: 0.7,
+      fillOpacity: 0.4,
+      strokeOpacity: 0.25,
     },
   );
+  assert.deepEqual(cssStyleToSceneStyle({
+    opacity: "2",
+    fillOpacity: "-1",
+    strokeOpacity: "1",
+  }), {
+    opacity: 1,
+    fillOpacity: 0,
+  });
   assert.deepEqual(cssStyleToSceneStyle({ strokeDasharray: "2px" }), { dash: "dot" });
   assert.deepEqual(cssStyleToSceneStyle({ strokeDasharray: "0 0" }), { dash: "solid" });
   assert.deepEqual(cssStyleToSceneStyle({ strokeDasharray: "0px, 0px" }), { dash: "solid" });

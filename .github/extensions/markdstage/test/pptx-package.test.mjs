@@ -78,6 +78,83 @@ test("rejects inherited names and non-string line caps for connectors and shapes
   }
 });
 
+test("multiplies color, element, and channel alpha independently in DrawingML", () => {
+  const slide = xml(readStoredZip(buildPptxPackage({
+    slides: [{
+      elements: [
+        {
+          type: "shape",
+          shape: "rect",
+          x: 10,
+          y: 20,
+          width: 100,
+          height: 50,
+          fill: "#3698",
+          stroke: "#c308",
+          strokeWidth: 2,
+          opacity: 0.75,
+          fillOpacity: 0.5,
+          strokeOpacity: 0.25,
+        },
+        {
+          type: "connector",
+          points: [{ x: 0, y: 0 }, { x: 100, y: 50 }],
+          stroke: "rgba(0, 136, 204, 0.5)",
+          strokeWidth: 3,
+          opacity: 0.5,
+          strokeOpacity: 0.4,
+        },
+      ],
+    }],
+  })), "ppt/slides/slide1.xml");
+
+  assert.match(slide, /val="336699"><a:alpha val="20000"\/>/);
+  assert.match(slide, /val="CC3300"><a:alpha val="10000"\/>/);
+  assert.match(slide, /val="0088CC"><a:alpha val="10000"\/>/);
+});
+
+test("rejects invalid, coercible, and inherited paint opacity at the package boundary", () => {
+  const shape = {
+    type: "shape",
+    shape: "rect",
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 50,
+    fill: "#ffffff",
+    stroke: "#000000",
+  };
+  const connector = {
+    type: "connector",
+    points: [{ x: 0, y: 0 }, { x: 100, y: 50 }],
+    stroke: "#000000",
+  };
+  for (const key of ["opacity", "fillOpacity", "strokeOpacity"]) {
+    for (const invalid of [
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      -0.01,
+      1.01,
+      "0.5",
+      { valueOf: () => 0.5 },
+    ]) {
+      for (const element of [shape, connector]) {
+        assert.throws(
+          () => buildPptxPackage({ slides: [{ elements: [{ ...element, [key]: invalid }] }] }),
+          new RegExp(key),
+        );
+      }
+    }
+    for (const element of [shape, connector]) {
+      const inherited = Object.assign(Object.create({ [key]: 0.5 }), element);
+      assert.throws(
+        () => buildPptxPackage({ slides: [{ elements: [inherited] }] }),
+        /must be an own property/,
+      );
+    }
+  }
+});
+
 function samplePackage() {
   return buildPptxPackage({
     title: 'Roadmap & "Next"',

@@ -269,6 +269,83 @@ function parseMetric(value) {
   return Number.isFinite(number) ? number : undefined;
 }
 
+function parseOpacity(value, fallback = 1) {
+  const number = Number.parseFloat(String(value ?? ""));
+  return Number.isFinite(number) ? Math.max(0, Math.min(1, number)) : fallback;
+}
+
+function optionalOpacity(value, omitDefault = false) {
+  const number = Number.parseFloat(String(value ?? ""));
+  if (!Number.isFinite(number)) return undefined;
+  const opacity = Math.max(0, Math.min(1, number));
+  return omitDefault && opacity === 1 ? undefined : opacity;
+}
+
+function cssColorParts(value) {
+  const text = String(value || "").trim();
+  if (!text || text === "none" || text === "transparent") return null;
+  const hex = /^#([0-9a-f]{3,8})$/i.exec(text);
+  if (hex) {
+    let digits = hex[1];
+    if (digits.length === 3 || digits.length === 4) {
+      digits = [...digits].map((digit) => digit + digit).join("");
+    }
+    if (digits.length !== 6 && digits.length !== 8) return null;
+    return {
+      rgb: digits.slice(0, 6).toLowerCase(),
+      alpha: digits.length === 8 ? Number.parseInt(digits.slice(6), 16) / 255 : 1,
+    };
+  }
+  const rgb = /^rgba?\((.*)\)$/i.exec(text);
+  if (!rgb) return null;
+  let channels;
+  let alpha;
+  if (rgb[1].includes(",")) {
+    const parts = rgb[1].split(",").map((part) => part.trim());
+    if (parts.length !== 3 && parts.length !== 4) return null;
+    channels = parts.slice(0, 3);
+    alpha = parts[3];
+  } else {
+    const parts = rgb[1].split("/").map((part) => part.trim());
+    if (parts.length > 2) return null;
+    channels = parts[0].split(/\s+/).filter(Boolean);
+    alpha = parts[1];
+  }
+  if (channels.length !== 3) return null;
+  const values = channels.map((channel) => {
+    const percent = channel.endsWith("%");
+    const number = Number.parseFloat(channel);
+    return percent ? Math.round((number * 255) / 100) : Math.round(number);
+  });
+  if (values.some((channel) => !Number.isFinite(channel) || channel < 0 || channel > 255)) return null;
+  const alphaValue = alpha === undefined
+    ? 1
+    : alpha.endsWith("%")
+      ? Number.parseFloat(alpha) / 100
+      : Number.parseFloat(alpha);
+  if (!Number.isFinite(alphaValue) || alphaValue < 0 || alphaValue > 1) return null;
+  return {
+    rgb: values.map((channel) => channel.toString(16).padStart(2, "0")).join(""),
+    alpha: alphaValue,
+  };
+}
+
+function effectiveFillAlpha(style = {}) {
+  if (!style.fill) return 0;
+  return (cssColorParts(style.fill)?.alpha ?? 1) *
+    (style.opacity ?? 1) * (style.fillOpacity ?? 1);
+}
+
+function effectiveStrokeAlpha(style = {}) {
+  if (!style.stroke || style.strokeWidth === 0) return 0;
+  return (cssColorParts(style.stroke)?.alpha ?? 1) *
+    (style.opacity ?? 1) * (style.strokeOpacity ?? 1);
+}
+
+function localOpacity(element) {
+  return parseOpacity(getComputedStyle(element).opacity);
+}
+
 function dashToSceneDash(value) {
   const text = String(value || "").trim();
   if (!text || text === "none" || text === "0" || text === "0px") return "solid";
@@ -293,7 +370,6 @@ function normalizeAlignment(value) {
 export function cssStyleToSceneStyle(style = {}, options = {}) {
   const resolveColor = typeof options.resolveColor === "function" ? options.resolveColor : (value) => value;
   const strokeWidth = parseMetric(style.strokeWidth);
-  const opacity = Number.parseFloat(style.opacity);
   const cornerRadius = parseMetric(style.cornerRadius ?? style.rx);
   return definedEntries({
     fill: style.fill !== undefined ? normalizeColor(style.fill, resolveColor) : undefined,
@@ -302,7 +378,9 @@ export function cssStyleToSceneStyle(style = {}, options = {}) {
     dash: style.dash !== undefined || style.strokeDasharray !== undefined
       ? dashToSceneDash(style.dash ?? style.strokeDasharray)
       : undefined,
-    opacity: Number.isFinite(opacity) ? Math.max(0, Math.min(1, opacity)) : undefined,
+    opacity: optionalOpacity(style.opacity),
+    fillOpacity: optionalOpacity(style.fillOpacity, true),
+    strokeOpacity: optionalOpacity(style.strokeOpacity, true),
     cornerRadius,
   });
 }
@@ -454,6 +532,8 @@ function computedSvgStyle(element, options) {
     strokeWidth: Number.parseFloat(style.strokeWidth) * elementScale(element),
     strokeDasharray: style.strokeDasharray,
     opacity: effectiveOpacity(element),
+    fillOpacity: style.fillOpacity,
+    strokeOpacity: style.strokeOpacity,
     rx: element.getAttribute("rx"),
   }, options);
 }
@@ -461,8 +541,9 @@ function computedSvgStyle(element, options) {
 function computedConnectorStyle(element, options) {
   const style = getComputedStyle(element);
   const lineCap = LINE_CAPS.has(style.strokeLinecap) ? style.strokeLinecap : undefined;
+  const { fillOpacity: _fillOpacity, ...paint } = computedSvgStyle(element, options);
   return definedEntries({
-    ...computedSvgStyle(element, options),
+    ...paint,
     fill: null,
     lineCap,
   });
@@ -479,7 +560,8 @@ function computedTextStyle(element, options) {
     textAlign: element.namespaceURI === SVG_NS
       ? ({ start: "left", middle: "center", end: "right" }[style.textAnchor] || "left")
       : style.textAlign,
-    opacity: effectiveOpacity(element),
+    opacity: effectiveOpacity(element) *
+      (element.namespaceURI === SVG_NS ? parseOpacity(style.fillOpacity) : 1),
     resolveColor: options.resolveColor,
   };
 }
@@ -493,8 +575,7 @@ function elementScale(element) {
 function effectiveOpacity(element) {
   let opacity = 1;
   for (let current = element; current; current = current.parentElement) {
-    const computed = Number.parseFloat(getComputedStyle(current).opacity);
-    opacity *= Number.isFinite(computed) ? computed : 1;
+    opacity *= localOpacity(current);
     if (localName(current) === "svg") break;
   }
   return opacity;
@@ -625,9 +706,11 @@ function unsupportedVisualEffect(element, descendants = true) {
     return (style.filter && style.filter !== "none") ||
       (style.clipPath && style.clipPath !== "none") ||
       (style.maskImage && style.maskImage !== "none") ||
+      (style.mixBlendMode && style.mixBlendMode !== "normal") ||
+      (style.paintOrder && style.paintOrder !== "normal") ||
+      (style.vectorEffect && style.vectorEffect !== "none") ||
       (localName(child) === "g" && Number.parseFloat(style.opacity) < 1 &&
         child.querySelectorAll([...VISUAL_TAGS].join(",")).length > 1) ||
-      Number.parseFloat(style.fillOpacity) < 1 || Number.parseFloat(style.strokeOpacity) < 1 ||
       /url\(/i.test(`${style.fill} ${style.stroke}`);
   });
 }
@@ -659,13 +742,25 @@ function connectorArrow(value, element, placement) {
     : relation[2].toLowerCase() === "start" ? [5, 7, 9, 13, 1, 7, 9, 1] : [18, 7, 9, 13, 14, 7, 9, 1];
   if (values.length !== expected.length || values.some((value, index) => value !== expected[index])) return "none";
   const paint = getComputedStyle(path);
-  const stroke = getComputedStyle(element).stroke;
-  if (!normalizeColor(paint.fill) || paint.fill !== stroke ||
+  const linePaint = getComputedStyle(element);
+  const stroke = linePaint.stroke;
+  const lineColor = cssColorParts(stroke);
+  const fillColor = cssColorParts(paint.fill);
+  const markerOpacity = localOpacity(marker) * localOpacity(path);
+  const lineAlpha = (lineColor?.alpha ?? 1) *
+    parseOpacity(linePaint.strokeOpacity) * effectiveOpacity(element);
+  const fillAlpha = (fillColor?.alpha ?? 1) *
+    parseOpacity(paint.fillOpacity) * markerOpacity * effectiveOpacity(element);
+  if (!normalizeColor(paint.fill) || !lineColor || !fillColor ||
+      lineColor.rgb !== fillColor.rgb || Math.abs(lineAlpha - fillAlpha) > 0.000001 ||
       (normalizeColor(paint.stroke) && Number.parseFloat(paint.strokeWidth) > 0 &&
-        (paint.stroke !== stroke || dashToSceneDash(paint.strokeDasharray) !== "solid")) ||
+        (cssColorParts(paint.stroke)?.rgb !== lineColor.rgb ||
+          Math.abs((cssColorParts(paint.stroke)?.alpha ?? 1) *
+            parseOpacity(paint.strokeOpacity) * markerOpacity * effectiveOpacity(element) - lineAlpha) > 0.000001 ||
+          dashToSceneDash(paint.strokeDasharray) !== "solid")) ||
       [marker, path].some((part) => {
         const style = getComputedStyle(part);
-        return Number.parseFloat(style.opacity) !== 1 || style.transform !== "none" ||
+        return style.transform !== "none" ||
           style.rotate !== "none" || style.scale !== "none" || style.translate !== "none";
       })) return "none";
   return markerIdToArrow(value);
@@ -804,7 +899,7 @@ function markerParts(value, element, placement, deck, options) {
   const matrix = element.getScreenCTM();
   const scale = elementScale(element);
   if (!matrix || Math.abs(matrix.a - matrix.d) > 0.001 || Math.abs(matrix.b) > 0.001 || Math.abs(matrix.c) > 0.001 ||
-      !/^rgb\(\d+, \d+, \d+\)$/.test(paint.stroke) || !(parseMetric(paint.strokeWidth) > 0) || effectiveOpacity(element) !== 1 ||
+      !normalizeColor(paint.stroke) || !(parseMetric(paint.strokeWidth) > 0) || effectiveOpacity(element) !== 1 ||
       !normalizeColor(lineStyle.stroke) || !(parseMetric(lineStyle.strokeWidth) > 0) ||
       roundedMetric(parseMetric(lineStyle.strokeWidth) * scale) <= 0 ||
       (localName(element) === "path" && normalizeColor(lineStyle.fill)) ||
@@ -813,7 +908,7 @@ function markerParts(value, element, placement, deck, options) {
       paint.strokeLinecap !== "butt" || paint.strokeLinejoin !== "miter" || Number(paint.strokeMiterlimit) !== 4 ||
       [element, marker, outline].some((part) => {
         const style = getComputedStyle(part);
-        return Number(style.opacity) !== 1 || (part !== element && (style.transform !== "none" ||
+        return (part === element && Number(style.opacity) !== 1) || (part !== element && (style.transform !== "none" ||
           style.rotate !== "none" || style.scale !== "none" || style.translate !== "none")) ||
           (style.vectorEffect && style.vectorEffect !== "none") ||
           (style.mixBlendMode && style.mixBlendMode !== "normal") ||
@@ -884,10 +979,23 @@ function markerParts(value, element, placement, deck, options) {
   if (strokes.some((stroke) => stroke.slice(1).some((point, index) => pointKey(point) === pointKey(stroke[index])))) return null;
   const strokeWidth = parseMetric(paint.strokeWidth) * scale * unitScale * sx;
   if (roundedMetric(strokeWidth) <= 0) return null;
+  const style = {
+    ...cssStyleToSceneStyle({
+      fill: "none",
+      stroke: paint.stroke,
+      strokeWidth,
+      strokeDasharray: "none",
+      strokeOpacity: paint.strokeOpacity,
+      opacity: localOpacity(marker) * localOpacity(outline),
+    }, options),
+    fill: null,
+    dash: "solid",
+    lineCap: "butt",
+  };
+  if (geometry.kind === "cross" && effectiveStrokeAlpha(style) < 1) return null;
   return {
     kind: geometry.kind, placement, strokes,
-    style: { fill: null, stroke: normalizeColor(paint.stroke, options.resolveColor),
-      strokeWidth, dash: "solid", lineCap: "butt", opacity: 1 },
+    style,
   };
 }
 
@@ -946,7 +1054,12 @@ function nodeText(group, deck, options) {
 function paintedPathStyle(paths, options) {
   const fill = paths.find((path) => getComputedStyle(path).fill !== "none") || paths[0];
   const stroke = paths.find((path) => getComputedStyle(path).stroke !== "none") || fill;
-  return { ...computedSvgStyle(stroke, options), fill: computedSvgStyle(fill, options).fill };
+  const fillStyle = computedSvgStyle(fill, options);
+  return {
+    ...computedSvgStyle(stroke, options),
+    fill: fillStyle.fill,
+    ...(fillStyle.fillOpacity !== undefined ? { fillOpacity: fillStyle.fillOpacity } : {}),
+  };
 }
 
 function compatiblePathPaint(paths, options) {
@@ -954,9 +1067,9 @@ function compatiblePathPaint(paths, options) {
   return style.dash === "solid" && paths.every((path) => {
     const paint = computedSvgStyle(path, options);
     return paint.opacity === style.opacity &&
-      (!paint.fill || paint.fill === style.fill) &&
+      (!paint.fill || (paint.fill === style.fill && paint.fillOpacity === style.fillOpacity)) &&
       (!paint.stroke || (paint.stroke === style.stroke && paint.strokeWidth === style.strokeWidth &&
-        paint.dash === style.dash));
+        paint.strokeOpacity === style.strokeOpacity && paint.dash === style.dash));
   });
 }
 
@@ -999,9 +1112,11 @@ function stadiumParts(shape, group, sourcePath, z, deck, options) {
   return compositeGroup(sourcePath, z, bounds, children, "stadium");
 }
 
-function opaqueCompositeStyle(style) {
-  return style.fill && (style.opacity === undefined || style.opacity === 1) &&
-    style.dash === "solid" && !/^rgba\(/i.test(style.fill);
+function opaqueCompositeStyle(style, requireFill = true) {
+  return (!requireFill || style.fill) &&
+    style.dash === "solid" &&
+    (!style.fill || effectiveFillAlpha(style) === 1) &&
+    (!style.stroke || style.strokeWidth === 0 || effectiveStrokeAlpha(style) === 1);
 }
 
 function isStadiumPath(path) {
@@ -1075,9 +1190,7 @@ function subroutineParts(shape, group, sourcePath, z, deck, options) {
   if (!geometry) return null;
   const style = computedSvgStyle(shape, options);
   const connectorStyle = computedConnectorStyle(shape, options);
-  if ((style.opacity !== undefined && style.opacity !== 1) ||
-      style.dash !== "solid" ||
-      (style.stroke && /^rgba\(/i.test(style.stroke))) {
+  if (!opaqueCompositeStyle(style, false)) {
     return fallbackNode(group, z, deck, "unsupported-mermaid-composite-paint", sourcePath);
   }
   const bounds = boundsOf(shape, deck);
@@ -1127,7 +1240,9 @@ function cylinderParts(path, group, sourcePath, z, deck, options) {
   const capHeight = 2 * ry * bounds.height / path.getBBox().height;
   if (capHeight <= 0 || capHeight >= bounds.height) return null;
   const style = computedSvgStyle(path, options);
-  if (!opaqueCompositeStyle(style)) return null;
+  if (!opaqueCompositeStyle(style)) {
+    return fallbackNode(group, z, deck, "unsupported-mermaid-composite-paint", sourcePath);
+  }
   const children = [];
   const addShape = (preset, partBounds, partStyle) => children.push({
     kind: "shape", sourcePath: `${sourcePath}.parts[${children.length}]`, z: children.length,
@@ -1345,10 +1460,27 @@ function readEdgeLabels(root, deck, options, consumed, config = {}) {
     }
     const label = labelInfo(group, "span.edgeLabel, text", deck, options);
     const background = group.querySelector(".edgeLabel p, span.edgeLabel, rect");
-    const style = background && getComputedStyle(background);
+    const backgroundStyle = background && getComputedStyle(background);
     if (label && label.bounds.width > 0 && label.bounds.height > 0) {
-      labels.set(key, { ...label, sourcePath, terminal, fill: normalizeColor(style?.backgroundColor === "rgba(0, 0, 0, 0)"
-        ? (background?.localName === "rect" ? style.fill : null) : style?.backgroundColor, options.resolveColor) });
+      const fill = normalizeColor(backgroundStyle?.backgroundColor === "rgba(0, 0, 0, 0)"
+        ? (background?.localName === "rect" ? backgroundStyle.fill : null)
+        : backgroundStyle?.backgroundColor, options.resolveColor);
+      const svgPaint = background?.namespaceURI === SVG_NS
+        ? computedSvgStyle(background, options)
+        : null;
+      const opacity = background ? effectiveOpacity(background) : 1;
+      labels.set(key, {
+        ...label,
+        sourcePath,
+        terminal,
+        style: definedEntries({
+          fill,
+          stroke: null,
+          strokeWidth: 0,
+          fillOpacity: svgPaint?.fillOpacity,
+          opacity: opacity === 1 ? undefined : opacity,
+        }),
+      });
     } else if (group.textContent.trim() || [...group.querySelectorAll("rect, path, image, use")].some(isVisibleUnknown)) {
       labels.set(key, { fallback: fallbackNode(group, 0, deck, "unsupported-mermaid-edge-label", sourcePath) });
     }
@@ -1411,7 +1543,7 @@ function appendEdgeLabels(nodes, labels) {
     if (label.fallback) nodes.push({ ...label.fallback, z: nodes.length });
     else nodes.push({
       kind: "shape", sourcePath: label.sourcePath, z: nodes.length,
-      bounds: label.bounds, preset: "rect", style: { fill: label.fill, stroke: null, strokeWidth: 0 },
+      bounds: label.bounds, preset: "rect", style: label.style,
       text: label.text,
       textLayout: { alignment: "center", verticalAlignment: "middle", textWrap: "none" },
       meta: { mermaid: { kind: label.terminal ? "edge-terminal" : "edge-label", edgeId: id } },
@@ -1688,11 +1820,15 @@ function sequenceNumberBackground(element, sourcePath, z, deck, options) {
       matrix.a <= 0 || matrix.d <= 0 || Math.abs(matrix.a - matrix.d) > 0.001 ||
       !(strokeWidth > 0) || !fill ||
       normalizeColor(circleStyle.stroke) ||
-      [element, marker, circle].some((part) => Number.parseFloat(getComputedStyle(part).opacity) !== 1 ||
-        getComputedStyle(part).transform !== "none")) return fallback();
+      [element, marker, circle].some((part) => getComputedStyle(part).transform !== "none")) return fallback();
   const center = screenPoint(element, { x: coordinates[0], y: coordinates[1] }, deck);
   const radiusX = circleMetrics[2] * strokeWidth * matrix.a;
   const radiusY = circleMetrics[2] * strokeWidth * matrix.d;
+  const paint = cssStyleToSceneStyle({
+    fill: circleStyle.fill,
+    fillOpacity: circleStyle.fillOpacity,
+    opacity: effectiveOpacity(element) * localOpacity(marker) * localOpacity(circle),
+  }, options);
   return {
     kind: "shape", sourcePath, z,
     bounds: {
@@ -1702,7 +1838,7 @@ function sequenceNumberBackground(element, sourcePath, z, deck, options) {
       height: roundedMetric(radiusY * 2),
     },
     preset: "ellipse",
-    style: { fill, stroke: null, strokeWidth: 0, opacity: 1 },
+    style: { ...paint, fill, stroke: null, strokeWidth: 0 },
     meta: { mermaid: { kind: "sequence-number-background", nativeMask: "connector" } },
   };
 }
@@ -1911,10 +2047,35 @@ function isRectanglePath(path) {
 function rectangularOutlinePaths(outline, options) {
   const paths = outline ? directChildren(outline, "path") : [];
   if (paths.length !== 2 || directChildren(outline).length !== 2 || !isRectanglePath(paths[0]) ||
-      !compatiblePathPaint(paths, options) || !matchingOutline(paths[1], paths[0], (point, box) =>
+      paths.some((path) => computedSvgStyle(path, options).dash !== "solid") ||
+      !matchingOutline(paths[1], paths[0], (point, box) =>
         Math.min(Math.abs(point.x - box.x), Math.abs(point.x - box.x - box.width),
           Math.abs(point.y - box.y), Math.abs(point.y - box.y - box.height)))) return null;
   return paths;
+}
+
+function classOutlineNode(paths, sourcePath, z, bounds, options, meta) {
+  const collapsed = paintedPathStyle(paths, options);
+  const translucent = (collapsed.fill && effectiveFillAlpha(collapsed) < 1) ||
+    (collapsed.stroke && collapsed.strokeWidth !== 0 && effectiveStrokeAlpha(collapsed) < 1);
+  if (compatiblePathPaint(paths, options) && !translucent) {
+    return {
+      kind: "shape", sourcePath, z, bounds, preset: "rect", style: collapsed,
+      ...(meta ? { meta } : {}),
+    };
+  }
+  const children = paths.map((path, index) => ({
+    kind: "shape",
+    sourcePath: `${sourcePath}.paths[${index}]`,
+    z: index,
+    bounds: { x: 0, y: 0, width: bounds.width, height: bounds.height },
+    preset: "rect",
+    style: computedSvgStyle(path, options),
+    ...(meta ? { meta: { ...meta, mermaid: { ...meta.mermaid, part: `path[${index}]` } } } : {}),
+  }));
+  const group = compositeGroup(sourcePath, z, bounds, children, "class-outline");
+  if (meta) group.meta = meta;
+  return group;
 }
 
 function classParts(group, outline, options) {
@@ -2167,11 +2328,14 @@ function classScene(svg, root, deck, size, options) {
         nodes.push(fallbackNode(group, nodes.length, deck, "unsupported-mermaid-class-note", sourcePath));
         continue;
       }
-      nodes.push({
-        kind: "shape", sourcePath, z: nodes.length, bounds: boundsOf(parts.outline, deck),
-        preset: "rect", style: paintedPathStyle(parts.paths, options),
-        meta: { mermaid: { kind: "class-note" } },
-      });
+      nodes.push(classOutlineNode(
+        parts.paths,
+        sourcePath,
+        nodes.length,
+        boundsOf(parts.outline, deck),
+        options,
+        { mermaid: { kind: "class-note" } },
+      ));
       options.sourceElements.set(sourcePath, parts.outline);
       const labelPath = `${sourcePath}.label`;
       options.sourceElements.set(labelPath, parts.label);
@@ -2195,10 +2359,13 @@ function classScene(svg, root, deck, size, options) {
       nodes.push(fallbackNode(group, nodes.length, deck, "unsupported-mermaid-class-node", sourcePath));
       continue;
     }
-    nodes.push({
-      kind: "shape", sourcePath, z: nodes.length, bounds: boundsOf(outline, deck),
-      preset: "rect", style: paintedPathStyle(parts.paths, options),
-    });
+    nodes.push(classOutlineNode(
+      parts.paths,
+      sourcePath,
+      nodes.length,
+      boundsOf(outline, deck),
+      options,
+    ));
     options.sourceElements.set(sourcePath, outline);
     for (const [labelIndex, label] of parts.labels.entries()) {
       options.sourceElements?.set(`${sourcePath}.labels[${labelIndex}]`, label);
@@ -2214,7 +2381,7 @@ function classScene(svg, root, deck, size, options) {
         nodes.push({
           kind: "connector", sourcePath: `${sourcePath}.dividers[${dividerIndex}]`, z: nodes.length,
           points: [{ x: box.x, y: box.y }, { x: box.x + box.width, y: box.y }].map((point) => screenPoint(divider, point, deck)),
-          style: computedSvgStyle(divider, options),
+          style: computedConnectorStyle(divider, options),
         });
       }
     }

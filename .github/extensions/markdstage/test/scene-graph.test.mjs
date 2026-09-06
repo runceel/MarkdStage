@@ -48,6 +48,60 @@ test("validates and normalizes explicit line caps without changing absent defaul
   }
 });
 
+test("validates and normalizes independent fill and stroke opacity without serialization drift", () => {
+  const source = validScene({
+    nodes: [{
+      kind: "shape",
+      sourcePath: "alpha",
+      z: 0,
+      bounds: { x: 10, y: 20, width: 100, height: 50 },
+      preset: "rect",
+      style: {
+        fill: "rgba(51, 102, 153, 0.5)",
+        stroke: "#cc330080",
+        strokeWidth: 2,
+        opacity: 0.8,
+        fillOpacity: 0.5,
+        strokeOpacity: 0.25,
+      },
+    }],
+  });
+  validateScene(source);
+  assert.deepEqual(JSON.parse(JSON.stringify(source)), source);
+
+  const normalized = normalizeScene(validScene({
+    nodes: [{
+      kind: "shape",
+      sourcePath: "normalized-alpha",
+      z: 0,
+      bounds: { x: 0, y: 0, width: 10, height: 10 },
+      preset: "rect",
+      style: { opacity: 1.5, fillOpacity: -0.5, strokeOpacity: "0.25" },
+    }],
+  })).scene;
+  assert.deepEqual(normalized.nodes[0].style, {
+    opacity: 1,
+    fillOpacity: 0,
+    strokeOpacity: 0.25,
+  });
+  validateScene(normalized);
+
+  for (const key of ["fillOpacity", "strokeOpacity"]) {
+    for (const invalid of [Number.NaN, Number.POSITIVE_INFINITY, -0.01, 1.01, "0.5"]) {
+      const invalidScene = validScene();
+      invalidScene.nodes[1].style[key] = invalid;
+      assert.throws(() => validateScene(invalidScene), new RegExp(`${key}`));
+    }
+    const inheritedStyle = Object.assign(Object.create({ [key]: 0.5 }), {
+      fill: "#ffffff",
+      stroke: "#000000",
+    });
+    const inheritedScene = validScene();
+    inheritedScene.nodes[1].style = inheritedStyle;
+    assert.throws(() => validateScene(inheritedScene), /must be an own property/);
+  }
+});
+
 function validScene(overrides = {}) {
   return createScene({
     width: 800,

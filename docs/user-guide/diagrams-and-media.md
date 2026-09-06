@@ -37,6 +37,15 @@ rectangle, two inner vertical strokes, and text. Base-bottom trapezoids (`trap-b
 base-top/inverted trapezoids (`trap-t`, `inv-trapezoid`), and reverse parallelograms (`lean-l`)
 use exact height-based editable geometry; their legacy bracket forms are supported too.
 
+Editable Mermaid paint preserves alpha embedded in supported CSS colors (`rgba()` and
+`#RRGGBBAA`), element `opacity` when it belongs to one safely representable primitive,
+`fill-opacity`, and `stroke-opacity` as independent values. PowerPoint receives
+`fill alpha = color alpha × element opacity × fill opacity` and
+`stroke alpha = color alpha × element opacity × stroke opacity`; fill transparency never
+overwrites the stroke value, or vice versa. This applies to supported flowchart nodes and edges,
+class frames, compartments, dividers, notes, namespaces and markers, and sequence actors, frames,
+backgrounds, messages, number backgrounds, and other native child paint.
+
 Basic sequence diagrams export participant boxes, their mirrored lower boxes when Mermaid emits
 them, lifelines, messages, notes, and activations. Stick-figure actors export as editable head
 circles, body lines, and labels at both the top and mirrored bottom. Simple Japanese and multiline
@@ -76,11 +85,13 @@ scaling; reverse and bidirectional markers keep their original ends. Marker outl
 own solid stroke and color independently of the main line's dash and paint.
 
 The hollow interiors are transparent, so a light background can make them look white; they are
-not painted white. Opaque/white or translucent marker paint overrides, nonuniform marker scaling,
-viewports clipping the marker geometry, marker effects/transforms and unknown marker geometry
-remain local pictures of the affected connector, including its markers. A hollow/cross start
-combined with a filled preset end also stays local when the separate primitives cannot retain
-SVG marker paint order. Unsupported paint, decorated
+not painted white. Supported hollow marker outlines preserve their own color, element opacity,
+and stroke opacity. A translucent cross remains a local picture because its two overlapping
+strokes cannot be decomposed without changing alpha compositing. Opaque/white marker fills,
+nonuniform marker scaling, viewports clipping the marker geometry, marker effects/transforms and
+unknown marker geometry remain local pictures of the affected connector, including its markers.
+A hollow/cross start combined with a filled preset end also stays local when the separate
+primitives cannot retain SVG marker paint order. Unsupported paint, decorated
 labels, actor variants or embedded icons/images, unknown sequence controls or tab geometry,
 decorated autonumber markers, complex clipping/transforms, effects, and unknown geometry remain
 fallback pictures of the smallest safe affected element or control frame. Supported sibling
@@ -90,6 +101,12 @@ or special-geometry class notes, namespace decoration with unknown children, nam
 unsupported transforms, and namespace hierarchies beyond the scene depth limit likewise fall back
 at the smallest safe note, decoration, label, or container. Supported class relations outside that
 local fallback are not consumed or dropped.
+Opacity on an SVG group with multiple overlapping visual descendants keeps the existing
+conservative local fallback because group compositing is not equivalent to multiplying each
+descendant independently. Translucent stadium, cylinder, and subroutine decompositions likewise
+stay local where their overlapping editable pieces would darken differently. Translucent class
+outline paths can remain editable as stacked native rectangles because their original paint order
+is preserved.
 Other diagram types, including pie, mindmap, and gitGraph, can still use whole-diagram artwork.
 Check the export report for the reason and source path of each fallback.
 

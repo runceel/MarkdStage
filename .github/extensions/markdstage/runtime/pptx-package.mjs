@@ -111,6 +111,22 @@ function optionalUnitInterval(value, path, fallback = 1) {
   return number;
 }
 
+function optionalOwnUnitInterval(value, key, path, fallback = 1) {
+  if (!Object.hasOwn(value, key)) {
+    if (key in value) fail(`${path}.${key} must be an own property`);
+    return fallback;
+  }
+  return optionalUnitInterval(value[key], `${path}.${key}`, fallback);
+}
+
+function paintOpacities(element, path) {
+  return {
+    opacity: optionalOwnUnitInterval(element, "opacity", path),
+    fillOpacity: optionalOwnUnitInterval(element, "fillOpacity", path),
+    strokeOpacity: optionalOwnUnitInterval(element, "strokeOpacity", path),
+  };
+}
+
 function boundsOf(value, path) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     fail(`${path} must be an object`);
@@ -217,15 +233,16 @@ function lineCapXml(value, path) {
   return ` cap="${caps[value]}"`;
 }
 
-function lineXml(element, path) {
+function lineXml(element, path, opacities = paintOpacities(element, path)) {
   const width = element.strokeWidth === undefined
     ? 1
     : positiveNumber(element.strokeWidth, `${path}.strokeWidth`);
   const color = colorOf(element.stroke, `${path}.stroke`);
   const cap = lineCapXml(element.lineCap, `${path}.lineCap`);
   if (!color) return `<a:ln w="${emu(width)}"${cap}><a:noFill/></a:ln>`;
-  const opacity = optionalUnitInterval(element.opacity, `${path}.opacity`);
-  const alpha = Math.round(color.alpha * opacity * 100000);
+  const alpha = Math.round(
+    color.alpha * opacities.opacity * opacities.strokeOpacity * 100000,
+  );
   const dash = dashXml(element.dash, `${path}.dash`);
   return `<a:ln w="${emu(width)}"${cap}><a:solidFill><a:srgbClr val="${color.hex}">${
     alpha < 100000 ? `<a:alpha val="${alpha}"/>` : ""
@@ -478,7 +495,7 @@ function runXml(run, path, relationships) {
   let properties = colorXml(
     run.color ?? "#000000",
     `${path}.color`,
-    optionalUnitInterval(run.opacity, `${path}.opacity`),
+    optionalOwnUnitInterval(run, "opacity", path),
   );
   if (run.fontFace !== undefined) {
     if (typeof run.fontFace !== "string" || !run.fontFace) {
@@ -640,12 +657,12 @@ function nativeShapeXml(element, path, id, relationships) {
       `${path}.shape must be rect, roundedRect, ellipse, diamond, triangle, hexagon, parallelogram, reverseParallelogram, trapezoid, invertedTrapezoid, or sequenceTab`,
     );
   }
-  const opacity = optionalUnitInterval(element.opacity, `${path}.opacity`);
+  const opacities = paintOpacities(element, path);
   const properties = `${xfrmXml(bounds)}${geometry}${colorXml(
     element.fill,
     `${path}.fill`,
-    opacity,
-  )}${lineXml(element, path)}`;
+    opacities.opacity * opacities.fillOpacity,
+  )}${lineXml(element, path, opacities)}`;
   const shapeText = shapeTextOf(element, path);
   if (!shapeText) textBodyPropertiesXml(element, path);
   const text = shapeText
@@ -763,8 +780,10 @@ function connectorXml(element, path, nextId, relationships) {
     : positiveNumber(element.strokeWidth, `${path}.strokeWidth`);
   const color = colorOf(element.stroke ?? "#000000", `${path}.stroke`);
   if (!color) fail(`${path}.stroke cannot be null`);
-  const opacity = optionalUnitInterval(element.opacity, `${path}.opacity`);
-  const alpha = Math.round(color.alpha * opacity * 100000);
+  const opacities = paintOpacities(element, path);
+  const alpha = Math.round(
+    color.alpha * opacities.opacity * opacities.strokeOpacity * 100000,
+  );
   const dash = dashXml(element.dash, `${path}.dash`);
   const cap = lineCapXml(element.lineCap, `${path}.lineCap`);
   const shapes = [];

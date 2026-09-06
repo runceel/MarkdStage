@@ -181,6 +181,346 @@ test("converts fixed Mermaid SVG fixtures into validated scene and PPTX elements
   }
 });
 
+test("extracts pinned color, element, fill, and stroke alpha independently into SVG and DrawingML", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# Paint alpha"] });
+  try {
+    await page.goto(harness.url);
+    const result = await sceneFromFixture(
+      page,
+      await readFixture("paint-alpha.svg"),
+      "paint-alpha.svg",
+    );
+    validateScene(result.scene);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.scene.nodes.map((node) => node.z)).toEqual([0, 1, 2, 3]);
+    expect(result.scene.nodes.map((node) => node.sourcePath)).toEqual([
+      "edges[0]",
+      "edgeLabels[L_A_B_0]",
+      "nodes[0]",
+      "nodes[1]",
+    ]);
+
+    const edge = result.scene.nodes.find((node) => node.sourcePath === "edges[0]");
+    const rect = result.scene.nodes.find((node) => node.sourcePath === "nodes[0]");
+    const circle = result.scene.nodes.find((node) => node.sourcePath === "nodes[1]");
+    expect(edge.style).toMatchObject({
+      stroke: "rgba(0, 136, 204, 0.5)",
+      opacity: 0.5,
+      strokeOpacity: 0.4,
+    });
+    expect(rect.style).toMatchObject({
+      fill: "rgba(51, 102, 153, 0.5)",
+      stroke: "rgba(204, 51, 0, 0.5)",
+      opacity: 0.8,
+      fillOpacity: 0.5,
+      strokeOpacity: 0.25,
+    });
+    expect(circle.style).toMatchObject({
+      fill: "rgba(34, 170, 68, 0.5)",
+      stroke: "rgba(136, 68, 204, 0.5)",
+      opacity: 0.6,
+      fillOpacity: 0.7,
+      strokeOpacity: 0.3,
+    });
+    expect(result.scene.nodes.flatMap((node) => node.text?.paragraphs || [])
+      .flatMap((paragraph) => paragraph.runs.map((run) => run.text)))
+      .toEqual(expect.arrayContaining(["経路", "塗り", "線"]));
+
+    const mapped = sceneToPptxElements(result.scene);
+    expect(mapped.fallbacks).toEqual([]);
+    expect(mapped.elements.find((element) => element.path === "nodes[0]")).toMatchObject({
+      opacity: 0.8,
+      fillOpacity: 0.5,
+      strokeOpacity: 0.25,
+    });
+    expect(mapped.elements.find((element) => element.path === "edges[0]")).toMatchObject({
+      opacity: 0.5,
+      strokeOpacity: 0.4,
+    });
+    const xml = buildPptxPackage({ slides: [{ elements: mapped.elements }] }).toString("utf8");
+    expect(xml).toContain('<a:srgbClr val="336699"><a:alpha val="20000"/></a:srgbClr>');
+    expect(xml).toContain('<a:srgbClr val="CC3300"><a:alpha val="10000"/></a:srgbClr>');
+    expect(xml).toContain('<a:srgbClr val="22AA44"><a:alpha val="21000"/></a:srgbClr>');
+    expect(xml).toContain('<a:srgbClr val="8844CC"><a:alpha val="9000"/></a:srgbClr>');
+    expect(xml).toContain('<a:srgbClr val="0088CC"><a:alpha val="10000"/></a:srgbClr>');
+
+    const owned = await updateFixture(page, () => {});
+    expect(owned.sources).toEqual(expect.arrayContaining([
+      { path: "edges[0]", tag: "path", id: "fixture-paint-alpha-L_A_B_0" },
+      { path: "nodes[0]", tag: "g", id: "fixture-paint-alpha-flowchart-A-0" },
+      { path: "nodes[1]", tag: "g", id: "fixture-paint-alpha-flowchart-B-1" },
+    ]));
+    const rendered = await page.evaluate(async () => {
+      const { sceneToSvg } = await import("./renderer/scene-svg.mjs");
+      const svg = sceneToSvg(window.__mermaidSceneResult.scene);
+      const primitive = (path) => {
+        const owner = [...svg.querySelectorAll("[data-scene-source-path]")]
+          .find((node) => node.getAttribute("data-scene-source-path") === path);
+        return owner?.querySelector("rect, circle, ellipse, path, polygon");
+      };
+      return Object.fromEntries(["edges[0]", "nodes[0]", "nodes[1]"].map((path) => {
+        const element = primitive(path);
+        return [path, {
+          fill: element?.getAttribute("fill"),
+          stroke: element?.getAttribute("stroke"),
+          opacity: element?.getAttribute("opacity"),
+          fillOpacity: element?.getAttribute("fill-opacity"),
+          strokeOpacity: element?.getAttribute("stroke-opacity"),
+        }];
+      }));
+    });
+    expect(rendered).toEqual({
+      "edges[0]": {
+        fill: "none",
+        stroke: "rgba(0, 136, 204, 0.5)",
+        opacity: "0.5",
+        fillOpacity: "1",
+        strokeOpacity: "0.4",
+      },
+      "nodes[0]": {
+        fill: "rgba(51, 102, 153, 0.5)",
+        stroke: "rgba(204, 51, 0, 0.5)",
+        opacity: "0.8",
+        fillOpacity: "0.5",
+        strokeOpacity: "0.25",
+      },
+      "nodes[1]": {
+        fill: "rgba(34, 170, 68, 0.5)",
+        stroke: "rgba(136, 68, 204, 0.5)",
+        opacity: "0.6",
+        fillOpacity: "0.7",
+        strokeOpacity: "0.3",
+      },
+    });
+  } finally {
+    await harness.close();
+  }
+});
+
+test("keeps class and sequence paint alpha native while localizing unsafe composite overlap", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# Paint alpha surfaces"] });
+  try {
+    await page.goto(harness.url);
+
+    await sceneFromFixture(page, await readFixture("class-containers.svg"), "class-alpha.svg");
+    const classes = await updateFixture(page, () => {
+      const set = (element, styles) => Object.assign(element.style, styles);
+      set(document.querySelector("g.cluster > rect"), {
+        fill: "rgba(10, 20, 30, 0.5)",
+        fillOpacity: "0.4",
+        stroke: "rgba(40, 50, 60, 0.5)",
+        strokeOpacity: "0.3",
+        opacity: "0.8",
+      });
+      const note = document.querySelector("g.node:has(.noteLabel) g.label-container");
+      for (const path of note.querySelectorAll("path")) {
+        set(path, {
+          fill: "rgba(70, 80, 90, 0.5)",
+          fillOpacity: "0.6",
+          stroke: "rgba(100, 110, 120, 0.5)",
+          strokeOpacity: "0.2",
+          opacity: "0.8",
+        });
+      }
+      const classNode = [...document.querySelectorAll("g.node")]
+        .find((group) => !group.querySelector(".noteLabel"));
+      for (const path of classNode.querySelectorAll(":scope > g.label-container > path")) {
+        set(path, {
+          fill: "rgba(130, 140, 150, 0.5)",
+          fillOpacity: "0.7",
+          stroke: "rgba(160, 170, 180, 0.5)",
+          strokeOpacity: "0.25",
+          opacity: "0.9",
+        });
+      }
+      set(classNode.querySelector("g.divider path"), {
+        stroke: "rgba(190, 200, 210, 0.5)",
+        strokeOpacity: "0.4",
+        opacity: "0.8",
+      });
+    });
+    expect(classes.diagnostics).toEqual([]);
+    expect(classes.scene.nodes.filter((node) => node.kind === "fallback")).toEqual([]);
+    const namespace = classes.scene.nodes.find((node) => node.meta?.mermaid?.kind === "class-namespace");
+    expect(namespace.style).toMatchObject({
+      opacity: 0.8,
+      fillOpacity: 0.4,
+      strokeOpacity: 0.3,
+    });
+    const classPaths = classes.scene.nodes.filter((node) => /^classes\[0\]\.paths\[\d+\]$/.test(node.sourcePath));
+    expect(classPaths).toHaveLength(2);
+    expect(classPaths.every((node) => node.style.opacity === 0.9 &&
+      node.style.fillOpacity === 0.7 && node.style.strokeOpacity === 0.25)).toBe(true);
+    const notePaths = classes.scene.nodes.filter((node) => /^notes\[0\]\.paths\[\d+\]$/.test(node.sourcePath));
+    expect(notePaths).toHaveLength(2);
+    expect(notePaths.every((node) => node.meta?.mermaid?.kind === "class-note")).toBe(true);
+    const divider = classes.scene.nodes.find((node) => node.sourcePath === "classes[0].dividers[0]");
+    expect(divider).toMatchObject({
+      kind: "connector",
+      style: {
+        fill: null,
+        stroke: "rgba(190, 200, 210, 0.5)",
+        opacity: 0.8,
+        strokeOpacity: 0.4,
+      },
+    });
+    expect(classes.sources).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: "namespaces[0]", tag: "rect" }),
+      expect.objectContaining({ path: "classes[0]", tag: "g" }),
+      expect.objectContaining({ path: "notes[0]", tag: "g" }),
+      expect.objectContaining({ path: "classes[0].dividers[0]", tag: "path" }),
+    ]));
+    const classMapped = sceneToPptxElements(classes.scene);
+    expect(classMapped.fallbacks).toEqual([]);
+    const classXml = buildPptxPackage({ slides: [{ elements: classMapped.elements }] }).toString("utf8");
+    expect(classXml).toContain('<a:srgbClr val="0A141E"><a:alpha val="16000"/></a:srgbClr>');
+    expect(classXml).toContain('<a:srgbClr val="28323C"><a:alpha val="12000"/></a:srgbClr>');
+    expect(classXml).toContain('<a:srgbClr val="828C96"><a:alpha val="31500"/></a:srgbClr>');
+    expect(classXml).toContain('<a:srgbClr val="A0AAB4"><a:alpha val="11250"/></a:srgbClr>');
+    expect(classXml).toContain('<a:srgbClr val="BEC8D2"><a:alpha val="16000"/></a:srgbClr>');
+
+    await sceneFromFixture(page, await readFixture("sequence-decorations.svg"), "sequence-alpha.svg");
+    const sequence = await updateFixture(page, () => {
+      const set = (element, styles) => Object.assign(element.style, styles);
+      set(document.querySelector("g.actor-man circle"), {
+        fill: "rgba(10, 20, 30, 0.5)",
+        fillOpacity: "0.4",
+        stroke: "rgba(40, 50, 60, 0.5)",
+        strokeOpacity: "0.3",
+        opacity: "0.8",
+      });
+      set(document.querySelector("g.actor-man line"), {
+        stroke: "rgba(70, 80, 90, 0.5)",
+        strokeOpacity: "0.4",
+        opacity: "0.8",
+      });
+      set(document.querySelector("polygon.labelBox"), {
+        fill: "rgba(100, 110, 120, 0.5)",
+        fillOpacity: "0.6",
+        stroke: "rgba(130, 140, 150, 0.5)",
+        strokeOpacity: "0.2",
+        opacity: "0.7",
+      });
+      set(document.querySelector("line.loopLine"), {
+        stroke: "rgba(160, 170, 180, 0.5)",
+        strokeOpacity: "0.3",
+        opacity: "0.8",
+      });
+      set(document.querySelector("svg > rect.rect"), {
+        fill: "rgba(20, 40, 60, 0.5)",
+        fillOpacity: "0.4",
+        stroke: "rgba(80, 100, 120, 0.5)",
+        strokeOpacity: "0.2",
+        opacity: "0.8",
+      });
+      set(document.querySelector("rect.actor"), {
+        fill: "rgba(20, 80, 40, 0.5)",
+        fillOpacity: "0.6",
+        stroke: "rgba(120, 40, 20, 0.5)",
+        strokeOpacity: "0.25",
+        opacity: "0.8",
+      });
+      const message = document.querySelector("[data-et=message]");
+      set(message, {
+        stroke: "rgba(0, 120, 200, 0.5)",
+        strokeOpacity: "0.4",
+        opacity: "0.8",
+      });
+      const markerId = /#([^")]+)[")]*$/.exec(getComputedStyle(message).markerEnd)?.[1];
+      const markerPath = document.getElementById(markerId)?.firstElementChild;
+      markerPath.style.setProperty("fill", "rgba(0, 120, 200, 0.5)", "important");
+      markerPath.style.fillOpacity = "0.4";
+      const numberMarker = document.querySelector('[id$="-sequencenumber"]');
+      numberMarker.style.opacity = "0.8";
+      set(numberMarker.firstElementChild, {
+        fill: "rgba(200, 100, 0, 0.5)",
+        fillOpacity: "0.4",
+      });
+    });
+    expect(sequence.diagnostics).toEqual([{
+      path: "sequence[0]",
+      kind: "fallback",
+      reason: "unsupported-mermaid-sequence-style",
+    }]);
+    const actorHead = sequence.scene.nodes.find((node) =>
+      node.meta?.mermaid?.kind === "sequence-actor-part" &&
+      node.meta.mermaid.part === "head" &&
+      node.style.fillOpacity === 0.4);
+    expect(actorHead.style).toMatchObject({
+      opacity: 0.8,
+      fillOpacity: 0.4,
+      strokeOpacity: 0.3,
+    });
+    const actorLine = sequence.scene.nodes.find((node) =>
+      node.meta?.mermaid?.kind === "sequence-actor-part" &&
+      node.style.stroke === "rgba(70, 80, 90, 0.5)");
+    expect(actorLine.style).toMatchObject({ opacity: 0.8, strokeOpacity: 0.4 });
+    const frameLine = sequence.scene.nodes.find((node) =>
+      node.meta?.mermaid?.kind === "sequence-frame-line" &&
+      node.style.stroke === "rgba(160, 170, 180, 0.5)");
+    expect(frameLine.style).toMatchObject({ opacity: 0.8, strokeOpacity: 0.3 });
+    const tab = sequence.scene.nodes.find((node) =>
+      node.meta?.mermaid?.kind === "sequence-frame-tab" &&
+      node.style.fill === "rgba(100, 110, 120, 0.5)");
+    expect(tab.style).toMatchObject({ opacity: 0.7, fillOpacity: 0.6, strokeOpacity: 0.2 });
+    const background = sequence.scene.nodes.find((node) =>
+      node.meta?.mermaid?.kind === "sequence-background");
+    expect(background.style).toMatchObject({ opacity: 0.8, fillOpacity: 0.4, strokeOpacity: 0.2 });
+    const message = sequence.scene.nodes.find((node) =>
+      node.style?.stroke === "rgba(0, 120, 200, 0.5)");
+    expect(message).toMatchObject({
+      kind: "connector",
+      style: { opacity: 0.8, strokeOpacity: 0.4 },
+    });
+    const numbers = sequence.scene.nodes.filter((node) =>
+      node.meta?.mermaid?.kind === "sequence-number-background");
+    expect(numbers).toHaveLength(7);
+    expect(numbers.every((node) => node.style.opacity === 0.8 &&
+      node.style.fillOpacity === 0.4 && node.meta.mermaid.nativeMask === "connector")).toBe(true);
+    const sequenceMapped = sceneToPptxElements(sequence.scene);
+    expect(sequenceMapped.fallbacks.map((fallback) => fallback.sourcePath)).toEqual(["sequence[0]"]);
+    const sequenceXml = buildPptxPackage({ slides: [{ elements: sequenceMapped.elements }] }).toString("utf8");
+    expect(sequenceXml).toContain('<a:srgbClr val="0A141E"><a:alpha val="16000"/></a:srgbClr>');
+    expect(sequenceXml).toContain('<a:srgbClr val="A0AAB4"><a:alpha val="12000"/></a:srgbClr>');
+    expect(sequenceXml).toContain('<a:srgbClr val="0078C8"><a:alpha val="16000"/></a:srgbClr>');
+    expect(sequenceXml).toContain('<a:srgbClr val="C86400"><a:alpha val="16000"/></a:srgbClr>');
+
+    await sceneFromFixture(page, await readFixture("shapes-styled.svg"), "composite-alpha.svg");
+    const composites = await updateFixture(page, () => {
+      for (const path of document.querySelectorAll("g.node:nth-child(1) g.label-container path")) {
+        path.style.fillOpacity = "0.5";
+      }
+      document.querySelector("g.node:nth-child(2) path.label-container").style.strokeOpacity = "0.5";
+      const circle = document.querySelector("g.node:nth-child(4) .outer-circle");
+      circle.style.fill = "rgba(10, 20, 30, 0.5)";
+      circle.style.fillOpacity = "0.4";
+      circle.style.stroke = "rgba(40, 50, 60, 0.5)";
+      circle.style.strokeOpacity = "0.3";
+      circle.style.opacity = "0.8";
+    });
+    expect(composites.scene.nodes.filter((node) => node.kind === "fallback")).toMatchObject([
+      { sourcePath: "nodes[0]", reason: "unsupported-mermaid-composite-paint" },
+      { sourcePath: "nodes[1]", reason: "unsupported-mermaid-composite-paint" },
+    ]);
+    const doubleCircle = composites.scene.nodes.find((node) =>
+      node.sourcePath === "nodes[3].circles[0]");
+    expect(doubleCircle).toMatchObject({
+      kind: "shape",
+      style: {
+        fill: "rgba(10, 20, 30, 0.5)",
+        stroke: "rgba(40, 50, 60, 0.5)",
+        opacity: 0.8,
+        fillOpacity: 0.4,
+        strokeOpacity: 0.3,
+      },
+    });
+    expect(sceneToPptxElements(composites.scene).fallbacks.map((fallback) => fallback.sourcePath))
+      .toEqual(["nodes[0]", "nodes[1]"]);
+  } finally {
+    await harness.close();
+  }
+});
+
 test("preserves classDef styling, stadium, cylinder, hexagon and double-circle shapes", async ({ page }) => {
   const harness = await startHarness({ slides: ["# Shapes"] });
   try {
@@ -340,6 +680,13 @@ test("keeps unsupported subroutine paint, quadrilateral geometry, and nonuniform
       {
         mutate: () => {
           document.querySelector("g.node polygon.label-container").style.strokeDasharray = "4 2";
+        },
+        reason: "unsupported-mermaid-composite-paint",
+        path: "nodes[0]",
+      },
+      {
+        mutate: () => {
+          document.querySelector("g.node polygon.label-container").style.fillOpacity = "0.5";
         },
         reason: "unsupported-mermaid-composite-paint",
         path: "nodes[0]",
@@ -740,7 +1087,6 @@ test("keeps unsupported sequence message paths local without joining strokes or 
       () => { document.querySelector("path.messageLine0").setAttribute("d", "M76 117 L100000 117"); },
       () => { document.querySelector("path.messageLine0").style.fill = "red"; },
       () => { document.querySelector("path.messageLine0").style.filter = "blur(1px)"; },
-      () => { document.querySelector("path.messageLine0").style.strokeOpacity = "0.5"; },
       () => { document.querySelector("path.messageLine0").style.clipPath = "inset(1px)"; },
       () => { document.querySelector("path.messageLine0").style.markerMid = "url(#fixture-sequence-paths-arrowhead)"; },
       () => { document.querySelector("path.messageLine0").style.markerEnd = "url(#fixture-sequence-paths-crosshead)"; document.querySelector('[id$="-crosshead"] path').style.filter = "blur(1px)"; },
@@ -1447,7 +1793,6 @@ test.describe("additional SVG compatibility", () => {
       const source = await readFixture("class.svg");
       const mutations = [
         () => { document.querySelector("g.node g.label-container path:last-child").setAttribute("d", "M-78 -72 L78 72"); },
-        () => { document.querySelector("g.node g.label-container path:first-child").style.opacity = "0.5"; },
         () => {
           const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
           circle.setAttribute("r", "8");
@@ -1800,6 +2145,105 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
 }
 
 for (const theme of ["dark", "light", "microsoft", "custom"]) {
+  test(`real renderer preserves independent Mermaid paint alpha and native masks (${theme})`, async ({ page }) => {
+    const diagram = await readFixture("paint-alpha.mmd");
+    const harness = await startHarness({
+      slides: [`# Paint alpha\n\n\`\`\`mermaid\n${diagram}\n\`\`\``],
+      theme,
+      customThemeCss: theme === "custom"
+        ? "--bg:#102030;--fg:#fefefe;--body:#e0e4e8;--accent:#ff6600;--surface:#203040;--border:#405060;"
+        : "",
+    });
+    try {
+      await page.goto(`${harness.url}/?pptx=1&token=${encodeURIComponent(harness.printToken)}`);
+      await page.waitForFunction(() => document.documentElement.hasAttribute("data-pptx-ready") ||
+        document.documentElement.hasAttribute("data-pptx-error"), undefined, { timeout: 120_000 });
+      await expect(page.locator("html")).toHaveAttribute("data-pptx-ready", "true");
+      const slide = await page.evaluate(() => window.__presentationPptxModel.slides[0]);
+      expect(slide.fallbacks.filter((fallback) => fallback.type === "mermaid")).toEqual([]);
+      const rect = slide.elements.find((element) => element.fill === "rgba(51, 102, 153, 0.5)");
+      const circle = slide.elements.find((element) => element.fill === "rgba(34, 170, 68, 0.5)");
+      const edge = slide.elements.find((element) => element.stroke === "rgba(0, 136, 204, 0.5)");
+      expect(rect).toMatchObject({
+        type: "shape",
+        opacity: 0.8,
+        fillOpacity: 0.5,
+        strokeOpacity: 0.25,
+      });
+      expect(circle).toMatchObject({
+        type: "shape",
+        opacity: 0.6,
+        fillOpacity: 0.7,
+        strokeOpacity: 0.3,
+      });
+      expect(edge).toMatchObject({
+        type: "connector",
+        opacity: 0.5,
+        strokeOpacity: 0.4,
+      });
+      const xml = buildPptxPackage({ slides: [{ elements: slide.elements }] }).toString("utf8");
+      expect(xml).toContain('<a:srgbClr val="336699"><a:alpha val="20000"/></a:srgbClr>');
+      expect(xml).toContain('<a:srgbClr val="CC3300"><a:alpha val="10000"/></a:srgbClr>');
+      expect(xml).toContain('<a:srgbClr val="22AA44"><a:alpha val="21000"/></a:srgbClr>');
+      expect(xml).toContain('<a:srgbClr val="8844CC"><a:alpha val="9000"/></a:srgbClr>');
+      expect(xml).toContain('<a:srgbClr val="0088CC"><a:alpha val="10000"/></a:srgbClr>');
+
+      const svg = page.locator("pre.mermaid > svg");
+      await expect(svg.locator("g.node[data-pptx-native=shape]")).toHaveCount(2);
+      await expect(svg.locator("path.flowchart-link[data-pptx-native=connector]")).toHaveCount(1);
+      await expect(svg.locator("[data-pptx-fallback-ids]")).toHaveCount(0);
+      const masks = await svg.evaluate((element) => ({
+        scene: element.__presentationScene.nodes
+          .filter((node) => ["edges[0]", "nodes[0]", "nodes[1]"].includes(node.sourcePath))
+          .map((node) => ({ path: node.sourcePath, style: node.style })),
+        nodes: [...element.querySelectorAll("g.node[data-pptx-native] > .label-container")].map((node) => {
+          const style = getComputedStyle(node);
+          return {
+            fill: style.fill,
+            stroke: style.stroke,
+          };
+        }),
+        edges: [...element.querySelectorAll("path.flowchart-link[data-pptx-native]")].map((node) => {
+          const style = getComputedStyle(node);
+          return {
+            stroke: style.stroke,
+          };
+        }),
+      }));
+      expect(masks.scene).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          path: "edges[0]",
+          style: expect.objectContaining({ opacity: 0.5, strokeOpacity: 0.4 }),
+        }),
+        expect.objectContaining({
+          path: "nodes[0]",
+          style: expect.objectContaining({ opacity: 0.8, fillOpacity: 0.5, strokeOpacity: 0.25 }),
+        }),
+        expect.objectContaining({
+          path: "nodes[1]",
+          style: expect.objectContaining({ opacity: 0.6, fillOpacity: 0.7, strokeOpacity: 0.3 }),
+        }),
+      ]));
+      expect(masks.nodes).toEqual([
+        {
+          fill: "rgba(0, 0, 0, 0)",
+          stroke: "rgba(0, 0, 0, 0)",
+        },
+        {
+          fill: "rgba(0, 0, 0, 0)",
+          stroke: "rgba(0, 0, 0, 0)",
+        },
+      ]);
+      expect(masks.edges).toEqual([{
+        stroke: "rgba(0, 0, 0, 0)",
+      }]);
+    } finally {
+      await harness.close();
+    }
+  });
+}
+
+for (const theme of ["dark", "light", "microsoft", "custom"]) {
   test(`real renderer masks Priority 5 flowchart shapes and class containers (${theme})`, async ({ page }) => {
     const [flowchart, classes] = await Promise.all([
       readFixture("flowchart-additional-shapes.mmd"),
@@ -1837,7 +2281,9 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
       expect(classSlide.fallbacks.filter((fallback) => fallback.type === "mermaid")).toEqual([]);
       expect(classSlide.elements.filter((element) => element.mermaid?.kind === "class-namespace")).toHaveLength(3);
       expect(classSlide.elements.filter((element) => element.mermaid?.kind === "class-namespace-label")).toHaveLength(3);
-      expect(classSlide.elements.filter((element) => element.mermaid?.kind === "class-note")).toHaveLength(2);
+      const notes = classSlide.elements.filter((element) => element.mermaid?.kind === "class-note");
+      expect(notes).toHaveLength(["dark", "custom"].includes(theme) ? 4 : 2);
+      expect(new Set(notes.map((element) => element.path.replace(/\.paths\[\d+\]$/, ""))).size).toBe(2);
       expect(classSlide.elements.filter((element) => element.mermaid?.kind === "class-note-label")).toHaveLength(2);
       expect(classSlide.elements.filter((element) => element.mermaid?.kind === "edge" &&
         element.path?.startsWith("mermaid[0].edges["))).toHaveLength(5);
