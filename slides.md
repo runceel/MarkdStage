@@ -154,9 +154,11 @@ Introduce the Architecture DSL examples that follow.
 
 ---
 
-## Layout-driven architecture diagram
+---
+size: normal
+---
 
-Align child elements with a group layout instead of assigning each child explicit coordinates.
+## Layout-driven architecture diagram
 
 ```architecture
 {
@@ -222,9 +224,11 @@ Point out that the group layout alone aligns the child elements.
 
 ---
 
-## Shapes, styles, and routes
+---
+size: normal
+---
 
-Review shape types, styles, and connector routing on one slide.
+## Shapes, styles, and routes
 
 ```architecture
 {
@@ -299,9 +303,11 @@ Compare the three shapes, route types, and label layering.
 
 ---
 
-## Automatic routing in a dense diagram
+---
+size: normal
+---
 
-Declare only the dependencies and let automatic routing handle diagrams with crossing paths.
+## Automatic routing in a dense diagram
 
 ```architecture
 {
@@ -335,9 +341,11 @@ Explain that dense connections route automatically without manual waypoints.
 
 ---
 
-## Add custom images to Architecture DSL
+---
+size: normal
+---
 
-Standalone images and node icons can reference the same image under `assets/`.
+## Add custom images to Architecture DSL
 
 ```architecture
 {
@@ -395,13 +403,10 @@ Place images in the `assets/` folder and reference them with absolute paths.
 
 ![Architecture DSL custom image example](/assets/architecture-image-sample.svg)
 
-Use standard Markdown syntax for links to external pages.
-
-```markdown
+Use standard Markdown syntax for external links:
 [MarkdStage repository](https://github.com/runceel/markdstage)
-```
 
-Give images descriptive alternative text that remains meaningful when the image cannot be displayed.
+Give images descriptive alternative text that remains meaningful when an image cannot be displayed.
 
 <!--
 **Speaker notes 12 / 16**
