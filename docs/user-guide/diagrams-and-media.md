@@ -84,6 +84,23 @@ standalone `note "..."` forms, export as editable rectangles and localized text.
 Relations, labels, multiplicities, markers, notes, and class nodes remain independent and are
 retained exactly once even when they cross namespace boundaries.
 
+Packet diagrams from bundled Mermaid 11.15.0 accept both `packet` and `packet-beta`. Each rendered
+field rectangle, field label, start/end bit label, and nonempty packet title exports as an
+independent editable object at the renderer-computed position and size. Field widths, source order,
+32-bit row wrapping, split ranges, repeated labels on wrapped fields, and visible text are taken
+from the SVG; MarkdStage does not parse the packet source again or calculate a replacement layout.
+Japanese labels are supported. Mermaid accepts escaped newlines in quoted packet labels but emits
+one SVG text line, so the editable text preserves the same visible whitespace instead of inventing
+a multiline layout.
+
+The bundled tree view grammar accepts only the exact `treeView-beta` spelling. It does not accept
+`treeView`, `treeview-beta`, or alternate casing in Mermaid 11.15.0. Every rendered hierarchy
+branch and label, including Mermaid's visible `/` root, exports as an editable native line or text
+object at its rendered CTM. Hierarchy, indentation, sibling order, leaves, Japanese text, and
+renderer-accepted quoted newlines are preserved without rebuilding the tree from source. The
+bundled renderer emits no node boxes for this diagram, so there are no synthetic boxes in the
+editable export; quoted newlines remain the single SVG text line that Mermaid displays.
+
 Hollow inheritance/realization triangles (`<|--`, `<|..`) and aggregation diamonds (`o--`) use
 editable, unfilled outline strokes, never filled arrow substitutes. Flowchart cross terminals
 (`--x`, `x--x`) and sequence cross terminals (`-x`, `--x`, including self messages) use an editable
@@ -120,6 +137,12 @@ descendant independently. Translucent stadium, cylinder, and subroutine decompos
 stay local where their overlapping editable pieces would darken differently. Translucent class
 outline paths can remain editable as stacked native rectangles because their original paint order
 is preserved.
+For packet diagrams, unsupported field geometry, decorated text, effects, and transforms fall back
+only for the affected field or label when ownership is separable. A packet row with composite group
+paint remains one row-local picture. For tree views, an unsupported label or branch remains local
+while sibling labels and branches stay native; an effect on the shared tree group keeps that group
+as one picture. Malformed structures, excessive element/depth/text counts, and transforms or
+effects that cannot be separated safely use the smallest safe group or whole-diagram fallback.
 Other diagram types, including pie, mindmap, and gitGraph, can still use whole-diagram artwork.
 Check the export report for the reason and source path of each fallback.
 

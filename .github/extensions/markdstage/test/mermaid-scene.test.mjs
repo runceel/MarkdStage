@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  classifyMermaidDiagramRoute,
   classifyPolygonPreset,
   cssStyleToSceneStyle,
   decomposeSimpleSvgTransform,
@@ -48,6 +49,19 @@ test("classifies measured Mermaid polygon signatures", () => {
     polygonPointsSignature("58.2501,0 116.499,-58.25"),
     "58.25,0 116.5,-58.25",
   );
+});
+
+test("routes only the bundled packet and treeView SVG roles", () => {
+  assert.equal(classifyMermaidDiagramRoute("packet"), "packet");
+  assert.equal(classifyMermaidDiagramRoute("treeView"), "treeView");
+  assert.equal(classifyMermaidDiagramRoute("sequence"), "sequence");
+  assert.equal(classifyMermaidDiagramRoute("class", "", true), "class");
+  assert.equal(classifyMermaidDiagramRoute("flowchart-v2", "flowchart", true), "flowchart");
+  assert.equal(classifyMermaidDiagramRoute("packet-beta"), null);
+  assert.equal(classifyMermaidDiagramRoute("treeView-beta"), null);
+  assert.equal(classifyMermaidDiagramRoute("treeview"), null);
+  assert.equal(classifyMermaidDiagramRoute("class", "", false), null);
+  assert.equal(classifyMermaidDiagramRoute("packet", "flowchart", false), "packet");
 });
 
 test("maps Mermaid marker IDs and URL references to scene arrows", () => {

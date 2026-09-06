@@ -102,6 +102,15 @@ function hasClass(element, name) {
   return Boolean(element?.classList?.contains(name));
 }
 
+export function classifyMermaidDiagramRoute(diagramType, svgClass = "", hasRoot = false) {
+  if (diagramType === "sequence") return "sequence";
+  if (diagramType === "class" && hasRoot) return "class";
+  if (diagramType === "packet") return "packet";
+  if (diagramType === "treeView") return "treeView";
+  if (hasRoot && String(svgClass).split(/\s+/).includes("flowchart")) return "flowchart";
+  return null;
+}
+
 function firstElementChild(element) {
   return [...(element?.children || [])].find((child) => child.nodeType === 1) || null;
 }
@@ -1789,13 +1798,29 @@ function isVisibleVisualSubtree(element) {
   });
 }
 
-function collectUnexpectedVisuals(container, deck, startZ, sourcePath, consumed = new Set(), options = {}) {
+function collectUnexpectedVisuals(
+  container,
+  deck,
+  startZ,
+  sourcePath,
+  consumed = new Set(),
+  options = {},
+  config = {},
+) {
   const fallbacks = [];
-  const walk = (element) => {
+  const depthLimit = Number.isInteger(config.depthLimit) ? config.depthLimit : Number.POSITIVE_INFINITY;
+  const walk = (element, depth) => {
     if (consumed.has(element)) return;
     if (IGNORED_TAGS.has(tagName(element)) || IGNORED_TAGS.has(localName(element))) return;
     if (getComputedStyle(element).display === "none") return;
     const containsConsumed = [...consumed].some((child) => element.contains(child));
+    if (!containsConsumed && depth > depthLimit && isVisibleVisualSubtree(element)) {
+      const path = `${sourcePath}.unknown[${fallbacks.length}]`;
+      const reason = nonEmptyStringOr(config.depthReason, "unsupported-mermaid-svg-depth");
+      options.sourceElements?.set(path, element);
+      fallbacks.push(fallbackNode(element, startZ + fallbacks.length, deck, reason, path));
+      return;
+    }
     if (!containsConsumed && isVisibleUnknown(element)) {
       const path = `${sourcePath}.unknown[${fallbacks.length}]`;
       options.sourceElements?.set(path, element);
@@ -1810,9 +1835,9 @@ function collectUnexpectedVisuals(container, deck, startZ, sourcePath, consumed 
       }
       return;
     }
-    for (const child of directChildren(element)) walk(child);
+    for (const child of directChildren(element)) walk(child, depth + 1);
   };
-  for (const child of directChildren(container)) walk(child);
+  for (const child of directChildren(container)) walk(child, 1);
   return fallbacks;
 }
 
@@ -1895,6 +1920,68 @@ function measuredText(element, sourcePath, z, deck, options, meta) {
     rotation: geometry.rotation,
     meta,
   });
+}
+
+function simpleDiagramText(element, sourcePath, z, deck, options, meta, styleReason) {
+  const bounds = boundsOf(element, deck);
+  if (!(bounds.width > 0 || bounds.height > 0) && !element.textContent?.trim()) return null;
+  if (unsupportedVisualEffect(element)) {
+    return fallbackNode(element, z, deck, styleReason, sourcePath);
+  }
+  return measuredText(element, sourcePath, z, deck, options, meta);
+}
+
+function simpleDiagramShape(element, sourcePath, z, deck, options, meta, reasons) {
+  const preset = shapePresetFor(element);
+  if (!preset) return fallbackNode(element, z, deck, reasons.geometry, sourcePath);
+  if (unsupportedVisualEffect(element)) {
+    return fallbackNode(element, z, deck, reasons.style, sourcePath);
+  }
+  if (!hasUniformAxisAlignedScale(element)) {
+    return fallbackNode(element, z, deck, reasons.transform, sourcePath);
+  }
+  return definedEntries({
+    kind: "shape",
+    id: element.getAttribute("id") || undefined,
+    sourcePath,
+    z,
+    bounds: boundsOf(element, deck),
+    preset,
+    style: computedSvgStyle(element, options),
+    meta,
+  });
+}
+
+function simpleDiagramLine(element, sourcePath, z, deck, options, meta, reasons) {
+  const coordinates = numericAttributes(element, ["x1", "y1", "x2", "y2"]);
+  const style = getComputedStyle(element);
+  if (!coordinates) return fallbackNode(element, z, deck, reasons.geometry, sourcePath);
+  if (unsupportedVisualEffect(element) ||
+      [style.markerStart, style.markerMid, style.markerEnd].some((value) => value && value !== "none")) {
+    return fallbackNode(element, z, deck, reasons.style, sourcePath);
+  }
+  if (!decomposeSimpleSvgTransform(element.getScreenCTM?.())) {
+    return fallbackNode(element, z, deck, reasons.transform, sourcePath);
+  }
+  const [x1, y1, x2, y2] = coordinates;
+  const points = [
+    screenPoint(element, { x: x1, y: y1 }, deck),
+    screenPoint(element, { x: x2, y: y2 }, deck),
+  ];
+  if (pointKey(points[0]) === pointKey(points[1])) {
+    return fallbackNode(element, z, deck, reasons.geometry, sourcePath);
+  }
+  return {
+    kind: "connector",
+    id: element.getAttribute("id") || undefined,
+    sourcePath,
+    z,
+    points,
+    style: computedConnectorStyle(element, options),
+    arrowStart: "none",
+    arrowEnd: "none",
+    meta,
+  };
 }
 
 function numericAttributes(element, names) {
@@ -2628,6 +2715,288 @@ function appendClassNamespaces(root, deck, nodes, options, consumed, blocked) {
   }
 }
 
+function specialDiagramStructureFallback(svg, deck, size, options, reason) {
+  return {
+    scene: fallbackSceneForReason(
+      createScene({ ...size, source: { kind: "mermaid", path: options.path } }),
+      reason,
+      boundsOf(svg, deck),
+    ),
+    diagnostics: [{ path: "svg", kind: "fallback", reason }],
+  };
+}
+
+function packetScene(svg, deck, size, options) {
+  const nodes = [];
+  const consumed = new Set();
+  const rows = directChildren(svg, "g")
+    .filter((group) => directChildren(group, "rect.packetBlock").length > 0);
+  const titles = directChildren(svg, "text.packetTitle");
+  if (!rows.length || titles.length !== 1) {
+    return specialDiagramStructureFallback(
+      svg,
+      deck,
+      size,
+      options,
+      "unsupported-mermaid-packet-structure",
+    );
+  }
+
+  for (const [rowIndex, row] of rows.entries()) {
+    const children = directChildren(row);
+    const fields = children.filter((child) => hasClass(child, "packetBlock"));
+    const labels = children.filter((child) => hasClass(child, "packetLabel"));
+    const bits = children.filter((child) => hasClass(child, "packetByte"));
+    const validBitCount = bits.length === 0 ||
+      (bits.length >= fields.length && bits.length <= fields.length * 2);
+    const sourcePath = `packet.rows[${rowIndex}]`;
+    if (fields.length === 0 || labels.length !== fields.length ||
+        !validBitCount || unsupportedVisualEffect(row, false)) {
+      consumed.add(row);
+      options.sourceElements.set(sourcePath, row);
+      nodes.push(fallbackNode(
+        row,
+        nodes.length,
+        deck,
+        unsupportedVisualEffect(row, false)
+          ? "unsupported-mermaid-packet-row-style"
+          : "unsupported-mermaid-packet-row-structure",
+        sourcePath,
+      ));
+      continue;
+    }
+
+    let fieldIndex = 0;
+    let labelIndex = 0;
+    let bitIndex = 0;
+    for (const child of children) {
+      let childPath;
+      let node;
+      if (hasClass(child, "packetBlock")) {
+        childPath = `${sourcePath}.fields[${fieldIndex}]`;
+        node = localName(child) === "rect"
+          ? simpleDiagramShape(
+              child,
+              childPath,
+              nodes.length,
+              deck,
+              options,
+              { mermaid: { kind: "packet-field", row: rowIndex, index: fieldIndex } },
+              {
+                geometry: "unsupported-mermaid-packet-field-geometry",
+                style: "unsupported-mermaid-packet-field-style",
+                transform: "unsupported-mermaid-packet-field-transform",
+              },
+            )
+          : fallbackNode(
+              child,
+              nodes.length,
+              deck,
+              "unsupported-mermaid-packet-field-geometry",
+              childPath,
+            );
+        fieldIndex += 1;
+      } else if (hasClass(child, "packetLabel")) {
+        childPath = `${sourcePath}.labels[${labelIndex}]`;
+        node = localName(child) === "text"
+          ? simpleDiagramText(
+              child,
+              childPath,
+              nodes.length,
+              deck,
+              options,
+              { mermaid: { kind: "packet-field-label", row: rowIndex, index: labelIndex } },
+              "unsupported-mermaid-packet-text-style",
+            )
+          : fallbackNode(
+              child,
+              nodes.length,
+              deck,
+              "unsupported-mermaid-packet-label",
+              childPath,
+            );
+        labelIndex += 1;
+      } else if (hasClass(child, "packetByte")) {
+        const placement = hasClass(child, "start") ? "start" : hasClass(child, "end") ? "end" : "";
+        childPath = `${sourcePath}.bits[${bitIndex}]`;
+        node = localName(child) === "text" && placement &&
+            hasClass(child, "start") !== hasClass(child, "end")
+          ? simpleDiagramText(
+              child,
+              childPath,
+              nodes.length,
+              deck,
+              options,
+              { mermaid: { kind: "packet-bit-label", row: rowIndex, index: bitIndex, placement } },
+              "unsupported-mermaid-packet-text-style",
+            )
+          : fallbackNode(
+              child,
+              nodes.length,
+              deck,
+              "unsupported-mermaid-packet-bit-label",
+              childPath,
+            );
+        bitIndex += 1;
+      } else {
+        continue;
+      }
+      consumed.add(child);
+      options.sourceElements.set(childPath, child);
+      if (node) nodes.push(node);
+    }
+  }
+
+  const title = titles[0];
+  consumed.add(title);
+  options.sourceElements.set("packet.title", title);
+  const titleNode = simpleDiagramText(
+    title,
+    "packet.title",
+    nodes.length,
+    deck,
+    options,
+    { mermaid: { kind: "packet-title" } },
+    "unsupported-mermaid-packet-text-style",
+  );
+  if (titleNode) nodes.push(titleNode);
+  nodes.push(...collectUnexpectedVisuals(
+    svg,
+    deck,
+    nodes.length,
+    "packet",
+    consumed,
+    options,
+    {
+      depthLimit: MAX_GROUP_DEPTH,
+      depthReason: "unsupported-mermaid-packet-depth",
+    },
+  ));
+  return diagramScene(svg, size, options, nodes);
+}
+
+function treeViewScene(svg, deck, size, options) {
+  const roots = directChildren(svg, "g.tree-view");
+  if (roots.length !== 1) {
+    return specialDiagramStructureFallback(
+      svg,
+      deck,
+      size,
+      options,
+      "unsupported-mermaid-tree-view-structure",
+    );
+  }
+  const root = roots[0];
+  const children = directChildren(root);
+  const labels = children.filter((child) => hasClass(child, "treeView-node-label"));
+  const lines = children.filter((child) => hasClass(child, "treeView-node-line"));
+  if (!labels.length || !lines.length) {
+    return specialDiagramStructureFallback(
+      svg,
+      deck,
+      size,
+      options,
+      "unsupported-mermaid-tree-view-structure",
+    );
+  }
+
+  const nodes = [];
+  const consumed = new Set();
+  if (unsupportedVisualEffect(root, false)) {
+    consumed.add(root);
+    options.sourceElements.set("treeView", root);
+    nodes.push(fallbackNode(
+      root,
+      nodes.length,
+      deck,
+      "unsupported-mermaid-tree-view-style",
+      "treeView",
+    ));
+  } else {
+    let labelIndex = 0;
+    let lineIndex = 0;
+    for (const child of children) {
+      let sourcePath;
+      let node;
+      if (hasClass(child, "treeView-node-label")) {
+        sourcePath = `treeView.labels[${labelIndex}]`;
+        node = localName(child) === "text"
+          ? simpleDiagramText(
+              child,
+              sourcePath,
+              nodes.length,
+              deck,
+              options,
+              { mermaid: { kind: "tree-view-label", index: labelIndex } },
+              "unsupported-mermaid-tree-view-text-style",
+            )
+          : fallbackNode(
+              child,
+              nodes.length,
+              deck,
+              "unsupported-mermaid-tree-view-label",
+              sourcePath,
+            );
+        labelIndex += 1;
+      } else if (hasClass(child, "treeView-node-line")) {
+        sourcePath = `treeView.lines[${lineIndex}]`;
+        node = localName(child) === "line"
+          ? simpleDiagramLine(
+              child,
+              sourcePath,
+              nodes.length,
+              deck,
+              options,
+              { mermaid: { kind: "tree-view-branch", index: lineIndex } },
+              {
+                geometry: "unsupported-mermaid-tree-view-line-geometry",
+                style: "unsupported-mermaid-tree-view-line-style",
+                transform: "unsupported-mermaid-tree-view-line-transform",
+              },
+            )
+          : fallbackNode(
+              child,
+              nodes.length,
+              deck,
+              "unsupported-mermaid-tree-view-line-geometry",
+              sourcePath,
+            );
+        lineIndex += 1;
+      } else {
+        continue;
+      }
+      consumed.add(child);
+      options.sourceElements.set(sourcePath, child);
+      if (node) nodes.push(node);
+    }
+    nodes.push(...collectUnexpectedVisuals(
+      root,
+      deck,
+      nodes.length,
+      "treeView",
+      consumed,
+      options,
+      {
+        depthLimit: MAX_GROUP_DEPTH,
+        depthReason: "unsupported-mermaid-tree-view-depth",
+      },
+    ));
+  }
+  nodes.push(...collectUnexpectedVisuals(
+    svg,
+    deck,
+    nodes.length,
+    "svg",
+    new Set([root]),
+    options,
+    {
+      depthLimit: MAX_GROUP_DEPTH,
+      depthReason: "unsupported-mermaid-tree-view-depth",
+    },
+  ));
+  return diagramScene(svg, size, options, nodes);
+}
+
 function classScene(svg, root, deck, size, options) {
   const nodes = [];
   const { consumed, blocked } = unsupportedClassContainers(root, deck, nodes, options);
@@ -2732,6 +3101,11 @@ function sceneFromSvg(svg, options) {
   const size = svgSize(svg, deck);
   const root = svg.querySelector("g.root");
   const diagramType = svg.getAttribute("aria-roledescription");
+  const route = classifyMermaidDiagramRoute(
+    diagramType,
+    svg.getAttribute("class") || "",
+    Boolean(root),
+  );
   const nodes = [];
   const elements = svg.querySelectorAll("*");
   if (elements.length > MAX_SCENE_NODES * 10) {
@@ -2751,9 +3125,11 @@ function sceneFromSvg(svg, options) {
     return { scene: fallbackSceneForReason(createScene({ ...size, source: { kind: "mermaid", path: options.path } }),
       reason, boundsOf(svg, deck)), diagnostics: [{ path: "svg", kind: "fallback", reason }] };
   }
-  if (diagramType === "sequence") return sequenceScene(svg, deck, size, options);
-  if (root && diagramType === "class") return classScene(svg, root, deck, size, options);
-  if (!root || !hasClass(svg, "flowchart")) {
+  if (route === "sequence") return sequenceScene(svg, deck, size, options);
+  if (route === "class") return classScene(svg, root, deck, size, options);
+  if (route === "packet") return packetScene(svg, deck, size, options);
+  if (route === "treeView") return treeViewScene(svg, deck, size, options);
+  if (route !== "flowchart") {
     return {
       scene: fallbackSceneForReason(
         createScene({ width: size.width, height: size.height, source: { kind: "mermaid", path: options.path }, nodes: [] }),

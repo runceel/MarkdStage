@@ -81,6 +81,23 @@ class 図ではクラスの区画、マーカーなしの関連、合成（`A *-
 共通 scene の深さ上限まで編集可能な枠とタイトルになります。namespace をまたぐ場合も、
 関係線、ラベル、多重度、マーカー、note、class ノードを独立して 1 回だけ保持します。
 
+同梱 Mermaid 11.15.0 の packet 図では、`packet` と `packet-beta` の両方を使えます。
+描画された各フィールド矩形、フィールドラベル、開始・終了 bit ラベル、空でない packet title を、
+renderer が決めた位置と大きさの独立した編集可能オブジェクトとして出力します。
+フィールド幅、元の順序、32 bit ごとの行折り返し、範囲の分割、行をまたぐフィールドで繰り返される
+ラベル、表示文字列は SVG から取得し、MarkdStage が packet のソースを再解釈して配置し直すことは
+ありません。日本語ラベルにも対応します。quoted label 内のエスケープされた改行は Mermaid が
+受理しますが、出力は 1 行の SVG text になるため、編集可能テキストも独自の複数行配置を作らず、
+Mermaid が表示する空白をそのまま保持します。
+
+同梱版の tree view grammar が受理するのは、大文字小文字を含めて正確な `treeView-beta` だけです。
+Mermaid 11.15.0 では `treeView`、`treeview-beta`、その他の casing は使えません。
+Mermaid が表示する `/` root を含むすべての階層線とラベルを、描画済み CTM の位置に編集可能な
+ネイティブ line／text として出力します。source tree を組み直さず、階層、indent、兄弟順、
+leaf、日本語、quoted label 内で受理される改行を保持します。同梱 renderer はこの図に node box を
+出力しないため、編集可能 export でも人工的な box は追加しません。quoted label の改行は
+Mermaid が表示する 1 行の SVG text のままです。
+
 継承・実現の白抜き三角（`<|--`、`<|..`）と集約の白抜き菱形（`o--`）は、
 塗りつぶしの矢印に置換せず、編集可能な塗りなしの輪郭線で表現します。
 flowchart の × 終端（`--x`、`x--x`）と sequence の × 終端（`-x`、`--x`、自己宛ても含む）は、
@@ -114,6 +131,12 @@ root の transform など局所化できない図全体の効果は、引き続�
 subroutine も、分解した編集可能部品の重なりで濃さが変わる場合は局所画像のままです。
 一方、半透明の class 輪郭パスは、元の描画順を保った複数のネイティブ矩形として編集可能なまま
 保持できます。
+packet 図では、未対応のフィールド形状、装飾付き文字、effect、transform を、source ownership を
+分離できる場合は影響するフィールドまたはラベルだけの局所画像にします。group paint の合成が必要な
+packet row は、その行だけを 1 枚の画像として保持します。tree view では、未対応の label または
+branch だけを局所画像にし、兄弟の label と branch はネイティブのまま残します。共有 tree group の
+effect は、その group を 1 枚の画像として保持します。不正な構造、要素・depth・text 上限超過、
+安全に分離できない transform／effect は、最小の安全な group または図全体へフォールバックします。
 pie、mindmap、gitGraph など、その他の diagram type は図全体の画像になる場合があります。
 各フォールバックの理由と source path はエクスポートレポートで確認してください。
 

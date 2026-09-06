@@ -42,6 +42,8 @@ total: 2
 | `mermaid/sequence-decorations.mmd`, `mermaid/sequence-decorations.svg` | Sequence actors, mirrored participants, box/rect backgrounds, autonumber, and nested loop/alt/opt/par source plus fixed SVG generated with bundled Mermaid 11.15.0 (`theme: default`, `securityLevel: strict`, ID `fixture-sequence-decorations`) |
 | `mermaid/paint-alpha.mmd`, `mermaid/paint-alpha.svg` | Seeded Japanese/multiline flowchart source with independent color, element, fill, and stroke alpha plus fixed SVG generated with bundled Mermaid 11.15.0 (`theme: default`, `securityLevel: strict`, ID `fixture-paint-alpha`) |
 | `mermaid/rotated-text.mmd`, `mermaid/rotated-text.svg` | XY chart source with ordinary title/tick labels and a 270-degree y-axis title plus fixed SVG generated with bundled Mermaid 11.15.0 (`theme: default`, `securityLevel: strict`, ID `fixture-rotated-text`) |
+| `mermaid/packet.mmd`, `mermaid/packet.svg` | Three-row packet source with wrapped ranges, varied bit widths, Japanese/escaped-newline labels, bit offsets, and a title plus fixed SVG generated with bundled Mermaid 11.15.0 (`theme: default`, `securityLevel: strict`, ID `fixture-packet`) |
+| `mermaid/tree-view.mmd`, `mermaid/tree-view.svg` | Multi-level `treeView-beta` source with siblings, leaves, Japanese/quoted-newline labels, and the renderer-generated root plus fixed SVG generated with bundled Mermaid 11.15.0 (`theme: default`, `securityLevel: strict`, ID `fixture-tree-view`) |
 
 The PDF regression suite inserts `print-mixed.md` before the back cover in
 `architecture-visual.md`, then verifies print output with Mermaid and Architecture DSL together.

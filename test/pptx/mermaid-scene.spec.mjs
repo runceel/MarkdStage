@@ -181,6 +181,506 @@ test("converts fixed Mermaid SVG fixtures into validated scene and PPTX elements
   }
 });
 
+test("extracts pinned packet rows, bit ranges, labels and title at rendered bounds", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# Packet fixture"] });
+  try {
+    await page.goto(harness.url);
+    const result = await sceneFromFixture(page, await readFixture("packet.svg"), "packet.svg");
+    validateScene(result.scene);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.scene.nodes.map((node) => node.z))
+      .toEqual(Array.from({ length: 37 }, (_, index) => index));
+    expect(result.scene.nodes.filter((node) => node.kind === "shape")).toHaveLength(9);
+    expect(result.scene.nodes.filter((node) => node.kind === "text")).toHaveLength(28);
+    expect(result.scene.nodes.filter((node) => node.kind === "fallback")).toEqual([]);
+    expect(result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "packet-field")
+      .map((node) => node.meta.mermaid.row)).toEqual([0, 0, 0, 0, 0, 1, 1, 1, 2]);
+    expect(result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "packet-field-label")
+      .map((node) => node.text.paragraphs[0].runs.map((run) => run.text).join(""))).toEqual([
+      "Version",
+      "Header length",
+      "Next header",
+      "Flags",
+      "識別子 Identifier",
+      "識別子 Identifier",
+      "TTL",
+      "Payload length",
+      "末尾 Tail",
+    ]);
+    expect(result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "packet-bit-label")
+      .map((node) => node.text.paragraphs[0].runs[0].text)).toEqual([
+      "0", "3", "4", "7", "8", "15", "16", "19", "20", "31",
+      "32", "39", "40", "47", "48", "63", "64", "71",
+    ]);
+    expect(result.scene.nodes.find((node) => node.sourcePath === "packet.title")
+      .text.paragraphs[0].runs.map((run) => run.text).join(""))
+      .toBe("IPv6 Extension Header / 拡張ヘッダー");
+
+    const mapped = sceneToPptxElements(result.scene);
+    expect(mapped.fallbacks).toEqual([]);
+    expect(mapped.elements.filter((element) => element.type === "shape")).toHaveLength(9);
+    expect(mapped.elements.filter((element) => element.type === "text")).toHaveLength(28);
+    const buffer = buildPptxPackage({ slides: [{ elements: mapped.elements }] });
+    expect(inspectPptxPackage(buffer).valid).toBe(true);
+    const xml = buffer.toString("utf8");
+    expect((xml.match(/<p:sp>/g) || [])).toHaveLength(37);
+    expect((xml.match(/<p:txBody>/g) || [])).toHaveLength(28);
+    expect((xml.match(/<a:prstGeom prst="rect">/g) || [])).toHaveLength(37);
+    expect(xml).toContain("識別子 Identifier");
+    expect(xml).toContain("拡張ヘッダー");
+
+    const geometry = await page.evaluate(async () => {
+      document.querySelector("#fixture-deck").style.cssText =
+        "position:relative;width:1180px;height:520px;margin:17px 0 0 29px";
+      document.querySelector("svg").style.cssText =
+        "width:820px;max-width:none;transform-origin:0 0;transform:translate(37px,23px) scale(1.1)";
+      const { mermaidSvgToScene } = await import("./renderer/mermaid-scene.mjs");
+      const deck = document.querySelector("#fixture-deck");
+      const svg = deck.querySelector("svg");
+      const result = mermaidSvgToScene(svg, { deck, includeSourceElements: true });
+      const deckRect = deck.getBoundingClientRect();
+      const round = (value) => Math.round(value * 10) / 10;
+      const expectedOrder = [...svg.querySelectorAll(
+        "rect.packetBlock, text.packetLabel, text.packetByte, text.packetTitle",
+      )].filter((element) => {
+        const bounds = element.getBoundingClientRect();
+        return bounds.width > 0 || bounds.height > 0 || element.textContent.trim();
+      });
+      return {
+        diagnostics: result.diagnostics,
+        order: result.scene.nodes.map((node) =>
+          expectedOrder.indexOf(result.sourceElements.get(node.sourcePath))),
+        uniqueSources: new Set(result.scene.nodes.map((node) =>
+          result.sourceElements.get(node.sourcePath))).size,
+        entries: result.scene.nodes.map((node) => {
+          const source = result.sourceElements.get(node.sourcePath);
+          const bounds = source.getBoundingClientRect();
+          return {
+            sourcePath: node.sourcePath,
+            bounds: node.bounds,
+            expected: {
+              x: round(bounds.left - deckRect.left),
+              y: round(bounds.top - deckRect.top),
+              width: round(bounds.width),
+              height: round(bounds.height),
+            },
+          };
+        }),
+      };
+    });
+    expect(geometry.diagnostics).toEqual([]);
+    expect(geometry.order).toEqual(Array.from({ length: 37 }, (_, index) => index));
+    expect(geometry.uniqueSources).toBe(37);
+    for (const entry of geometry.entries) {
+      expect(entry.bounds, entry.sourcePath).toEqual(entry.expected);
+    }
+  } finally {
+    await harness.close();
+  }
+});
+
+test("extracts pinned treeView hierarchy lines and labels at rendered CTMs", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# treeView fixture"] });
+  try {
+    await page.goto(harness.url);
+    const result = await sceneFromFixture(page, await readFixture("tree-view.svg"), "tree-view.svg");
+    validateScene(result.scene);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.scene.nodes.map((node) => node.z))
+      .toEqual(Array.from({ length: 25 }, (_, index) => index));
+    expect(result.scene.nodes.filter((node) => node.kind === "connector")).toHaveLength(15);
+    expect(result.scene.nodes.filter((node) => node.kind === "text")).toHaveLength(10);
+    expect(result.scene.nodes.filter((node) => node.kind === "fallback")).toEqual([]);
+    expect(result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "tree-view-label")
+      .map((node) => node.text.paragraphs[0].runs.map((run) => run.text).join(""))).toEqual([
+      "/",
+      "サービス Service",
+      "API",
+      "認証 Auth",
+      "データ",
+      "Worker",
+      "Queue",
+      "Leaf A",
+      "葉 B",
+      "監視",
+    ]);
+    expect(result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "tree-view-branch")
+      .every((node) => node.points.length === 2)).toBe(true);
+
+    const mapped = sceneToPptxElements(result.scene);
+    expect(mapped.fallbacks).toEqual([]);
+    expect(mapped.elements.filter((element) => element.type === "connector")).toHaveLength(15);
+    expect(mapped.elements.filter((element) => element.type === "text")).toHaveLength(10);
+    const buffer = buildPptxPackage({ slides: [{ elements: mapped.elements }] });
+    expect(inspectPptxPackage(buffer).valid).toBe(true);
+    const xml = buffer.toString("utf8");
+    expect((xml.match(/<p:sp>/g) || [])).toHaveLength(25);
+    expect((xml.match(/<a:prstGeom prst="line">/g) || [])).toHaveLength(15);
+    expect((xml.match(/<p:txBody>/g) || [])).toHaveLength(10);
+    expect(xml).toContain("サービス Service");
+    expect(xml).toContain("葉 B");
+
+    const geometry = await page.evaluate(async () => {
+      document.querySelector("#fixture-deck").style.cssText =
+        "position:relative;width:960px;height:540px;margin:19px 0 0 31px";
+      document.querySelector("svg").style.cssText =
+        "width:520px;max-width:none;transform-origin:0 0;transform:translate(43px,29px) scale(1.15)";
+      document.querySelector("g.tree-view").setAttribute("transform", "translate(40 20) rotate(12)");
+      const { mermaidSvgToScene } = await import("./renderer/mermaid-scene.mjs");
+      const deck = document.querySelector("#fixture-deck");
+      const svg = deck.querySelector("svg");
+      const result = mermaidSvgToScene(svg, { deck, includeSourceElements: true });
+      const deckRect = deck.getBoundingClientRect();
+      const round = (value) => Math.round(value * 10) / 10;
+      const expectedOrder = [...svg.querySelectorAll(
+        "text.treeView-node-label, line.treeView-node-line",
+      )];
+      return {
+        diagnostics: result.diagnostics,
+        order: result.scene.nodes.map((node) =>
+          expectedOrder.indexOf(result.sourceElements.get(node.sourcePath))),
+        uniqueSources: new Set(result.scene.nodes.map((node) =>
+          result.sourceElements.get(node.sourcePath))).size,
+        entries: result.scene.nodes.map((node) => {
+          const source = result.sourceElements.get(node.sourcePath);
+          if (node.kind === "connector") {
+            const matrix = source.getScreenCTM();
+            return {
+              sourcePath: node.sourcePath,
+              points: node.points,
+              expectedPoints: [1, 2].map((index) => {
+                const point = new DOMPoint(
+                  Number(source.getAttribute(`x${index}`)),
+                  Number(source.getAttribute(`y${index}`)),
+                ).matrixTransform(matrix);
+                return {
+                  x: round(point.x - deckRect.left),
+                  y: round(point.y - deckRect.top),
+                };
+              }),
+            };
+          }
+          const bounds = source.getBBox();
+          const matrix = source.getScreenCTM();
+          const center = new DOMPoint(
+            bounds.x + bounds.width / 2,
+            bounds.y + bounds.height / 2,
+          ).matrixTransform(matrix);
+          const scale = Math.hypot(matrix.a, matrix.b);
+          return {
+            sourcePath: node.sourcePath,
+            rotation: node.rotation,
+            bounds: node.bounds,
+            expectedBounds: {
+              x: round(center.x - deckRect.left - bounds.width * scale / 2),
+              y: round(center.y - deckRect.top - bounds.height * scale / 2),
+              width: round(bounds.width * scale),
+              height: round(bounds.height * scale),
+            },
+          };
+        }),
+      };
+    });
+    expect(geometry.diagnostics).toEqual([]);
+    expect(geometry.order).toEqual(Array.from({ length: 25 }, (_, index) => index));
+    expect(geometry.uniqueSources).toBe(25);
+    for (const entry of geometry.entries) {
+      if (entry.points) {
+        expect(entry.points, entry.sourcePath).toEqual(entry.expectedPoints);
+      } else {
+        expect(entry.rotation, entry.sourcePath).toBe(12);
+        expect(entry.bounds, entry.sourcePath).toEqual(entry.expectedBounds);
+      }
+    }
+  } finally {
+    await harness.close();
+  }
+});
+
+test("keeps unsupported packet fields and labels local while preserving sibling rows", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# Packet fallback boundaries"] });
+  try {
+    await page.goto(harness.url);
+    const fixture = await readFixture("packet.svg");
+    const cases = [
+      {
+        name: "label effect",
+        mutate: () => {
+          document.querySelector("text.packetLabel").style.filter = "blur(1px)";
+        },
+        fallback: {
+          sourcePath: "packet.rows[0].labels[0]",
+          reason: "unsupported-mermaid-packet-text-style",
+        },
+        shapes: 9,
+        texts: 27,
+        sourceTag: "text",
+      },
+      {
+        name: "label positioning",
+        mutate: () => {
+          document.querySelector("text.packetLabel").setAttribute("textLength", "90");
+        },
+        fallback: {
+          sourcePath: "packet.rows[0].labels[0]",
+          reason: "unsupported-mermaid-text-transform",
+        },
+        shapes: 9,
+        texts: 27,
+        sourceTag: "text",
+      },
+      {
+        name: "field geometry",
+        mutate: () => {
+          const rect = document.querySelector("rect.packetBlock");
+          const polygon = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+          polygon.setAttribute("class", "packetBlock");
+          const x = Number(rect.getAttribute("x"));
+          const y = Number(rect.getAttribute("y"));
+          const width = Number(rect.getAttribute("width"));
+          const height = Number(rect.getAttribute("height"));
+          polygon.setAttribute(
+            "points",
+            `${x},${y} ${x + width},${y} ${x + width / 2},${y + height}`,
+          );
+          rect.replaceWith(polygon);
+        },
+        fallback: {
+          sourcePath: "packet.rows[0].fields[0]",
+          reason: "unsupported-mermaid-packet-field-geometry",
+        },
+        shapes: 8,
+        texts: 28,
+        sourceTag: "polygon",
+      },
+      {
+        name: "field transform",
+        mutate: () => {
+          document.querySelector("rect.packetBlock").setAttribute("transform", "skewX(8)");
+        },
+        fallback: {
+          sourcePath: "packet.rows[0].fields[0]",
+          reason: "unsupported-mermaid-packet-field-transform",
+        },
+        shapes: 8,
+        texts: 28,
+        sourceTag: "rect",
+      },
+    ];
+    for (const entry of cases) {
+      await sceneFromFixture(page, fixture, `packet-${entry.name}.svg`);
+      const result = await updateFixture(page, entry.mutate);
+      expect(result.scene.nodes.filter((node) => node.kind === "fallback"), entry.name)
+        .toMatchObject([entry.fallback]);
+      expect(result.scene.nodes.filter((node) => node.kind === "shape"), entry.name)
+        .toHaveLength(entry.shapes);
+      expect(result.scene.nodes.filter((node) => node.kind === "text"), entry.name)
+        .toHaveLength(entry.texts);
+      expect(result.scene.nodes.some((node) => node.sourcePath === "svg"), entry.name).toBe(false);
+      expect(result.scene.nodes.some((node) => node.text?.paragraphs.some((paragraph) =>
+        paragraph.runs.some((run) => run.text === "末尾 Tail"))), entry.name).toBe(true);
+      expect(result.sources.find((source) => source.path === entry.fallback.sourcePath), entry.name)
+        .toMatchObject({ tag: entry.sourceTag });
+      expect(sceneToPptxElements(result.scene).fallbacks.map((fallback) => fallback.sourcePath), entry.name)
+        .toEqual([entry.fallback.sourcePath]);
+    }
+
+    await sceneFromFixture(page, fixture, "packet-row-opacity.svg");
+    const row = await updateFixture(page, () => {
+      document.querySelectorAll("svg > g")[1].style.opacity = "0.5";
+    });
+    expect(row.scene.nodes.filter((node) => node.kind === "fallback")).toMatchObject([{
+      sourcePath: "packet.rows[0]",
+      reason: "unsupported-mermaid-packet-row-style",
+    }]);
+    expect(row.scene.nodes.filter((node) => node.kind === "shape")).toHaveLength(4);
+    expect(row.scene.nodes.filter((node) => node.kind === "text")).toHaveLength(13);
+    expect(row.scene.nodes.some((node) => node.text?.paragraphs.some((paragraph) =>
+      paragraph.runs.some((run) => run.text === "Payload length")))).toBe(true);
+    expect(row.sources.find((source) => source.path === "packet.rows[0]"))
+      .toMatchObject({ tag: "g" });
+  } finally {
+    await harness.close();
+  }
+});
+
+test("keeps unsupported treeView labels and branches local unless the tree group must composite", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# treeView fallback boundaries"] });
+  try {
+    await page.goto(harness.url);
+    const fixture = await readFixture("tree-view.svg");
+    const cases = [
+      {
+        name: "label positioning",
+        mutate: () => {
+          document.querySelector("text.treeView-node-label").setAttribute("textLength", "40");
+        },
+        fallback: {
+          sourcePath: "treeView.labels[0]",
+          reason: "unsupported-mermaid-text-transform",
+        },
+        connectors: 15,
+        texts: 9,
+        sourceTag: "text",
+      },
+      {
+        name: "line effect",
+        mutate: () => {
+          document.querySelector("line.treeView-node-line").style.filter = "blur(1px)";
+        },
+        fallback: {
+          sourcePath: "treeView.lines[0]",
+          reason: "unsupported-mermaid-tree-view-line-style",
+        },
+        connectors: 14,
+        texts: 10,
+        sourceTag: "line",
+      },
+      {
+        name: "line transform",
+        mutate: () => {
+          document.querySelector("line.treeView-node-line").setAttribute("transform", "skewX(8)");
+        },
+        fallback: {
+          sourcePath: "treeView.lines[0]",
+          reason: "unsupported-mermaid-tree-view-line-transform",
+        },
+        connectors: 14,
+        texts: 10,
+        sourceTag: "line",
+      },
+      {
+        name: "line geometry",
+        mutate: () => {
+          const line = document.querySelector("line.treeView-node-line");
+          const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+          path.setAttribute("class", "treeView-node-line");
+          path.setAttribute("d", "M0 0 Q5 10 10 0");
+          line.replaceWith(path);
+        },
+        fallback: {
+          sourcePath: "treeView.lines[0]",
+          reason: "unsupported-mermaid-tree-view-line-geometry",
+        },
+        connectors: 14,
+        texts: 10,
+        sourceTag: "path",
+      },
+    ];
+    for (const entry of cases) {
+      await sceneFromFixture(page, fixture, `tree-view-${entry.name}.svg`);
+      const result = await updateFixture(page, entry.mutate);
+      expect(result.scene.nodes.filter((node) => node.kind === "fallback"), entry.name)
+        .toMatchObject([entry.fallback]);
+      expect(result.scene.nodes.filter((node) => node.kind === "connector"), entry.name)
+        .toHaveLength(entry.connectors);
+      expect(result.scene.nodes.filter((node) => node.kind === "text"), entry.name)
+        .toHaveLength(entry.texts);
+      expect(result.scene.nodes.some((node) => node.sourcePath === "svg"), entry.name).toBe(false);
+      expect(result.scene.nodes.some((node) => node.text?.paragraphs.some((paragraph) =>
+        paragraph.runs.some((run) => run.text === "葉 B"))), entry.name).toBe(true);
+      expect(result.sources.find((source) => source.path === entry.fallback.sourcePath), entry.name)
+        .toMatchObject({ tag: entry.sourceTag });
+      expect(sceneToPptxElements(result.scene).fallbacks.map((fallback) => fallback.sourcePath), entry.name)
+        .toEqual([entry.fallback.sourcePath]);
+    }
+
+    await sceneFromFixture(page, fixture, "tree-view-decoration.svg");
+    const decoration = await updateFixture(page, () => {
+      document.querySelector("g.tree-view").insertAdjacentHTML(
+        "beforeend",
+        '<circle id="tree-decoration" cx="120" cy="30" r="5" fill="red"/>',
+      );
+    });
+    expect(decoration.scene.nodes.filter((node) => node.kind === "fallback")).toMatchObject([{
+      sourcePath: "treeView.unknown[0]",
+      reason: "unsupported-mermaid-svg-element",
+    }]);
+    expect(decoration.scene.nodes.filter((node) => node.kind === "connector")).toHaveLength(15);
+    expect(decoration.scene.nodes.filter((node) => node.kind === "text")).toHaveLength(10);
+
+    await sceneFromFixture(page, fixture, "tree-view-opacity.svg");
+    const composite = await updateFixture(page, () => {
+      document.querySelector("g.tree-view").style.opacity = "0.5";
+    });
+    expect(composite.scene.nodes).toMatchObject([{
+      kind: "fallback",
+      sourcePath: "treeView",
+      reason: "unsupported-mermaid-tree-view-style",
+    }]);
+    expect(composite.sources.find((source) => source.path === "treeView"))
+      .toMatchObject({ tag: "g" });
+  } finally {
+    await harness.close();
+  }
+});
+
+test("rejects malformed and excessive packet or treeView structures explicitly", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# Special diagram limits"] });
+  try {
+    await page.goto(harness.url);
+
+    await sceneFromFixture(page, await readFixture("packet.svg"), "packet-malformed.svg");
+    const packetMalformed = await updateFixture(page, () => {
+      document.querySelector("text.packetTitle").remove();
+    });
+    expect(packetMalformed.scene.nodes).toMatchObject([{
+      kind: "fallback",
+      sourcePath: "svg",
+      reason: "unsupported-mermaid-packet-structure",
+    }]);
+
+    await sceneFromFixture(page, await readFixture("tree-view.svg"), "tree-view-malformed.svg");
+    const treeMalformed = await updateFixture(page, () => {
+      document.querySelector("g.tree-view").classList.remove("tree-view");
+    });
+    expect(treeMalformed.scene.nodes).toMatchObject([{
+      kind: "fallback",
+      sourcePath: "svg",
+      reason: "unsupported-mermaid-tree-view-structure",
+    }]);
+
+    await sceneFromFixture(page, await readFixture("packet.svg"), "packet-depth.svg");
+    const depth = await updateFixture(page, () => {
+      let root = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      root.setAttribute("class", "label");
+      document.querySelector("svg").append(root);
+      for (let index = 0; index < 17; index += 1) {
+        const child = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        child.setAttribute("class", "label");
+        root.append(child);
+        root = child;
+      }
+      root.insertAdjacentHTML("beforeend", '<circle cx="20" cy="20" r="5" fill="red"/>');
+    });
+    expect(depth.scene.nodes.filter((node) =>
+      node.reason === "unsupported-mermaid-packet-depth")).toHaveLength(1);
+    expect(depth.scene.nodes.filter((node) => node.kind === "shape")).toHaveLength(9);
+    expect(depth.scene.nodes.filter((node) => node.kind === "text")).toHaveLength(28);
+
+    await sceneFromFixture(page, await readFixture("packet.svg"), "packet-limit.svg");
+    const limited = await updateFixture(page, () => {
+      const svg = document.querySelector("svg");
+      for (let index = 0; index < 1100; index += 1) {
+        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        text.setAttribute("x", String(index % 100));
+        text.setAttribute("y", String(20 + index % 50));
+        text.textContent = `x${index}`;
+        svg.append(text);
+      }
+    });
+    expect(limited.scene.nodes).toMatchObject([{
+      kind: "fallback",
+      sourcePath: "svg",
+      reason: expect.stringContaining("mermaid-scene-limit-exceeded"),
+    }]);
+    expect(limited.diagnostics.some((entry) =>
+      entry.reason.includes("mermaid-scene-limit-exceeded"))).toBe(true);
+  } finally {
+    await harness.close();
+  }
+});
+
 test("derives rotated text bounds and centers from actual Mermaid CTMs", async ({ page }) => {
   const harness = await startHarness({ slides: ["# Rotated text geometry"] });
   try {
@@ -2284,6 +2784,113 @@ test("real renderer exports new Mermaid diagrams with exact native masks and par
     await harness.close();
   }
 });
+
+for (const theme of ["dark", "light", "microsoft", "custom"]) {
+  test(`real renderer exports packet aliases and treeView with exact native masks (${theme})`, async ({ page }) => {
+    const [packet, treeView] = await Promise.all([
+      readFixture("packet.mmd"),
+      readFixture("tree-view.mmd"),
+    ]);
+    const harness = await startHarness({
+      slides: [
+        `# Packet\n\n\`\`\`mermaid\n${packet}\n\`\`\``,
+        `# Packet beta\n\n\`\`\`mermaid\n${packet.replace(/^packet$/m, "packet-beta")}\n\`\`\``,
+        `# treeView\n\n\`\`\`mermaid\n${treeView}\n\`\`\``,
+      ],
+      theme,
+      customThemeCss: theme === "custom"
+        ? "--bg:#102030;--fg:#fefefe;--body:#e0e4e8;--accent:#ff6600;--surface:#203040;--border:#405060;"
+        : "",
+    });
+    try {
+      await page.goto(`${harness.url}/?pptx=1&token=${encodeURIComponent(harness.printToken)}`);
+      await page.waitForFunction(() => document.documentElement.hasAttribute("data-pptx-ready") ||
+        document.documentElement.hasAttribute("data-pptx-error"), undefined, { timeout: 120_000 });
+      await expect(page.locator("html")).toHaveAttribute("data-pptx-ready", "true");
+      await expect(page.locator("pre.mermaid > svg[data-scene-backend=svg]")).toHaveCount(3);
+      const model = await page.evaluate(() => window.__presentationPptxModel);
+      const packetElements = model.slides[0].elements.filter((element) =>
+        element.path?.startsWith("mermaid[0].packet."));
+      const packetBetaElements = model.slides[1].elements.filter((element) =>
+        element.path?.startsWith("mermaid[0].packet."));
+      const treeElements = model.slides[2].elements.filter((element) =>
+        element.path?.startsWith("mermaid[0].treeView."));
+      expect(packetElements.filter((element) => element.type === "shape")).toHaveLength(9);
+      expect(packetElements.filter((element) => element.type === "text")).toHaveLength(28);
+      expect(packetBetaElements).toEqual(packetElements);
+      expect(treeElements.filter((element) => element.type === "connector")).toHaveLength(15);
+      expect(treeElements.filter((element) => element.type === "text")).toHaveLength(10);
+      expect(model.slides.flatMap((slide) =>
+        slide.fallbacks.filter((fallback) => fallback.type === "mermaid"))).toEqual([]);
+      const textOf = (element) => element.paragraphs
+        .map((paragraph) => paragraph.runs.map((run) => run.text).join(""))
+        .join("\n");
+      expect(packetElements.filter((element) => element.type === "text").map(textOf))
+        .toEqual(expect.arrayContaining([
+          "識別子 Identifier",
+          "末尾 Tail",
+          "IPv6 Extension Header / 拡張ヘッダー",
+        ]));
+      expect(treeElements.filter((element) => element.type === "text").map(textOf)).toEqual([
+        "/",
+        "サービス Service",
+        "API",
+        "認証 Auth",
+        "データ",
+        "Worker",
+        "Queue",
+        "Leaf A",
+        "葉 B",
+        "監視",
+      ]);
+
+      const packetSvg = page.locator("pre.mermaid > svg").nth(0);
+      const packetBetaSvg = page.locator("pre.mermaid > svg").nth(1);
+      const treeSvg = page.locator("pre.mermaid > svg").nth(2);
+      await expect(packetSvg).toHaveAttribute("aria-roledescription", "packet");
+      await expect(packetBetaSvg).toHaveAttribute("aria-roledescription", "packet");
+      await expect(treeSvg).toHaveAttribute("aria-roledescription", "treeView");
+      for (const svg of [packetSvg, packetBetaSvg]) {
+        await expect(svg.locator("rect.packetBlock[data-pptx-native=shape]")).toHaveCount(9);
+        await expect(svg.locator(
+          "text.packetLabel[data-pptx-native=text], text.packetByte[data-pptx-native=text], text.packetTitle[data-pptx-native=text]",
+        )).toHaveCount(28);
+        await expect(svg.locator("[data-pptx-fallback-ids]")).toHaveCount(0);
+      }
+      await expect(treeSvg.locator("line.treeView-node-line[data-pptx-native=connector]")).toHaveCount(15);
+      await expect(treeSvg.locator("text.treeView-node-label[data-pptx-native=text]")).toHaveCount(10);
+      await expect(treeSvg.locator("[data-pptx-fallback-ids]")).toHaveCount(0);
+      const masks = await page.locator("pre.mermaid > svg").evaluateAll((svgs) =>
+        svgs.map((svg) => ({
+          shapes: [...svg.querySelectorAll("rect.packetBlock[data-pptx-native]")].map((element) => {
+            const style = getComputedStyle(element);
+            return [style.fill, style.stroke];
+          }),
+          lines: [...svg.querySelectorAll("line.treeView-node-line[data-pptx-native]")]
+            .map((element) => getComputedStyle(element).stroke),
+          text: [...svg.querySelectorAll("text[data-pptx-native]")]
+            .map((element) => getComputedStyle(element).fill),
+        })),
+      );
+      expect(masks[0].shapes).toEqual(Array(9).fill(["rgba(0, 0, 0, 0)", "rgba(0, 0, 0, 0)"]));
+      expect(masks[1].shapes).toEqual(masks[0].shapes);
+      expect(masks[0].text).toEqual(Array(28).fill("rgba(0, 0, 0, 0)"));
+      expect(masks[1].text).toEqual(masks[0].text);
+      expect(masks[2].lines).toEqual(Array(15).fill("rgba(0, 0, 0, 0)"));
+      expect(masks[2].text).toEqual(Array(10).fill("rgba(0, 0, 0, 0)"));
+
+      const packetPackage = buildPptxPackage({ slides: [{ elements: packetElements }] });
+      const treePackage = buildPptxPackage({ slides: [{ elements: treeElements }] });
+      expect(inspectPptxPackage(packetPackage).valid).toBe(true);
+      expect(inspectPptxPackage(treePackage).valid).toBe(true);
+      expect((packetPackage.toString("utf8").match(/<p:sp>/g) || [])).toHaveLength(37);
+      expect((treePackage.toString("utf8").match(/<a:prstGeom prst="line">/g) || []))
+        .toHaveLength(15);
+    } finally {
+      await harness.close();
+    }
+  });
+}
 
 test("actual export keeps rotated composites and connectors as exact local pictures", async ({ page }) => {
   const diagram = [
