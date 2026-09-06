@@ -95,6 +95,17 @@ MarkdStage supports:
 - Architecture DSL diagrams
 - Emoji
 
+## Choose a diagram format
+
+Use Mermaid when the diagram should be laid out automatically from its relationships.
+Use Architecture DSL when the diagram needs stable positions, dimensions, groups, icons,
+connector routes, or deliberate alignment with the slide theme.
+
+Both formats render through the same themed deck pipeline. Architecture DSL adds visual editing,
+stable placement, and better native PowerPoint handling for diagrams whose composition matters.
+This is part of MarkdStage's broader workflow: Markdown stays authoritative while the same deck
+moves from authoring to presentation, layout review, and export.
+
 Add a language name to fenced code for syntax highlighting:
 
 ````markdown

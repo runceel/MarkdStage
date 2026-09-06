@@ -18,6 +18,12 @@ MarkdStage turns Markdown into a presentation that can be previewed, edited, nav
 
 MarkdStage renders one Markdown deck through a single renderer delivered on three first-party surfaces: an AI-addressable GitHub Copilot canvas, a standalone Windows presenter, and a host-independent command-line interface. A single Markdown deck can include code, Mermaid, architecture diagrams, local assets, themes, and speaker notes while remaining directly editable as text. Its most differentiated output is hybrid editable PowerPoint export, in which text, lists, tables, fenced code, and architecture diagrams arrive as native PowerPoint objects rather than flat slide images.
 
+MarkdStage is not only a way to turn authored content into a fixed presentation. It keeps the
+source, themed rendering, live presentation, layout review, and export in one workflow. Mermaid
+serves diagrams that benefit from automatic layout, while Architecture DSL serves diagrams whose
+placement and visual treatment are part of the slide design. This combination lets authors choose
+between speed and intentional composition without leaving Markdown as the source of truth.
+
 ## Operating Context
 
 - A GitHub Copilot canvas Extension renders decks inside a repository workspace.
@@ -34,6 +40,7 @@ MarkdStage renders one Markdown deck through a single renderer delivered on thre
 
 - Markdown remains the source format and uses `---` slide separators plus optional front matter.
 - The renderer supports GFM content, syntax-highlighted code, Mermaid, Architecture DSL, local images, speaker notes, and custom themes.
+- Mermaid and Architecture DSL intentionally have different roles: automatic relationship-driven layout versus stable, theme-aware slide composition with visual editing.
 - Canvas, desktop, CLI, PDF, and PowerPoint output must preserve equivalent slide rendering.
 - PowerPoint export must emit supported content as native PowerPoint objects, keep fenced code editable with its syntax highlighting, place speaker notes in the notes pane, and report every element degraded to a fallback picture instead of omitting it silently.
 - AI-facing layout inspection should return compact geometry first and generate
