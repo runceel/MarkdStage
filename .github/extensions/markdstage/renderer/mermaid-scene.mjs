@@ -1191,6 +1191,10 @@ function nodeShape(group, sourceIndex, z, deck, options) {
   if (!preset || directChildren(group).some((child) => child !== shape && !hasClass(child, "label"))) {
     return fallbackNode(group, z, deck, "unsupported-mermaid-node-shape", sourcePath);
   }
+  if (["trapezoid", "invertedTrapezoid", "reverseParallelogram"].includes(preset) &&
+      !hasUniformAxisAlignedScale(shape)) {
+    return fallbackNode(group, z, deck, "unsupported-mermaid-height-based-shape-transform", sourcePath);
+  }
   const label = labelInfo(group, "span.nodeLabel, text", deck, options);
   return definedEntries({
     kind: "shape",
@@ -2128,7 +2132,6 @@ function appendClassNamespaces(root, deck, nodes, options, consumed, blocked) {
         "unsupported-mermaid-class-namespace-decoration", childPath));
       consumed.add(child);
     }
-    consumed.add(group);
   }
 }
 

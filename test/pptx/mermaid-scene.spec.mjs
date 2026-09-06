@@ -278,36 +278,60 @@ test("extracts exact subroutine components and bundled height-based flowchart ou
     const positioned = await page.evaluate(async () => {
       document.querySelector("#fixture-deck").style.cssText = "margin:17px 0 0 29px";
       document.querySelector("svg").style.cssText =
-        "width:520px;max-width:none;transform-origin:0 0;transform:translate(33px,21px) scale(1.2,0.85)";
+        "width:520px;max-width:none;transform-origin:0 0;transform:translate(33px,21px) scale(1.2)";
       const { mermaidSvgToScene } = await import("./renderer/mermaid-scene.mjs");
+      const { sceneToSvg } = await import("./renderer/scene-svg.mjs");
       const deck = document.querySelector("#fixture-deck");
       const result = mermaidSvgToScene(deck.querySelector("svg"), { deck, includeSourceElements: true });
       const deckBounds = deck.getBoundingClientRect();
       const round = (value) => Math.round(value * 10) / 10;
-      return result.scene.nodes
+      const rendered = sceneToSvg(result.scene);
+      return {
+        diagnostics: result.diagnostics,
+        shapes: result.scene.nodes
         .filter((node) => ["trapezoid", "invertedTrapezoid", "reverseParallelogram"].includes(node.preset))
         .map((node) => {
           const source = result.sourceElements.get(node.sourcePath).querySelector(".label-container");
-          const bounds = source.getBoundingClientRect();
+          const matrix = source.getScreenCTM();
+          const expected = source.getAttribute("points").trim().split(/\s+/).map((pair) => {
+            const [x, y] = pair.split(",").map(Number);
+            const point = new DOMPoint(x, y).matrixTransform(matrix);
+            return { x: round(point.x - deckBounds.left), y: round(point.y - deckBounds.top) };
+          });
+          const generated = [...rendered.querySelectorAll("[data-scene-source-path]")]
+            .find((element) => element.getAttribute("data-scene-source-path") === node.sourcePath)
+            .querySelector("polygon")
+            .getAttribute("points")
+            .trim()
+            .split(/\s+/)
+            .map((pair) => {
+              const [x, y] = pair.split(",").map(Number);
+              return { x: round(x), y: round(y) };
+            });
           return {
-            bounds: node.bounds,
-            expected: {
-              x: round(bounds.left - deckBounds.left),
-              y: round(bounds.top - deckBounds.top),
-              width: round(bounds.width),
-              height: round(bounds.height),
-            },
+            sourcePath: node.sourcePath,
+            expected,
+            generated,
           };
-        });
+        }),
+      };
     });
-    expect(positioned).toHaveLength(6);
-    for (const entry of positioned) expect(entry.bounds).toEqual(entry.expected);
+    expect(positioned.diagnostics).toEqual([]);
+    expect(positioned.shapes).toHaveLength(6);
+    for (const entry of positioned.shapes) {
+      expect(entry.generated).toHaveLength(entry.expected.length);
+      for (const [index, point] of entry.generated.entries()) {
+        const expected = entry.expected[index];
+        expect(Math.abs(point.x - expected.x), `${entry.sourcePath} vertex ${index} x`).toBeLessThanOrEqual(0.11);
+        expect(Math.abs(point.y - expected.y), `${entry.sourcePath} vertex ${index} y`).toBeLessThanOrEqual(0.11);
+      }
+    }
   } finally {
     await harness.close();
   }
 });
 
-test("keeps unsupported subroutine paint and unknown quadrilaterals local", async ({ page }) => {
+test("keeps unsupported subroutine paint, quadrilateral geometry, and nonuniform transforms local", async ({ page }) => {
   const harness = await startHarness({ slides: ["# Flowchart shape boundaries"] });
   try {
     await page.goto(harness.url);
@@ -327,6 +351,15 @@ test("keeps unsupported subroutine paint and unknown quadrilaterals local", asyn
           polygon.setAttribute("points", "0,0 120,0 91,-63 -31.5,-63");
         },
         reason: "unsupported-mermaid-node-shape",
+        path: "nodes[2]",
+      },
+      {
+        mutate: () => {
+          const polygon = [...document.querySelectorAll("g.node polygon.label-container")]
+            .find((element) => element.getAttribute("points").trim().split(/\s+/).length === 4);
+          polygon.setAttribute("transform", `${polygon.getAttribute("transform")} scale(1.2,0.85)`);
+        },
+        reason: "unsupported-mermaid-height-based-shape-transform",
         path: "nodes[2]",
       },
     ]) {
@@ -1012,6 +1045,63 @@ test("extracts class notes and recursive namespaces without consuming relations"
     expect(recursive.scene.nodes.filter((node) => node.sourcePath.startsWith("classes[") && node.kind === "shape"))
       .toHaveLength(3);
     expect(recursive.scene.nodes.filter((node) => node.kind === "fallback")).toEqual([]);
+  } finally {
+    await harness.close();
+  }
+});
+
+test("retains unknown visuals inside supported nested class collections", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# Nested class collection fallback"] });
+  try {
+    await page.goto(harness.url);
+    await sceneFromFixture(page, await readFixture("class-containers.svg"), "class-containers-nested-unknown.svg");
+    const result = await updateFixture(page, () => {
+      const root = document.querySelector("g.root");
+      const namespace = root.querySelector("g.cluster");
+      for (const name of ["edgePaths", "edgeLabels", "nodes"]) {
+        namespace.append(root.querySelector(`:scope > g.${name}`));
+      }
+      const unknown = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      unknown.setAttribute("id", "nested-unknown");
+      unknown.setAttribute("cx", "20");
+      unknown.setAttribute("cy", "20");
+      unknown.setAttribute("r", "4");
+      unknown.setAttribute("fill", "red");
+      namespace.querySelector(":scope > g.nodes").append(unknown);
+    });
+
+    const fallbacks = result.scene.nodes.filter((node) => node.kind === "fallback");
+    expect(fallbacks).toMatchObject([{
+      id: "nested-unknown",
+      reason: "unsupported-mermaid-svg-element",
+    }]);
+    expect(result.diagnostics).toEqual([{
+      path: fallbacks[0].sourcePath,
+      kind: "fallback",
+      reason: "unsupported-mermaid-svg-element",
+    }]);
+    expect(result.sources).toContainEqual({
+      path: fallbacks[0].sourcePath,
+      tag: "circle",
+      id: "nested-unknown",
+    });
+    const edges = result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "edge");
+    expect(edges.map((node) => node.meta.mermaid.id)).toEqual([
+      "edgeNote0",
+      "id_Account_Ledger_1",
+      "id_Ledger_Gateway_2",
+      "id_Gateway_Account_3",
+      "id_Account_Gateway_4",
+    ]);
+    expect(new Set(edges.map((node) => node.meta.mermaid.id)).size).toBe(5);
+    expect(result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "class-namespace")).toHaveLength(3);
+    expect(result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "class-namespace-label")).toHaveLength(3);
+    expect(result.scene.nodes.filter((node) => node.sourcePath.startsWith("classes[") && node.kind === "shape"))
+      .toHaveLength(3);
+    expect(result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "class-note")).toHaveLength(2);
+    expect(result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "class-note-label")).toHaveLength(2);
+    expect(result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "edge-label")).toHaveLength(4);
+    expect(result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "edge-terminal")).toHaveLength(2);
   } finally {
     await harness.close();
   }
