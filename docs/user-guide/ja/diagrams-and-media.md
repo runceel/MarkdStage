@@ -18,7 +18,7 @@ flowchart LR
 ````
 
 Mermaid は同梱しているのでオフラインでも動きます。フローチャート、シーケンス図、クラス図、
-円グラフなど、配置を自動で決めてよい図に向いています。
+状態図、円グラフなど、配置を自動で決めてよい図に向いています。
 
 Mermaid の図は背景色、枠線、テキスト、アクセントカラーをスライドのテーマから自動的に取り込むため、
 Mermaid 既定の配色ではなく、カスタムテーマを含むデッキのテーマに自然に溶け込みます。
@@ -81,6 +81,25 @@ class 図ではクラスの区画、マーカーなしの関連、合成（`A *-
 共通 scene の深さ上限まで編集可能な枠とタイトルになります。namespace をまたぐ場合も、
 関係線、ラベル、多重度、マーカー、note、class ノードを独立して 1 回だけ保持します。
 
+同梱 Mermaid 11.15.0 の基本的な状態図では、`stateDiagram-v2` と従来の
+`stateDiagram` を使えます。`stateDiagram-beta`、`stateDiagram-v2-beta`、小文字表記など、
+実際に受理されない別名は対応名として扱いません。単純な角丸 state box とラベルを、
+日本語や `<br/>` による複数行を含めて編集可能な図形・文字として出力します。
+`classDef`／`class` の塗り、線、線幅、文字色、塗りのアルファ、線のアルファは、
+描画済み SVG から取得します。
+
+単純な `-->` transition は、Mermaid が描画した経路をサンプリングした編集可能なコネクターに
+なります。transition label、逆向きの source-to-target 経路、`direction LR`、描画済みの線種、
+色、アルファを保持します。実際の `stateDiagram-barbEnd` は、終点、塗り、固定
+`userSpaceOnUse` 形状、向きを検証した切り込み付きの塗りつぶし **stealth** 矢印として扱います。
+state grammar は flowchart の `-.->`、`<--`、`--` を受理しません。`A <--> B` も双方向線ではなく
+`<` という state を追加する解釈になるため、双方向は 2 本の `-->` で記述します。
+
+開始 pseudo-state は 14 × 14 の編集可能な円です。終了 pseudo-state は、外側の塗り、外側の線、
+内側の塗り、内側の線という 4 層の編集可能な楕円で、Mermaid の bullseye を保持します。
+境界、描画順、線幅、独立したアルファは SVG の値を使います。MarkdStage が state source を
+再解釈して位置や経路を組み直すことはありません。
+
 同梱 Mermaid 11.15.0 の packet 図では、`packet` と `packet-beta` の両方を使えます。
 描画された各フィールド矩形、フィールドラベル、開始・終了 bit ラベル、空でない packet title を、
 renderer が決めた位置と大きさの独立した編集可能オブジェクトとして出力します。
@@ -131,6 +150,13 @@ root の transform など局所化できない図全体の効果は、引き続�
 subroutine も、分解した編集可能部品の重なりで濃さが変わる場合は局所画像のままです。
 一方、半透明の class 輪郭パスは、元の描画順を保った複数のネイティブ矩形として編集可能なまま
 保持できます。
+状態図では、compound／nested state の枠と parallel region のコンテナーを、狭い範囲の局所画像に
+します。分離可能な単純 state、pseudo-state、transition の経路とラベルはネイティブのままです。
+fork／join bar、choice、note と note connector、title divider や追加 compartment が必要な
+複数 description state、その他の特殊 state geometry も局所画像にします。未対応の state node
+内容、label 装飾、effect、transform、transition path、marker geometry／paint は、source ownership
+を分離できる場合、影響する node または transition だけにフォールバックし、独立した transition
+label はネイティブのまま残します。
 packet 図では、未対応のフィールド形状、装飾付き文字、effect、transform を、source ownership を
 分離できる場合は影響するフィールドまたはラベルだけの局所画像にします。group paint の合成が必要な
 packet row は、その行だけを 1 枚の画像として保持します。tree view では、未対応の label または

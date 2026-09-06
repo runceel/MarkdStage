@@ -51,20 +51,26 @@ test("classifies measured Mermaid polygon signatures", () => {
   );
 });
 
-test("routes only the bundled packet and treeView SVG roles", () => {
+test("routes only bundled Mermaid SVG roles with their actual root signals", () => {
   assert.equal(classifyMermaidDiagramRoute("packet"), "packet");
   assert.equal(classifyMermaidDiagramRoute("treeView"), "treeView");
   assert.equal(classifyMermaidDiagramRoute("sequence"), "sequence");
   assert.equal(classifyMermaidDiagramRoute("class", "", true), "class");
+  assert.equal(classifyMermaidDiagramRoute("stateDiagram", "statediagram", true), "state");
   assert.equal(classifyMermaidDiagramRoute("flowchart-v2", "flowchart", true), "flowchart");
   assert.equal(classifyMermaidDiagramRoute("packet-beta"), null);
   assert.equal(classifyMermaidDiagramRoute("treeView-beta"), null);
   assert.equal(classifyMermaidDiagramRoute("treeview"), null);
   assert.equal(classifyMermaidDiagramRoute("class", "", false), null);
+  assert.equal(classifyMermaidDiagramRoute("stateDiagram", "flowchart", true), null);
+  assert.equal(classifyMermaidDiagramRoute("stateDiagram", "statediagram", false), null);
+  assert.equal(classifyMermaidDiagramRoute("error", "statediagram", true), null);
   assert.equal(classifyMermaidDiagramRoute("packet", "flowchart", false), "packet");
 });
 
 test("maps Mermaid marker IDs and URL references to scene arrows", () => {
+  assert.equal(markerIdToArrow("url(#fixture_stateDiagram-barbEnd)"), "stealth");
+  assert.equal(markerIdToArrow("fixture_stateDiagram-barbStart"), "none");
   assert.equal(markerIdToArrow("url(#mermaid-1_flowchart-v2-pointEnd)"), "triangle");
   assert.equal(markerIdToArrow("mermaid-1_flowchart-v2-pointStart-margin"), "triangle");
   assert.equal(markerIdToArrow("url(#mermaid-1_flowchart-v2-circleEnd)"), "oval");

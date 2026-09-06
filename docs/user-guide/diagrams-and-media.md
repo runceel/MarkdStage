@@ -17,8 +17,8 @@ flowchart LR
 ```
 ````
 
-Mermaid is bundled and works offline. Use it for flowcharts, sequence diagrams, class diagrams, pie
-charts, and other automatically arranged diagrams.
+Mermaid is bundled and works offline. Use it for flowcharts, sequence diagrams, class diagrams,
+state diagrams, pie charts, and other automatically arranged diagrams.
 
 Mermaid diagrams pick up the slide's background, border, text, and accent colors automatically, so
 they blend into the deck's theme (including custom themes) instead of using one of Mermaid's own
@@ -84,6 +84,26 @@ standalone `note "..."` forms, export as editable rectangles and localized text.
 Relations, labels, multiplicities, markers, notes, and class nodes remain independent and are
 retained exactly once even when they cross namespace boundaries.
 
+Basic state diagrams from bundled Mermaid 11.15.0 accept `stateDiagram-v2` and the legacy
+`stateDiagram` spelling. `stateDiagram-beta`, `stateDiagram-v2-beta`, lowercase variants, and
+other invented aliases are not accepted. Simple rounded state boxes and their labels export as
+editable shapes and text, including Japanese and `<br/>` multiline labels. `classDef`/`class`
+fill, stroke, width, color, fill alpha, and stroke alpha are read from the rendered SVG.
+
+Simple `-->` transitions export as editable sampled connectors at Mermaid's rendered routes.
+Transition labels, reverse source-to-target routes, `direction LR`, renderer-emitted dash, color,
+and alpha are preserved. Mermaid's actual `stateDiagram-barbEnd` marker is validated as the
+known filled notched **stealth** end marker, including its end placement, paint, fixed
+`userSpaceOnUse` geometry, and direction. The state grammar does not accept flowchart-style
+`-.->`, `<--`, or `--` transition syntax; `A <--> B` is parsed as an extra state named `<`, not a
+bidirectional transition. Use two `-->` transitions for two directions.
+
+The start pseudo-state is an editable 14 by 14 circle. The end pseudo-state preserves Mermaid's
+rendered bullseye as four editable ellipse paint layers: outer fill, outer stroke, inner fill, and
+inner stroke. Their bounds, paint order, stroke widths, and independent alpha come from the SVG.
+MarkdStage does not parse the state source again or calculate replacement state positions or
+routes.
+
 Packet diagrams from bundled Mermaid 11.15.0 accept both `packet` and `packet-beta`. Each rendered
 field rectangle, field label, start/end bit label, and nonempty packet title exports as an
 independent editable object at the renderer-computed position and size. Field widths, source order,
@@ -137,6 +157,13 @@ descendant independently. Translucent stadium, cylinder, and subroutine decompos
 stay local where their overlapping editable pieces would darken differently. Translucent class
 outline paths can remain editable as stacked native rectangles because their original paint order
 is preserved.
+For state diagrams, compound/nested state frames and parallel-region containers remain tightly
+bounded local pictures; their separable simple child states, pseudo-states, transition routes, and
+labels stay native. Fork/join bars, choices, notes and note connectors, multi-description states
+that require a title divider or extra compartment, and other special state geometry also remain
+local. Unsupported state-node content, label decoration, effects, transforms, transition paths,
+marker geometry, or marker paint fall back only for the affected node or transition when source
+ownership is separable; an independent transition label remains native.
 For packet diagrams, unsupported field geometry, decorated text, effects, and transforms fall back
 only for the affected field or label when ownership is separable. A packet row with composite group
 paint remains one row-local picture. For tree views, an unsupported label or branch remains local

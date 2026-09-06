@@ -35,6 +35,40 @@ async function sceneFromFixture(page, svg, path) {
   return page.evaluate(() => window.__mermaidSceneResult);
 }
 
+async function sceneFromMermaidSource(page, source, path) {
+  return page.evaluate(async ({ diagram, sourcePath }) => {
+    window.mermaid.initialize({
+      startOnLoad: false,
+      theme: "default",
+      securityLevel: "strict",
+    });
+    const id = `fixture-${sourcePath.replace(/[^a-z0-9]+/gi, "-")}`;
+    const rendered = await window.mermaid.render(id, diagram);
+    document.body.innerHTML = [
+      "<style>body{margin:0}#fixture-deck{position:relative;width:900px;height:600px}</style>",
+      `<div id="fixture-deck">${rendered.svg}</div>`,
+    ].join("");
+    await new Promise((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const { mermaidSvgToScene } = await import("./renderer/mermaid-scene.mjs");
+    const result = mermaidSvgToScene(document.querySelector("#fixture-deck > svg"), {
+      path: sourcePath,
+      deck: document.querySelector("#fixture-deck"),
+      includeSourceElements: true,
+    });
+    return {
+      scene: result.scene,
+      diagnostics: result.diagnostics,
+      sources: [...result.sourceElements].map(([entryPath, element]) => ({
+        path: entryPath,
+        tag: element.localName,
+        id: element.id,
+        class: element.getAttribute("class") || "",
+      })),
+    };
+  }, { diagram: source, sourcePath: path });
+}
+
 async function updateFixture(page, update) {
   await page.evaluate(update);
   return page.evaluate(async () => {
@@ -449,6 +483,614 @@ test("extracts pinned treeView hierarchy lines and labels at rendered CTMs", asy
         expect(entry.bounds, entry.sourcePath).toEqual(entry.expectedBounds);
       }
     }
+  } finally {
+    await harness.close();
+  }
+});
+
+test("accepts only the bundled state diagram aliases and routes their actual SVG root", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# State aliases"] });
+  try {
+    await page.goto(harness.url);
+    const aliases = await page.evaluate(async () => {
+      window.mermaid.initialize({
+        startOnLoad: false,
+        theme: "default",
+        securityLevel: "strict",
+      });
+      const results = {};
+      for (const alias of [
+        "stateDiagram-v2",
+        "stateDiagram",
+        "stateDiagram-beta",
+        "stateDiagram-v2-beta",
+        "statediagram-v2",
+      ]) {
+        const source = `${alias}\n[*] --> Ready\nReady --> [*]`;
+        try {
+          await window.mermaid.parse(source);
+          const { svg } = await window.mermaid.render(
+            `state-alias-${alias.replace(/[^a-z0-9]+/gi, "-")}`,
+            source,
+          );
+          const root = new DOMParser().parseFromString(svg, "image/svg+xml").documentElement;
+          results[alias] = {
+            accepted: true,
+            role: root.getAttribute("aria-roledescription"),
+            class: root.getAttribute("class"),
+            root: root.querySelector("g.root")?.getAttribute("class") || "",
+            nodeClasses: [...root.querySelectorAll("g.nodes > g.node")]
+              .map((node) => node.getAttribute("class")),
+            marker: root.querySelector('marker[id$="stateDiagram-barbEnd"] > path')
+              ?.getAttribute("d"),
+          };
+        } catch (_) {
+          results[alias] = { accepted: false };
+        }
+      }
+      return results;
+    });
+    const accepted = {
+      accepted: true,
+      role: "stateDiagram",
+      class: "statediagram",
+      root: "root",
+      nodeClasses: ["node default", "node  statediagram-state", "node default"],
+      marker: "M 19,7 L9,13 L14,7 L9,1 Z",
+    };
+    expect(aliases["stateDiagram-v2"]).toEqual(accepted);
+    expect(aliases.stateDiagram).toEqual(accepted);
+    expect(aliases["stateDiagram-beta"]).toEqual({ accepted: false });
+    expect(aliases["stateDiagram-v2-beta"]).toEqual({ accepted: false });
+    expect(aliases["statediagram-v2"]).toEqual({ accepted: false });
+  } finally {
+    await harness.close();
+  }
+});
+
+test("extracts pinned basic state geometry, labels, routes, alpha and exact pseudo-states", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# State fixture"] });
+  try {
+    await page.goto(harness.url);
+    const result = await sceneFromFixture(
+      page,
+      await readFixture("state-basic.svg"),
+      "state-basic.svg",
+    );
+    validateScene(result.scene);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.scene.nodes.map((node) => node.z))
+      .toEqual(Array.from({ length: 14 }, (_, index) => index));
+    expect(result.scene.nodes.filter((node) => node.kind === "connector")).toHaveLength(4);
+    expect(result.scene.nodes.filter((node) => node.kind === "shape")).toHaveLength(9);
+    expect(result.scene.nodes.filter((node) => node.kind === "group")).toHaveLength(1);
+    expect(result.scene.nodes.filter((node) => node.kind === "fallback")).toEqual([]);
+
+    const transitions = result.scene.nodes.filter((node) =>
+      node.sourcePath.startsWith("state.transitions["));
+    expect(transitions.map((node) => [
+      node.arrowStart,
+      node.arrowEnd,
+      node.style.dash,
+      node.style.opacity,
+      node.points.length,
+      node.meta.mermaid.rawPointCount,
+    ])).toEqual([
+      ["none", "stealth", "solid", 1, 2, 14],
+      ["none", "stealth", "dash", 0.75, 5, 23],
+      ["none", "stealth", "solid", 1, 5, 23],
+      ["none", "stealth", "solid", 1, 2, 14],
+    ]);
+    expect(transitions[2].points[0].x).toBeGreaterThan(transitions[2].points.at(-1).x);
+    for (const error of await sampledConnectorErrors(page)) {
+      expect(error.maxError, error.path).toBeLessThanOrEqual(2);
+    }
+
+    const textOf = (node) => node.text.paragraphs
+      .map((paragraph) => paragraph.runs.map((run) => run.text).join(""))
+      .join("\n");
+    const labels = result.scene.nodes.filter((node) =>
+      node.meta?.mermaid?.kind === "edge-label");
+    expect(labels.map(textOf)).toEqual(["開始\nStart", "停止\nStop"]);
+    const states = result.scene.nodes.filter((node) =>
+      node.meta?.mermaid?.kind === "state");
+    expect(states.map((node) => [node.preset, textOf(node)])).toEqual([
+      ["roundedRect", "待機\nIdle"],
+      ["roundedRect", "Running"],
+    ]);
+    expect(states[1].style).toMatchObject({
+      fill: "rgba(51, 102, 153, 0.5)",
+      stroke: "rgba(204, 51, 0, 0.5)",
+      strokeWidth: 3,
+      fillOpacity: 0.5,
+      strokeOpacity: 0.25,
+      cornerRadius: 5,
+    });
+    expect(result.scene.nodes.find((node) =>
+      node.meta?.mermaid?.kind === "state-start")).toMatchObject({
+      kind: "shape",
+      preset: "ellipse",
+      bounds: { width: 14, height: 14 },
+    });
+    const endParts = result.scene.nodes.filter((node) =>
+      node.meta?.mermaid?.kind === "state-end-part");
+    expect(endParts.map((node) => [
+      node.preset,
+      node.meta.mermaid.ring,
+      node.meta.mermaid.paint,
+      node.bounds.width,
+      node.bounds.height,
+    ])).toEqual([
+      ["ellipse", "outer", "fill", 14, 14],
+      ["ellipse", "outer", "stroke", 14, 14],
+      ["ellipse", "inner", "fill", 5, 5],
+      ["ellipse", "inner", "stroke", 5, 5],
+    ]);
+    expect(endParts[0].bounds).toEqual(endParts[1].bounds);
+    expect(endParts[2].bounds).toEqual(endParts[3].bounds);
+    expect(result.scene.nodes.find((node) =>
+      node.meta?.mermaid?.kind === "state-end")).toMatchObject({
+      kind: "group",
+      bounds: endParts[0].bounds,
+    });
+
+    const geometry = await page.evaluate(async () => {
+      const { mermaidSvgToScene } = await import("./renderer/mermaid-scene.mjs");
+      const deck = document.querySelector("#fixture-deck");
+      const result = mermaidSvgToScene(deck.querySelector("svg"), {
+        deck,
+        includeSourceElements: true,
+      });
+      const deckRect = deck.getBoundingClientRect();
+      const round = (value) => Math.round(value * 10) / 10;
+      const entries = result.scene.nodes
+        .filter((node) => node.kind !== "connector")
+        .map((node) => {
+          const source = result.sourceElements.get(node.sourcePath);
+          const rect = source.getBoundingClientRect();
+          return {
+            sourcePath: node.sourcePath,
+            bounds: node.bounds,
+            expected: {
+              x: round(rect.left - deckRect.left),
+              y: round(rect.top - deckRect.top),
+              width: round(rect.width),
+              height: round(rect.height),
+            },
+          };
+        });
+      return {
+        entries,
+        uniqueSources: new Set(entries.map((entry) =>
+          result.sourceElements.get(entry.sourcePath))).size,
+      };
+    });
+    expect(geometry.uniqueSources).toBe(10);
+    for (const entry of geometry.entries) {
+      expect(entry.bounds, entry.sourcePath).toEqual(entry.expected);
+    }
+
+    const mapped = sceneToPptxElements(result.scene);
+    expect(mapped.fallbacks).toEqual([]);
+    expect(mapped.elements.filter((element) => element.type === "connector")).toHaveLength(4);
+    expect(mapped.elements.filter((element) => element.type === "shape")).toHaveLength(9);
+    const buffer = buildPptxPackage({ slides: [{ elements: mapped.elements }] });
+    expect(inspectPptxPackage(buffer).valid).toBe(true);
+    const xml = buffer.toString("utf8");
+    expect((xml.match(/<a:tailEnd type="stealth"\/>/g) || [])).toHaveLength(4);
+    expect((xml.match(/<a:prstGeom prst="ellipse">/g) || [])).toHaveLength(5);
+    expect((xml.match(/<a:prstDash val="dash"\/>/g) || [])).toHaveLength(4);
+    expect(xml).toContain("待機");
+    expect(xml).toContain("停止");
+  } finally {
+    await harness.close();
+  }
+});
+
+test("keeps unsupported state nodes, transitions and pseudo-state details local", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# State fallback boundaries"] });
+  try {
+    await page.goto(harness.url);
+    const fixture = await readFixture("state-basic.svg");
+    const cases = [
+      {
+        name: "unknown marker",
+        mutate: () => {
+          const svg = document.querySelector("svg");
+          svg.querySelector("defs").insertAdjacentHTML(
+            "beforeend",
+            '<marker id="unsupported-state-marker"><path d="M0 0 L3 3"/></marker>',
+          );
+          svg.querySelectorAll("path.transition")[1].style.markerEnd =
+            "url(#unsupported-state-marker)";
+        },
+        fallback: {
+          sourcePath: "state.transitions[1]",
+          reason: "unsupported-mermaid-edge-style",
+        },
+        connectors: 3,
+        shapes: 9,
+        groups: 1,
+        sourceTag: "path",
+      },
+      {
+        name: "marker paint",
+        mutate: () => {
+          document.querySelectorAll("path.transition")[1].style.stroke = "rgb(200, 0, 0)";
+        },
+        fallback: {
+          sourcePath: "state.transitions[1]",
+          reason: "unsupported-mermaid-edge-style",
+        },
+        connectors: 3,
+        shapes: 9,
+        groups: 1,
+        sourceTag: "path",
+      },
+      {
+        name: "multiple subpaths",
+        mutate: () => {
+          const edge = document.querySelectorAll("path.transition")[1];
+          edge.setAttribute("d", `${edge.getAttribute("d")} M0 0 L1 1`);
+        },
+        fallback: {
+          sourcePath: "state.transitions[1]",
+          reason: "unsupported-mermaid-edge-path",
+        },
+        connectors: 3,
+        shapes: 9,
+        groups: 1,
+        sourceTag: "path",
+      },
+      {
+        name: "transition transform",
+        mutate: () => {
+          document.querySelectorAll("path.transition")[1]
+            .setAttribute("transform", "skewX(8)");
+        },
+        fallback: {
+          sourcePath: "state.transitions[1]",
+          reason: "unsupported-mermaid-edge-transform",
+        },
+        connectors: 3,
+        shapes: 9,
+        groups: 1,
+        sourceTag: "path",
+      },
+      {
+        name: "transition effect",
+        mutate: () => {
+          document.querySelectorAll("path.transition")[1].style.filter = "blur(1px)";
+        },
+        fallback: {
+          sourcePath: "state.transitions[1]",
+          reason: "unsupported-mermaid-edge-style",
+        },
+        connectors: 3,
+        shapes: 9,
+        groups: 1,
+        sourceTag: "path",
+      },
+      {
+        name: "decorated state label",
+        mutate: () => {
+          document.querySelector("g.node.statediagram-state .label div")
+            .style.backgroundColor = "red";
+        },
+        fallback: {
+          sourcePath: "state.nodes[1]",
+          reason: "unsupported-mermaid-state-label",
+        },
+        connectors: 4,
+        shapes: 8,
+        groups: 1,
+        sourceTag: "g",
+      },
+      {
+        name: "unknown state child",
+        mutate: () => {
+          document.querySelector("g.node.statediagram-state").insertAdjacentHTML(
+            "beforeend",
+            '<circle cx="0" cy="0" r="4" fill="red"/>',
+          );
+        },
+        fallback: {
+          sourcePath: "state.nodes[1]",
+          reason: "unsupported-mermaid-state-node-content",
+        },
+        connectors: 4,
+        shapes: 8,
+        groups: 1,
+        sourceTag: "g",
+      },
+      {
+        name: "state effect",
+        mutate: () => {
+          document.querySelector("g.node.statediagram-state").style.filter = "blur(1px)";
+        },
+        fallback: {
+          sourcePath: "state.nodes[1]",
+          reason: "unsupported-mermaid-node-content",
+        },
+        connectors: 4,
+        shapes: 8,
+        groups: 1,
+        sourceTag: "g",
+      },
+      {
+        name: "state transform",
+        mutate: () => {
+          document.querySelector("g.node.statediagram-state")
+            .setAttribute("transform", "skewX(8)");
+        },
+        fallback: {
+          sourcePath: "state.nodes[1]",
+          reason: "unsupported-mermaid-node-transform",
+        },
+        connectors: 4,
+        shapes: 8,
+        groups: 1,
+        sourceTag: "g",
+      },
+      {
+        name: "end geometry",
+        mutate: () => {
+          document.querySelector("g.node:has(g.outer-path) g.outer-path > path")
+            .setAttribute("d", "M-7 -7 L7 7");
+        },
+        fallback: {
+          sourcePath: "state.nodes[3]",
+          reason: "unsupported-mermaid-state-end-geometry",
+        },
+        connectors: 4,
+        shapes: 5,
+        groups: 0,
+        sourceTag: "g",
+      },
+      {
+        name: "end transform",
+        mutate: () => {
+          document.querySelector("g.node:has(g.outer-path) g.outer-path")
+            .setAttribute("transform", "skewX(8)");
+        },
+        fallback: {
+          sourcePath: "state.nodes[3]",
+          reason: "unsupported-mermaid-state-end-transform",
+        },
+        connectors: 4,
+        shapes: 5,
+        groups: 0,
+        sourceTag: "g",
+      },
+    ];
+    for (const entry of cases) {
+      await sceneFromFixture(page, fixture, `state-${entry.name}.svg`);
+      const result = await updateFixture(page, entry.mutate);
+      expect(result.scene.nodes.filter((node) => node.kind === "fallback"), entry.name)
+        .toMatchObject([entry.fallback]);
+      expect(result.scene.nodes.filter((node) => node.kind === "connector"), entry.name)
+        .toHaveLength(entry.connectors);
+      expect(result.scene.nodes.filter((node) => node.kind === "shape"), entry.name)
+        .toHaveLength(entry.shapes);
+      expect(result.scene.nodes.filter((node) => node.kind === "group"), entry.name)
+        .toHaveLength(entry.groups);
+      expect(result.scene.nodes.filter((node) =>
+        node.meta?.mermaid?.kind === "edge-label"), entry.name).toHaveLength(2);
+      expect(result.scene.nodes.some((node) => node.text?.paragraphs.some((paragraph) =>
+        paragraph.runs.some((run) => run.text === "Running"))), entry.name).toBe(true);
+      expect(result.scene.nodes.some((node) => node.sourcePath === "svg"), entry.name).toBe(false);
+      expect(result.sources.find((source) => source.path === entry.fallback.sourcePath), entry.name)
+        .toMatchObject({ tag: entry.sourceTag });
+      expect(sceneToPptxElements(result.scene).fallbacks.map((fallback) =>
+        fallback.sourcePath), entry.name).toEqual([entry.fallback.sourcePath]);
+    }
+
+    await sceneFromFixture(page, fixture, "state-unknown-root.svg");
+    const unknown = await updateFixture(page, () => {
+      document.querySelector("g.nodes").insertAdjacentHTML(
+        "beforeend",
+        '<circle id="state-decoration" cx="370" cy="66" r="5" fill="red"/>',
+      );
+    });
+    expect(unknown.scene.nodes.filter((node) => node.kind === "fallback")).toMatchObject([{
+      sourcePath: "root.unknown[0]",
+      reason: "unsupported-mermaid-svg-element",
+    }]);
+    expect(unknown.scene.nodes.filter((node) => node.kind === "connector")).toHaveLength(4);
+    expect(unknown.scene.nodes.filter((node) => node.kind === "shape")).toHaveLength(9);
+  } finally {
+    await harness.close();
+  }
+});
+
+test("keeps compound, parallel, special, described and noted states at conservative local boundaries", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# State special structures"] });
+  try {
+    await page.goto(harness.url);
+    const cases = [
+      {
+        name: "compound",
+        source: [
+          "stateDiagram-v2",
+          "[*] --> Parent",
+          "state Parent {",
+          "  [*] --> Child",
+          "  Child --> [*]",
+          "}",
+          "Parent --> Outside",
+          "Outside --> [*]",
+        ].join("\n"),
+        reasons: ["unsupported-mermaid-state-compound"],
+        connectors: 5,
+        nativeText: ["Child", "Outside"],
+      },
+      {
+        name: "parallel",
+        source: [
+          "stateDiagram-v2",
+          "[*] --> Active",
+          "state Active {",
+          "  [*] --> NumLockOff",
+          "  NumLockOff --> NumLockOn",
+          "  --",
+          "  [*] --> CapsLockOff",
+          "  CapsLockOff --> CapsLockOn",
+          "}",
+          "Active --> [*]",
+        ].join("\n"),
+        reasons: [
+          "unsupported-mermaid-state-compound",
+          "unsupported-mermaid-state-parallel",
+          "unsupported-mermaid-state-parallel",
+        ],
+        connectors: 6,
+        nativeText: ["NumLockOff", "NumLockOn", "CapsLockOff", "CapsLockOn"],
+      },
+      {
+        name: "fork and join",
+        source: [
+          "stateDiagram-v2",
+          "state fork_state <<fork>>",
+          "[*] --> fork_state",
+          "fork_state --> State2",
+          "fork_state --> State3",
+          "state join_state <<join>>",
+          "State2 --> join_state",
+          "State3 --> join_state",
+          "join_state --> [*]",
+        ].join("\n"),
+        reasons: [
+          "unsupported-mermaid-state-special-node",
+          "unsupported-mermaid-state-special-node",
+        ],
+        connectors: 6,
+        nativeText: ["State2", "State3"],
+      },
+      {
+        name: "choice",
+        source: [
+          "stateDiagram-v2",
+          "state choice_state <<choice>>",
+          "[*] --> choice_state",
+          "choice_state --> A: yes",
+          "choice_state --> B: no",
+          "A --> [*]",
+          "B --> [*]",
+        ].join("\n"),
+        reasons: ["unsupported-mermaid-state-special-node"],
+        connectors: 5,
+        nativeText: ["A", "B", "yes", "no"],
+      },
+      {
+        name: "multiple descriptions",
+        source: [
+          "stateDiagram-v2",
+          "[*] --> A",
+          "A: First",
+          "A: Second",
+          "A --> [*]",
+        ].join("\n"),
+        reasons: ["unsupported-mermaid-state-description"],
+        connectors: 2,
+        nativeText: [],
+      },
+      {
+        name: "note",
+        source: [
+          "stateDiagram-v2",
+          "state \"Ready\" as Ready",
+          "[*] --> Ready",
+          "note right of Ready",
+          "  Important 日本語",
+          "end note",
+          "Ready --> [*]",
+        ].join("\n"),
+        reasons: [
+          "unsupported-mermaid-state-note",
+          "unsupported-mermaid-state-note",
+        ],
+        connectors: 2,
+        nativeText: ["Ready"],
+      },
+    ];
+    for (const entry of cases) {
+      const result = await sceneFromMermaidSource(
+        page,
+        entry.source,
+        `state-${entry.name}.svg`,
+      );
+      validateScene(result.scene);
+      const fallbacks = result.scene.nodes.filter((node) => node.kind === "fallback");
+      expect(fallbacks.map((node) => node.reason), entry.name).toEqual(entry.reasons);
+      expect(result.diagnostics, entry.name).toEqual(fallbacks.map((node) => ({
+        path: node.sourcePath,
+        kind: "fallback",
+        reason: node.reason,
+      })));
+      expect(result.scene.nodes.filter((node) => node.kind === "connector"), entry.name)
+        .toHaveLength(entry.connectors);
+      expect(result.scene.nodes.filter((node) =>
+        node.sourcePath.startsWith("state.transitions[") &&
+        node.kind === "connector").every((node) =>
+        node.arrowStart === "none" && node.arrowEnd === "stealth"), entry.name).toBe(true);
+      const text = result.scene.nodes.flatMap((node) =>
+        node.text?.paragraphs.flatMap((paragraph) =>
+          paragraph.runs.map((run) => run.text)) || []);
+      for (const expected of entry.nativeText) {
+        expect(text, `${entry.name}: ${expected}`).toContain(expected);
+      }
+      expect(result.scene.nodes.some((node) => node.sourcePath === "svg"), entry.name)
+        .toBe(false);
+      expect(new Set(result.scene.nodes.map((node) => node.sourcePath)).size, entry.name)
+        .toBe(result.scene.nodes.length);
+      for (const fallback of fallbacks) {
+        expect(result.sources.find((source) => source.path === fallback.sourcePath), entry.name)
+          .toBeDefined();
+      }
+      const mapped = sceneToPptxElements(result.scene);
+      expect(mapped.fallbacks.map((fallback) => fallback.sourcePath), entry.name)
+        .toEqual(fallbacks.map((fallback) => fallback.sourcePath));
+      expect(inspectPptxPackage(buildPptxPackage({
+        slides: [{ elements: mapped.elements }],
+      })).valid, entry.name).toBe(true);
+    }
+  } finally {
+    await harness.close();
+  }
+});
+
+test("rejects malformed state roots and bounds nested state depth explicitly", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# State structure limits"] });
+  try {
+    await page.goto(harness.url);
+    await sceneFromFixture(page, await readFixture("state-basic.svg"), "state-malformed.svg");
+    const malformed = await updateFixture(page, () => {
+      document.querySelector("g.root > g.edgeLabels").remove();
+    });
+    expect(malformed.scene.nodes).toMatchObject([{
+      kind: "fallback",
+      sourcePath: "svg",
+      reason: "unsupported-mermaid-state-structure",
+    }]);
+
+    const depth = 18;
+    const nested = [
+      "stateDiagram-v2",
+      "[*] --> S0",
+      ...Array.from({ length: depth }, (_, index) => `${"  ".repeat(index)}state S${index} {`),
+      `${"  ".repeat(depth)}[*] --> Leaf`,
+      `${"  ".repeat(depth)}Leaf --> [*]`,
+      ...Array.from({ length: depth }, (_, offset) =>
+        `${"  ".repeat(depth - offset - 1)}}`),
+      "S0 --> [*]",
+    ].join("\n");
+    const limited = await sceneFromMermaidSource(page, nested, "state-depth.svg");
+    validateScene(limited.scene);
+    expect(limited.scene.nodes.some((node) =>
+      node.reason === "unsupported-mermaid-state-depth")).toBe(true);
+    expect(limited.scene.nodes.some((node) =>
+      node.reason?.startsWith("mermaid-scene-adapter-failed"))).toBe(false);
+    expect(limited.scene.nodes.some((node) => node.sourcePath === "svg")).toBe(false);
   } finally {
     await harness.close();
   }
@@ -2973,6 +3615,165 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
       expect((packetPackage.toString("utf8").match(/<p:sp>/g) || [])).toHaveLength(37);
       expect((treePackage.toString("utf8").match(/<a:prstGeom prst="line">/g) || []))
         .toHaveLength(15);
+    } finally {
+      await harness.close();
+    }
+  });
+}
+
+for (const theme of ["dark", "light", "microsoft", "custom"]) {
+  test(`real renderer exports state aliases, exact markers and local state fallbacks (${theme})`, async ({ page }) => {
+    const diagram = await readFixture("state-basic.mmd");
+    const compound = [
+      "stateDiagram-v2",
+      "[*] --> Parent",
+      "state Parent {",
+      "  [*] --> Child",
+      "  Child --> [*]",
+      "}",
+      "Parent --> Outside",
+      "Outside --> [*]",
+    ].join("\n");
+    const harness = await startHarness({
+      slides: [
+        `# State v2\n\n\`\`\`mermaid\n${diagram}\n\`\`\``,
+        `# State legacy\n\n\`\`\`mermaid\n${diagram.replace(/^stateDiagram-v2$/m, "stateDiagram")}\n\`\`\``,
+        `# Compound state\n\n\`\`\`mermaid\n${compound}\n\`\`\``,
+      ],
+      theme,
+      customThemeCss: theme === "custom"
+        ? "--bg:#102030;--fg:#fefefe;--body:#e0e4e8;--accent:#ff6600;--surface:#203040;--border:#405060;"
+        : "",
+    });
+    try {
+      await page.goto(`${harness.url}/?pptx=1&token=${encodeURIComponent(harness.printToken)}`);
+      await page.waitForFunction(() => document.documentElement.hasAttribute("data-pptx-ready") ||
+        document.documentElement.hasAttribute("data-pptx-error"), undefined, { timeout: 120_000 });
+      await expect(page.locator("html")).toHaveAttribute("data-pptx-ready", "true");
+      await expect(page.locator("pre.mermaid > svg[data-scene-backend=svg]")).toHaveCount(3);
+      const model = await page.evaluate(() => window.__presentationPptxModel);
+      const basic = model.slides[0].elements.filter((element) =>
+        element.path?.startsWith("mermaid[0].state."));
+      const legacy = model.slides[1].elements.filter((element) =>
+        element.path?.startsWith("mermaid[0].state."));
+      expect(legacy).toEqual(basic);
+      expect(basic.filter((element) => element.type === "connector")).toHaveLength(4);
+      expect(basic.filter((element) => element.type === "shape")).toHaveLength(9);
+      expect(basic.filter((element) => element.arrowEnd === "stealth")).toHaveLength(4);
+      expect(basic.filter((element) => element.dash === "dash")).toHaveLength(1);
+      expect(basic.find((element) => element.dash === "dash")).toMatchObject({
+        opacity: 0.75,
+        arrowStart: "none",
+        arrowEnd: "stealth",
+      });
+      const textOf = (element) => (element.text?.paragraphs || element.paragraphs || [])
+        .map((paragraph) => paragraph.runs.map((run) => run.text).join(""))
+        .join("\n");
+      expect(basic.map(textOf)).toEqual(expect.arrayContaining([
+        "待機\nIdle",
+        "Running",
+        "開始\nStart",
+        "停止\nStop",
+      ]));
+      expect(model.slides.slice(0, 2).flatMap((slide) =>
+        slide.fallbacks.filter((fallback) => fallback.type === "mermaid"))).toEqual([]);
+
+      const compoundSlide = model.slides[2];
+      expect(compoundSlide.elements.filter((element) =>
+        element.path?.startsWith("mermaid[0].state.") &&
+        element.type === "connector")).toHaveLength(5);
+      expect(compoundSlide.elements.filter((element) =>
+        element.mermaid?.kind === "state").map(textOf)).toEqual(["Child", "Outside"]);
+      expect(compoundSlide.fallbacks.filter((fallback) =>
+        fallback.type === "mermaid")).toMatchObject([{
+        sourcePath: "state.regions[0].containers[0]",
+        reason: "unsupported-mermaid-state-compound",
+      }]);
+
+      for (const index of [0, 1]) {
+        const svg = page.locator("pre.mermaid > svg").nth(index);
+        await expect(svg).toHaveAttribute("aria-roledescription", "stateDiagram");
+        await expect(svg.locator(
+          "g.node.statediagram-state[data-pptx-native=shape] > rect.basic",
+        )).toHaveCount(2);
+        await expect(svg.locator(
+          "circle.state-start[data-pptx-native=shape]",
+        )).toHaveCount(1);
+        await expect(svg.locator(
+          "g.outer-path path[data-pptx-native=shape]",
+        )).toHaveCount(4);
+        await expect(svg.locator(
+          "path.transition[data-pptx-native=connector]",
+        )).toHaveCount(4);
+        await expect(svg.locator(
+          "g.edgeLabel[data-pptx-native=shape]",
+        )).toHaveCount(2);
+        await expect(svg.locator("[data-pptx-fallback-ids]")).toHaveCount(0);
+        const masks = await svg.evaluate((element) => ({
+          states: [...element.querySelectorAll(
+            "g.node.statediagram-state[data-pptx-native=shape] > rect.basic",
+          )].map((state) => {
+            const style = getComputedStyle(state);
+            return [style.fill, style.stroke];
+          }),
+          start: [...element.querySelectorAll(
+            "circle.state-start[data-pptx-native=shape]",
+          )].map((state) => {
+            const style = getComputedStyle(state);
+            return [style.fill, style.stroke];
+          }),
+          end: [...element.querySelectorAll(
+            "g.outer-path path[data-pptx-native=shape]",
+          )].map((state) => {
+            const style = getComputedStyle(state);
+            return [style.fill, style.stroke];
+          }),
+          transitions: [...element.querySelectorAll(
+            "path.transition[data-pptx-native=connector]",
+          )].map((edge) => {
+            const style = getComputedStyle(edge);
+            return [style.stroke, style.markerStart, style.markerEnd];
+          }),
+          labels: [...element.querySelectorAll(
+            "g.edgeLabel[data-pptx-native=shape] span.edgeLabel",
+          )].map((label) => getComputedStyle(label).color),
+        }));
+        expect(masks.states).toEqual(Array(2).fill([
+          "rgba(0, 0, 0, 0)",
+          "rgba(0, 0, 0, 0)",
+        ]));
+        expect(masks.start).toEqual([[
+          "rgba(0, 0, 0, 0)",
+          "rgba(0, 0, 0, 0)",
+        ]]);
+        expect(masks.end).toEqual(Array(4).fill([
+          "rgba(0, 0, 0, 0)",
+          "rgba(0, 0, 0, 0)",
+        ]));
+        expect(masks.transitions).toEqual(Array(4).fill([
+          "rgba(0, 0, 0, 0)",
+          "none",
+          "none",
+        ]));
+        expect(masks.labels).toEqual(Array(2).fill("rgba(0, 0, 0, 0)"));
+      }
+
+      const compoundSvg = page.locator("pre.mermaid > svg").nth(2);
+      await expect(compoundSvg.locator(
+        "g.statediagram-cluster[data-pptx-fallback-ids]",
+      )).toHaveCount(1);
+      await expect(compoundSvg.locator(
+        "path.transition[data-pptx-native=connector]",
+      )).toHaveCount(5);
+      await expect(compoundSvg.locator(
+        "g.node.statediagram-state[data-pptx-native=shape] > rect.basic",
+      )).toHaveCount(2);
+      expect(await compoundSvg.getAttribute("data-pptx-fallback-ids")).toBeNull();
+
+      const statePackage = buildPptxPackage({ slides: [{ elements: basic }] });
+      expect(inspectPptxPackage(statePackage).valid).toBe(true);
+      expect((statePackage.toString("utf8").match(/<a:tailEnd type="stealth"\/>/g) || []))
+        .toHaveLength(4);
     } finally {
       await harness.close();
     }
