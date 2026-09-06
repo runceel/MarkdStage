@@ -795,6 +795,23 @@ test("exports Architecture objects from the DSL and keeps fallback artwork visib
     expect(mermaidConnectors).toHaveLength(1);
     expect(mermaidConnectors[0].points.length).toBeGreaterThanOrEqual(2);
     expect(mermaid.every((element) => element.path?.startsWith("mermaid[0]."))).toBe(true);
+    expect(
+      slide.elements.filter(
+        (element) => element.text?.paragraphs?.[0]?.runs?.[0]?.text === "Browser",
+      ),
+    ).toHaveLength(1);
+    expect(
+      slide.elements.some(
+        (element) => element.type === "text" && element.path?.includes("mermaid"),
+      ),
+    ).toBe(false);
+    expect(
+      slide.fallbacks.some(
+        (fallback) =>
+          fallback.reason === "native-text-decoration-rendered-as-artwork" &&
+          fallback.path?.includes("mermaid"),
+      ),
+    ).toBe(false);
     expect(slide.fallbacks).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

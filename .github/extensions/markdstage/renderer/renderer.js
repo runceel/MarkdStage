@@ -2153,6 +2153,7 @@ async function collectPptxSlide(slide, index) {
     (element) =>
       !insideFallback(element) &&
       !element.closest(".architecture-diagram") &&
+      !element.closest("pre.mermaid, .mermaid") &&
       !element.closest("table") &&
       !(element.matches("p") && element.closest("blockquote, li")),
   );
