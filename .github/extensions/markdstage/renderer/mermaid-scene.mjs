@@ -162,14 +162,20 @@ export function classifyPolygonPreset(points, options = {}) {
   return fallbackPreset;
 }
 
-export function markerIdToArrow(value) {
+function markerReferenceId(value) {
   const text = String(value || "").trim();
-  const marker = /^url\(["']?[^"')]*#([^"')]+)["']?\)$/i.exec(text)?.[1] || text.replace(/^#/, "");
+  return /^url\(["']?[^"')]*#([^"')]+)["']?\)$/i.exec(text)?.[1] || text.replace(/^#/, "");
+}
+
+export function markerIdToArrow(value) {
+  const marker = markerReferenceId(value);
   if (!marker) return "none";
   if (/point(?:Start|End)(?:-margin)?$/i.test(marker)) return "triangle";
   if (/circle(?:Start|End)(?:-margin)?$/i.test(marker)) return "oval";
   if (/diamond(?:Start|End)(?:-margin)?$/i.test(marker)) return "diamond";
   if (/arrow(?:Start|End)(?:-margin)?$/i.test(marker)) return "arrow";
+  if (/(?:^|[-_])composition(?:Start|End)(?:-margin)?$/i.test(marker)) return "diamond";
+  if (/(?:^|[-_])dependency(?:Start|End)(?:-margin)?$/i.test(marker)) return "stealth";
   if (/-arrowhead$/.test(marker)) return "triangle";
   if (/-openarrowhead$/.test(marker)) return "arrow";
   return "none";
@@ -540,14 +546,46 @@ function unsupportedVisualEffect(element, descendants = true) {
   });
 }
 
+function connectorArrow(value, element) {
+  const id = markerReferenceId(value);
+  const relation = /(?:^|[-_])(composition|dependency)(Start|End)(?:-margin)?$/i.exec(id);
+  if (!relation) return markerIdToArrow(value);
+  const marker = element.ownerSVGElement.querySelector(`#${CSS.escape(id)}`);
+  const children = marker ? directChildren(marker) : [];
+  if (localName(marker) !== "marker" || children.length !== 1 || localName(children[0]) !== "path" ||
+      unsupportedVisualEffect(marker)) return "none";
+  const path = children[0];
+  // The pinned class renderer uses a filled diamond or a concave (stealth) head,
+  // not the hollow diamond/triangle used for aggregation and inheritance.
+  const d = path.getAttribute("d") || "";
+  if (d.replace(/[-+]?(?:\d*\.?\d+)(?:e[-+]?\d+)?|[\s,]/gi, "") !== "MLLLZ") return "none";
+  const values = d.match(/[-+]?(?:\d*\.?\d+)(?:e[-+]?\d+)?/gi)?.map(Number) || [];
+  const expected = relation[1].toLowerCase() === "composition" ? [18, 7, 9, 13, 1, 7, 9, 1]
+    : relation[2].toLowerCase() === "start" ? [5, 7, 9, 13, 1, 7, 9, 1] : [18, 7, 9, 13, 14, 7, 9, 1];
+  if (values.length !== expected.length || values.some((value, index) => value !== expected[index])) return "none";
+  const paint = getComputedStyle(path);
+  const stroke = getComputedStyle(element).stroke;
+  if (!normalizeColor(paint.fill) || paint.fill !== stroke ||
+      (normalizeColor(paint.stroke) && Number.parseFloat(paint.strokeWidth) > 0 &&
+        (paint.stroke !== stroke || dashToSceneDash(paint.strokeDasharray) !== "solid")) ||
+      [marker, path].some((part) => {
+        const style = getComputedStyle(part);
+        return Number.parseFloat(style.opacity) !== 1 || style.transform !== "none" ||
+          style.rotate !== "none" || style.scale !== "none" || style.translate !== "none";
+      })) return "none";
+  return markerIdToArrow(value);
+}
+
 function connectorMarkers(element) {
   const style = getComputedStyle(element);
   const start = style.markerStart || element.getAttribute("marker-start");
   const end = style.markerEnd || element.getAttribute("marker-end");
+  const arrowStart = connectorArrow(start, element);
+  const arrowEnd = connectorArrow(end, element);
   return {
-    arrowStart: markerIdToArrow(start),
-    arrowEnd: markerIdToArrow(end),
-    unsupported: [start, end].some((value) => value && value !== "none" && markerIdToArrow(value) === "none") ||
+    arrowStart,
+    arrowEnd,
+    unsupported: [[start, arrowStart], [end, arrowEnd]].some(([value, arrow]) => value && value !== "none" && arrow === "none") ||
       Boolean(style.markerMid && style.markerMid !== "none"),
   };
 }
@@ -863,16 +901,21 @@ function connectorPath(path, sourceIndex, z, svg, deck, options, edgeLabels) {
 
 function readEdgeLabels(root, deck, options, consumed) {
   const labels = new Map();
-  for (const [index, group] of [...root.querySelectorAll(":scope > g.edgeLabels > g.edgeLabel")].entries()) {
+  const selector = ":scope > g.edgeLabels > g.edgeLabel, :scope > g.edgeLabels > g.edgeTerminals";
+  for (const [index, group] of [...root.querySelectorAll(selector)].entries()) {
     if (consumed?.has(group.parentElement)) continue;
     consumed?.add(group);
+    const terminal = hasClass(group, "edgeTerminals");
     const labelGroup = group.querySelector(":scope > g.label");
     const id = labelGroup?.getAttribute("data-id") || "";
     let key = id || `unidentified-${index}`;
     while (labels.has(key)) key += `-${index}`;
-    const sourcePath = `edgeLabels[${key}]`;
+    const sourcePath = `${terminal ? "edgeTerminals" : "edgeLabels"}[${key}]`;
     options.sourceElements?.set(sourcePath, group);
+    const extra = terminal ? group.cloneNode(true) : null;
+    extra?.querySelectorAll("span.edgeLabel, text").forEach((label) => label.remove());
     if (group.querySelector("img, image, svg, .katex, use, path, line, polygon, polyline, circle, ellipse, rect") ||
+        (terminal && (group.querySelectorAll("span.edgeLabel, text").length > 1 || extra.textContent.trim())) ||
         unsupportedVisualEffect(group)) {
       labels.set(key, { fallback: fallbackNode(group, 0, deck,
         "unsupported-mermaid-edge-label", sourcePath) });
@@ -882,7 +925,7 @@ function readEdgeLabels(root, deck, options, consumed) {
     const background = group.querySelector(".edgeLabel p, span.edgeLabel, rect");
     const style = background && getComputedStyle(background);
     if (label && label.bounds.width > 0 && label.bounds.height > 0) {
-      labels.set(key, { ...label, fill: normalizeColor(style?.backgroundColor === "rgba(0, 0, 0, 0)"
+      labels.set(key, { ...label, sourcePath, terminal, fill: normalizeColor(style?.backgroundColor === "rgba(0, 0, 0, 0)"
         ? (background?.localName === "rect" ? style.fill : null) : style?.backgroundColor, options.resolveColor) });
     } else if (group.textContent.trim() || [...group.querySelectorAll("rect, path, image, use")].some(isVisibleUnknown)) {
       labels.set(key, { fallback: fallbackNode(group, 0, deck, "unsupported-mermaid-edge-label", sourcePath) });
@@ -934,11 +977,11 @@ function appendEdgeLabels(nodes, labels) {
   for (const [id, label] of labels) {
     if (label.fallback) nodes.push({ ...label.fallback, z: nodes.length });
     else nodes.push({
-      kind: "shape", sourcePath: `edgeLabels[${id}]`, z: nodes.length,
+      kind: "shape", sourcePath: label.sourcePath, z: nodes.length,
       bounds: label.bounds, preset: "rect", style: { fill: label.fill, stroke: null, strokeWidth: 0 },
       text: label.text,
       textLayout: { alignment: "center", verticalAlignment: "middle", textWrap: "none" },
-      meta: { mermaid: { kind: "edge-label", edgeId: id } },
+      meta: { mermaid: { kind: label.terminal ? "edge-terminal" : "edge-label", edgeId: id } },
     });
   }
 }

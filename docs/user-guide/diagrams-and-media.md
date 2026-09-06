@@ -34,8 +34,16 @@ from crossing the text. Stadium, cylinder, and double-circle nodes use multiple 
 when their paint can be reproduced safely.
 
 Basic sequence diagrams export participants, lifelines, messages, notes, and activations.
-Class diagrams export class compartments and unmarked associations. Unsupported relationship
-markers, complex sequence constructs, effects, and unknown geometry remain fallback pictures.
+Class diagrams export class compartments, unmarked associations, composition (`A *-- B`),
+directed associations (`A --> B`), dependencies (`A ..> B`), and multiplicities
+(`A "1" -- "many" B`). Composition uses a filled diamond; directed associations and dependencies
+use the bundled renderer's filled, notched arrowhead. Markers at either end and dashed dependency
+lines are preserved. Simple relationship and multiplicity labels remain editable, including
+Japanese and multiline text.
+
+Hollow inheritance/realization triangles (`<|--`, `<|..`) and aggregation diamonds (`o--`) remain
+local fallback pictures, not filled substitutes. Unsupported marker geometry or paint, decorated
+labels, complex sequence constructs, effects, and unknown geometry also remain fallback pictures.
 Other diagram types, including pie, mindmap, and gitGraph, can still use whole-diagram artwork.
 Check the export report for the reason and source path of each fallback.
 

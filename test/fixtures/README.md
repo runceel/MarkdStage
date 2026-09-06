@@ -36,6 +36,7 @@ total: 2
 | `layout-visual.md` | Regression fixture for H1/H2 in `layout: section`, optional kicker/footer, theme backgrounds, and PDF output |
 | `standard-title.md` | DOM, coordinate, and PDF regression fixture that pins a regular slide's leading H1/H2 to the top title region |
 | `print-mixed.md` | PDF regression fixture with Mermaid and Architecture DSL on one slide (a single fragment without separators) |
+| `mermaid/class-relations.mmd`, `mermaid/class-relations.svg` | Class composition, directed association, dependency, and multiplicity source plus fixed SVG generated with bundled Mermaid 11.15.0 (`theme: default`, `securityLevel: strict`, ID `fixture-class-relations`) |
 
 The PDF regression suite inserts `print-mixed.md` before the back cover in
 `architecture-visual.md`, then verifies print output with Mermaid and Architecture DSL together.

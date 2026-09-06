@@ -156,3 +156,24 @@ test("text preserves explicit transparent paint and zero font sizes", () => {
   assert.equal(span.attributes.get("fill"), "none");
   assert.equal(span.attributes.get("font-size"), "0");
 });
+
+test("SVG capture retains class terminal CSS sizing instead of using foreignObject attributes", () => {
+  const source = {
+    nodeType: 1, localName: "foreignObject", namespaceURI: "http://www.w3.org/2000/svg",
+    attributes: [{ name: "width", value: "26.359375" }, { name: "height", value: "16.5" }],
+    childNodes: [],
+    getAttribute: (name) => name === "style" ? "width: 36.123456px; height: 12px;" : null,
+  };
+  const primitive = captureSvgTree(source, {
+    computedStyle: () => ({ getPropertyValue: (name) => ({ width: "36.1235px", height: "12px" }[name] || "") }),
+  });
+  assert.equal(primitive.attributes.width, "26.359375");
+  assert.equal(primitive.attributes.height, "16.5");
+  assert.equal(primitive.style.width, "36.123456px");
+  assert.equal(primitive.style.height, "12px");
+  const restored = all(sceneToSvg(scene([{
+    kind: "fallback", sourcePath: "terminal", z: 0, bounds, reason: "unsupported", meta: { svg: primitive },
+  }]), { document })).find((element) => element.tagName === "foreignObject");
+  assert.equal(restored.attributes.get("style:width"), "36.123456px");
+  assert.equal(restored.attributes.get("style:height"), "12px");
+});

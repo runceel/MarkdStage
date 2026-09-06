@@ -800,6 +800,37 @@ test("places a full-slide PNG background before every native element", () => {
   );
 });
 
+test("preserves filled class relationship presets, dashed lines and multiplicity text", () => {
+  for (const [arrowStart, arrowEnd] of [["diamond", "stealth"], ["stealth", "diamond"]]) {
+    const elements = [{
+      type: "connector",
+      points: [{ x: 300, y: 100 }, { x: 150, y: 100 }, { x: 150, y: 20 }],
+      stroke: "#123456", dash: "dash", arrowStart, arrowEnd,
+    }, {
+      type: "shape", shape: "rect", x: 300, y: 110, width: 30, height: 20,
+      fill: null, stroke: null, text: "1",
+    }, {
+      type: "shape", shape: "rect", x: 160, y: 20, width: 50, height: 20,
+      fill: null, stroke: null, text: "many",
+    }];
+    const files = readStoredZip(buildPptxPackage({ slides: [{ elements }] }));
+    const slide = xml(files, "ppt/slides/slide1.xml");
+    const connectors = [...slide.matchAll(/name="Connector \d+"[\s\S]*?<\/p:sp>/g)].map((match) => match[0]);
+    assert.equal(connectors.length, 2);
+    assert.ok(connectors[0].includes(`<a:headEnd type="${arrowStart}"/>`));
+    assert.doesNotMatch(connectors[0], /<a:tailEnd/);
+    assert.ok(connectors[1].includes(`<a:tailEnd type="${arrowEnd}"/>`));
+    assert.doesNotMatch(connectors[1], /<a:headEnd/);
+    for (const connector of connectors) {
+      assert.match(connector, /<a:srgbClr val="123456"/);
+      assert.match(connector, /<a:prstDash val="dash"\/>/);
+    }
+    assert.match(slide, /<a:t>1<\/a:t>/);
+    assert.match(slide, /<a:t>many<\/a:t>/);
+    assert.doesNotMatch(slide, /<p:pic\b/);
+  }
+});
+
 test("rejects duplicate and missing asset references", () => {
   assert.throws(
     () =>

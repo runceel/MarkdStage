@@ -117,6 +117,13 @@ export function captureSvgTree(element, { slots = new Map(), computedStyle = glo
           if (value && safeCss(value)) primitive.style[property] = value;
         }
       }
+      if (tag === "foreignObject") {
+        // Class multiplicities override their measured SVG attributes with CSS sizing.
+        for (const property of ["width", "height"]) {
+          const value = inlineGeometry(source, property);
+          if (value && safeCss(value)) primitive.style[property] = value;
+        }
+      }
     }
     for (const child of source.childNodes || []) {
       const captured = capture(child, depth + 1);

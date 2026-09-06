@@ -230,6 +230,132 @@ test("extracts class compartments and preserves unsupported inheritance arrows a
     await harness.close();
   }
 });
+
+test("exports filled class relationship heads and multiplicities from the pinned SVG", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# Class relationships"] });
+  try {
+    await page.goto(harness.url);
+    const { scene, diagnostics } = await sceneFromFixture(page, await readFixture("class-relations.svg"), "class-relations.svg");
+    validateScene(scene);
+    expect(diagnostics).toEqual([]);
+    expect(scene.nodes.filter((node) => node.kind === "fallback")).toEqual([]);
+    const edges = scene.nodes.filter((node) => node.meta?.mermaid?.kind === "edge");
+    expect(edges.map((edge) => [edge.arrowStart, edge.arrowEnd, edge.style.dash])).toEqual([
+      ["diamond", "none", "solid"], ["none", "stealth", "solid"],
+      ["none", "stealth", "dash"], ["none", "none", "solid"],
+    ]);
+    const terminals = scene.nodes.filter((node) => node.meta?.mermaid?.kind === "edge-terminal");
+    expect(terminals.map((node) => node.text.paragraphs[0].runs[0].text)).toEqual(["1", "many"]);
+    expect(terminals.every((node) => node.z > edges.at(-1).z && node.style.fill === null)).toBe(true);
+    const { elements, fallbacks } = sceneToPptxElements(scene);
+    expect(fallbacks).toEqual([]);
+    expect(elements.filter((element) => element.type === "connector" && element.mermaid?.kind === "edge")
+      .map((element) => [element.arrowStart, element.arrowEnd])).toEqual(edges.map((edge) => [edge.arrowStart, edge.arrowEnd]));
+    expect(elements.filter((element) => element.path.startsWith("edgeTerminals["))).toHaveLength(2);
+    expect(inspectPptxPackage(buildPptxPackage({ slides: [{ elements }] })).valid).toBe(true);
+    const markers = await page.evaluate(async () => {
+      const { sceneToSvg } = await import("./renderer/scene-svg.mjs");
+      const svg = sceneToSvg(window.__mermaidSceneResult.scene);
+      return [...svg.querySelectorAll("marker > path")].map((path) => ({ d: path.getAttribute("d"), fill: path.getAttribute("fill") }));
+    });
+    expect(markers).toEqual([
+      { d: "M 0 5 L 5 0 L 10 5 L 5 10 Z", fill: "rgb(51, 51, 51)" },
+      { d: "M 0 0 L 10 5 L 0 10 L 3 5 Z", fill: "rgb(51, 51, 51)" },
+      { d: "M 0 0 L 10 5 L 0 10 L 3 5 Z", fill: "rgb(51, 51, 51)" },
+    ]);
+
+    for (const suffix of ["", "-margin"]) {
+      await page.evaluate((suffix) => {
+        for (const edge of document.querySelectorAll("path.relation")) {
+          edge.style.markerStart = `url("#fixture-class-relations_class-dependencyStart${suffix}")`;
+          edge.style.markerEnd = `url("#fixture-class-relations_class-compositionEnd${suffix}")`;
+          edge.removeAttribute("marker-start");
+          edge.removeAttribute("marker-end");
+        }
+      }, suffix);
+      const reversed = await updateFixture(page, () => {});
+      expect(reversed.scene.nodes.filter((node) => node.kind === "fallback")).toEqual([]);
+      expect(reversed.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "edge")
+        .map((edge) => [edge.arrowStart, edge.arrowEnd])).toEqual(Array(4).fill(["stealth", "diamond"]));
+    }
+
+    const positioned = await updateFixture(page, () => {
+      document.querySelector("#fixture-deck").style.marginLeft = "31px";
+      document.querySelector("svg").style.cssText = "width:400px;max-width:none;transform:translate(18px,12px) scale(1.5)";
+    });
+    const measured = await page.evaluate(() => {
+      const deck = document.querySelector("#fixture-deck").getBoundingClientRect();
+      return [...document.querySelectorAll("g.edgeTerminals span.edgeLabel")].map((label) => {
+        const bounds = label.getBoundingClientRect();
+        return Object.fromEntries(Object.entries({
+          x: bounds.left - deck.left, y: bounds.top - deck.top, width: bounds.width, height: bounds.height,
+        }).map(([key, value]) => [key, Math.round(value * 10) / 10]));
+      });
+    });
+    const positionedTerminals = positioned.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "edge-terminal");
+    expect(positionedTerminals.map((node) => node.bounds)).toEqual(measured);
+    for (const terminal of positionedTerminals) {
+      expect(positioned.sources).toContainEqual({ path: terminal.sourcePath, tag: "g", id: "" });
+    }
+  } finally {
+    await harness.close();
+  }
+});
+
+test("keeps unsupported class markers and decorated multiplicities local and lossless", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# Class relationship fallbacks"] });
+  try {
+    await page.goto(harness.url);
+    const fixture = await readFixture("class-relations.svg");
+    for (const mutate of [
+      () => { document.querySelector('[id$="-compositionStart"] path').style.setProperty("fill", "transparent", "important"); },
+      () => { document.querySelector('[id$="-compositionStart"] path').style.setProperty("fill", "red", "important"); },
+      () => { document.querySelector('[id$="-compositionStart"] path').setAttribute("d", "M0,0 L10,0 L0,10 Z"); },
+      () => { document.querySelector('[id$="-compositionStart"]').style.filter = "blur(1px)"; },
+      () => { document.querySelector('[id$="-compositionStart"] path').style.opacity = "0.5"; },
+      () => { document.querySelector('[id$="-compositionStart"] path').style.transform = "rotate(20deg)"; },
+      () => { document.querySelector('[id$="-compositionStart"]').remove(); },
+      () => { document.querySelector("path.relation").setAttribute("marker-start", "url(#fixture-class-relations_class-aggregationStart)"); },
+      () => { document.querySelector("path.relation").setAttribute("marker-start", "url(#fixture-class-relations_class-extensionStart)"); },
+    ]) {
+      await sceneFromFixture(page, fixture, "class-marker-fallback.svg");
+      const result = await updateFixture(page, mutate);
+      expect(result.scene.nodes.filter((node) => node.kind === "fallback")).toMatchObject([
+        { sourcePath: "edges[0]", reason: "unsupported-mermaid-edge-style" },
+      ]);
+      expect(result.diagnostics).toEqual([{ path: "edges[0]", kind: "fallback", reason: "unsupported-mermaid-edge-style" }]);
+      expect(result.sources.find((source) => source.path === "edges[0]").tag).toBe("path");
+      expect(result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "edge-terminal")).toHaveLength(2);
+      expect(result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "edge")).toHaveLength(3);
+    }
+    for (const mutate of [
+      () => { document.querySelector("g.edgeTerminals").style.filter = "blur(1px)"; },
+      () => { document.querySelector("g.edgeTerminals").insertAdjacentHTML("beforeend", '<circle r="5" fill="red"/>'); },
+      () => { document.querySelector("g.edgeTerminals").insertAdjacentHTML("beforeend", '<text>Extra multiplicity</text>'); },
+      () => { document.querySelector("g.edgeTerminals div").append("Extra multiplicity"); },
+    ]) {
+      await sceneFromFixture(page, fixture, "class-terminal-fallback.svg");
+      const result = await updateFixture(page, mutate);
+      const fallback = result.scene.nodes.find((node) => node.kind === "fallback");
+      expect(result.scene.nodes.filter((node) => node.kind === "fallback")).toHaveLength(1);
+      expect(fallback).toMatchObject({ reason: "unsupported-mermaid-edge-label" });
+      expect(fallback.sourcePath).toMatch(/^edgeTerminals\[/);
+      expect(result.diagnostics).toEqual([{ path: fallback.sourcePath, kind: "fallback", reason: fallback.reason }]);
+      expect(result.sources).toContainEqual({ path: fallback.sourcePath, tag: "g", id: "" });
+      expect(result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "edge-terminal")).toHaveLength(1);
+      expect(result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "edge")).toHaveLength(4);
+    }
+    await sceneFromFixture(page, fixture, "class-label-container.svg");
+    const container = await updateFixture(page, () => { document.querySelector("g.edgeLabels").style.opacity = "0.5"; });
+    expect(container.scene.nodes.filter((node) => node.kind === "fallback")).toMatchObject([
+      { reason: "unsupported-mermaid-container-style" },
+    ]);
+    expect(container.scene.nodes.filter((node) => ["edge-terminal", "edge-label"].includes(node.meta?.mermaid?.kind))).toEqual([]);
+  } finally {
+    await harness.close();
+  }
+});
+
 test("turns unknown Mermaid SVG visuals into explicit fallback nodes", async ({ page }) => {
   const harness = await startHarness({ slides: ["# Mermaid fallback fixture"] });
   try {
@@ -341,7 +467,7 @@ test("optionally maps scene paths back to exact source elements without putting 
   const harness = await startHarness({ slides: ["# Scene source mapping"] });
   try {
     await page.goto(harness.url);
-    for (const name of ["sequence", "class", "shapes-styled"]) {
+    for (const name of ["sequence", "class", "class-relations", "shapes-styled"]) {
       await sceneFromFixture(page, await readFixture(`${name}.svg`), `${name}.svg`);
       const result = await page.evaluate(async () => {
         const { mermaidSvgToScene } = await import("./renderer/mermaid-scene.mjs");
@@ -595,3 +721,54 @@ test("real renderer exports new Mermaid diagrams with exact native masks and par
     await harness.close();
   }
 });
+
+for (const theme of ["dark", "light", "microsoft", "custom"]) {
+  test(`real renderer masks native class heads and multiplicities while preserving hollow heads (${theme})`, async ({ page }) => {
+    const diagram = (await readFixture("class-relations.mmd"))
+      .replace("contains", "\u5408\u6210<br/>\u95a2\u4fc2")
+      .replace('"many"', '"0..*<br/>\u8907\u6570"') + "\nA <|-- B : inherits\nA o-- B : aggregates";
+    const harness = await startHarness({
+      slides: [`# Class relationships\n\n\`\`\`mermaid\n${diagram}\n\`\`\``],
+      theme,
+      customThemeCss: theme === "custom" ? "--bg:#102030;--fg:#fefefe;--body:#e0e4e8;--accent:#ff6600;--surface:#203040;--border:#405060;" : "",
+    });
+    try {
+      await page.goto(`${harness.url}/?pptx=1&token=${encodeURIComponent(harness.printToken)}`);
+      await page.waitForFunction(() => document.documentElement.hasAttribute("data-pptx-ready") ||
+        document.documentElement.hasAttribute("data-pptx-error"), undefined, { timeout: 120_000 });
+      await expect(page.locator("html")).toHaveAttribute("data-pptx-ready", "true");
+      const slide = await page.evaluate(() => window.__presentationPptxModel.slides[0]);
+      const edges = slide.elements.filter((element) => element.path?.startsWith("mermaid[0].edges["));
+      expect(edges.map((edge) => [edge.arrowStart, edge.arrowEnd])).toEqual([
+        ["diamond", "none"], ["none", "stealth"], ["none", "stealth"], ["none", "none"],
+      ]);
+      const terminals = slide.elements.filter((element) => element.mermaid?.kind === "edge-terminal");
+      expect(terminals.map((terminal) => terminal.text.paragraphs.map((paragraph) => paragraph.runs.map((run) => run.text).join(""))))
+        .toEqual([["1"], ["0..*", "\u8907\u6570"]]);
+      expect(slide.elements.some((element) => element.text?.paragraphs?.map((paragraph) =>
+        paragraph.runs.map((run) => run.text).join("")).join("\n") === "\u5408\u6210\n\u95a2\u4fc2")).toBe(true);
+      expect(slide.fallbacks.filter((fallback) => fallback.type === "mermaid")).toMatchObject([
+        { path: "mermaid[0].edges[4]", reason: "unsupported-mermaid-edge-style" },
+        { path: "mermaid[0].edges[5]", reason: "unsupported-mermaid-edge-style" },
+      ]);
+      const svg = page.locator("pre.mermaid > svg");
+      await expect(svg.locator("path.relation[data-pptx-native=connector]")).toHaveCount(4);
+      await expect(svg.locator("g.edgeTerminals[data-pptx-native=shape]")).toHaveCount(2);
+      await expect(svg.locator("path.relation[data-pptx-fallback-ids]")).toHaveCount(2);
+      expect(await svg.getAttribute("data-pptx-fallback-ids")).toBeNull();
+      const masks = await svg.evaluate((svg) => ({
+        edges: [...svg.querySelectorAll("path.relation[data-pptx-native]")].map((edge) => {
+          const style = getComputedStyle(edge);
+          return [style.stroke, style.markerStart, style.markerEnd];
+        }),
+        labels: [...svg.querySelectorAll("g.edgeTerminals span.edgeLabel")].map((label) => getComputedStyle(label).color),
+        fallbackMarkers: [...svg.querySelectorAll("path.relation[data-pptx-fallback-ids]")].map((edge) => getComputedStyle(edge).markerStart),
+      }));
+      expect(masks.edges).toEqual(Array(4).fill(["rgba(0, 0, 0, 0)", "none", "none"]));
+      expect(masks.labels).toEqual(Array(2).fill("rgba(0, 0, 0, 0)"));
+      expect(masks.fallbackMarkers.every((marker) => marker !== "none")).toBe(true);
+    } finally {
+      await harness.close();
+    }
+  });
+}

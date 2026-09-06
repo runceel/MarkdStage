@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+
 import { expect, test } from "@playwright/test";
 import { startHarness } from "../harness/server.mjs";
 import { waitForSlideReady } from "../utils/ready.mjs";
@@ -18,6 +20,7 @@ const slides = [
   "# Nested Mermaid\n\n```mermaid\nflowchart TB\nsubgraph Cloud\nA --> B{Check}\nB -->|Yes| C((Done))\nend\n```",
   "# Styled Mermaid\n\n```mermaid\nflowchart LR\nA[Styled]:::red --> B([Done])\nclassDef red fill:#ffdddd,stroke:#ff0000,stroke-width:3px,color:#111111\n```",
   "# Class Mermaid\n\n```mermaid\nclassDiagram\nclass Animal {\n+String name\n+walk()\n}\nAnimal <|-- Duck\n```",
+  `# Class relationships\n\n\`\`\`mermaid\n${await readFile(new URL("../fixtures/mermaid/class-relations.mmd", import.meta.url), "utf8")}\n\`\`\``,
 ];
 
 const customThemeCss = ":root{--bg:#102030;--fg:#f8fafc;--body:#d7e3f0;--muted:#abbdd0;--surface:#203448;--border:#486580;--accent:#39b8f2;--accent-strong:#72d4ff;--accent-soft:#163b50;}";
@@ -96,13 +99,13 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
 }
 
 test("normal, presenter, fixed preview, PNG and PDF use the same shared scene rendering", async ({ browser }) => {
-  const harness = await startHarness({ slides: slides.slice(0, 2) });
+  const harness = await startHarness({ slides: [slides[0], slides[1], slides.at(-1)] });
   const page = await browser.newPage();
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
   try {
-    for (const index of [0, 1]) {
+    for (const index of [0, 1, 2]) {
       await page.request.post(`${harness.url}/navigate`, { data: { index } });
       const signatures = [];
       for (const query of ["", "?present=1", "?preview=1", "fixed", `?capture=1&token=${harness.printToken}&index=${index}`, `?print=1&token=${harness.printToken}`]) {
@@ -115,17 +118,18 @@ test("normal, presenter, fixed preview, PNG and PDF use the same shared scene re
           await page.locator("#navFixedPreview").click();
           await expect(page.locator("body")).toHaveClass(/fixed-preview-mode/);
         }
-        const svg = page.locator(index === 0 ? "svg.architecture-svg" : ".mermaid svg").first();
+        const svg = page.locator(index === 0 ? "svg.architecture-svg" : ".mermaid svg")
+          .nth(query.includes("print=") && index > 0 ? index - 1 : 0);
         await expect(svg).toHaveAttribute("data-scene-backend", "svg");
         signatures.push(await svg.evaluate((element) => ({
           viewBox: element.getAttribute("viewBox"),
           paths: [...element.querySelectorAll("path")].map((path) => path.getAttribute("d")),
-          text: [...element.querySelectorAll("text")].map((label) => label.textContent),
+          text: [...element.querySelectorAll("text, span.edgeLabel")].map((label) => label.textContent),
           nodes: [...element.querySelectorAll("[data-architecture-id]")].map((node) => [node.getAttribute("data-architecture-id"), node.getAttribute("data-scene-source-path")]),
         })));
         if (query.includes("capture=")) expect((await page.screenshot()).length).toBeGreaterThan(1000);
         if (query.includes("print=")) {
-          await assertBackend(page, 2);
+          await assertBackend(page, 3);
           expect((await page.pdf()).subarray(0, 5).toString()).toBe("%PDF-");
         }
       }

@@ -157,6 +157,23 @@ test("recognizes sequence arrows while leaving unsupported markers conservative"
   assert.equal(markerIdToArrow("none"), "none");
 });
 
+test("maps filled class relationship markers without confusing them with hollow UML markers", () => {
+  for (const end of ["Start", "End"]) {
+    for (const suffix of ["", "-margin"]) {
+      for (const [kind, arrow] of [
+        ["composition", "diamond"], ["dependency", "stealth"],
+        ["aggregation", "none"], ["extension", "none"], ["lollipop", "none"],
+      ]) {
+        const id = `fixture-class_class-${kind}${end}${suffix}`;
+        assert.equal(markerIdToArrow(id), arrow);
+        assert.equal(markerIdToArrow(`url(#${id})`), arrow);
+        assert.equal(markerIdToArrow(`url("https://example.test/deck#${id}")`), arrow);
+      }
+    }
+  }
+  assert.equal(markerIdToArrow("url(#fixture-class_class-unknownEnd)"), "none");
+});
+
 test("preserves zero-width strokes and does not silently truncate text over limits", () => {
   assert.equal(cssStyleToSceneStyle({ strokeWidth: 0 }).strokeWidth, 0);
   const text = textToSceneText(Array.from({ length: 201 }, () => "line").join("\n"));
