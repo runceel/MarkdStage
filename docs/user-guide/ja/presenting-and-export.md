@@ -16,14 +16,15 @@ Canvas、Desktop、CLI は同じレンダラーで描画するため、聞き手
 | 外部の投影用ウィンドウ | 対応 | 対応 | 対応 |
 | 操作の同期 | 対応 | 対応 | 対応 |
 | 投影側の全画面表示 | `F11` | `F11` | `F11` |
-| 16:9 のクリッピング確認 | 対応 | 非対応 | `markdstage inspect` |
-| PDF エクスポート | 対応 | 非対応 | `markdstage export --output slides.pdf` |
-| 編集可能な PowerPoint エクスポート | 対応 | 非対応 | `markdstage export --output slides.pptx` |
+| 16:9 のクリッピング確認 | 対応 | 非対応 | UI と `markdstage inspect` |
+| PDF エクスポート | 対応 | 非対応 | UI と `markdstage export --output slides.pdf` |
+| 編集可能な PowerPoint エクスポート | 対応 | 非対応 | UI と `markdstage export --output slides.pptx` |
 | Surface Pen | Windows で対応 | 投影用ウィンドウ表示中に対応 | 非対応 |
 
 ## 発表者ビューを準備する
 
-Canvas の発表者ビュー、または Desktop のメインウィンドウを開き、次の点を確かめます。
+Canvas または CLI アプリケーションの発表者ビュー、あるいは Desktop のメインウィンドウを
+開き、次の点を確かめます。
 
 - 現在のスライドが合っている
 - 次のスライドのプレビューが役に立つ
@@ -36,6 +37,8 @@ Canvas の発表者ビュー、または Desktop のメインウィンドウを�
 
 - **Canvas:** **More controls > External window**、または発表者ビューの
   **Start presentation** を選びます。
+- **CLI:** 同じ操作を使います。`markdstage present slides.md` は発表者ビューを開いた状態で
+  起動します。
 - **Desktop:** **Start presentation** を選びます。
 
 開いたウィンドウを投影用ディスプレイへ移します。`F11` で全画面にし、
@@ -43,7 +46,7 @@ Canvas の発表者ビュー、または Desktop のメインウィンドウを�
 
 ## 固定 16:9 出力を確認する
 
-Canvas Extension で **More controls > Output preview** を選びます。PDF 出力と同じ
+Canvas Extension または CLI アプリケーションで **More controls > Output preview** を選びます。PDF 出力と同じ
 1280x720 のタイポグラフィ、余白、内容量の制限でスライドをレターボックス表示します。
 
 内容が固定ページに収まらない場合は、クリッピング警告が出ます。
@@ -62,7 +65,8 @@ Canvas Extension で **More controls > Output preview** を選びます。PDF �
 3. **More controls > Export PDF** を選びます。
 4. ワークスペースにできた PDF を開き、全ページを確認します。
 
-Markdown からデッキを読み込んだ場合、PDF のファイル名は元ファイル名をもとに決まります。
+Markdown からデッキを読み込んだ場合、Canvas と CLI アプリケーションでは PDF のファイル名が
+元ファイル名をもとに決まります。
 書き出した PDF には、裏表紙を含む各スライドが 16:9 で1ページずつ入り、
 背景、画像、シンタックスハイライト付きコード、Mermaid、Architecture 図もそのまま出ます。
 

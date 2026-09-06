@@ -21,10 +21,14 @@ export async function withDeckServer(options, run) {
     log: options.log,
   });
   const server = await startPresentationServer(session, {
+    application: options.application,
+    exporters: options.exporters,
+    initialSourceMode: options.initialSourceMode,
     token,
     onLog: options.log,
     editable: options.watch === true,
     presenter: options.presenter,
+    watcherFactory: options.watcherFactory,
   });
   try {
     return await run(session, server);

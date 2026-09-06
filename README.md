@@ -140,11 +140,11 @@ Open the same folder in your chosen agent, attach notes or source material, and 
 ### Refine, inspect, and deliver
 
 ```console
-markdstage preview slides.md --watch
+markdstage slides.md
 ```
 
-Edit Markdown in your text editor; the preview reloads on save. `preview --watch` also enables the
-pencil placement editor and **Advanced edit** for Architecture diagrams. Placement changes save
+Edit Markdown in your text editor; the UI reloads on save. The same UI includes the pencil
+placement editor and **Advanced edit** for Architecture diagrams. Placement changes save
 immediately; the detailed designer keeps a draft until **Save** writes it back to Markdown.
 
 Ask the same agent to check fit in natural language:
@@ -175,8 +175,9 @@ markdstage export slides.md --output slides.pdf
 markdstage export slides.md --output slides.pptx
 ```
 
-`present` opens the presenter dashboard. Select **Start presentation** there to open the
-synchronized audience window. Review every page of the final export before distribution.
+`present` opens the same full UI with presenter view selected. Select **Start presentation**
+there to open the synchronized audience window. Review every page of the final export before
+distribution.
 
 ## Present without AI
 
@@ -185,11 +186,13 @@ Write Markdown yourself, use the [minimal format below](#markdown-format), or do
 No Skill registration is needed. Without a global install, you can run:
 
 ```console
-npx @markdstage/markdstage preview slides.md
+npx @markdstage/markdstage
+npx @markdstage/markdstage slides.md
 npx @markdstage/markdstage present slides.md
 ```
 
-`preview` without `--watch` is read-only. Canvas also opens files directly through
+The first command opens an empty Canvas-equivalent UI for the current workspace. The second opens
+`slides.md` with automatic refresh. Both the CLI UI and Canvas open files through
 **More controls > Open Markdown**. Native presenters are another option:
 
 ## Use MarkdStage Desktop

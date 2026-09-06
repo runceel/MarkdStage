@@ -13,16 +13,22 @@
 // overview, custom themes, Mermaid, Architecture DSL, local assets) is identical.
 
 import { createServer } from "node:http";
-import { realpath, stat } from "node:fs/promises";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { readFile, realpath, stat } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
 import { resolveAssetFile } from "../scripts/asset-paths.mjs";
 import { importedArchitectureBlockIndex } from "../scripts/markdown-blocks.mjs";
 import { isMarkdownPath, listMarkdownFiles } from "../scripts/markdown-files.mjs";
+import { createMarkdownWatcher } from "../scripts/markdown-watcher.mjs";
 import { startArchitectureEditorServer } from "./architecture-editor-server.mjs";
 import { saveArchitectureSource } from "./architecture-source.mjs";
-import { isPathInside } from "./output-paths.mjs";
+import { exportPdf, exportPptx } from "./output.mjs";
+import {
+  isPathInside,
+  pdfNameForSource,
+  pptxNameForSource,
+} from "./output-paths.mjs";
 import { safeJoin, sendChunkedVendorAsset, sendFile } from "./static-files.mjs";
 
 const RUNTIME_DIR = dirname(fileURLToPath(import.meta.url));
@@ -93,12 +99,138 @@ function broadcast(session) {
  */
 export async function startPresentationServer(
   session,
-  { editable = false, onLog, presenter, token = createUrlToken() } = {},
+  {
+    application = false,
+    editable = false,
+    exporters,
+    initialSourceMode = "snapshot",
+    onLog,
+    presenter,
+    token = createUrlToken(),
+    watcherFactory = createMarkdownWatcher,
+  } = {},
 ) {
   const base = `/${token}`;
   const architectureEditors = new Map();
-  const editingAvailable = editable === true;
+  const applicationMode = application === true;
+  const editingAvailable = applicationMode || editable === true;
+  const exportPdfImpl = exporters?.pdf ?? exportPdf;
+  const exportPptxImpl = exporters?.pptx ?? exportPptx;
+  let sourceMode = initialSourceMode === "live" ? "live" : "snapshot";
+  let sourceWatchStatus = "inactive";
+  let sourceWatchError = "";
+  let sourceWatcher = null;
+  let sourceWatcherGeneration = 0;
+  let sourceOperation = Promise.resolve();
   let port = 0;
+
+  const runSourceOperation = (operation) => {
+    const result = sourceOperation.then(operation, operation);
+    sourceOperation = result.catch(() => {});
+    return result;
+  };
+
+  const setWatchState = (status, error = "") => {
+    const changed = sourceWatchStatus !== status || sourceWatchError !== error;
+    sourceWatchStatus = status;
+    sourceWatchError = error;
+    session.watchStatus = status;
+    session.watchError = error;
+    if (changed && port) broadcast(session);
+  };
+
+  const closeSourceWatcher = () => {
+    sourceWatcherGeneration += 1;
+    sourceWatcher?.close();
+    sourceWatcher = null;
+  };
+
+  const reloadSourceNow = async (generation) => {
+      if (
+        generation !== sourceWatcherGeneration ||
+        sourceMode !== "live" ||
+        !session.file
+      ) {
+        return;
+      }
+      const sourceFile = session.file;
+      try {
+        if ((await readFile(sourceFile, "utf8")) === session.sourceMarkdown) {
+          setWatchState("watching");
+          return;
+        }
+        if (
+          generation !== sourceWatcherGeneration ||
+          sourceMode !== "live" ||
+          session.file !== sourceFile
+        ) {
+          return;
+        }
+        await session.load({ preserveIndex: true });
+        setWatchState("watching");
+        broadcast(session);
+        onLog?.(`reloaded ${session.sourceName} (${session.slides.length} slides)`);
+      } catch (error) {
+        if (
+          generation !== sourceWatcherGeneration ||
+          sourceMode !== "live" ||
+          session.file !== sourceFile
+        ) {
+          return;
+        }
+        setWatchState("error", error?.code || "source_reload_failed");
+        onLog?.(
+          `reload failed, keeping the last valid deck: ${error?.message || error}`,
+          "error",
+        );
+      }
+  };
+
+  const reloadSource = (generation) =>
+    runSourceOperation(() => reloadSourceNow(generation));
+
+  const bindSourceWatcher = () => {
+    closeSourceWatcher();
+    if (sourceMode !== "live" || !session.file) {
+      setWatchState("inactive");
+      return { ok: true };
+    }
+    try {
+      const generation = sourceWatcherGeneration;
+      sourceWatcher = watcherFactory({
+        path: session.file,
+        onChange: () => reloadSource(generation),
+        onError: (error) => {
+          setWatchState("error", "watch_failed");
+          onLog?.(`watch error: ${error?.message || error}`, "error");
+        },
+      });
+      setWatchState("watching");
+      return { ok: true, generation };
+    } catch (error) {
+      setWatchState("error", "watch_failed");
+      return {
+        ok: false,
+        error: "watch_failed",
+        message: error?.message || "The Markdown watcher could not be started.",
+      };
+    }
+  };
+
+  const setSourceMode = async (mode, { reload = true } = {}) => {
+    sourceMode = mode === "live" ? "live" : "snapshot";
+    const result = bindSourceWatcher();
+    if (sourceMode === "live" && result.ok && reload) {
+      await reloadSourceNow(result.generation);
+    }
+    return sourceMode === "live"
+      ? {
+          ok: true,
+          status: sourceWatchStatus,
+          error: sourceWatchError,
+        }
+      : { ok: true };
+  };
 
   const server = createServer(async (req, res) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
@@ -158,21 +290,23 @@ export async function startPresentationServer(
         customThemeCss: session.customThemeCss,
         customThemeMeta: session.customThemeMeta,
         mode: session.mode,
-        sourceBacked: editingAvailable,
-        sourceModeAvailable: false,
-        sourceMode: editingAvailable ? "live" : "snapshot",
-        sourceWatchStatus: session.watchStatus || "inactive",
-        sourceWatchError: session.watchError || "",
+        sourceBacked: Boolean(session.file),
+        sourceModeAvailable: applicationMode && Boolean(session.file),
+        sourceMode,
+        sourceWatchStatus,
+        sourceWatchError,
         presenterRunning: Boolean(presenter?.isRunning?.()),
         presenterWindowAvailable: Boolean(presenter),
         presenterViewAvailable: Boolean(presenter),
-        pdfExportAvailable: false,
-        pptxExportAvailable: false,
-        markdownImportAvailable: false,
-        architectureEditAvailable: editingAvailable,
-        architectureEdit: editingAvailable && Boolean(session.architectureEdit),
-        architectureDetailedEdit: editingAvailable,
-        architectureDetailedEditTarget: editingAvailable ? "window" : "",
+        pdfExportAvailable: applicationMode && Boolean(session.file),
+        pptxExportAvailable: applicationMode && Boolean(session.file),
+        markdownImportAvailable: applicationMode,
+        architectureEditAvailable: editingAvailable && Boolean(session.file),
+        architectureEdit:
+          editingAvailable && Boolean(session.file) && Boolean(session.architectureEdit),
+        architectureDetailedEdit: editingAvailable && Boolean(session.file),
+        architectureDetailedEditTarget:
+          editingAvailable && session.file ? "window" : "",
       });
       return;
     }
@@ -310,6 +444,10 @@ export async function startPresentationServer(
     }
 
     if (route === "/markdown-files") {
+      if (!applicationMode) {
+        json(res, 501, { ok: false, error: "not_supported" });
+        return;
+      }
       if (req.method !== "GET") {
         res.setHeader("Allow", "GET");
         json(res, 405, { ok: false, error: "method_not_allowed" });
@@ -327,6 +465,10 @@ export async function startPresentationServer(
 
     // Loading another workspace Markdown file from the browser 📂 button.
     if (route === "/import") {
+      if (!applicationMode) {
+        json(res, 501, { ok: false, error: "not_supported" });
+        return;
+      }
       if (req.method !== "POST") {
         res.setHeader("Allow", "POST");
         json(res, 405, { ok: false, error: "method_not_allowed" });
@@ -345,6 +487,12 @@ export async function startPresentationServer(
         return;
       }
       const requested = typeof body.path === "string" ? body.path.trim() : "";
+      const requestedSourceMode =
+        body.sourceMode === undefined ? "snapshot" : body.sourceMode;
+      if (requestedSourceMode !== "snapshot" && requestedSourceMode !== "live") {
+        json(res, 400, { ok: false, error: "invalid_source_mode" });
+        return;
+      }
       if (!requested) {
         json(res, 400, { ok: false, error: "path (string) is required" });
         return;
@@ -366,29 +514,72 @@ export async function startPresentationServer(
         json(res, 404, { ok: false, error: "file_not_found" });
         return;
       }
+      let sourceResult;
       try {
-        session.file = canonical;
-        session.sourceName = relative(root, canonical).split(sep).join("/");
-        await session.load();
-        broadcast(session);
+        sourceResult = await runSourceOperation(async () => {
+          await session.openFile(canonical);
+          return setSourceMode(requestedSourceMode);
+        });
       } catch (error) {
         json(res, 400, { ok: false, error: error?.code || "import_failed" });
         return;
       }
-      json(res, 200, {
-        ok: true,
+      broadcast(session);
+      json(res, sourceResult.ok ? 200 : 409, {
+        ...sourceResult,
         version: session.version,
         index: session.index,
         total: session.slides.length,
         theme: session.theme,
         sourceName: session.sourceName,
-        sourceMode: "snapshot",
-        sourceWatchStatus: session.watchStatus || "inactive",
+        sourceMode,
+        sourceWatchStatus,
       });
       return;
     }
 
-    if (editingAvailable && route === "/edit-mode") {
+    if (applicationMode && route === "/source-mode") {
+      if (req.method !== "POST") {
+        res.setHeader("Allow", "POST");
+        json(res, 405, { ok: false, error: "method_not_allowed" });
+        return;
+      }
+      if (!sameOrigin()) {
+        json(res, 403, { ok: false, error: "origin_not_allowed" });
+        return;
+      }
+      let body;
+      try {
+        body = await readJsonBody(req);
+      } catch (error) {
+        res.setHeader("Connection", "close");
+        json(res, error?.message === "payload_too_large" ? 413 : 400, {
+          ok: false,
+          error: error?.message || "bad_request",
+        });
+        return;
+      }
+      if (!session.file) {
+        json(res, 409, { ok: false, error: "no_deck" });
+        return;
+      }
+      if (body.mode !== "snapshot" && body.mode !== "live") {
+        json(res, 400, { ok: false, error: "invalid_source_mode" });
+        return;
+      }
+      const previous = sourceMode;
+      const result = await runSourceOperation(() => setSourceMode(body.mode));
+      json(res, result.ok ? 200 : 409, {
+        ...result,
+        changed: result.ok ? previous !== sourceMode : false,
+        sourceMode,
+        sourceWatchStatus,
+        sourceWatchError,
+      });
+      return;
+    }
+
+    if (editingAvailable && session.file && route === "/edit-mode") {
       if (req.method !== "POST") {
         res.setHeader("Allow", "POST");
         json(res, 405, { ok: false, error: "method_not_allowed" });
@@ -423,7 +614,7 @@ export async function startPresentationServer(
       return;
     }
 
-    if (editingAvailable && route === "/edit") {
+    if (editingAvailable && session.file && route === "/edit") {
       if (req.method !== "POST") {
         res.setHeader("Allow", "POST");
         json(res, 405, { ok: false, error: "method_not_allowed" });
@@ -444,78 +635,97 @@ export async function startPresentationServer(
         });
         return;
       }
-      if (!session.architectureEdit) {
-        json(res, 409, { ok: false, error: "edit_mode_disabled" });
-        return;
-      }
       if (typeof body.source !== "string" || !body.source.trim()) {
         json(res, 400, { ok: false, error: "source (string) is required" });
         return;
       }
-      const index = Number.isInteger(body.index) ? body.index : session.index;
-      const block = Number.isInteger(body.block) ? body.block : 0;
-      const deckVersion = Number.isInteger(body.deckVersion)
-        ? body.deckVersion
-        : session.deckVersion;
-      if (index < 0 || index >= session.slides.length) {
-        json(res, 400, { ok: false, error: "index_out_of_range" });
-        return;
-      }
-      if (deckVersion !== session.deckVersion) {
-        json(res, 409, { ok: false, error: "deck_changed" });
-        return;
-      }
-      const globalBlock = importedArchitectureBlockIndex(session.slides, index, block);
-      if (globalBlock === null) {
-        json(res, 404, { ok: false, error: "block_not_found" });
-        return;
-      }
-      const result = await saveArchitectureSource({
-        workspaceRoot: session.workspaceRoot,
-        sourcePath: session.sourceName,
-        sourceFile: session.file,
-        blockIndex: globalBlock,
-        source: body.source,
-        expectedMarkdown: session.sourceMarkdown,
-      });
-      if (!result.ok) {
-        const status =
-          result.error === "source_changed"
-            ? 409
-            : result.error === "block_not_found"
-              ? 404
-              : result.error === "source_file_too_large"
-                ? 413
-                : result.error === "source_write_failed"
-                  ? 500
-                  : 422;
-        json(res, status, result);
-        return;
-      }
-      try {
-        await session.load({ preserveIndex: true });
-      } catch (error) {
-        json(res, 500, {
-          ok: false,
-          error: "source_reload_failed",
-          message: error?.message || "The saved deck could not be reloaded.",
+      const response = await runSourceOperation(async () => {
+        if (!session.architectureEdit) {
+          return {
+            status: 409,
+            body: { ok: false, error: "edit_mode_disabled" },
+          };
+        }
+        const index = Number.isInteger(body.index) ? body.index : session.index;
+        const block = Number.isInteger(body.block) ? body.block : 0;
+        const deckVersion = Number.isInteger(body.deckVersion)
+          ? body.deckVersion
+          : session.deckVersion;
+        if (index < 0 || index >= session.slides.length) {
+          return {
+            status: 400,
+            body: { ok: false, error: "index_out_of_range" },
+          };
+        }
+        if (deckVersion !== session.deckVersion) {
+          return {
+            status: 409,
+            body: { ok: false, error: "deck_changed" },
+          };
+        }
+        const globalBlock = importedArchitectureBlockIndex(
+          session.slides,
+          index,
+          block,
+        );
+        if (globalBlock === null) {
+          return {
+            status: 404,
+            body: { ok: false, error: "block_not_found" },
+          };
+        }
+        const result = await saveArchitectureSource({
+          workspaceRoot: session.workspaceRoot,
+          sourcePath: session.sourceName,
+          sourceFile: session.file,
+          blockIndex: globalBlock,
+          source: body.source,
+          expectedMarkdown: session.sourceMarkdown,
         });
-        return;
-      }
-      broadcast(session);
-      json(res, 200, {
-        ok: true,
-        version: session.version,
-        deckVersion: session.deckVersion,
-        index,
-        block,
-        markdown: session.markdown,
-        fileSaved: true,
+        if (!result.ok) {
+          const status =
+            result.error === "source_changed"
+              ? 409
+              : result.error === "block_not_found"
+                ? 404
+                : result.error === "source_file_too_large"
+                  ? 413
+                  : result.error === "source_write_failed"
+                    ? 500
+                    : 422;
+          return { status, body: result };
+        }
+        try {
+          await session.load({ preserveIndex: true });
+        } catch (error) {
+          return {
+            status: 500,
+            body: {
+              ok: false,
+              error: "source_reload_failed",
+              message: error?.message || "The saved deck could not be reloaded.",
+            },
+          };
+        }
+        return {
+          status: 200,
+          body: {
+            ok: true,
+            version: session.version,
+            deckVersion: session.deckVersion,
+            index,
+            block,
+            markdown: session.markdown,
+            fileSaved: true,
+          },
+        };
       });
+      if (response.status === 200) broadcast(session);
+      json(res, response.status, response.body);
       return;
     }
 
-    if (editingAvailable && route === "/architecture-editor/open") {
+    if (editingAvailable && session.file && route === "/architecture-editor/open") {
       if (req.method !== "POST") {
         res.setHeader("Allow", "POST");
         json(res, 405, { ok: false, error: "method_not_allowed" });
@@ -559,11 +769,13 @@ export async function startPresentationServer(
           theme: session.theme,
           logger: onLog,
           onMarkdownSaved: async ({ sourcePath }) => {
-            if (resolve(session.workspaceRoot, sourcePath) !== resolve(session.file)) {
-              return;
-            }
-            await session.load({ preserveIndex: true });
-            broadcast(session);
+            await runSourceOperation(async () => {
+              if (resolve(session.workspaceRoot, sourcePath) !== resolve(session.file)) {
+                return;
+              }
+              await session.load({ preserveIndex: true });
+              broadcast(session);
+            });
           },
         });
         architectureEditors.set(key, entry);
@@ -608,6 +820,10 @@ export async function startPresentationServer(
         json(res, 403, { ok: false, error: "origin_not_allowed" });
         return;
       }
+      if (!session.slides.length) {
+        json(res, 409, { ok: false, error: "no_deck" });
+        return;
+      }
       try {
         const result = req.method === "POST" ? await presenter.open() : await presenter.close();
         json(res, 200, { ok: true, ...result });
@@ -621,11 +837,59 @@ export async function startPresentationServer(
       return;
     }
 
+    if (applicationMode && (route === "/export" || route === "/export-pptx")) {
+      if (req.method !== "POST") {
+        res.setHeader("Allow", "POST");
+        json(res, 405, { ok: false, error: "method_not_allowed" });
+        return;
+      }
+      if (!sameOrigin()) {
+        json(res, 403, { ok: false, error: "origin_not_allowed" });
+        return;
+      }
+      if (!session.slides.length) {
+        json(res, 409, { ok: false, error: "no_deck" });
+        return;
+      }
+      const pptx = route === "/export-pptx";
+      try {
+        const result = pptx
+          ? await exportPptxImpl(
+              session,
+              pptxNameForSource(session.sourceName),
+              session.theme,
+            )
+          : await exportPdfImpl(
+              session,
+              pdfNameForSource(session.sourceName),
+              session.theme,
+            );
+        json(res, 200, result);
+      } catch (error) {
+        json(
+          res,
+          error?.code === "no_deck" || error?.code === "export_in_progress"
+            ? 409
+            : 500,
+          {
+            ok: false,
+            error:
+              error?.code || (pptx ? "pptx_export_failed" : "pdf_export_failed"),
+            message:
+              error?.message ||
+              (pptx ? "PowerPoint export failed." : "PDF export failed."),
+          },
+        );
+      }
+      return;
+    }
+
     // Routes that are unavailable in this CLI server mode stay explicit so the
     // browser reports an actionable message instead of a bare 404.
     if (
       route === "/present" ||
       route === "/export" ||
+      route === "/export-pptx" ||
       route === "/edit" ||
       route === "/edit-mode" ||
       route === "/source-mode" ||
@@ -730,14 +994,23 @@ export async function startPresentationServer(
   port = typeof address === "object" && address ? address.port : 0;
   const url = `http://127.0.0.1:${port}${base}/`;
   session.url = url;
+  const initialWatcher = bindSourceWatcher();
+  if (sourceMode === "live" && initialWatcher.ok) {
+    await runSourceOperation(() => reloadSourceNow(initialWatcher.generation));
+  }
 
   return {
     server,
     url,
     token,
     port,
+    get sourceMode() {
+      return sourceMode;
+    },
     broadcast: () => broadcast(session),
     close: async () => {
+      closeSourceWatcher();
+      await sourceOperation.catch(() => {});
       await Promise.all(
         [...architectureEditors.values()].map(async (entry) =>
           (entry.editor ?? (await entry.promise.catch(() => null)))?.close().catch(() => {}),
