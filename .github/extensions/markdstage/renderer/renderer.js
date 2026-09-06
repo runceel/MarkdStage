@@ -562,7 +562,7 @@ function applySyntaxHighlighting(root) {
 // no diagrams, a missing library, or an invalid diagram must never leave the
 // slide blank, so the body is always revealed in the end. Mermaid colors are
 // matched to the slide theme, re-initialized only when they actually change.
-function runMermaid(scope, _theme, token, revealWhenDone = true) {
+function runMermaid(scope, token, revealWhenDone = true) {
   // Only the latest render may lift the loading veil; a stale finish is ignored.
   const reveal = () => {
     if (revealWhenDone && token === renderToken) {
@@ -830,7 +830,7 @@ function renderSlide(markdown) {
   const images = waitForImages(slide.deck).then(() => {
     if (token === renderToken) scheduleLayoutRefresh();
   });
-  const mermaid = runMermaid(slide.bodyEl, slide.theme, token, false).finally(() => {
+  const mermaid = runMermaid(slide.bodyEl, token, false).finally(() => {
     if (token === renderToken) scheduleLayoutRefresh();
   });
   Promise.all([mermaid, images]).finally(() => {
@@ -2479,7 +2479,7 @@ async function renderPptxDeck(
   }
   const token = ++renderToken;
   for (const slide of rendered) {
-    await runMermaid(slide.bodyEl, slide.theme, token, false);
+    await runMermaid(slide.bodyEl, token, false);
   }
   await waitForImages(stage);
   await afterLayout();
@@ -2594,7 +2594,7 @@ async function renderPrintDeck(
     }
   }
   for (const slide of rendered) {
-    await runMermaid(slide.bodyEl, slide.theme, renderToken, false);
+    await runMermaid(slide.bodyEl, renderToken, false);
   }
   await waitForImages(stage);
   await afterLayout();
@@ -2673,7 +2673,7 @@ async function renderCaptureSlide(
   }
 
   const token = ++renderToken;
-  await runMermaid(slide.bodyEl, slide.theme, token, false);
+  await runMermaid(slide.bodyEl, token, false);
   await waitForImages(stage);
   await afterLayout();
 
