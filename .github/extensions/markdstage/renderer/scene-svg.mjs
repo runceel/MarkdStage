@@ -225,6 +225,11 @@ export function captureSvgTree(element, { slots = new Map(), computedStyle = glo
         // SVG geometry and the root's responsive CSS must not become screen pixels.
         if (!html && !math && /^(?:min-|max-)?(?:width|height)$/.test(property)) continue;
         let value = localPaint(style.getPropertyValue(property), source);
+        if ((html || math) && (property === "width" || property === "height")) {
+          // CSSOM rounds intrinsic used pixels; retaining auto avoids fallback layout drift.
+          const specified = source.computedStyleMap?.().get(property)?.toString?.();
+          if (specified === "auto") value = specified;
+        }
         if (property === "transform") {
           // Typed OM retains matrix precision and includes stylesheet overrides.
           const transform = source.computedStyleMap?.().get("transform");
