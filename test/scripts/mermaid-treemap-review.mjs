@@ -40,7 +40,7 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
   const file = join(directory, "slides.md");
   await writeFile(file, markdown);
   if (theme === "custom") {
-    await writeFile(join(directory, "theme.css"), ":root{--bg:#102030;--fg:#fefefe;--body:#e0e4e8;--accent:#ff6600;--surface:#203040;--border:#405060;}");
+    await writeFile(join(directory, "theme.css"), ":root{--bg:#102030;--print-slide-bg:#102030;--print-cover-bg:#102030;--topbar:#ff6600;--fg:#fefefe;--body:#e0e4e8;--accent:#ff6600;--surface:#203040;--border:#405060;}");
   }
   await withDeckServer({
     file, workspace: directory, theme, ...(theme === "custom" ? { themeFile: "theme.css" } : {}),

@@ -274,7 +274,7 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
     const sources = await Promise.all(names.map((name) => fixture(name, "mmd")));
     const harness = await startHarness({
       slides: sources.map((source) => `## Treemap\n\n\`\`\`mermaid\n${source}\n\`\`\``), theme,
-      customThemeCss: theme === "custom" ? "--bg:#102030;--fg:#fefefe;--body:#e0e4e8;--accent:#ff6600;--surface:#203040;--border:#405060;" : "",
+      customThemeCss: theme === "custom" ? "--bg:#102030;--print-slide-bg:#102030;--topbar:#ff6600;--fg:#fefefe;--body:#e0e4e8;--accent:#ff6600;--surface:#203040;--border:#405060;" : "",
     });
     try {
       await page.goto(`${harness.url}/?pptx=1&token=${harness.printToken}`);
@@ -319,7 +319,7 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
     const sources = await Promise.all(names.map((name) => fixture(name, "mmd")));
     const harness = await startHarness({
       slides: sources.map((source) => `## Treemap\n\n\`\`\`mermaid\n${source}\n\`\`\``), theme,
-      customThemeCss: theme === "custom" ? "--bg:#102030;--fg:#fefefe;--body:#e0e4e8;--accent:#ff6600;--surface:#203040;--border:#405060;" : "",
+      customThemeCss: theme === "custom" ? "--bg:#102030;--print-slide-bg:#102030;--topbar:#ff6600;--fg:#fefefe;--body:#e0e4e8;--accent:#ff6600;--surface:#203040;--border:#405060;" : "",
     });
     await page.addInitScript(() => {
       const replaceWith = Element.prototype.replaceWith;
