@@ -6691,12 +6691,13 @@ function journeySwitchText(element, sourcePath, z, deck, options, reasons) {
     const style = getComputedStyle(part);
     return ["transform", "rotate", "scale", "translate"].some((name) => style[name] && style[name] !== "none");
   })) return fallback();
-  // foreignObject x/y are scalar lengths, unlike SVG text coordinate lists.
+  // Measure the rendered line, not its taller table cell. Ordinary native text
+  // uses top anchoring; centering belongs to the source HTML layout.
   return [{
-    kind: "text", sourcePath, z, bounds: boundsOf(label, deck),
+    kind: "text", sourcePath, z, bounds: boundsOf(range, deck),
     text: structuredLabelText(label, options),
     textLayout: { alignment: normalizeAlignment(getComputedStyle(label).textAlign),
-      verticalAlignment: "middle", textWrap: "none" },
+      verticalAlignment: "top", textWrap: "none" },
     meta: { mermaid: { kind: "journey-label" } },
   }];
 }

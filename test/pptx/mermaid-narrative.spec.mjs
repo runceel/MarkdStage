@@ -46,6 +46,12 @@ async function extract(page, name, mutate, arg) {
       return { path: node.sourcePath, tag: element.localName, class: element.getAttribute("class"),
         text: element.textContent, scale: matrix.a,
         bounds: { x: box.x - origin.x, y: box.y - origin.y, width: box.width, height: box.height },
+        ...(element.localName === "switch" ? (() => {
+          const range = document.createRange();
+          range.selectNodeContents(element.querySelector("div.label"));
+          const line = range.getBoundingClientRect();
+          return { lineBounds: { x: line.x - origin.x, y: line.y - origin.y, width: line.width, height: line.height } };
+        })() : {}),
         ...(element.localName === "line" ? {
           start: point(element.x1.baseVal.value, element.y1.baseVal.value),
           end: point(element.x2.baseVal.value, element.y2.baseVal.value),
@@ -117,6 +123,14 @@ test("narrative SVG scale, position, top corners and measured marker offsets sur
             expect(Math.abs(node.bounds[key] - source.bounds[key]), `${name} ${key}`).toBeLessThanOrEqual(.11);
           }
           if (node.preset === "topRoundedRect") expect(node.style.cornerRadius).toBeCloseTo(5 * source.scale, 0);
+        }
+        for (const node of nodes.filter((node) => node.meta?.mermaid?.kind === "journey-label")) {
+          const source = result.sources.find((source) => source.path === node.sourcePath);
+          for (const key of ["x", "y", "width", "height"]) {
+            expect(Math.abs(node.bounds[key] - source.lineBounds[key]), `journey rendered text ${key}`).toBeLessThanOrEqual(.11);
+          }
+          expect(node.bounds.height).toBeLessThan(source.bounds.height);
+          expect(node.textLayout.verticalAlignment).toBe("top");
         }
         for (const group of result.scene.nodes.filter((node) => node.meta?.mermaid?.kind.endsWith("marked-line"))) {
           const arrow = nodes.find((node) => node.sourcePath === `${group.sourcePath}.arrow`);
