@@ -64,7 +64,10 @@ const COMMAND_OPTIONS = {
   validate: {},
   inspect: { slide: { type: "string" }, all: { type: "boolean" }, "fail-on-issues": { type: "boolean" } },
   capture: { pages: { type: "string" }, output: { type: "string" } },
-  export: { output: { type: "string" } },
+  export: {
+    output: { type: "string" },
+    "mermaid-image-fallback": { type: "boolean" },
+  },
   guide: {},
   skill: {
     target: { type: "string" },
@@ -156,11 +159,14 @@ function usage(command) {
       "Without --pages only the slides reported as clipped are captured.",
     ],
     export: [
-      "Usage: markdstage export <file.md> [--output slides.pdf|slides.pptx]",
+      "Usage: markdstage export <file.md> [options]",
       "",
       "Produces the same 16:9 PDF or hybrid editable PowerPoint as the MarkdStage canvas.",
       "PowerPoint output includes speaker-note Markdown as readable plain text notes.",
       "The output extension selects the format; omitting --output keeps PDF as the default.",
+      "  --output <path>             Write PDF or PowerPoint to this path.",
+      "  --mermaid-image-fallback    Render each Mermaid diagram as one image in PowerPoint.",
+      "                              Applies only with an explicit .pptx output.",
     ],
     guide: [
       "Usage: markdstage guide [topic] [--json]",
@@ -421,6 +427,7 @@ export async function run(argv, io = {}) {
         const report = await exportCommand({
           ...deckOptions(file, values),
           output: values.output,
+          mermaidImageFallback: values["mermaid-image-fallback"],
         });
         if (values.json) json(report);
         else out(formatExportReport(report));

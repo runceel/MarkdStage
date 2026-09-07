@@ -67,7 +67,7 @@
         </button>
         <button id="navExportPptx" class="nav-more-item" type="button" title="Save as editable PowerPoint" aria-label="Save as editable PowerPoint" hidden>
           <span class="nav-more-icon" aria-hidden="true">P</span>
-          <span class="nav-more-label">Export PowerPoint</span>
+          <span class="nav-more-label">Export PowerPoint&#8230;</span>
         </button>
       </section>
     </div>
@@ -84,6 +84,29 @@
     <button id="exportNotificationClose" class="nav-btn" type="button" aria-label="Dismiss export notification" hidden>&#10005;</button>
   </section>
   <div id="layoutWarning" class="layout-warning" role="status" aria-live="polite" hidden></div>
+
+  <dialog id="pptxExportDialog" class="pptx-export-dialog" aria-labelledby="pptxExportTitle">
+    <form id="pptxExportForm">
+      <h2 id="pptxExportTitle">Export PowerPoint</h2>
+      <fieldset>
+        <legend>Mermaid diagrams</legend>
+        <label class="pptx-export-choice">
+          <input type="radio" name="mermaidOutput" value="shapes" checked autofocus aria-describedby="pptxShapesDescription">
+          <span>Editable shapes</span>
+        </label>
+        <p id="pptxShapesDescription">Edit shapes and text in PowerPoint. Unsupported details become images.</p>
+        <label class="pptx-export-choice">
+          <input type="radio" name="mermaidOutput" value="images" aria-describedby="pptxImagesDescription">
+          <span>Images</span>
+        </label>
+        <p id="pptxImagesDescription">Keep each diagram as one image. Text and lines within it cannot be edited individually.</p>
+      </fieldset>
+      <div class="pptx-export-actions">
+        <button id="pptxExportCancel" class="presenter-button" type="button">Cancel</button>
+        <button class="presenter-button pptx-export-submit" type="submit">Export</button>
+      </div>
+    </form>
+  </dialog>
 
   <section id="presenterView" class="presenter-view" hidden aria-label="Presenter view">
     <header class="presenter-view-head">

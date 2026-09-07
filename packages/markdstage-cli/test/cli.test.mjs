@@ -214,20 +214,34 @@ test("export selects PDF or PowerPoint from the output extension", async () => {
         calls.push({ format: "pdf", output });
         return { ok: true, format: "pdf" };
       },
-      pptx: async (_session, output) => {
-        calls.push({ format: "pptx", output });
+      pptx: async (_session, output, _theme, _dependencies, options) => {
+        calls.push({ format: "pptx", output, options });
         return { ok: true, format: "pptx" };
       },
     };
 
     await exportCommand({ file, output: "deck.pdf" }, exporters);
-    await exportCommand({ file, output: "deck.pptx" }, exporters);
+    await exportCommand(
+      { file, output: "deck.pptx", mermaidImageFallback: true },
+      exporters,
+    );
 
     assert.deepEqual(calls, [
       { format: "pdf", output: "deck.pdf" },
-      { format: "pptx", output: "deck.pptx" },
+      {
+        format: "pptx",
+        output: "deck.pptx",
+        options: { mermaidImageFallback: true },
+      },
     ]);
   });
+});
+
+test("export help documents the opt-in Mermaid image fallback", async () => {
+  const io = capture();
+  assert.equal(await run(["export", "--help"], io), EXIT_OK);
+  assert.match(io.stdout(), /--mermaid-image-fallback/);
+  assert.match(io.stdout(), /only with an explicit \.pptx output/);
 });
 
 test("preview --json writes only one machine-readable document", async () => {

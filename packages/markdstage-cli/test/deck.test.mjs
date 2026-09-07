@@ -316,20 +316,38 @@ test("createDeckSession confines the deck to the workspace", async () => {
               calls.push({ format: "pdf", output, theme });
               return { ok: true, path: output };
             },
-            pptx: async (_session, output, theme) => {
-              calls.push({ format: "pptx", output, theme });
+            pptx: async (_session, output, theme, _dependencies, options) => {
+              calls.push({ format: "pptx", output, theme, options });
               return { ok: true, path: output };
             },
           },
         },
         async (_session, server) => {
           assert.equal((await post(server.url, "export")).status, 200);
+          assert.equal(
+            (await post(server.url, "export-pptx", { mermaidImageFallback: true })).status,
+            200,
+          );
           assert.equal((await post(server.url, "export-pptx")).status, 200);
+          for (const invalid of [null, [], { mermaidImageFallback: "true" }]) {
+            assert.equal((await post(server.url, "export-pptx", invalid)).status, 400);
+          }
         },
       );
       assert.deepEqual(calls, [
         { format: "pdf", output: "slides.pdf", theme: "dark" },
-        { format: "pptx", output: "slides.pptx", theme: "dark" },
+        {
+          format: "pptx",
+          output: "slides.pptx",
+          theme: "dark",
+          options: { mermaidImageFallback: true },
+        },
+        {
+          format: "pptx",
+          output: "slides.pptx",
+          theme: "dark",
+          options: { mermaidImageFallback: false },
+        },
       ]);
     });
   });

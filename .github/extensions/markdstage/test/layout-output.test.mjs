@@ -17,6 +17,9 @@ test("canvas exposes layout, PNG, PDF, and editable PowerPoint output", async ()
   assert.match(source, /name: "export_pdf"/);
   assert.match(source, /name: "export_pptx"/);
   assert.match(source, /^    if \(pathname === "\/export-pptx"\)/m);
+  assert.match(source, /mermaidImageFallback: body\.mermaidImageFallback === true/);
+  assert.match(source, /runtimeExportPptx\(inst, requestedPath, requestedTheme, undefined, options\)/);
+  assert.match(source, /mermaidImageFallback: snapshot\.mermaidImageFallback === true/);
   assert.match(source, /maxItems: MAX_CAPTURE_SLIDES/);
   assert.match(source, /never inline image bytes/);
   assert.match(browser, /--window-size=1280,720/);
@@ -38,6 +41,8 @@ test("canvas exposes layout, PNG, PDF, and editable PowerPoint output", async ()
   assert.match(browser, /pptx-fallback-hidden/);
   assert.match(browser, /width: bounds\.width/);
   assert.match(html, /id="navExportPptx"/);
+  assert.match(html, /<dialog id="pptxExportDialog"/);
+  assert.doesNotMatch(html, /navMermaidImageFallback/);
 });
 
 test("print, capture, and fixed preview share one 1280x720 output surface", async () => {

@@ -4,7 +4,11 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-import { exportPptx, preparePptxPackageModel } from "../runtime/output.mjs";
+import {
+  createOutputJob,
+  exportPptx,
+  preparePptxPackageModel,
+} from "../runtime/output.mjs";
 
 const PNG = Buffer.from([
   137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82,
@@ -12,6 +16,23 @@ const PNG = Buffer.from([
 ]);
 const FALLBACK_PNG = Buffer.concat([PNG, Buffer.from([1])]);
 const SVG = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="50"/>');
+
+test("PowerPoint output jobs carry the explicit Mermaid image fallback option", () => {
+  const snapshot = {
+    slides: ["# Slide"],
+    theme: "dark",
+    themeLocked: false,
+    customThemeCss: "",
+    customThemeMeta: null,
+  };
+
+  assert.equal(
+    createOutputJob(snapshot, "pptx", { mermaidImageFallback: true })
+      .mermaidImageFallback,
+    true,
+  );
+  assert.equal(createOutputJob(snapshot, "pptx").mermaidImageFallback, false);
+});
 
 function model(elements, notes, fallbacks = [], layoutElements = []) {
   return {

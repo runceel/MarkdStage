@@ -2138,7 +2138,7 @@ function collectMermaidObjects(element, deck, blockIndex) {
   return { elements: mapped.elements, fallbacks };
 }
 
-async function collectPptxSlide(slide, index) {
+async function collectPptxSlide(slide, index, options = {}) {
   const { deck } = slide;
   assignPptxPaintOrder(deck);
   const elements = [];
@@ -2245,6 +2245,12 @@ async function collectPptxSlide(slide, index) {
   for (const [blockIndex, element] of [...deck.querySelectorAll("pre.mermaid")].entries()) {
     const covered = [...fallbackRoots].some((root) => root === element || root.contains(element));
     if (covered) continue;
+    if (options.mermaidImageFallback === true) {
+      // The scroll container clips the diagram; SVG definitions have no painted bounds.
+      // The capture pipeline trims transparent space inside this safe envelope.
+      addFallback("mermaid", element, "mermaid-rendered-as-artwork");
+      continue;
+    }
     try {
       const mermaid = collectMermaidObjects(element, deck, blockIndex);
       elements.push(...mermaid.elements);
@@ -2633,6 +2639,7 @@ async function renderPptxDeck(
   customCss = "",
   themeMetadata = null,
   themeLocked = false,
+  options = {},
 ) {
   deckTheme = normalizeTheme(theme);
   deckThemeLocked = Boolean(themeLocked);
@@ -2668,7 +2675,7 @@ async function renderPptxDeck(
 
   const pptxSlides = [];
   for (const [index, slide] of rendered.entries()) {
-    pptxSlides.push(await collectPptxSlide(slide, index));
+    pptxSlides.push(await collectPptxSlide(slide, index, options));
   }
   const themes = [...new Set(rendered.map((slide) => slide.theme))];
   const layoutTemplates = themes.flatMap((slideTheme) =>
@@ -2734,6 +2741,7 @@ async function initPptx(params) {
       data.customThemeCss,
       data.customThemeMeta,
       data.themeLocked,
+      { mermaidImageFallback: data.mermaidImageFallback === true },
     );
     await reportOutputStatus(token, "ready", "", output.layout);
   } catch (error) {
@@ -3694,9 +3702,45 @@ function showExportNotification(state, message, path = "") {
   resumeExportNotification();
 }
 
-async function exportFromCanvas(format) {
+let pptxOptionsPending = false;
+
+async function requestPptxExport() {
+  const dialog = document.getElementById("pptxExportDialog");
+  if (exportPending || pptxOptionsPending || dialog.open || !pptxExportAvailable) return;
+  pptxOptionsPending = true;
+  let hasMermaid;
+  try {
+    const response = await fetch("./deck", { cache: "no-store" });
+    if (!response.ok) throw new Error(`Could not load the export deck (${response.status}).`);
+    const data = await response.json();
+    if (!Array.isArray(data?.slides) || !data.slides.every((slide) => typeof slide === "string")) {
+      throw new Error("The export deck is invalid.");
+    }
+    const slides = [...data.slides];
+    if (navMode === "adhoc") slides[Math.max(0, Math.min(navIndex, slides.length - 1))] = lastMarkdown;
+    hasMermaid = slides.some((markdown) => {
+      const { body } = splitFrontMatter(markdown);
+      const content = document.createElement("div");
+      content.innerHTML = window.DOMPurify.sanitize(window.marked.parse(stripSpeakerNotes(body)));
+      return codeBlocksForLanguage(content, "mermaid").length > 0 || Boolean(content.querySelector(".mermaid"));
+    });
+  } catch (error) {
+    showExportNotification("error", `Could not save PowerPoint. ${error.message}`);
+    return;
+  } finally {
+    pptxOptionsPending = false;
+  }
+  if (hasMermaid) {
+    document.getElementById("pptxExportForm").reset();
+    dialog.showModal();
+  } else {
+    await exportFromCanvas("pptx");
+  }
+}
+
+async function exportFromCanvas(format, { mermaidImageFallback = false } = {}) {
   const isPdf = format === "pdf";
-  if (exportPending || !(isPdf ? pdfExportAvailable : pptxExportAvailable)) return;
+  if (exportPending || pptxOptionsPending || !(isPdf ? pdfExportAvailable : pptxExportAvailable)) return;
   exportPending = true;
   const label = isPdf ? "PDF" : "PowerPoint";
   const pdfButton = document.getElementById("navExport");
@@ -3713,7 +3757,11 @@ async function exportFromCanvas(format) {
   try {
     const response = await fetch(isPdf ? "./export" : "./export-pptx", {
       method: "POST",
-      headers: { Accept: "application/json" },
+      headers: {
+        Accept: "application/json",
+        ...(isPdf ? {} : { "Content-Type": "application/json" }),
+      },
+      ...(isPdf ? {} : { body: JSON.stringify({ mermaidImageFallback }) }),
       cache: "no-store",
     });
     const data = await response.json();
@@ -4188,7 +4236,7 @@ function wireControls() {
   bind("navPresenterView", openPresenterView, { closeMore: true });
   bind("navFixedPreview", toggleFixedPreviewMode, { closeMore: true });
   bind("navExport", () => exportFromCanvas("pdf"), { closeMore: true });
-  bind("navExportPptx", () => exportFromCanvas("pptx"), { closeMore: true });
+  bind("navExportPptx", requestPptxExport, { closeMore: true });
   bind("navImport", toggleImportPicker, { closeMore: true });
   bind("navSourceMode", toggleSourceMode, { closeMore: true });
   bind("overviewClose", closeOverview);
@@ -4199,6 +4247,29 @@ function wireControls() {
   bind("presenterListButton", openOverview);
   bind("presenterToggleButton", togglePresenterWindow);
   bind("presenterReturnButton", closePresenterView);
+
+  const pptxDialog = document.getElementById("pptxExportDialog");
+  pptxDialog.addEventListener("keydown", (event) => {
+    if (event.key !== "Tab") return;
+    const controls = [...pptxDialog.querySelectorAll("input:checked, button:not(:disabled)")];
+    const first = controls[0];
+    const last = controls.at(-1);
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  });
+  document.getElementById("pptxExportCancel").addEventListener("click", () => pptxDialog.close());
+  pptxDialog.addEventListener("close", () => document.getElementById("navMore").focus());
+  document.getElementById("pptxExportForm").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const mermaidImageFallback = new FormData(event.currentTarget).get("mermaidOutput") === "images";
+    pptxDialog.close();
+    exportFromCanvas("pptx", { mermaidImageFallback });
+  });
 
   const exportNotification = document.getElementById("exportNotification");
   document.getElementById("exportNotificationClose").addEventListener("click", dismissExportNotification);
@@ -4255,6 +4326,7 @@ function wireControls() {
 
   document.addEventListener("keydown", (e) => {
     if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (pptxDialog.open) return;
     const t = e.target;
     // Keep Esc active while an input has focus; otherwise filtering in the import
     // dialog could leave the user unable to close it.

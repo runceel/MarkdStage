@@ -22,6 +22,8 @@ export async function exportCommand(
         session,
         options.output || pptxNameForSource(session.sourceName),
         options.theme,
+        undefined,
+        { mermaidImageFallback: options.mermaidImageFallback === true },
       );
     }
     return exporters.pdf(session, requested, options.theme);
