@@ -1,0 +1,10 @@
+%%{init: {"handDrawnSeed": 42, "themeCSS": ".transition:nth-of-type(2){stroke-dasharray:5px 3px;opacity:.75}"}}%%
+stateDiagram-v2
+direction LR
+[*] --> Idle
+state "待機<br/>Idle" as Idle
+Idle --> Running: 開始<br/>Start
+Running --> Idle: 停止<br/>Stop
+Running --> [*]
+classDef active fill:#33669980,stroke:#cc330080,fill-opacity:0.5,stroke-opacity:0.25,stroke-width:3px,color:#111111
+class Running active

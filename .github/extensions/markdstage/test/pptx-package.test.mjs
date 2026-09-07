@@ -51,6 +51,155 @@ function xml(files, name) {
   return value.toString("utf8");
 }
 
+test("writes explicit flat, round and square caps for native strokes and rejects unknown caps", () => {
+  for (const [lineCap, cap] of [["butt", "flat"], ["round", "rnd"], ["square", "sq"]]) {
+    const elements = [
+      { type: "connector", points: [{ x: 10, y: 10 }, { x: 20, y: 20 }], stroke: "#123456", lineCap },
+      { type: "shape", shape: "rect", x: 10, y: 10, width: 20, height: 20, stroke: "#123456", lineCap },
+    ];
+    const slide = xml(readStoredZip(buildPptxPackage({ slides: [{ elements }] })), "ppt/slides/slide1.xml");
+    assert.equal((slide.match(new RegExp(`cap="${cap}"`, "g")) || []).length, 2);
+    elements[0].lineCap = "unknown";
+    assert.throws(() => buildPptxPackage({ slides: [{ elements }] }), /lineCap/);
+  }
+});
+
+test("rejects inherited names and non-string line caps for connectors and shapes", () => {
+  const elements = [
+    { type: "connector", points: [{ x: 10, y: 10 }, { x: 20, y: 20 }], stroke: "#123456" },
+    { type: "shape", shape: "rect", x: 10, y: 10, width: 20, height: 20, stroke: "#123456" },
+  ];
+  for (const element of elements) {
+    for (const lineCap of ["toString", "constructor", "__proto__", "hasOwnProperty",
+      null, 0, true, ["butt"], new String("butt"), { toString: () => "butt" }]) {
+      assert.throws(() => buildPptxPackage({ slides: [{ elements: [{ ...element, lineCap }] }] }),
+        /lineCap is not a supported line cap/, `${element.type}: ${String(lineCap)}`);
+    }
+  }
+});
+
+test("multiplies color, element, and channel alpha independently in DrawingML", () => {
+  const slide = xml(readStoredZip(buildPptxPackage({
+    slides: [{
+      elements: [
+        {
+          type: "shape",
+          shape: "rect",
+          x: 10,
+          y: 20,
+          width: 100,
+          height: 50,
+          fill: "#3698",
+          stroke: "#c308",
+          strokeWidth: 2,
+          opacity: 0.75,
+          fillOpacity: 0.5,
+          strokeOpacity: 0.25,
+        },
+        {
+          type: "connector",
+          points: [{ x: 0, y: 0 }, { x: 100, y: 50 }],
+          stroke: "rgba(0, 136, 204, 0.5)",
+          strokeWidth: 3,
+          opacity: 0.5,
+          strokeOpacity: 0.4,
+        },
+      ],
+    }],
+  })), "ppt/slides/slide1.xml");
+
+  assert.match(slide, /val="336699"><a:alpha val="20000"\/>/);
+  assert.match(slide, /val="CC3300"><a:alpha val="10000"\/>/);
+  assert.match(slide, /val="0088CC"><a:alpha val="10000"\/>/);
+});
+
+test("rejects invalid, coercible, and inherited paint opacity at the package boundary", () => {
+  const shape = {
+    type: "shape",
+    shape: "rect",
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 50,
+    fill: "#ffffff",
+    stroke: "#000000",
+  };
+  const connector = {
+    type: "connector",
+    points: [{ x: 0, y: 0 }, { x: 100, y: 50 }],
+    stroke: "#000000",
+  };
+  for (const key of ["opacity", "fillOpacity", "strokeOpacity"]) {
+    for (const invalid of [
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      -0.01,
+      1.01,
+      "0.5",
+      { valueOf: () => 0.5 },
+    ]) {
+      for (const element of [shape, connector]) {
+        assert.throws(
+          () => buildPptxPackage({ slides: [{ elements: [{ ...element, [key]: invalid }] }] }),
+          new RegExp(key),
+        );
+      }
+    }
+    for (const element of [shape, connector]) {
+      const inherited = Object.assign(Object.create({ [key]: 0.5 }), element);
+      assert.throws(
+        () => buildPptxPackage({ slides: [{ elements: [inherited] }] }),
+        /must be an own property/,
+      );
+    }
+  }
+});
+
+test("writes normalized DrawingML text rotation and rejects invalid model values", () => {
+  const text = {
+    type: "text",
+    x: 10,
+    y: 20,
+    width: 100,
+    height: 30,
+    paragraphs: [{ runs: [{ text: "Rotated" }] }],
+  };
+  for (const [rotation, units] of [
+    [30, 1800000],
+    [-30, -1800000],
+    [450, 5400000],
+    [270, -5400000],
+  ]) {
+    const slide = xml(readStoredZip(buildPptxPackage({
+      slides: [{ elements: [{ ...text, rotation }] }],
+    })), "ppt/slides/slide1.xml");
+    assert.match(slide, new RegExp(`<a:xfrm rot="${units}">`));
+  }
+  const unrotated = xml(readStoredZip(buildPptxPackage({
+    slides: [{ elements: [{ ...text, rotation: 720 }] }],
+  })), "ppt/slides/slide1.xml");
+  assert.doesNotMatch(unrotated, /<a:xfrm rot=/);
+
+  for (const invalid of [
+    undefined,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    "30",
+    new Number(30),
+    { valueOf: () => 30 },
+  ]) {
+    assert.throws(
+      () => buildPptxPackage({ slides: [{ elements: [{ ...text, rotation: invalid }] }] }),
+      /rotation/,
+    );
+  }
+  const inherited = Object.assign(Object.create({ rotation: 30 }), text);
+  assert.throws(
+    () => buildPptxPackage({ slides: [{ elements: [inherited] }] }),
+    /rotation must be an own property/,
+  );
+});
+
 function samplePackage() {
   return buildPptxPackage({
     title: 'Roadmap & "Next"',
@@ -540,6 +689,37 @@ test("uses Yu Gothic for Japanese theme fonts and native text", () => {
   );
 });
 
+test("keeps explicit transparent text runs unpainted instead of defaulting to black", () => {
+  const files = readStoredZip(
+    buildPptxPackage({
+      slides: [{
+        elements: [{
+          type: "text",
+          x: 40,
+          y: 40,
+          width: 600,
+          height: 80,
+          paragraphs: [{
+            runs: [
+              { text: "Hidden", color: null },
+              { text: "Visible", color: "#123456" },
+            ],
+          }],
+        }],
+      }],
+    }),
+  );
+  const slide = xml(files, "ppt/slides/slide1.xml");
+  assert.match(
+    slide,
+    /<a:rPr[^>]*><a:noFill\/><a:ea typeface="Yu Gothic"\/><\/a:rPr><a:t>Hidden<\/a:t>/,
+  );
+  assert.match(
+    slide,
+    /<a:solidFill><a:srgbClr val="123456"><\/a:srgbClr><\/a:solidFill>[\s\S]*?<a:t>Visible<\/a:t>/,
+  );
+});
+
 test("keeps rich text and visible styling together in a configured AutoShape", () => {
   const files = readStoredZip(
     buildPptxPackage({
@@ -731,6 +911,106 @@ test("emits PowerPoint-native presets for the extended Architecture shapes", () 
   }
 });
 
+test("emits a maximally adjusted round rectangle for stadium shapes", () => {
+  const files = readStoredZip(
+    buildPptxPackage({
+      slides: [{
+        elements: [{
+          type: "shape",
+          shape: "stadium",
+          x: 20,
+          y: 40,
+          width: 120,
+          height: 40,
+          fill: "#ffffff",
+          stroke: "#000000",
+        }],
+      }],
+    }),
+  );
+  const slide = xml(files, "ppt/slides/slide1.xml");
+  assert.match(
+    slide,
+    /<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val 50000"\/><\/a:avLst><\/a:prstGeom>/,
+  );
+});
+
+test("emits the fixed editable geometry for Mermaid sequence frame tabs", () => {
+  const files = readStoredZip(
+    buildPptxPackage({
+      slides: [{
+        elements: [{
+          type: "shape",
+          shape: "sequenceTab",
+          x: 20,
+          y: 40,
+          width: 50,
+          height: 20,
+          fill: "#ffffff",
+          stroke: "#000000",
+        }],
+      }],
+    }),
+  );
+  const slide = xml(files, "ppt/slides/slide1.xml");
+  assert.match(slide, /<a:custGeom><a:avLst\/><a:gdLst\/><a:ahLst\/><a:cxnLst\/>/);
+  assert.match(slide, /<a:path w="50000" h="20000">/);
+  assert.match(slide, /<a:pt x="41600" y="20000"\/>/);
+});
+
+test("emits exact editable height-based geometry for Mermaid quadrilaterals", () => {
+  const shapes = ["trapezoid", "invertedTrapezoid", "reverseParallelogram"];
+  const files = readStoredZip(
+    buildPptxPackage({
+      slides: [{
+        elements: shapes.map((shape, index) => ({
+          type: "shape",
+          shape,
+          x: 20 + index * 160,
+          y: 40,
+          width: 120,
+          height: 40,
+          fill: "#ffffff",
+          stroke: "#000000",
+        })),
+      }],
+    }),
+  );
+  const slide = xml(files, "ppt/slides/slide1.xml");
+  assert.equal((slide.match(/<a:gd name="dx" fmla="\*\/ h 1 2"\/>/g) || []).length, 3);
+  assert.equal((slide.match(/<a:gd name="rx" fmla="\+- w 0 dx"\/>/g) || []).length, 3);
+  assert.match(slide, /<a:moveTo><a:pt x="0" y="h"\/><\/a:moveTo>/);
+  assert.match(slide, /<a:moveTo><a:pt x="dx" y="h"\/><\/a:moveTo>/);
+  assert.match(slide, /<a:lnTo><a:pt x="w" y="h"\/><\/a:lnTo>/);
+});
+
+test("rejects unknown, prototype-named, and inherited PowerPoint shape values", () => {
+  const base = { type: "shape", x: 10, y: 10, width: 100, height: 40 };
+  for (const shape of [
+    "toString",
+    "constructor",
+    "__proto__",
+    "hasOwnProperty",
+    "nearestTrapezoid",
+    null,
+    0,
+    true,
+    ["trapezoid"],
+    new String("trapezoid"),
+  ]) {
+    assert.throws(
+      () => buildPptxPackage({ slides: [{ elements: [{ ...base, shape }] }] }),
+      /shape must be/,
+      String(shape),
+    );
+  }
+  const inherited = Object.assign(Object.create({ shape: "trapezoid" }), base);
+  assert.throws(
+    () => buildPptxPackage({ slides: [{ elements: [inherited] }] }),
+    /shape must be/,
+  );
+});
+
 test("emits solid and dotted DrawingML connector styles", () => {
   const files = readStoredZip(
     buildPptxPackage({
@@ -798,6 +1078,71 @@ test("places a full-slide PNG background before every native element", () => {
     slide.slice(background, text),
     /<a:off x="0" y="0"\/><a:ext cx="12192000" cy="6858000"\/>/,
   );
+});
+
+test("preserves filled class relationship presets, dashed lines and multiplicity text", () => {
+  for (const [arrowStart, arrowEnd] of [["diamond", "stealth"], ["stealth", "diamond"]]) {
+    const elements = [{
+      type: "connector",
+      points: [{ x: 300, y: 100 }, { x: 150, y: 100 }, { x: 150, y: 20 }],
+      stroke: "#123456", dash: "dash", arrowStart, arrowEnd,
+    }, {
+      type: "shape", shape: "rect", x: 300, y: 110, width: 30, height: 20,
+      fill: null, stroke: null, text: "1",
+    }, {
+      type: "shape", shape: "rect", x: 160, y: 20, width: 50, height: 20,
+      fill: null, stroke: null, text: "many",
+    }];
+    const files = readStoredZip(buildPptxPackage({ slides: [{ elements }] }));
+    const slide = xml(files, "ppt/slides/slide1.xml");
+    const connectors = [...slide.matchAll(/name="Connector \d+"[\s\S]*?<\/p:sp>/g)].map((match) => match[0]);
+    assert.equal(connectors.length, 2);
+    assert.ok(connectors[0].includes(`<a:headEnd type="${arrowStart}"/>`));
+    assert.doesNotMatch(connectors[0], /<a:tailEnd/);
+    assert.ok(connectors[1].includes(`<a:tailEnd type="${arrowEnd}"/>`));
+    assert.doesNotMatch(connectors[1], /<a:headEnd/);
+    for (const connector of connectors) {
+      assert.match(connector, /<a:srgbClr val="123456"/);
+      assert.match(connector, /<a:prstDash val="dash"\/>/);
+    }
+    assert.match(slide, /<a:t>1<\/a:t>/);
+    assert.match(slide, /<a:t>many<\/a:t>/);
+    assert.doesNotMatch(slide, /<p:pic\b/);
+  }
+});
+
+test("preserves sequence self-message returns and asynchronous stealth heads in DrawingML", () => {
+  for (const [arrowStart, arrowEnd] of [["none", "triangle"], ["none", "stealth"], ["triangle", "triangle"]]) {
+    const self = {
+      type: "connector",
+      points: [{ x: 76, y: 117 }, { x: 118, y: 122 }, { x: 121, y: 129 }, { x: 76, y: 137 }],
+      stroke: "#123456", strokeWidth: 1.5, dash: "dash", arrowStart, arrowEnd,
+    };
+    const elements = [self, {
+      type: "connector", points: [{ x: 274, y: 200 }, { x: 79, y: 200 }],
+      stroke: "#123456", arrowEnd: "stealth",
+    }];
+    const files = readStoredZip(buildPptxPackage({ slides: [{ elements }] }));
+    const slide = xml(files, "ppt/slides/slide1.xml");
+    const connectors = [...slide.matchAll(/name="Connector \d+"[\s\S]*?<\/p:sp>/g)].map((match) => match[0]);
+    assert.equal(connectors.length, 4);
+    if (arrowStart === "none") assert.doesNotMatch(connectors[0], /<a:headEnd/);
+    else assert.match(connectors[0], /<a:headEnd type="triangle"\/>/);
+    assert.doesNotMatch(connectors[0], /<a:tailEnd/);
+    assert.doesNotMatch(connectors[1], /<a:(?:head|tail)End/);
+    assert.ok(connectors[2].includes(`<a:tailEnd type="${arrowEnd}"/>`));
+    assert.doesNotMatch(connectors[2], /<a:headEnd/);
+    for (const connector of connectors.slice(0, 3)) {
+      assert.match(connector, /<a:ln w="14288">/);
+      assert.match(connector, /<a:srgbClr val="123456"/);
+      assert.match(connector, /<a:prstDash val="dash"\/>/);
+    }
+    assert.match(connectors[2], /flipH="1"/);
+    assert.match(connectors[3], /flipH="1"/);
+    assert.match(connectors[3], /<a:tailEnd type="stealth"\/>/);
+    assert.doesNotMatch(connectors[3], /<a:prstDash/);
+    assert.doesNotMatch(slide, /<p:pic\b/);
+  }
 });
 
 test("rejects duplicate and missing asset references", () => {

@@ -1,0 +1,9 @@
+%%{init: {"handDrawnSeed": 42}}%%
+flowchart LR
+    S[[定義済み<br/>Subroutine]] --> SM@{ shape: subproc, label: "現代<br/>Subprocess" }
+    SM --> TB@{ shape: trap-b, label: "台形<br/>Trapezoid" }
+    TB --> TT@{ shape: trap-t, label: "逆台形<br/>Inverted" }
+    TT --> RL@{ shape: lean-l, label: "逆向き<br/>Reverse" }
+    RL --> L1[/Legacy trapezoid\]
+    L1 --> L2[\Legacy inverted/]
+    L2 --> L3[\Legacy reverse\]

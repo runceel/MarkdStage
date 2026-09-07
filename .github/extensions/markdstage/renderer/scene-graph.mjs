@@ -15,6 +15,9 @@ export const MAX_STRING_LENGTH = 8192;
 
 const SCENE_VERSION = 1;
 const METRIC_PRECISION = 10;
+const DRAWINGML_ANGLE_UNITS_PER_DEGREE = 60000;
+const DRAWINGML_HALF_TURN = 180 * DRAWINGML_ANGLE_UNITS_PER_DEGREE;
+const DRAWINGML_FULL_TURN = 360 * DRAWINGML_ANGLE_UNITS_PER_DEGREE;
 const NODE_KINDS = new Set(["group", "shape", "text", "image", "connector", "fallback"]);
 const SOURCE_KINDS = new Set(["architecture", "mermaid"]);
 const SHAPE_PRESETS = new Set([
@@ -25,8 +28,13 @@ const SHAPE_PRESETS = new Set([
   "triangle",
   "hexagon",
   "parallelogram",
+  "reverseParallelogram",
+  "trapezoid",
+  "invertedTrapezoid",
+  "sequenceTab",
 ]);
 const DASH_STYLES = new Set(["", "solid", "dash", "dashDot", "dot"]);
+const LINE_CAPS = new Set(["butt", "round", "square"]);
 const IMAGE_FITS = new Set(["contain", "cover", "fill", "none"]);
 const ARROWS = new Set([null, "none", "triangle", "arrow", "stealth", "diamond", "oval"]);
 const ALIGNMENTS = new Set(["left", "center", "right", "justify"]);
@@ -45,7 +53,7 @@ const COMMON_NODE_KEYS = new Set([
 const NODE_KEYS = {
   group: new Set(["children", "style", "text", "textLayout"]),
   shape: new Set(["preset", "style", "text", "textLayout"]),
-  text: new Set(["text", "textLayout"]),
+  text: new Set(["text", "textLayout", "rotation"]),
   image: new Set(["src", "alt", "fit", "opacity"]),
   connector: new Set(["points", "style", "arrowStart", "arrowEnd", "label"]),
   fallback: new Set(["reason"]),
@@ -63,9 +71,20 @@ function roundedMetric(value) {
   return Math.round(Math.max(0, Number(value) || 0) * METRIC_PRECISION) / METRIC_PRECISION;
 }
 
+function roundedCoordinate(value) {
+  return Math.round((Number(value) || 0) * METRIC_PRECISION) / METRIC_PRECISION;
+}
+
 function roundedExtent(value) {
   const number = Number(value);
   return Number.isFinite(number) && number >= 0 ? roundedMetric(number) : value;
+}
+
+export function normalizeRotationAngle(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  let units = Math.round((((value % 360) + 360) % 360) * DRAWINGML_ANGLE_UNITS_PER_DEGREE);
+  if (units >= DRAWINGML_HALF_TURN) units -= DRAWINGML_FULL_TURN;
+  return units === 0 ? 0 : units / DRAWINGML_ANGLE_UNITS_PER_DEGREE;
 }
 
 function finiteNumber(value, path) {
@@ -105,6 +124,14 @@ function stringValue(value, path) {
 function exactKeys(value, allowed, path) {
   for (const key of Object.keys(value)) {
     if (!allowed.has(key)) fail(`${path}.${key} is not supported`);
+  }
+}
+
+function rejectInheritedKeys(value, allowed, path) {
+  for (const key of allowed) {
+    if (!Object.hasOwn(value, key) && key in value) {
+      fail(`${path}.${key} must be an own property`);
+    }
   }
 }
 
@@ -178,8 +205,8 @@ function normalizeBounds(value, offsetX, offsetY) {
     return null;
   }
   return {
-    x: roundedMetric(offsetX + x),
-    y: roundedMetric(offsetY + y),
+    x: roundedCoordinate(offsetX + x),
+    y: roundedCoordinate(offsetY + y),
     width: roundedMetric(width),
     height: roundedMetric(height),
   };
@@ -191,8 +218,8 @@ function normalizePoint(value, offsetX, offsetY) {
   const y = Number(value.y);
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
   return {
-    x: roundedMetric(offsetX + x),
-    y: roundedMetric(offsetY + y),
+    x: roundedCoordinate(offsetX + x),
+    y: roundedCoordinate(offsetY + y),
   };
 }
 
@@ -202,8 +229,8 @@ function boundsFromPoints(points) {
   const left = Math.min(...xs);
   const top = Math.min(...ys);
   return {
-    x: roundedMetric(left),
-    y: roundedMetric(top),
+    x: roundedCoordinate(left),
+    y: roundedCoordinate(top),
     width: roundedMetric(Math.max(...xs) - left),
     height: roundedMetric(Math.max(...ys) - top),
   };
@@ -272,17 +299,33 @@ function validateCapability(value, path) {
 function validateStyle(value, path) {
   if (value === undefined) return;
   requiredObject(value, path);
-  exactKeys(value, new Set(["fill", "stroke", "strokeWidth", "dash", "opacity", "cornerRadius"]), path);
+  const keys = new Set([
+    "fill",
+    "stroke",
+    "strokeWidth",
+    "dash",
+    "lineCap",
+    "opacity",
+    "fillOpacity",
+    "strokeOpacity",
+    "cornerRadius",
+  ]);
+  exactKeys(value, keys, path);
+  rejectInheritedKeys(value, keys, path);
   if (value.fill !== undefined) validateColor(value.fill, `${path}.fill`);
   if (value.stroke !== undefined) validateColor(value.stroke, `${path}.stroke`);
   if (value.strokeWidth !== undefined) nonNegativeNumber(value.strokeWidth, `${path}.strokeWidth`);
   if (value.cornerRadius !== undefined) nonNegativeNumber(value.cornerRadius, `${path}.cornerRadius`);
-  if (value.opacity !== undefined) {
-    const opacity = finiteNumber(value.opacity, `${path}.opacity`);
-    if (opacity < 0 || opacity > 1) fail(`${path}.opacity must be between 0 and 1`);
+  for (const key of ["opacity", "fillOpacity", "strokeOpacity"]) {
+    if (value[key] === undefined) continue;
+    const opacity = finiteNumber(value[key], `${path}.${key}`);
+    if (opacity < 0 || opacity > 1) fail(`${path}.${key} must be between 0 and 1`);
   }
   if (value.dash !== undefined && !DASH_STYLES.has(value.dash)) {
     fail(`${path}.dash must be "", "solid", "dash", "dashDot", or "dot"`);
+  }
+  if (value.lineCap !== undefined && !LINE_CAPS.has(value.lineCap)) {
+    fail(`${path}.lineCap must be "butt", "round", or "square"`);
   }
 }
 
@@ -400,6 +443,14 @@ function validateNode(node, path, state, depth) {
   } else if (node.kind === "text") {
     validateText(node.text, `${path}.text`);
     validateTextLayout(node.textLayout, `${path}.textLayout`);
+    rejectInheritedKeys(node, new Set(["rotation"]), path);
+    if (node.rotation !== undefined) {
+      const rotation = finiteNumber(node.rotation, `${path}.rotation`);
+      const normalized = normalizeRotationAngle(rotation);
+      if (normalized !== rotation || Object.is(rotation, -0)) {
+        fail(`${path}.rotation must be normalized to [-180, 180) degrees`);
+      }
+    }
   } else if (node.kind === "image") {
     requiredString(node.src, `${path}.src`);
     stringValue(node.alt, `${path}.alt`);
@@ -453,7 +504,9 @@ function normalizeStyle(value) {
   return Object.fromEntries(
     Object.entries(value).map(([key, entry]) => {
       if (key === "strokeWidth" || key === "cornerRadius") return [key, roundedMetric(entry)];
-      if (key === "opacity") return [key, clampOpacity(entry)];
+      if (key === "opacity" || key === "fillOpacity" || key === "strokeOpacity") {
+        return [key, clampOpacity(entry)];
+      }
       return [key, entry];
     }),
   );
@@ -552,10 +605,12 @@ function normalizeKnownNode(node, path, bounds, offsetX, offsetY, diagnostics, d
     };
   }
   if (node.kind === "text") {
+    const rotation = node.rotation === undefined ? 0 : normalizeRotationAngle(node.rotation);
     return {
       ...base,
       text: normalizeText(node.text),
       ...(node.textLayout !== undefined ? { textLayout: normalizeTextLayout(node.textLayout) } : {}),
+      ...(rotation ? { rotation } : {}),
     };
   }
   if (node.kind === "image") {
@@ -641,6 +696,15 @@ function normalizeNode(node, path, offsetX, offsetY, depth, output, diagnostics)
     const reason = "node bounds are not finite";
     unsupported(path, "fallback", reason, diagnostics);
     const normalized = fallbackNode(node, path, reason);
+    normalized.__sortZ = Number.isFinite(Number(node.z)) ? Number(node.z) : output.length;
+    output.push(normalized);
+    return;
+  }
+  if (node.kind === "text" && "rotation" in node &&
+      (!Object.hasOwn(node, "rotation") || normalizeRotationAngle(node.rotation) === null)) {
+    const reason = "text rotation is not a finite number";
+    unsupported(path, "fallback", reason, diagnostics);
+    const normalized = fallbackNode(node, path, reason, bounds);
     normalized.__sortZ = Number.isFinite(Number(node.z)) ? Number(node.z) : output.length;
     output.push(normalized);
     return;

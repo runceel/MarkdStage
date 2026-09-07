@@ -1,0 +1,12 @@
+%%{init: {"handDrawnSeed": 42}}%%
+sequenceDiagram
+participant A as Client
+participant B as Service
+A->>A: Check
+A-->>A: Retry
+A-)B: Dispatch
+B--)A: Notify
+A-)A: Schedule
+A<<->>B: Exchange
+A<<-->>A: Recheck
+A--)A: Reschedule

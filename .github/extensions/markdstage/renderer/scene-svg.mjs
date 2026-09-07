@@ -6,10 +6,15 @@ const MATH_NS = "http://www.w3.org/1998/Math/MathML";
 const SVG_TAGS = new Set("svg g defs symbol switch title desc path rect circle ellipse polygon polyline line text tspan textPath image use marker clipPath mask pattern linearGradient radialGradient stop filter feDropShadow feGaussianBlur feOffset feBlend feColorMatrix feComposite feFlood feMerge feMergeNode feComponentTransfer feFuncR feFuncG feFuncB feFuncA feConvolveMatrix feDisplacementMap feTurbulence feMorphology feImage feDiffuseLighting feSpecularLighting feDistantLight fePointLight feSpotLight feTile foreignObject".split(" "));
 const HTML_TAGS = new Set("div span p br b strong i em s u small sub sup ul ol li code pre img table thead tbody tr th td".split(" "));
 const MATH_TAGS = new Set("math mrow mi mn mo mtext mspace ms mfrac msqrt mroot mstyle merror mpadded mphantom mfenced menclose msub msup msubsup munder mover munderover mmultiscripts mprescripts none mtable mtr mtd semantics annotation".split(" "));
-const ATTRIBUTES = new Set("id class x y x1 y1 x2 y2 dx dy width height cx cy r rx ry d points viewBox preserveAspectRatio transform fill fill-opacity fill-rule stroke stroke-width stroke-opacity stroke-dasharray stroke-dashoffset stroke-linecap stroke-linejoin stroke-miterlimit opacity color font-family font-size font-weight font-style text-anchor dominant-baseline alignment-baseline textLength lengthAdjust letter-spacing word-spacing text-decoration visibility display overflow pointer-events role tabindex focusable marker-start marker-mid marker-end markerWidth markerHeight markerUnits refX refY orient clip-path clipPathUnits mask maskUnits maskContentUnits filter filterUnits primitiveUnits in in2 result stdDeviation mode type values operator k1 k2 k3 k4 flood-color flood-opacity offset stop-color stop-opacity gradientUnits gradientTransform spreadMethod patternUnits patternContentUnits patternTransform".split(" "));
-const CSS_PROPERTIES = new Set("fill fill-opacity fill-rule stroke stroke-width stroke-opacity stroke-dasharray stroke-dashoffset stroke-linecap stroke-linejoin stroke-miterlimit opacity color font-family font-size font-weight font-style font-variant line-height text-align text-anchor dominant-baseline alignment-baseline text-decoration letter-spacing word-spacing white-space overflow-wrap word-break display visibility overflow box-sizing width height min-width min-height max-width max-height padding padding-top padding-right padding-bottom padding-left margin margin-top margin-right margin-bottom margin-left border border-radius background-color vertical-align marker-start marker-mid marker-end clip-path filter".split(" "));
+const ATTRIBUTES = new Set("id class name x y x1 y1 x2 y2 dx dy width height cx cy r rx ry d points viewBox preserveAspectRatio transform fill fill-opacity fill-rule stroke stroke-width stroke-opacity stroke-dasharray stroke-dashoffset stroke-linecap stroke-linejoin stroke-miterlimit opacity color font-family font-size font-weight font-style text-anchor dominant-baseline alignment-baseline textLength lengthAdjust letter-spacing word-spacing text-decoration visibility display overflow pointer-events role tabindex focusable marker-start marker-mid marker-end markerWidth markerHeight markerUnits refX refY orient clip-path clipPathUnits mask maskUnits maskContentUnits filter filterUnits primitiveUnits in in2 result stdDeviation mode type values operator k1 k2 k3 k4 flood-color flood-opacity offset stop-color stop-opacity gradientUnits gradientTransform spreadMethod patternUnits patternContentUnits patternTransform".split(" "));
+const CSS_PROPERTIES = new Set("fill fill-opacity fill-rule stroke stroke-width stroke-opacity stroke-dasharray stroke-dashoffset stroke-linecap stroke-linejoin stroke-miterlimit opacity color font-family font-size font-weight font-style font-variant line-height text-align text-anchor dominant-baseline alignment-baseline text-decoration text-transform letter-spacing word-spacing white-space overflow-wrap word-break display visibility overflow box-sizing width height min-width min-height max-width max-height padding padding-top padding-right padding-bottom padding-left margin margin-top margin-right margin-bottom margin-left border border-radius background-color vertical-align marker-start marker-mid marker-end clip-path filter".split(" "));
+const SVG_GEOMETRY_PROPERTIES = new Set(["cx", "cy", "d", "r"]);
+const SVG_GEOMETRY_BY_TAG = {
+  circle: ["cx", "cy", "r"],
+  path: ["d"],
+};
 for (const attribute of "alt colspan rowspan systemLanguage startOffset method spacing baseFrequency numOctaves seed stitchTiles scale xChannelSelector yChannelSelector radius order kernelMatrix divisor bias targetX targetY edgeMode preserveAlpha tableValues slope intercept amplitude exponent surfaceScale diffuseConstant specularConstant specularExponent azimuth elevation limitingConeAngle pointsAtX pointsAtY pointsAtZ z mathvariant mathsize mathcolor mathbackground columnalign rowalign columnspacing rowspacing stretchy fence separator accent accentunder largeop movablelimits lspace rspace encoding".split(" ")) ATTRIBUTES.add(attribute);
-for (const property of "position top right bottom left z-index transform transform-origin border-top border-right border-bottom border-left border-top-width border-right-width border-bottom-width border-left-width border-top-style border-right-style border-bottom-style border-left-style border-top-color border-right-color border-bottom-color border-left-color object-fit object-position flex flex-direction flex-wrap align-items align-content justify-content gap float clear".split(" ")) CSS_PROPERTIES.add(property);
+for (const property of "position top right bottom left z-index transform transform-box transform-origin outline outline-width outline-style outline-color outline-offset border-top border-right border-bottom border-left border-top-width border-right-width border-bottom-width border-left-width border-top-style border-right-style border-bottom-style border-left-style border-top-color border-right-color border-bottom-color border-left-color object-fit object-position flex flex-direction flex-wrap align-items align-content justify-content gap float clear".split(" ")) CSS_PROPERTIES.add(property);
 let renderSequence = 0;
 
 function portableString(value) {
@@ -64,6 +69,119 @@ function inlineGeometry(source, property) {
     || source.style?.getPropertyValue(property);
 }
 
+function simplePixelMetric(value) {
+  const match = /^([-+]?(?:\d*\.?\d+)(?:e[-+]?\d+)?)(?:px)?$/i.exec(
+    String(value || "").trim(),
+  );
+  return match ? Number(match[1]) : null;
+}
+
+function pathGeometry(value) {
+  let text = String(value || "").trim();
+  if (!text || text === "none") return { commands: "", numbers: [] };
+  const cssPath = /^path\(["'](.*)["']\)$/s.exec(text);
+  if (cssPath) text = cssPath[1];
+  const tokenPattern = /[-+]?(?:\d*\.?\d+)(?:e[-+]?\d+)?|[a-z]/gi;
+  if (text.replace(tokenPattern, "").replace(/[\s,]/g, "")) return null;
+  const tokens = text.match(tokenPattern) || [];
+  return {
+    commands: tokens
+      .filter((token) => /^[a-z]$/i.test(token))
+      .map((command) => command.toLowerCase() === "z" ? "Z" : command)
+      .join(""),
+    numbers: tokens
+      .filter((token) => !/^[a-z]$/i.test(token))
+      .map(Number),
+  };
+}
+
+function sameGeometryMetric(left, right, exact = true) {
+  if (exact) return left === right;
+  // CSSOM shortens computed path numbers. Treat sub-pixel serialization
+  // rounding as attribute-equivalent rather than rewriting precise paths.
+  return Math.abs(left - right) <= Math.max(
+    0.0001,
+    Math.max(Math.abs(left), Math.abs(right)) * 0.00001,
+  );
+}
+
+function pathCssCanonicalizer(root, computedStyle) {
+  const documentRef = root?.ownerDocument || globalThis.document;
+  let host;
+  let reference;
+  const connect = () => {
+    if (reference) return true;
+    const parent = documentRef?.body || documentRef?.documentElement;
+    if (!parent?.appendChild ||
+        !documentRef?.createElement ||
+        !documentRef?.createElementNS) return false;
+    host = documentRef.createElement("div");
+    if (!host?.attachShadow) return false;
+    host.setAttribute("aria-hidden", "true");
+    host.style.cssText = [
+      "position:fixed",
+      "left:-10000px",
+      "top:-10000px",
+      "width:0",
+      "height:0",
+      "overflow:hidden",
+      "visibility:hidden",
+      "pointer-events:none",
+      "contain:strict",
+    ].join(";");
+    const shadow = host.attachShadow({ mode: "closed" });
+    const svg = documentRef.createElementNS(SVG_NS, "svg");
+    reference = documentRef.createElementNS(SVG_NS, "path");
+    svg.setAttribute("width", "0");
+    svg.setAttribute("height", "0");
+    svg.appendChild(reference);
+    shadow.appendChild(svg);
+    parent.appendChild(host);
+    return reference.isConnected;
+  };
+  return {
+    value(attribute) {
+      if (typeof attribute !== "string" || !attribute) return "";
+      if (!connect()) return null;
+      reference.removeAttribute("style");
+      reference.setAttribute("d", attribute);
+      return computedStyle(reference).getPropertyValue("d") || "";
+    },
+    dispose() {
+      host?.remove();
+    },
+  };
+}
+
+function hasComputedGeometryOverride(source, property, value, canonicalizePath) {
+  const attribute = source.getAttribute?.(property);
+  if (property === "d") {
+    const computed = pathGeometry(value);
+    const declared = pathGeometry(attribute);
+    if (computed && declared &&
+        computed.commands === declared.commands &&
+        computed.numbers.length === declared.numbers.length &&
+        computed.numbers.every((number, index) =>
+          sameGeometryMetric(number, declared.numbers[index], true))) {
+      return false;
+    }
+    const canonical = canonicalizePath(attribute);
+    if (canonical !== null) return String(value).trim() !== canonical.trim();
+    const exact = Boolean(source.closest?.("marker"));
+    return computed === null ||
+      declared === null ||
+      computed.commands !== declared.commands ||
+      computed.numbers.length !== declared.numbers.length ||
+      computed.numbers.some((number, index) =>
+        !sameGeometryMetric(number, declared.numbers[index], exact));
+  }
+  const computed = simplePixelMetric(value);
+  const declared = simplePixelMetric(attribute);
+  return computed === null ||
+    declared === null ||
+    !sameGeometryMetric(computed, declared);
+}
+
 /** A JSON-serializable primitive builder; it never creates or parses DOM. */
 export function svgPrimitive(tag, attributes = {}) {
   const primitive = { tag, attributes: {}, children: [] };
@@ -83,6 +201,9 @@ export function svgPrimitive(tag, attributes = {}) {
  */
 export function captureSvgTree(element, { slots = new Map(), computedStyle = globalThis.getComputedStyle } = {}) {
   let count = 0;
+  const pathCanonicalizer = computedStyle
+    ? pathCssCanonicalizer(element, computedStyle)
+    : null;
   function capture(source, depth, root = false) {
     if (++count > 50000 || depth > 128) throw new Error("SVG primitive limit exceeded");
     if (source.nodeType === 3) return { text: portableString(source.textContent || "") };
@@ -104,6 +225,11 @@ export function captureSvgTree(element, { slots = new Map(), computedStyle = glo
         // SVG geometry and the root's responsive CSS must not become screen pixels.
         if (!html && !math && /^(?:min-|max-)?(?:width|height)$/.test(property)) continue;
         let value = localPaint(style.getPropertyValue(property), source);
+        if ((html || math) && (property === "width" || property === "height")) {
+          // CSSOM rounds intrinsic used pixels; retaining auto avoids fallback layout drift.
+          const specified = source.computedStyleMap?.().get(property)?.toString?.();
+          if (specified === "auto") value = specified;
+        }
         if (property === "transform") {
           // Typed OM retains matrix precision and includes stylesheet overrides.
           const transform = source.computedStyleMap?.().get("transform");
@@ -111,8 +237,32 @@ export function captureSvgTree(element, { slots = new Map(), computedStyle = glo
         }
         if (value && safeCss(value)) primitive.style[property] = value;
       }
+      const geometryProperties = tag === "path"
+        ? SVG_GEOMETRY_BY_TAG.path
+        : source.closest?.("marker")
+          ? SVG_GEOMETRY_BY_TAG[tag] || []
+          : [];
+      for (const property of geometryProperties) {
+        const value = style.getPropertyValue(property);
+        if (value && hasComputedGeometryOverride(
+          source,
+          property,
+          value,
+          (attribute) => pathCanonicalizer?.value(attribute) ?? null,
+        ) &&
+            safeCss(value)) {
+          primitive.style[property] = portableString(value);
+        }
+      }
       if (root) {
         for (const property of ["width", "height", "max-width", "max-height"]) {
+          const value = inlineGeometry(source, property);
+          if (value && safeCss(value)) primitive.style[property] = value;
+        }
+      }
+      if (tag === "foreignObject") {
+        // Class multiplicities override their measured SVG attributes with CSS sizing.
+        for (const property of ["width", "height"]) {
           const value = inlineGeometry(source, property);
           if (value && safeCss(value)) primitive.style[property] = value;
         }
@@ -124,7 +274,11 @@ export function captureSvgTree(element, { slots = new Map(), computedStyle = glo
     }
     return primitive;
   }
-  return capture(element, 0, true);
+  try {
+    return capture(element, 0, true);
+  } finally {
+    pathCanonicalizer?.dispose();
+  }
 }
 
 function setAttributes(element, attributes = {}) {
@@ -175,7 +329,11 @@ export function sceneToSvg(scene, {
     if (!(math ? MATH_TAGS : html ? HTML_TAGS : SVG_TAGS).has(value.tag)) throw new Error(`Unsupported SVG primitive: ${value.tag}`);
     const element = dom(value.tag, value.attributes, math ? MATH_NS : html ? HTML_NS : SVG_NS);
     for (const [property, content] of Object.entries(value.style || {})) {
-      if (CSS_PROPERTIES.has(property) && safeCss(content)) element.style?.setProperty(property, String(content));
+      const styleValue = stringValue(content);
+      if ((CSS_PROPERTIES.has(property) || SVG_GEOMETRY_PROPERTIES.has(property)) &&
+          safeCss(styleValue)) {
+        element.style?.setProperty(property, styleValue);
+      }
     }
     if (value.textContent !== undefined) element.textContent = String(value.textContent);
     for (const child of value.children || []) {
@@ -188,6 +346,9 @@ export function sceneToSvg(scene, {
     return {
       fill: style.fill ?? "none", stroke: style.stroke ?? "none",
       "stroke-width": style.strokeWidth ?? 0, opacity: style.opacity ?? 1,
+      "fill-opacity": style.fillOpacity ?? 1,
+      "stroke-opacity": style.strokeOpacity ?? 1,
+      "stroke-linecap": style.lineCap,
       "stroke-dasharray": { dash: "8 5", dashDot: "8 4 2 4", dot: "2 4" }[style.dash],
     };
   }
@@ -204,15 +365,51 @@ export function sceneToSvg(scene, {
     if (presets[node.preset]) return dom("polygon", {
       points: presets[node.preset].map(([px, py]) => `${x + px * w},${y + py * h}`).join(" "), ...attrs,
     });
+    const halfHeight = h / 2;
+    const heightBasedPresets = {
+      reverseParallelogram: [
+        [x + halfHeight, y + h],
+        [x + w, y + h],
+        [x + w - halfHeight, y],
+        [x, y],
+      ],
+      trapezoid: [
+        [x, y + h],
+        [x + w, y + h],
+        [x + w - halfHeight, y],
+        [x + halfHeight, y],
+      ],
+      invertedTrapezoid: [
+        [x + halfHeight, y + h],
+        [x + w - halfHeight, y + h],
+        [x + w, y],
+        [x, y],
+      ],
+    };
+    if (heightBasedPresets[node.preset]) return dom("polygon", {
+      points: heightBasedPresets[node.preset].map(([px, py]) => `${px},${py}`).join(" "), ...attrs,
+    });
     if (node.preset === "cylinder") {
       const r = Math.min(h / 4, w / 8);
       return dom("path", { d: `M ${x} ${y + r} A ${w / 2} ${r} 0 0 1 ${x + w} ${y + r} L ${x + w} ${y + h - r} A ${w / 2} ${r} 0 0 1 ${x} ${y + h - r} Z M ${x} ${y + r} A ${w / 2} ${r} 0 0 0 ${x + w} ${y + r}`, ...attrs });
     }
+    if (node.preset === "sequenceTab") {
+      return dom("path", {
+        d: `M ${x} ${y} L ${x + w} ${y} L ${x + w} ${y + h * 0.65} L ${x + w * 0.832} ${y + h} L ${x} ${y + h} Z`,
+        ...attrs,
+      });
+    }
     if (node.preset && !["rect", "roundedRect"].includes(node.preset)) throw new Error(`Unsupported scene SVG preset: ${node.preset}`);
     return dom("rect", { x, y, width: w, height: h, rx: node.preset === "roundedRect" ? node.style?.cornerRadius ?? 8 : 0, ...attrs });
   }
-  function text(parent, content, bounds, layout = {}) {
+  function text(parent, content, bounds, layout = {}, rotation) {
     if (!content?.paragraphs?.length) return;
+    const textParent = rotation
+      ? dom("g", {
+          transform: `rotate(${rotation} ${bounds.x + bounds.width / 2} ${bounds.y + bounds.height / 2})`,
+        })
+      : parent;
+    if (textParent !== parent) parent.appendChild(textParent);
     const lines = content.paragraphs.flatMap((paragraph) => {
       const output = [{ ...paragraph, runs: [] }];
       for (const run of paragraph.runs) {
@@ -243,7 +440,7 @@ export function sceneToSvg(scene, {
         span.textContent = run.text;
         label.appendChild(span);
       }
-      parent.appendChild(label);
+      textParent.appendChild(label);
       y += heights[index];
     });
   }
@@ -267,15 +464,15 @@ export function sceneToSvg(scene, {
         role: "img", "aria-label": node.alt,
       }));
       if (node.kind === "connector") {
-        const attrs = { ...paint(node.style), fill: "none", "stroke-linejoin": "round", "stroke-linecap": "round" };
+        const attrs = { ...paint(node.style), fill: "none", "stroke-linejoin": "round", "stroke-linecap": node.style?.lineCap ?? "round" };
         const defs = dom("defs");
         for (const [end, arrow] of [["start", node.arrowStart], ["end", node.arrowEnd]]) {
           if (!arrow || arrow === "none") continue;
           const id = `scene-arrow-${renderId}-${index}-${end}`;
           const marker = dom("marker", { id, viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse", markerUnits: "strokeWidth" });
           marker.appendChild(arrow === "oval"
-            ? dom("circle", { cx: 5, cy: 5, r: 4, fill: node.style?.stroke })
-            : dom("path", { d: arrow === "diamond" ? "M 0 5 L 5 0 L 10 5 L 5 10 Z" : arrow === "stealth" ? "M 0 0 L 10 5 L 0 10 L 3 5 Z" : "M 0 0 L 10 5 L 0 10 Z", fill: node.style?.stroke }));
+            ? dom("circle", { cx: 5, cy: 5, r: 4, fill: node.style?.stroke, "fill-opacity": node.style?.strokeOpacity ?? 1 })
+            : dom("path", { d: arrow === "diamond" ? "M 0 5 L 5 0 L 10 5 L 5 10 Z" : arrow === "stealth" ? "M 0 0 L 10 5 L 0 10 L 3 5 Z" : "M 0 0 L 10 5 L 0 10 Z", fill: node.style?.stroke, "fill-opacity": node.style?.strokeOpacity ?? 1 }));
           defs.appendChild(marker);
           attrs[`marker-${end}`] = `url(#${id})`;
         }
@@ -283,7 +480,7 @@ export function sceneToSvg(scene, {
         element.appendChild(dom("path", { d: node.points.map((point, i) => `${i ? "L" : "M"} ${point.x} ${point.y}`).join(" "), ...attrs }));
         if (node.label) text(element, node.label.text, node.label.bounds);
       }
-      if (node.text) text(element, node.text, node.bounds, node.textLayout);
+      if (node.text) text(element, node.text, node.bounds, node.textLayout, node.rotation);
       if (node.accessibility?.label) setAttributes(element, { role: node.accessibility.role || "img", "aria-label": node.accessibility.label });
     }
     setAttributes(element, { "data-scene-node": node.kind, "data-scene-source-path": node.sourcePath, "data-scene-id": node.id });

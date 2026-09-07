@@ -7,6 +7,7 @@ import {
   MAX_SCENE_NODES,
   SceneGraphError,
   createScene,
+  normalizeRotationAngle,
   normalizeScene,
   validateScene,
 } from "../renderer/scene-graph.mjs";
@@ -32,6 +33,145 @@ function richText(text = "Text") {
     ],
   };
 }
+
+test("validates and normalizes explicit line caps without changing absent defaults", () => {
+  for (const lineCap of [undefined, "butt", "round", "square"]) {
+    const source = createScene({ width: 100, height: 100, source: { kind: "mermaid", path: "markers.svg" },
+      nodes: [{ kind: "connector", sourcePath: "marker", z: 0, points: [{ x: 10, y: 10 }, { x: 20, y: 20 }],
+        arrowStart: "none", arrowEnd: "none",
+        style: { stroke: "#123456", ...(lineCap ? { lineCap } : {}) } }] });
+    validateScene(source);
+    const normalized = normalizeScene(source).scene;
+    validateScene(normalized);
+    assert.equal(normalized.nodes[0].style.lineCap, lineCap);
+    source.nodes[0].style.lineCap = "unknown";
+    assert.throws(() => validateScene(source), /lineCap/);
+  }
+});
+
+test("validates and normalizes independent fill and stroke opacity without serialization drift", () => {
+  const source = validScene({
+    nodes: [{
+      kind: "shape",
+      sourcePath: "alpha",
+      z: 0,
+      bounds: { x: 10, y: 20, width: 100, height: 50 },
+      preset: "rect",
+      style: {
+        fill: "rgba(51, 102, 153, 0.5)",
+        stroke: "#cc330080",
+        strokeWidth: 2,
+        opacity: 0.8,
+        fillOpacity: 0.5,
+        strokeOpacity: 0.25,
+      },
+    }],
+  });
+
+  validateScene(source);
+  assert.deepEqual(JSON.parse(JSON.stringify(source)), source);
+
+  const normalized = normalizeScene(validScene({
+    nodes: [{
+      kind: "shape",
+      sourcePath: "normalized-alpha",
+      z: 0,
+      bounds: { x: 0, y: 0, width: 10, height: 10 },
+      preset: "rect",
+      style: { opacity: 1.5, fillOpacity: -0.5, strokeOpacity: "0.25" },
+    }],
+  })).scene;
+  assert.deepEqual(normalized.nodes[0].style, {
+    opacity: 1,
+    fillOpacity: 0,
+    strokeOpacity: 0.25,
+  });
+  validateScene(normalized);
+
+  for (const key of ["fillOpacity", "strokeOpacity"]) {
+    for (const invalid of [Number.NaN, Number.POSITIVE_INFINITY, -0.01, 1.01, "0.5"]) {
+      const invalidScene = validScene();
+      invalidScene.nodes[1].style[key] = invalid;
+      assert.throws(() => validateScene(invalidScene), new RegExp(`${key}`));
+    }
+    const inheritedStyle = Object.assign(Object.create({ [key]: 0.5 }), {
+      fill: "#ffffff",
+      stroke: "#000000",
+    });
+    const inheritedScene = validScene();
+    inheritedScene.nodes[1].style = inheritedStyle;
+    assert.throws(() => validateScene(inheritedScene), /must be an own property/);
+  }
+});
+
+test("normalizes finite text rotations and rejects invalid or inherited values", () => {
+  assert.equal(normalizeRotationAngle(450), 90);
+  assert.equal(normalizeRotationAngle(-450), -90);
+  assert.equal(normalizeRotationAngle(720), 0);
+  assert.equal(normalizeRotationAngle(Number.NaN), null);
+
+  const source = validScene({
+    nodes: [{
+      kind: "text",
+      sourcePath: "rotated",
+      z: 0,
+      bounds: { x: 10, y: 20, width: 100, height: 30 },
+      text: richText("Rotated"),
+      rotation: 450,
+    }],
+  });
+  assert.throws(() => validateScene(source), /rotation must be normalized/);
+  const normalized = normalizeScene(source);
+  assert.deepEqual(normalized.diagnostics, []);
+  assert.equal(normalized.scene.nodes[0].rotation, 90);
+  assert.deepEqual(JSON.parse(JSON.stringify(normalized.scene)), normalized.scene);
+  validateScene(normalized.scene);
+  const signed = normalizeScene(validScene({
+    nodes: [{
+      kind: "text",
+      sourcePath: "off-canvas-rotation",
+      z: 0,
+      bounds: { x: -10.25, y: -5.75, width: 80, height: 20 },
+      text: richText("Off canvas"),
+      rotation: -45,
+    }],
+  })).scene;
+  assert.deepEqual(signed.nodes[0].bounds, {
+    x: -10.2,
+    y: -5.7,
+    width: 80,
+    height: 20,
+  });
+  validateScene(signed);
+
+  for (const invalid of [Number.NaN, Number.POSITIVE_INFINITY, "30", { valueOf: () => 30 }]) {
+    const result = normalizeScene(validScene({
+      nodes: [{
+        kind: "text",
+        sourcePath: "invalid-rotation",
+        z: 0,
+        bounds: { x: 10, y: 20, width: 100, height: 30 },
+        text: richText("Invalid"),
+        rotation: invalid,
+      }],
+    }));
+    assert.equal(result.scene.nodes[0].kind, "fallback");
+    assert.match(result.scene.nodes[0].reason, /rotation/);
+    validateScene(result.scene);
+  }
+
+  const inherited = Object.assign(Object.create({ rotation: 30 }), {
+    kind: "text",
+    sourcePath: "inherited-rotation",
+    z: 0,
+    bounds: { x: 10, y: 20, width: 100, height: 30 },
+    text: richText("Inherited"),
+  });
+  assert.throws(
+    () => validateScene(validScene({ nodes: [inherited] })),
+    /rotation must be an own property/,
+  );
+});
 
 function validScene(overrides = {}) {
   return createScene({
@@ -128,6 +268,52 @@ test("valid scenes for every node kind are JSON-serializable without drift", () 
     "connector",
     "fallback",
   ]);
+});
+
+test("accepts the internal sequence frame tab preset without broadening unknown shapes", () => {
+  const { scene, diagnostics } = normalizeScene(validScene({
+    nodes: [
+      {
+        kind: "shape",
+        sourcePath: "sequence[0]",
+        z: 0,
+        bounds: { x: 10, y: 20, width: 50, height: 20 },
+        preset: "sequenceTab",
+      },
+    ],
+  }));
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(scene.nodes[0].preset, "sequenceTab");
+  assert.equal(validateScene(scene), scene);
+});
+
+test("accepts exact height-based Mermaid quadrilaterals as a closed preset set", () => {
+  const presets = ["reverseParallelogram", "trapezoid", "invertedTrapezoid"];
+  const { scene, diagnostics } = normalizeScene(validScene({
+    nodes: presets.map((preset, index) => ({
+      kind: "shape",
+      sourcePath: `nodes[${index}]`,
+      z: index,
+      bounds: { x: index * 120, y: 20, width: 100, height: 40 },
+      preset,
+    })),
+  }));
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(scene.nodes.map((node) => node.preset), presets);
+  assert.equal(validateScene(scene), scene);
+
+  const unknown = validScene({
+    nodes: [{
+      kind: "shape",
+      sourcePath: "nodes[0]",
+      z: 0,
+      bounds: { x: 0, y: 0, width: 100, height: 40 },
+      preset: "nearestTrapezoid",
+    }],
+  });
+  assert.throws(() => validateScene(unknown), /preset is not supported/);
 });
 
 test("nested group children flatten into absolute coordinates", () => {

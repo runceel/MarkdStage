@@ -17,8 +17,8 @@ flowchart LR
 ```
 ````
 
-Mermaid is bundled and works offline. Use it for flowcharts, sequence diagrams, class diagrams, pie
-charts, and other automatically arranged diagrams.
+Mermaid is bundled and works offline. Use it for flowcharts, sequence diagrams, class diagrams,
+state diagrams, requirement diagrams, pie charts, and other automatically arranged diagrams.
 
 Mermaid diagrams pick up the slide's background, border, text, and accent colors automatically, so
 they blend into the deck's theme (including custom themes) instead of using one of Mermaid's own
@@ -28,16 +28,73 @@ If Mermaid syntax is invalid, the slide shows an error while preserving the rest
 
 ### Editable Mermaid in PowerPoint
 
-Flowcharts preserve `style`, `classDef`, and `class` colors and text styles. Supported nodes,
-subgraphs, connectors, and labels export as editable objects; edge-label backgrounds keep lines
-from crossing the text. Stadium, cylinder, and double-circle nodes use multiple editable shapes
-when their paint can be reproduced safely.
+PowerPoint export is hybrid. Supported shapes, text, and connectors stay editable.
 
-Basic sequence diagrams export participants, lifelines, messages, notes, and activations.
-Class diagrams export class compartments and unmarked associations. Unsupported relationship
-markers, complex sequence constructs, effects, and unknown geometry remain fallback pictures.
-Other diagram types, including pie, mindmap, and gitGraph, can still use whole-diagram artwork.
-Check the export report for the reason and source path of each fallback.
+Unsupported or unsafe content is preserved as the smallest safe image
+fallback.
+
+The whole diagram becomes an image only when native and fallback content
+cannot be separated safely.
+
+| Diagram | Approximate editable coverage |
+| --- | --- |
+| Flowchart | Common nodes, subgraphs, connectors, labels, and safely representable styles |
+| Sequence | Basic participants and actors, lifelines, messages, notes, activations, and common control frames |
+| Class | Class compartments, common relations and markers, multiplicities, notes, and namespaces |
+| State | Basic `stateDiagram-v2` states, start/end pseudo-states, labels, and simple transitions |
+| ER | Exact `erDiagram` syntax; entities, attributes, relations, labels, and crow's-foot cardinalities |
+| Requirement | `requirementDiagram` blocks, supported relations, labels, and markers |
+| Packet / tree view | `packet` fields and bit labels; exact `treeView-beta` hierarchy lines and labels |
+| Other Mermaid diagrams | Render normally in slides and use image fallback where editable conversion is unavailable |
+
+Coverage is intentionally approximate: editability depends on the structures
+and effects in the rendered diagram, not only its Mermaid type.
+
+The exporter follows the rendered SVG rather than rebuilding layout from
+source, and does not claim that every valid syntax variant is editable.
+
+See the presentation-ready
+[Mermaid support example deck](../examples/mermaid-support.md) for representative
+syntax and current coverage.
+
+#### Common export rules
+
+- Geometry and placement come from the rendered SVG, including connector routes,
+  text bounds, and marker direction.
+
+- Theme colors, supported styles and alpha, and simple Japanese or multiline text
+  are preserved when they can be represented safely as native PowerPoint
+  objects.
+
+- Effect-free text and shapes can retain simple 2D rotation in addition to
+  translation and uniform scaling.
+
+- Semantic markers such as arrowheads, diamonds, inheritance triangles, crosses,
+  start/end states, and crow's-foot terminals are retained when their rendered
+  form is supported.
+
+- Complex transforms, effects, HTML, embedded icons or images, and unknown
+  geometry use a local image fallback when native conversion would change their
+  appearance.
+
+- A local fallback does not consume supported sibling nodes, connectors, labels,
+  or control frames. Those siblings remain editable whenever ownership can be
+  separated safely.
+
+#### Fallback behavior
+
+- Visible Mermaid content is preserved in the exported presentation.
+
+- The smallest safe node, label, connector, marker, decoration, or control frame
+  is preferred for image fallback.
+
+- The whole diagram is rasterized only when shared effects, transforms,
+  compositing, or ownership make local separation unsafe.
+
+- Mermaid types outside the editable set still render in the slide and typically
+  export as a diagram image.
+
+- The export report identifies fallback use with its reason and source path.
 
 ## Use Architecture DSL for stable placement
 

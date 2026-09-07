@@ -697,7 +697,11 @@ body.pptx-artwork-mode svg [data-pptx-native="table"]{
   color:transparent!important;
   -webkit-text-fill-color:transparent!important;
 }
-body.pptx-artwork-mode svg path[data-pptx-native="connector"]{marker-end:none!important;}
+body.pptx-artwork-mode svg [data-pptx-native="connector"]{
+  marker-start:none!important;
+  marker-mid:none!important;
+  marker-end:none!important;
+}
 body.pptx-artwork-mode svg [data-pptx-native="image"]{opacity:0!important;}
 body.pptx-artwork-mode [data-pptx-shadow-fallback]{box-shadow:none!important;}
 body.pptx-artwork-mode .pptx-fallback-hidden{visibility:hidden!important;}

@@ -1,0 +1,52 @@
+%%{init: {"handDrawnSeed": 42}}%%
+requirementDiagram
+direction LR
+classDef highlighted fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#102030
+requirement root_req {
+  id: "REQ-001"
+  text: "顧客<br/>Root\nliteral"
+  risk: high
+  verifymethod: test
+}
+class root_req highlighted
+requirement child_req {
+  id: "REQ-002"
+  text: "Child"
+  risk: low
+  verifyMethod: analysis
+}
+requirement copy_req {
+  id: "REQ-003"
+  text: "Copy"
+}
+requirement derive_req {
+  id: "REQ-004"
+  text: "Derive"
+}
+requirement refine_req {
+  id: "REQ-005"
+  text: "Refine"
+}
+requirement trace_req {
+  id: "REQ-006"
+  text: "Trace"
+}
+requirement empty_req {
+}
+element implementation {
+  type: "サービス<br/>Service"
+  docRef: "docs/要件\nref"
+}
+element verifier {
+  type: "Test"
+  docref: "tests/spec"
+}
+element empty_element {
+}
+child_req <- contains - root_req
+root_req - copies -> copy_req
+copy_req - derives -> derive_req
+root_req <- satisfies - implementation
+verifier - verifies -> root_req
+refine_req - refines -> root_req
+trace_req - traces -> root_req

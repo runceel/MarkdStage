@@ -19,6 +19,9 @@ const NS_REL =
 const JAPANESE_FONT_FACE = "Yu Gothic";
 const HUNDREDTH_POINTS_PER_PIXEL = 75;
 const SLIDE_LAYOUT_ID_BASE = 2147500000;
+const DRAWINGML_ANGLE_UNITS_PER_DEGREE = 60000;
+const DRAWINGML_HALF_TURN = 180 * DRAWINGML_ANGLE_UNITS_PER_DEGREE;
+const DRAWINGML_FULL_TURN = 360 * DRAWINGML_ANGLE_UNITS_PER_DEGREE;
 
 const REL = {
   officeDocument: `${NS_R}/officeDocument`,
@@ -111,6 +114,33 @@ function optionalUnitInterval(value, path, fallback = 1) {
   return number;
 }
 
+function optionalOwnUnitInterval(value, key, path, fallback = 1) {
+  if (!Object.hasOwn(value, key)) {
+    if (key in value) fail(`${path}.${key} must be an own property`);
+    return fallback;
+  }
+  return optionalUnitInterval(value[key], `${path}.${key}`, fallback);
+}
+
+function optionalOwnRotationUnits(value, path) {
+  if (!Object.hasOwn(value, "rotation")) {
+    if ("rotation" in value) fail(`${path}.rotation must be an own property`);
+    return 0;
+  }
+  const rotation = finiteNumber(value.rotation, `${path}.rotation`);
+  let units = Math.round((((rotation % 360) + 360) % 360) * DRAWINGML_ANGLE_UNITS_PER_DEGREE);
+  if (units >= DRAWINGML_HALF_TURN) units -= DRAWINGML_FULL_TURN;
+  return units === 0 ? 0 : units;
+}
+
+function paintOpacities(element, path) {
+  return {
+    opacity: optionalOwnUnitInterval(element, "opacity", path),
+    fillOpacity: optionalOwnUnitInterval(element, "fillOpacity", path),
+    strokeOpacity: optionalOwnUnitInterval(element, "strokeOpacity", path),
+  };
+}
+
 function boundsOf(value, path) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     fail(`${path} must be an object`);
@@ -127,8 +157,9 @@ function emu(value) {
   return Math.round(value * PPTX_DIMENSIONS.emusPerPx);
 }
 
-function xfrmXml(bounds, tag = "a:xfrm") {
-  return `<${tag}><a:off x="${emu(bounds.x)}" y="${emu(bounds.y)}"/><a:ext cx="${emu(bounds.width)}" cy="${emu(bounds.height)}"/></${tag}>`;
+function xfrmXml(bounds, tag = "a:xfrm", rotationUnits = 0) {
+  const rotation = rotationUnits ? ` rot="${rotationUnits}"` : "";
+  return `<${tag}${rotation}><a:off x="${emu(bounds.x)}" y="${emu(bounds.y)}"/><a:ext cx="${emu(bounds.width)}" cy="${emu(bounds.height)}"/></${tag}>`;
 }
 
 function parseChannel(value, path) {
@@ -210,16 +241,25 @@ function colorXml(value, path, opacity = 1) {
   return color ? `<a:solidFill>${color}</a:solidFill>` : "<a:noFill/>";
 }
 
-function lineXml(element, path) {
+function lineCapXml(value, path) {
+  if (value === undefined) return "";
+  const caps = { butt: "flat", round: "rnd", square: "sq" };
+  if (typeof value !== "string" || !Object.hasOwn(caps, value)) fail(`${path} is not a supported line cap`);
+  return ` cap="${caps[value]}"`;
+}
+
+function lineXml(element, path, opacities = paintOpacities(element, path)) {
   const width = element.strokeWidth === undefined
     ? 1
     : positiveNumber(element.strokeWidth, `${path}.strokeWidth`);
   const color = colorOf(element.stroke, `${path}.stroke`);
-  if (!color) return `<a:ln w="${emu(width)}"><a:noFill/></a:ln>`;
-  const opacity = optionalUnitInterval(element.opacity, `${path}.opacity`);
-  const alpha = Math.round(color.alpha * opacity * 100000);
+  const cap = lineCapXml(element.lineCap, `${path}.lineCap`);
+  if (!color) return `<a:ln w="${emu(width)}"${cap}><a:noFill/></a:ln>`;
+  const alpha = Math.round(
+    color.alpha * opacities.opacity * opacities.strokeOpacity * 100000,
+  );
   const dash = dashXml(element.dash, `${path}.dash`);
-  return `<a:ln w="${emu(width)}"><a:solidFill><a:srgbClr val="${color.hex}">${
+  return `<a:ln w="${emu(width)}"${cap}><a:solidFill><a:srgbClr val="${color.hex}">${
     alpha < 100000 ? `<a:alpha val="${alpha}"/>` : ""
   }</a:srgbClr></a:solidFill>${dash}</a:ln>`;
 }
@@ -468,9 +508,9 @@ function runXml(run, path, relationships) {
     .filter(Boolean)
     .join(" ");
   let properties = colorXml(
-    run.color ?? "#000000",
+    run.color === undefined ? "#000000" : run.color,
     `${path}.color`,
-    optionalUnitInterval(run.opacity, `${path}.opacity`),
+    optionalOwnUnitInterval(run, "opacity", path),
   );
   if (run.fontFace !== undefined) {
     if (typeof run.fontFace !== "string" || !run.fontFace) {
@@ -548,12 +588,13 @@ function textBodyXml(
   return `<${tag}>${textBodyPropertiesXml(bodyOptions, bodyPath)}<a:lstStyle/>${paragraphs}</${tag}>`;
 }
 
-function shapeBase(id, name, bounds, properties, text = "") {
-  return `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${xmlEscape(name)}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr>${xfrmXml(bounds)}${properties}</p:spPr>${text}</p:sp>`;
+function shapeBase(id, name, bounds, properties, text = "", rotationUnits = 0) {
+  return `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${xmlEscape(name)}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr>${xfrmXml(bounds, "a:xfrm", rotationUnits)}${properties}</p:spPr>${text}</p:sp>`;
 }
 
 function textShapeXml(element, path, id, relationships) {
   const bounds = boundsOf(element, path);
+  const rotationUnits = optionalOwnRotationUnits(element, path);
   const text = { paragraphs: element.paragraphs };
   const paragraphs = Array.isArray(text.paragraphs) ? text.paragraphs : [];
   const bulletInsetPx = Math.max(
@@ -584,6 +625,7 @@ function textShapeXml(element, path, id, relationships) {
       path,
       bulletInsetPx,
     ),
+    rotationUnits,
   );
 }
 
@@ -604,7 +646,7 @@ function shapeTextOf(element, path) {
 
 function nativeShapeXml(element, path, id, relationships) {
   const bounds = boundsOf(element, path);
-  const preset = {
+  const presets = {
     rect: "rect",
     roundedRect: "roundRect",
     ellipse: "ellipse",
@@ -612,18 +654,38 @@ function nativeShapeXml(element, path, id, relationships) {
     triangle: "triangle",
     hexagon: "hexagon",
     parallelogram: "parallelogram",
-  }[element.shape];
-  if (!preset) {
+  };
+  const customGeometries = {
+    sequenceTab: '<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="l" t="t" r="r" b="b"/><a:pathLst><a:path w="50000" h="20000"><a:moveTo><a:pt x="0" y="0"/></a:moveTo><a:lnTo><a:pt x="50000" y="0"/></a:lnTo><a:lnTo><a:pt x="50000" y="13000"/></a:lnTo><a:lnTo><a:pt x="41600" y="20000"/></a:lnTo><a:lnTo><a:pt x="0" y="20000"/></a:lnTo><a:close/></a:path></a:pathLst></a:custGeom>',
+    reverseParallelogram: '<a:custGeom><a:avLst/><a:gdLst><a:gd name="dx" fmla="*/ h 1 2"/><a:gd name="rx" fmla="+- w 0 dx"/></a:gdLst><a:ahLst/><a:cxnLst/><a:rect l="l" t="t" r="r" b="b"/><a:pathLst><a:path><a:moveTo><a:pt x="dx" y="h"/></a:moveTo><a:lnTo><a:pt x="w" y="h"/></a:lnTo><a:lnTo><a:pt x="rx" y="0"/></a:lnTo><a:lnTo><a:pt x="0" y="0"/></a:lnTo><a:close/></a:path></a:pathLst></a:custGeom>',
+    trapezoid: '<a:custGeom><a:avLst/><a:gdLst><a:gd name="dx" fmla="*/ h 1 2"/><a:gd name="rx" fmla="+- w 0 dx"/></a:gdLst><a:ahLst/><a:cxnLst/><a:rect l="l" t="t" r="r" b="b"/><a:pathLst><a:path><a:moveTo><a:pt x="0" y="h"/></a:moveTo><a:lnTo><a:pt x="w" y="h"/></a:lnTo><a:lnTo><a:pt x="rx" y="0"/></a:lnTo><a:lnTo><a:pt x="dx" y="0"/></a:lnTo><a:close/></a:path></a:pathLst></a:custGeom>',
+    invertedTrapezoid: '<a:custGeom><a:avLst/><a:gdLst><a:gd name="dx" fmla="*/ h 1 2"/><a:gd name="rx" fmla="+- w 0 dx"/></a:gdLst><a:ahLst/><a:cxnLst/><a:rect l="l" t="t" r="r" b="b"/><a:pathLst><a:path><a:moveTo><a:pt x="dx" y="h"/></a:moveTo><a:lnTo><a:pt x="rx" y="h"/></a:lnTo><a:lnTo><a:pt x="w" y="0"/></a:lnTo><a:lnTo><a:pt x="0" y="0"/></a:lnTo><a:close/></a:path></a:pathLst></a:custGeom>',
+  };
+  const adjustedGeometries = {
+    stadium: '<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val 50000"/></a:avLst></a:prstGeom>',
+  };
+  const shape = Object.hasOwn(element, "shape") ? element.shape : undefined;
+  const preset = typeof shape === "string" && Object.hasOwn(presets, shape) ? presets[shape] : "";
+  const customGeometry = typeof shape === "string" && Object.hasOwn(customGeometries, shape)
+    ? customGeometries[shape]
+    : "";
+  const adjustedGeometry = typeof shape === "string" && Object.hasOwn(adjustedGeometries, shape)
+    ? adjustedGeometries[shape]
+    : "";
+  const geometry = adjustedGeometry || customGeometry || (preset
+      ? `<a:prstGeom prst="${preset}"><a:avLst/></a:prstGeom>`
+      : "");
+  if (!geometry) {
     fail(
-      `${path}.shape must be rect, roundedRect, ellipse, diamond, triangle, hexagon, or parallelogram`,
+      `${path}.shape must be rect, roundedRect, stadium, ellipse, diamond, triangle, hexagon, parallelogram, reverseParallelogram, trapezoid, invertedTrapezoid, or sequenceTab`,
     );
   }
-  const opacity = optionalUnitInterval(element.opacity, `${path}.opacity`);
-  const properties = `${xfrmXml(bounds)}<a:prstGeom prst="${preset}"><a:avLst/></a:prstGeom>${colorXml(
+  const opacities = paintOpacities(element, path);
+  const properties = `${xfrmXml(bounds)}${geometry}${colorXml(
     element.fill,
     `${path}.fill`,
-    opacity,
-  )}${lineXml(element, path)}`;
+    opacities.opacity * opacities.fillOpacity,
+  )}${lineXml(element, path, opacities)}`;
   const shapeText = shapeTextOf(element, path);
   if (!shapeText) textBodyPropertiesXml(element, path);
   const text = shapeText
@@ -741,9 +803,12 @@ function connectorXml(element, path, nextId, relationships) {
     : positiveNumber(element.strokeWidth, `${path}.strokeWidth`);
   const color = colorOf(element.stroke ?? "#000000", `${path}.stroke`);
   if (!color) fail(`${path}.stroke cannot be null`);
-  const opacity = optionalUnitInterval(element.opacity, `${path}.opacity`);
-  const alpha = Math.round(color.alpha * opacity * 100000);
+  const opacities = paintOpacities(element, path);
+  const alpha = Math.round(
+    color.alpha * opacities.opacity * opacities.strokeOpacity * 100000,
+  );
   const dash = dashXml(element.dash, `${path}.dash`);
+  const cap = lineCapXml(element.lineCap, `${path}.lineCap`);
   const shapes = [];
   for (let index = 0; index < points.length - 1; index += 1) {
     const start = points[index];
@@ -762,7 +827,7 @@ function connectorXml(element, path, nextId, relationships) {
         ? arrowXml(element.arrowEnd, `${path}.arrowEnd`)
         : "";
     shapes.push(
-      `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="Connector ${id}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm${flipH}${flipV}><a:off x="${emu(x)}" y="${emu(y)}"/><a:ext cx="${emu(Math.abs(end.x - start.x))}" cy="${emu(Math.abs(end.y - start.y))}"/></a:xfrm><a:prstGeom prst="line"><a:avLst/></a:prstGeom><a:ln w="${emu(width)}"><a:solidFill><a:srgbClr val="${color.hex}">${
+      `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="Connector ${id}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm${flipH}${flipV}><a:off x="${emu(x)}" y="${emu(y)}"/><a:ext cx="${emu(Math.abs(end.x - start.x))}" cy="${emu(Math.abs(end.y - start.y))}"/></a:xfrm><a:prstGeom prst="line"><a:avLst/></a:prstGeom><a:ln w="${emu(width)}"${cap}><a:solidFill><a:srgbClr val="${color.hex}">${
         alpha < 100000 ? `<a:alpha val="${alpha}"/>` : ""
       }</a:srgbClr></a:solidFill>${dash}${head}${tail}</a:ln></p:spPr></p:sp>`,
     );

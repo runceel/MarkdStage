@@ -1,0 +1,8 @@
+%%{init: {"handDrawnSeed": 42}}%%
+sequenceDiagram
+participant A as 送信側
+participant B as Receiver
+A-xB: 停止<br/>Cancel
+B--xA: Reverse
+A-xA: Self
+B--xB: Dashed self
