@@ -3026,6 +3026,19 @@ test("detects rich marker content and group effects on edge labels", async ({ pa
       })) {
         marker.setAttribute(name, content);
       }
+      if (config.kind === "marker-outline") {
+        marker.style.outline = config.state === "visible"
+          ? "60px solid blue"
+          : config.state === "transparent"
+            ? "60px solid rgba(0, 0, 0, 0)"
+            : "none";
+      } else if (config.kind === "marker-shadow") {
+        marker.style.filter = config.state === "visible"
+          ? "drop-shadow(30px 20px 10px blue)"
+          : config.state === "transparent"
+            ? "drop-shadow(30px 20px 10px rgba(0, 0, 0, 0))"
+            : "none";
+      }
       if (config.kind === "text") {
         const text = document.createElementNS(namespace, "text");
         text.setAttribute("x", "4");
@@ -3139,6 +3152,20 @@ test("detects rich marker content and group effects on edge labels", async ({ pa
         inner.append(rectangle);
         outer.append(inner);
         marker.append(outer);
+      } else if (["marker-outline", "marker-shadow"].includes(config.kind)) {
+        const rectangle = document.createElementNS(namespace, "rect");
+        rectangle.setAttribute("x", "5");
+        rectangle.setAttribute("y", "5");
+        rectangle.setAttribute("width", "10");
+        rectangle.setAttribute("height", "10");
+        rectangle.setAttribute(
+          "fill",
+          config.kind === "marker-shadow" && config.state === "visible"
+            ? "red"
+            : "transparent",
+        );
+        rectangle.setAttribute("stroke", "transparent");
+        marker.append(rectangle);
       } else {
         const circle = document.createElementNS(namespace, "circle");
         circle.setAttribute("cx", "15");
@@ -3161,7 +3188,8 @@ test("detects rich marker content and group effects on edge labels", async ({ pa
       } else {
         source.setAttribute(
           "d",
-          config.kind.startsWith("nested-")
+          config.kind.startsWith("nested-") ||
+            config.kind.startsWith("marker-")
             ? "M35 12 L39 12 L43 12"
             : "M5 12 L39 12 L73 12",
         );
@@ -3215,6 +3243,8 @@ test("detects rich marker content and group effects on edge labels", async ({ pa
       "nested-outline",
       "nested-filter",
       "nested-shadow",
+      "marker-outline",
+      "marker-shadow",
     ]) {
       await loadFixture();
       await installMarker({ kind, state: "visible" });
@@ -3244,7 +3274,7 @@ test("detects rich marker content and group effects on edge labels", async ({ pa
         node.meta?.mermaid?.kind === "edge-label"), kind).toHaveLength(6);
       expect(result.scene.nodes.some((node) =>
         node.sourcePath === "relations[1].line"), kind).toBe(true);
-      if (kind.startsWith("nested-")) {
+      if (kind.startsWith("nested-") || kind.startsWith("marker-")) {
         const fallback = result.scene.nodes.find((node) =>
           node.sourcePath === "edgeLabels[root_req-copy_req-0]");
         expect(fallback.bounds.x, kind).toBeLessThan(sourceBounds.left);
@@ -3253,6 +3283,20 @@ test("detects rich marker content and group effects on edge labels", async ({ pa
           .toBeGreaterThan(sourceBounds.right);
         expect(fallback.bounds.y + fallback.bounds.height, kind)
           .toBeGreaterThan(sourceBounds.bottom);
+        if (kind.startsWith("marker-")) {
+          expect(sourceBounds.left - fallback.bounds.x, kind)
+            .toBeGreaterThan(40);
+          expect(sourceBounds.top - fallback.bounds.y, kind)
+            .toBeGreaterThan(40);
+          expect(
+            fallback.bounds.x + fallback.bounds.width - sourceBounds.right,
+            kind,
+          ).toBeGreaterThan(40);
+          expect(
+            fallback.bounds.y + fallback.bounds.height - sourceBounds.bottom,
+            kind,
+          ).toBeGreaterThan(40);
+        }
       }
     }
 
@@ -3269,6 +3313,10 @@ test("detects rich marker content and group effects on edge labels", async ({ pa
       { kind: "nested-filter", state: "none" },
       { kind: "nested-shadow", state: "transparent" },
       { kind: "nested-shadow", state: "none" },
+      { kind: "marker-outline", state: "transparent" },
+      { kind: "marker-outline", state: "none" },
+      { kind: "marker-shadow", state: "transparent" },
+      { kind: "marker-shadow", state: "none" },
     ]) {
       await loadFixture();
       await installMarker(entry);
@@ -8021,7 +8069,9 @@ test("actual rich marker content and group effects remain captured local fallbac
       if (svg.dataset.richMarkerPatched ||
           svg.getAttribute("aria-roledescription") !== "requirement") return;
       const title = svg.closest(".deck")?.querySelector("h1")?.textContent || "";
-      const kind = title.includes("HTML marker") ? "html"
+      const kind = title.includes("Marker root outline") ? "root-outline"
+        : title.includes("Marker root shadow") ? "root-shadow"
+        : title.includes("HTML marker") ? "html"
         : title.includes("Text marker") ? "text"
           : title.includes("Outline marker") ? "outline"
             : title.includes("Filter marker") ? "filter"
@@ -8045,6 +8095,11 @@ test("actual rich marker content and group effects remain captured local fallbac
         overflow: "visible",
       })) {
         marker.setAttribute(name, content);
+      }
+      if (kind === "root-outline") {
+        marker.style.outline = "60px solid blue";
+      } else if (kind === "root-shadow") {
+        marker.style.filter = "drop-shadow(30px 20px 10px blue)";
       }
       if (kind === "text") {
         const text = document.createElementNS(namespace, "text");
@@ -8114,6 +8169,18 @@ test("actual rich marker content and group effects remain captured local fallbac
         inner.append(rectangle);
         outer.append(inner);
         marker.append(outer);
+      } else if (kind === "root-outline" || kind === "root-shadow") {
+        const rectangle = document.createElementNS(namespace, "rect");
+        rectangle.setAttribute("x", "5");
+        rectangle.setAttribute("y", "5");
+        rectangle.setAttribute("width", "10");
+        rectangle.setAttribute("height", "10");
+        rectangle.setAttribute(
+          "fill",
+          kind === "root-shadow" ? "red" : "transparent",
+        );
+        rectangle.setAttribute("stroke", "transparent");
+        marker.append(rectangle);
       } else {
         const outer = document.createElementNS(namespace, "g");
         outer.setAttribute(
@@ -8154,7 +8221,13 @@ test("actual rich marker content and group effects remain captured local fallbac
       } else {
         source.setAttribute(
           "d",
-          ["outline", "filter", "shadow"].includes(kind)
+          [
+            "outline",
+            "filter",
+            "shadow",
+            "root-outline",
+            "root-shadow",
+          ].includes(kind)
             ? "M35 12 L39 12 L43 12"
             : "M5 12 L39 12 L73 12",
         );
@@ -8180,6 +8253,8 @@ test("actual rich marker content and group effects remain captured local fallbac
       `# Outline marker requirement\n\n\`\`\`mermaid\n${diagram}\n\`\`\``,
       `# Filter marker requirement\n\n\`\`\`mermaid\n${diagram}\n\`\`\``,
       `# Shadow marker requirement\n\n\`\`\`mermaid\n${diagram}\n\`\`\``,
+      `# Marker root outline requirement\n\n\`\`\`mermaid\n${diagram}\n\`\`\``,
+      `# Marker root shadow requirement\n\n\`\`\`mermaid\n${diagram}\n\`\`\``,
       `# Polygon marker requirement\n\n\`\`\`mermaid\n${diagram}\n\`\`\``,
     ],
   });
@@ -8203,6 +8278,8 @@ test("actual rich marker content and group effects remain captured local fallbac
       "outline",
       "filter",
       "shadow",
+      "root-outline",
+      "root-shadow",
       "polygon",
     ].entries()) {
       const model = models[index];
@@ -8237,7 +8314,14 @@ test("actual rich marker content and group effects remain captured local fallbac
       const deck = page.locator(
         ".deck:not(.pptx-layout-template)",
       ).nth(index);
-      if (["outline", "filter", "shadow", "polygon"].includes(kind)) {
+      if ([
+        "outline",
+        "filter",
+        "shadow",
+        "root-outline",
+        "root-shadow",
+        "polygon",
+      ].includes(kind)) {
         const sourceBounds = await source.boundingBox();
         const deckBounds = await deck.boundingBox();
         const fallback = model.fallbacks.find((entry) =>
@@ -8252,6 +8336,14 @@ test("actual rich marker content and group effects remain captured local fallbac
         expect(fallback.y).toBeLessThan(relative.top);
         expect(fallback.x + fallback.width).toBeGreaterThan(relative.right);
         expect(fallback.y + fallback.height).toBeGreaterThan(relative.bottom);
+        if (kind.startsWith("root-")) {
+          expect(relative.left - fallback.x, kind).toBeGreaterThan(40);
+          expect(relative.top - fallback.y, kind).toBeGreaterThan(40);
+          expect(fallback.x + fallback.width - relative.right, kind)
+            .toBeGreaterThan(40);
+          expect(fallback.y + fallback.height - relative.bottom, kind)
+            .toBeGreaterThan(40);
+        }
       }
       if (kind === "html") {
         expect(await svg.locator(
@@ -8280,6 +8372,27 @@ test("actual rich marker content and group effects remain captured local fallbac
           color: "rgb(255, 0, 0)",
           offset: "0px",
         });
+      } else if (kind === "root-outline") {
+        expect(await svg.locator(
+          'marker[id$="-root-outline-marker"]',
+        ).evaluate((element) => {
+          const style = getComputedStyle(element);
+          return {
+            width: style.outlineWidth,
+            style: style.outlineStyle,
+            color: style.outlineColor,
+          };
+        })).toEqual({
+          width: "60px",
+          style: "solid",
+          color: "rgb(0, 0, 255)",
+        });
+      } else if (kind === "root-shadow") {
+        expect(await svg.locator(
+          'marker[id$="-root-shadow-marker"]',
+        ).evaluate((element) =>
+          getComputedStyle(element).filter))
+          .toContain("drop-shadow");
       }
       if (kind !== "html") {
         await waitForPaint(page);

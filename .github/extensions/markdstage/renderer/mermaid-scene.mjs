@@ -919,6 +919,29 @@ function markerFallbackPadding(element, style) {
       invalid();
       continue;
     }
+    let union = null;
+    const include = (point, spread) => {
+      if (!Number.isFinite(point.x) ||
+          !Number.isFinite(point.y) ||
+          !Number.isFinite(spread)) {
+        invalid();
+        return;
+      }
+      const bounds = {
+        left: point.x - spread,
+        top: point.y - spread,
+        right: point.x + spread,
+        bottom: point.y + spread,
+      };
+      union = union
+        ? {
+            left: Math.min(union.left, bounds.left),
+            top: Math.min(union.top, bounds.top),
+            right: Math.max(union.right, bounds.right),
+            bottom: Math.max(union.bottom, bounds.bottom),
+          }
+        : bounds;
+    };
     const visit = (child, parentMatrix, depth) => {
       if (depth > MAX_GROUP_DEPTH) {
         invalid();
@@ -961,15 +984,7 @@ function markerFallbackPadding(element, style) {
               [box.x + box.width, box.y + box.height],
             ]) {
               const point = new DOMPoint(x, y).matrixTransform(transform);
-              const radius = (
-                Math.hypot(point.x - refX, point.y - refY) +
-                paintExtent * scale
-              ) * viewScale * unit;
-              if (Number.isFinite(radius)) {
-                padding = Math.max(padding, radius);
-              } else {
-                invalid();
-              }
+              include(point, paintExtent * scale);
             }
           }
         } catch (_) {
@@ -984,6 +999,35 @@ function markerFallbackPadding(element, style) {
     };
     for (const child of directChildren(marker)) {
       visit(child, markerMatrix, 1);
+    }
+    const markerEffect =
+      ownMarkerEffectExtent(marker) *
+      maximumMatrixScale(markerMatrix) *
+      2;
+    if (union) {
+      union = {
+        left: union.left - markerEffect,
+        top: union.top - markerEffect,
+        right: union.right + markerEffect,
+        bottom: union.bottom + markerEffect,
+      };
+      for (const [x, y] of [
+        [union.left, union.top],
+        [union.right, union.top],
+        [union.left, union.bottom],
+        [union.right, union.bottom],
+      ]) {
+        const radius = Math.hypot(x - refX, y - refY) *
+          viewScale *
+          unit;
+        if (Number.isFinite(radius)) {
+          padding = Math.max(padding, radius);
+        } else {
+          invalid();
+        }
+      }
+    } else if (markerEffect > 0) {
+      invalid();
     }
   }
   return Math.min(MAX_MARKER_FALLBACK_PADDING, padding);
