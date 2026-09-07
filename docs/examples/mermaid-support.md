@@ -265,6 +265,40 @@ and rotated labels; horizontal orientation and negative ranges also use rendered
 
 ---
 
+## Gantt: tasks, dates, rows, and milestones
+
+```mermaid
+gantt
+    title Delivery / リリース
+    dateFormat YYYY-MM-DD
+    axisFormat %m/%d
+    tickInterval 2day
+    todayMarker off
+    section Design / 設計
+    Research :done, research, 2026-01-05, 2d
+    Design :active, design, after research, 3d
+    Gate :milestone, crit, gate, after design, 0d
+    section Build / 実装
+    API :api, 2026-01-06, 4d
+    Release :crit, release, after api, 2d
+```
+
+Ordinary tasks (including done/active/critical), labels, date ticks, row backgrounds,
+and rectangular excluded periods use Mermaid's rendered geometry, not recreated date math.
+
+---
+
+## Gantt: the editable boundary
+
+- Known milestones keep their rounded diamond silhouette as editable rounded squares: centered 45° rotation and 0.8 scale only.
+- Japanese, explicit SVG multiline labels, and simple rotated tick text reuse the common text adapter; multiline Gantt lines keep their individual rendered positions.
+- The usual faded tick line/label pair is native only when its painted extents are safely separated.
+- Overlapping or uncertain tick groups (including default top-axis labels) remain local images with their group alpha intact.
+- Arbitrary transforms, effects, decorations, or unknown geometry retain local fallback bounds, source paths, reasons, and paint order.
+- Other group opacity and existing scene/element/depth limits remain guarded; this is not general CSS transform or calendar-layout support.
+
+---
+
 ## Hybrid PowerPoint export
 
 1. Convert supported primitives to native, editable PowerPoint objects.

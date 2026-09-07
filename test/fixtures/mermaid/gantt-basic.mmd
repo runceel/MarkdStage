@@ -1,0 +1,13 @@
+gantt
+    title Delivery / リリース
+    dateFormat YYYY-MM-DD
+    axisFormat %m/%d
+    tickInterval 1day
+    todayMarker off
+    section Design / 設計
+    Research :done, research, 2026-01-05, 2d
+    Design :active, design, after research, 3d
+    Gate / 承認 :milestone, crit, gate, after design, 0d
+    section Build / 実装
+    API :api, 2026-01-06, 4d
+    Release :crit, release, after api, 2d

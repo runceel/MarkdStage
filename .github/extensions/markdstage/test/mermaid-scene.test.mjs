@@ -4,6 +4,8 @@ import test from "node:test";
 import {
   classifyMermaidDiagramRoute,
   chartPathPoints,
+  ganttAxisPoints,
+  isKnownGanttMilestone,
   classifyPolygonPreset,
   cssStyleToSceneStyle,
   decomposeSimpleSvgTransform,
@@ -61,6 +63,8 @@ test("routes only bundled Mermaid SVG roles with their actual root signals", () 
   assert.equal(classifyMermaidDiagramRoute("block"), "block");
   assert.equal(classifyMermaidDiagramRoute("quadrantChart"), "quadrantChart");
   assert.equal(classifyMermaidDiagramRoute("xychart"), "xychart");
+  assert.equal(classifyMermaidDiagramRoute("gantt"), "gantt");
+  assert.equal(classifyMermaidDiagramRoute("gantt-beta"), null);
   assert.equal(classifyMermaidDiagramRoute("xychart-beta"), null);
   assert.equal(classifyMermaidDiagramRoute("quadrantChart-beta"), null);
   assert.equal(classifyMermaidDiagramRoute("block-beta"), null);
@@ -105,6 +109,33 @@ test("routes only bundled Mermaid SVG roles with their actual root signals", () 
   assert.equal(classifyMermaidDiagramRoute("stateDiagram", "statediagram", false), null);
   assert.equal(classifyMermaidDiagramRoute("error", "statediagram", true), null);
   assert.equal(classifyMermaidDiagramRoute("packet", "flowchart", false), "packet");
+});
+
+test("recognizes only the bundled Gantt milestone transform and square geometry", () => {
+  const c = Math.SQRT1_2 * 0.8;
+  const known = { width: 20, height: 20, rx: 3, ry: 3, origin: { x: 10, y: 10 },
+    transform: { a: c, b: c, c: -c, d: c, e: 0, f: 0 } };
+  assert.equal(isKnownGanttMilestone(known), true);
+  assert.equal(isKnownGanttMilestone({ ...known, rx: 0, ry: 0 }), true);
+  for (const change of [
+    { width: 30 }, { rx: 2 }, { rx: 11, ry: 11 }, { width: 0, height: 0 },
+    { origin: { x: 0, y: 0 } }, { transform: null },
+    { transform: { ...known.transform, e: 5 } },
+    { transform: { ...known.transform, a: c * 2 } },
+    { transform: { a: 0.8, b: 0, c: 0, d: 0.8, e: 0, f: 0 } },
+    { transform: { a: -c, b: c, c, d: c, e: 0, f: 0 } },
+  ]) assert.equal(isKnownGanttMilestone({ ...known, ...change }), false, JSON.stringify(change));
+  assert.equal(isKnownGanttMilestone(), false);
+});
+
+test("Gantt axis paths retain exact D3 corners without accepting general SVG paths", () => {
+  const expected = [{ x: 0.5, y: -87 }, { x: 0.5, y: 0.5 },
+    { x: 100.5, y: 0.5 }, { x: 100.5, y: -87 }];
+  assert.deepEqual(ganttAxisPoints("M0.5,-87V0.5H100.5V-87"), expected);
+  assert.deepEqual(ganttAxisPoints("M 0.5 -87 V 0.5 H 100.5 V -87"), expected);
+  for (const data of ["M0,0L1,1", "M0,0V1H2V3", "M0,0V1H2V0Z",
+    "m0,0v1h2v0", "M0,0V1H2V0M1,1", "M0,0V1H2VNaN", "M0,0V1H1e999V0",
+    "M0,,0V1H2V0", "M0,0V1H-2V0"]) assert.equal(ganttAxisPoints(data), null, data);
 });
 
 test("chart paths retain explicit rendered vertices and reject unsupported or oversized geometry", () => {

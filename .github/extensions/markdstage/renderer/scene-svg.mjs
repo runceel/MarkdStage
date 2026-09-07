@@ -457,6 +457,11 @@ export function sceneToSvg(scene, {
       element = primitive(fallback);
     } else {
       element = dom("g");
+      if (node.kind === "shape" && node.rotation) {
+        setAttributes(element, {
+          transform: `rotate(${node.rotation} ${node.bounds.x + node.bounds.width / 2} ${node.bounds.y + node.bounds.height / 2})`,
+        });
+      }
       if (node.kind === "shape" || node.kind === "group") element.appendChild(shape(node));
       if (node.kind === "image") element.appendChild(dom("image", {
         ...node.bounds, href: node.src, opacity: node.opacity,
@@ -480,7 +485,7 @@ export function sceneToSvg(scene, {
         element.appendChild(dom("path", { d: node.points.map((point, i) => `${i ? "L" : "M"} ${point.x} ${point.y}`).join(" "), ...attrs }));
         if (node.label) text(element, node.label.text, node.label.bounds);
       }
-      if (node.text) text(element, node.text, node.bounds, node.textLayout, node.rotation);
+      if (node.text) text(element, node.text, node.bounds, node.textLayout, node.kind === "text" ? node.rotation : undefined);
       if (node.accessibility?.label) setAttributes(element, { role: node.accessibility.role || "img", "aria-label": node.accessibility.label });
     }
     setAttributes(element, { "data-scene-node": node.kind, "data-scene-source-path": node.sourcePath, "data-scene-id": node.id });

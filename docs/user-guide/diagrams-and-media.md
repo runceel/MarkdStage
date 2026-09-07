@@ -49,6 +49,7 @@ cannot be separated safely.
 | Block | `block` / `block-beta` basic existing shapes, connectors, and simple HTML node/edge labels |
 | Quadrant | `quadrantChart` quadrant rectangles, circular data points, borders/axes, titles, and axis/point labels |
 | XY chart | `xychart` / `xychart-beta` rectangular bars, straight line-plot segments, ticks, axes, titles, and axis labels; vertical and horizontal orientation |
+| Gantt | `gantt` ordinary tasks (done/active/critical included), task/section/title labels, date ticks, row backgrounds, rectangular excluded periods, and known rounded diamond milestones |
 | Other Mermaid diagrams | Render normally in slides and use image fallback where editable conversion is unavailable |
 
 Coverage is intentionally approximate: editability depends on the structures
@@ -89,6 +90,28 @@ editable chart lines. Shared group effects preserve the affected subtree as one
 image, without consuming separable axes, labels, or neighboring bars/points.
 SVG element, scene node, connector point, and depth limits remain in force.
 
+Gantt uses Mermaid's date positions, durations, task ordering, calendar exclusions,
+and SVG dimensions directly. No date arithmetic or calendar layout is reimplemented.
+Its known milestone is a centered square with Mermaid's 45° rotation and 0.8 scale.
+The exporter preserves its corner radius and scaled stroke as an editable rotated
+rounded rectangle, rather than substituting a sharp diamond. Arbitrary rotation,
+skew, reflection, noncentered origins, or other CSS transforms are not recognized
+as milestones and remain local images. Ordinary tasks never inherit that exception.
+
+Gantt's faded tick groups are separated into editable lines and labels only when
+their measured painted extents (including stroke padding) do not overlap and their
+effects are safe. Uncertain or overlapping groups, including default top-axis
+labels whose text bounds meet their tick lines, retain one local image and their
+original group alpha. This is not general group-opacity flattening. Plain Japanese,
+explicit SVG line breaks (including multiline section titles), and safe rotated
+tick labels share the existing text adapter. Simple multiline Gantt labels use
+separately positioned editable text for each rendered SVG line, preserving its
+actual advance rather than PowerPoint's default paragraph spacing. Unsupported
+multiline structures remain local label images. Filters, gradients, clipping, decorated
+text, unusual milestones, and unknown geometry preserve the smallest safe subtree;
+source ownership and native exclusion masks retain separable siblings exactly once
+in their original paint order. Existing element, node, point, and depth limits apply.
+
 See the presentation-ready
 [Mermaid support example deck](../examples/mermaid-support.md) for representative
 syntax and current coverage.
@@ -102,8 +125,9 @@ syntax and current coverage.
   are preserved when they can be represented safely as native PowerPoint
   objects.
 
-- Effect-free text and shapes can retain simple 2D rotation in addition to
-  translation and uniform scaling.
+- Effect-free text can retain simple 2D rotation in addition to translation and
+  uniform scaling. Gantt milestone shapes recognize only the known centered
+  transform described above.
 
 - Semantic markers such as arrowheads, diamonds, inheritance triangles, crosses,
   start/end states, and crow's-foot terminals are retained when their rendered

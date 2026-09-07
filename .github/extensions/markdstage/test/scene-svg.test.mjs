@@ -31,6 +31,19 @@ function scene(nodes) {
   })).scene;
 }
 
+test("rotates a milestone's rounded square and attached text together exactly once", () => {
+  const svg = sceneToSvg(scene([{
+    kind: "shape", preset: "roundedRect", sourcePath: "milestone", z: 0,
+    bounds: { x: 20, y: 30, width: 16, height: 16 }, rotation: 45,
+    style: { fill: "#123456", cornerRadius: 2.4 }, text: richText,
+  }]), { document });
+  const rotations = all(svg).filter((node) => node.attributes?.has("transform"));
+  assert.equal(rotations.length, 1);
+  assert.equal(rotations[0].attributes.get("transform"), "rotate(45 28 38)");
+  assert.equal(rotations[0].children.find((node) => node.tagName === "rect").attributes.get("rx"), "2.4");
+  assert.ok(all(rotations[0]).some((node) => node.tagName === "text"));
+});
+
 test("renders explicit marker caps while retaining the existing connector default", () => {
   for (const lineCap of [undefined, "butt", "round", "square"]) {
     const source = scene([{ kind: "connector", sourcePath: "cross", z: 0,

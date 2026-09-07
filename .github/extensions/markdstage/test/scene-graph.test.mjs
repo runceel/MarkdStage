@@ -104,7 +104,8 @@ test("validates and normalizes independent fill and stroke opacity without seria
   }
 });
 
-test("normalizes finite text rotations and rejects invalid or inherited values", () => {
+for (const kind of ["text", "shape"]) {
+test(`normalizes finite ${kind} rotations and rejects invalid or inherited values`, () => {
   assert.equal(normalizeRotationAngle(450), 90);
   assert.equal(normalizeRotationAngle(-450), -90);
   assert.equal(normalizeRotationAngle(720), 0);
@@ -112,7 +113,8 @@ test("normalizes finite text rotations and rejects invalid or inherited values",
 
   const source = validScene({
     nodes: [{
-      kind: "text",
+      kind,
+      ...(kind === "shape" ? { preset: "roundedRect" } : {}),
       sourcePath: "rotated",
       z: 0,
       bounds: { x: 10, y: 20, width: 100, height: 30 },
@@ -128,7 +130,8 @@ test("normalizes finite text rotations and rejects invalid or inherited values",
   validateScene(normalized.scene);
   const signed = normalizeScene(validScene({
     nodes: [{
-      kind: "text",
+      kind,
+      ...(kind === "shape" ? { preset: "roundedRect" } : {}),
       sourcePath: "off-canvas-rotation",
       z: 0,
       bounds: { x: -10.25, y: -5.75, width: 80, height: 20 },
@@ -147,7 +150,8 @@ test("normalizes finite text rotations and rejects invalid or inherited values",
   for (const invalid of [Number.NaN, Number.POSITIVE_INFINITY, "30", { valueOf: () => 30 }]) {
     const result = normalizeScene(validScene({
       nodes: [{
-        kind: "text",
+        kind,
+        ...(kind === "shape" ? { preset: "roundedRect" } : {}),
         sourcePath: "invalid-rotation",
         z: 0,
         bounds: { x: 10, y: 20, width: 100, height: 30 },
@@ -161,7 +165,8 @@ test("normalizes finite text rotations and rejects invalid or inherited values",
   }
 
   const inherited = Object.assign(Object.create({ rotation: 30 }), {
-    kind: "text",
+    kind,
+    ...(kind === "shape" ? { preset: "roundedRect" } : {}),
     sourcePath: "inherited-rotation",
     z: 0,
     bounds: { x: 10, y: 20, width: 100, height: 30 },
@@ -172,6 +177,7 @@ test("normalizes finite text rotations and rejects invalid or inherited values",
     /rotation must be an own property/,
   );
 });
+}
 
 function validScene(overrides = {}) {
   return createScene({

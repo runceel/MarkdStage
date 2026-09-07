@@ -1,0 +1,13 @@
+%%{init: {"gantt": {"fontSize": 14, "sectionFontSize": 13, "barHeight": 28}, "themeCSS": ".grid .tick { opacity: 1; } .grid .tick text { transform: rotate(25deg); text-anchor: start; }"}}%%
+gantt
+    title Period ticks / 期間
+    dateFormat YYYY-MM-DD
+    axisFormat %b %d
+    tickInterval 1week
+    todayMarker off
+    section Prepare
+    Planning / 計画 :done, planning, 2026-01-05, 10d
+    Ready :milestone, ready, after planning, 0d
+    section Deliver
+    Build / 実装 :active, build, 2026-01-14, 15d
+    Ship :milestone, crit, ship, after build, 0d

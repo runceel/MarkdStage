@@ -646,6 +646,7 @@ function shapeTextOf(element, path) {
 
 function nativeShapeXml(element, path, id, relationships) {
   const bounds = boundsOf(element, path);
+  const rotationUnits = optionalOwnRotationUnits(element, path);
   const presets = {
     rect: "rect",
     roundedRect: "roundRect",
@@ -688,7 +689,7 @@ function nativeShapeXml(element, path, id, relationships) {
     );
   }
   const opacities = paintOpacities(element, path);
-  const properties = `${xfrmXml(bounds)}${geometry}${colorXml(
+  const properties = `${xfrmXml(bounds, "a:xfrm", rotationUnits)}${geometry}${colorXml(
     element.fill,
     `${path}.fill`,
     opacities.opacity * opacities.fillOpacity,

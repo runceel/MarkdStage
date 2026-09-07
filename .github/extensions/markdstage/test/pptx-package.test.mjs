@@ -155,9 +155,11 @@ test("rejects invalid, coercible, and inherited paint opacity at the package bou
   }
 });
 
-test("writes normalized DrawingML text rotation and rejects invalid model values", () => {
+for (const type of ["text", "shape"]) {
+test(`writes normalized DrawingML ${type} rotation and rejects invalid model values`, () => {
   const text = {
-    type: "text",
+    type,
+    ...(type === "shape" ? { shape: "roundedRect", fill: "#123456", cornerRadius: 3 } : {}),
     x: 10,
     y: 20,
     width: 100,
@@ -199,6 +201,7 @@ test("writes normalized DrawingML text rotation and rejects invalid model values
     /rotation must be an own property/,
   );
 });
+}
 
 function samplePackage() {
   return buildPptxPackage({
