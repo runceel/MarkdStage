@@ -30,7 +30,7 @@ The compatibility guide summarizes editable coverage and fallback behavior.
 flowchart LR
     subgraph Authoring
         direction LR
-        A([Design / 設計]) --> B{Review}
+        A([Design<br/>設計]) --> B{Review}
     end
     B -->|Ready| C[[Publish]]
     B -->|Revise| D[Edit]
@@ -139,7 +139,7 @@ requirementDiagram
 direction LR
 requirement availability {
   id: "REQ-001"
-  text: "サービス<br/>Available"
+  text: "サービスの可用性<br/>Service availability"
   risk: high
   verifymethod: test
 }
