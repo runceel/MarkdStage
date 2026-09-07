@@ -272,6 +272,7 @@ test("SVG capture preserves intrinsic HTML sizing for local fallbacks", () => {
       getPropertyValue: (name) => ({
         width: "89.7969px",
         height: "24px",
+        "text-transform": "uppercase",
       }[name] || ""),
     }),
   });
