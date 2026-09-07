@@ -161,6 +161,7 @@ function shapeElement(node, index, options, shape) {
     shape,
     ...geometryFields(node),
     ...styleFields(node.style),
+    ...(node.rotation !== undefined ? { rotation: node.rotation } : {}),
   };
   if (node.text !== undefined) element.text = cloneText(node.text);
   copyTextLayout(element, node.textLayout, ["verticalAlignment", "textWrap", "textInsets"]);

@@ -1,6 +1,7 @@
 param(
     [Parameter(Mandatory = $true)]
-    [string] $ArtifactDirectory
+    [string] $ArtifactDirectory,
+    [int[]] $PageNumbers = @(2..6)
 )
 
 $ErrorActionPreference = 'Stop'
@@ -18,7 +19,7 @@ try {
             (Join-Path $directory 'editable-hybrid.pptx'), -1, 0, 0)
         try {
             $counts = @()
-            foreach ($number in 2..6) {
+            foreach ($number in $PageNumbers) {
                 $name = 'slide-{0:D3}.png' -f $number
                 $slide = $presentation.Slides.Item($number)
                 $slide.Export((Join-Path $renderDirectory $name), 'PNG', 1280, 720)

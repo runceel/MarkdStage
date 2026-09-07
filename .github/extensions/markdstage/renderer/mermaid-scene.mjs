@@ -119,6 +119,7 @@ export function classifyMermaidDiagramRoute(diagramType, svgClass = "", hasRoot 
   if (diagramType === "treeView") return "treeView";
   if (diagramType === "kanban") return "kanban";
   if (diagramType === "block") return "block";
+  if (diagramType === "gantt") return "gantt";
   if (diagramType === "quadrantChart" || diagramType === "xychart") return diagramType;
   if (diagramType === "stateDiagram") {
     return hasRoot && classes.includes("statediagram") ? "state" : null;
@@ -1108,7 +1109,7 @@ function relativeFallbackNode(element, z, deck, reason, sourcePath, origin) {
   return fallback;
 }
 
-function unsupportedVisualEffect(element, descendants = true) {
+function unsupportedVisualEffect(element, descendants = true, separableGroupOpacity = false) {
   return [element, ...(descendants ? element.querySelectorAll("*") : [])].some((child) => {
     const style = getComputedStyle(child);
     return (style.filter && style.filter !== "none") ||
@@ -1117,7 +1118,8 @@ function unsupportedVisualEffect(element, descendants = true) {
       (style.mixBlendMode && style.mixBlendMode !== "normal") ||
       (style.paintOrder && style.paintOrder !== "normal") ||
       (style.vectorEffect && style.vectorEffect !== "none") ||
-      (localName(child) === "g" && Number.parseFloat(style.opacity) < 1 &&
+      (localName(child) === "g" && !(child === element && separableGroupOpacity) &&
+        Number.parseFloat(style.opacity) < 1 &&
         child.querySelectorAll([...VISUAL_TAGS].join(",")).length > 1) ||
       /url\(/i.test(`${style.fill} ${style.stroke}`);
   });
@@ -2642,8 +2644,8 @@ function simpleDiagramShape(element, sourcePath, z, deck, options, meta, reasons
   });
 }
 
-function simpleDiagramLine(element, sourcePath, z, deck, options, meta, reasons) {
-  const coordinates = numericAttributes(element, ["x1", "y1", "x2", "y2"]);
+function simpleDiagramLine(element, sourcePath, z, deck, options, meta, reasons,
+  coordinates = numericAttributes(element, ["x1", "y1", "x2", "y2"])) {
   const style = getComputedStyle(element);
   if (!coordinates) return fallbackNode(element, z, deck, reasons.geometry, sourcePath);
   if (unsupportedVisualEffect(element) ||
@@ -6456,7 +6458,8 @@ function chartElementRole(element, parent, diagram) {
   return null;
 }
 
-function chartLinePath(element, sourcePath, z, deck, options, meta, reasons) {
+function chartLinePath(element, sourcePath, z, deck, options, meta, reasons,
+  vertices = chartPathPoints(renderedPathData(element))) {
   const style = getComputedStyle(element);
   if (unsupportedVisualEffect(element) ||
       [style.markerStart, style.markerMid, style.markerEnd].some((value) => value && value !== "none")) {
@@ -6465,7 +6468,6 @@ function chartLinePath(element, sourcePath, z, deck, options, meta, reasons) {
   if (!hasUniformAxisAlignedScale(element)) {
     return fallbackNode(element, z, deck, reasons.transform, sourcePath);
   }
-  const vertices = chartPathPoints(renderedPathData(element));
   if (!vertices || normalizeColor(style.fill)) {
     return fallbackNode(element, z, deck, reasons.geometry, sourcePath);
   }
@@ -6498,6 +6500,10 @@ function chartScene(svg, deck, size, options, diagram) {
     return specialDiagramStructureFallback(svg, deck, size, options,
       `unsupported-mermaid-${diagram}-structure`);
   }
+  return measuredDiagramScene(svg, deck, size, options, diagram, roots[0], "main", `${diagram}.main`);
+}
+
+function measuredDiagramScene(svg, deck, size, options, diagram, root, rootRole, rootPath) {
   const nodes = [];
   const reasons = {
     geometry: `unsupported-mermaid-${diagram}-geometry`,
@@ -6510,18 +6516,20 @@ function chartScene(svg, deck, size, options, diagram) {
     const reason = depth > MAX_GROUP_DEPTH ? `unsupported-mermaid-${diagram}-depth`
       : !role ? reasons.geometry
       : hasMixedRenderedVisibility(element) ? `unsupported-mermaid-${diagram}-visibility`
-      : unsupportedVisualEffect(element, false) ? reasons.style : "";
+      : unsupportedVisualEffect(element, false, diagram === "gantt" && role === "tick" &&
+        isSeparableGanttTick(element, options)) ? reasons.style : "";
     if (reason) {
       nodes.push(fallbackNode(element, nodes.length, deck, reason, sourcePath));
       return;
     }
-    if (localName(element) === "g") {
+    if (element === svg || localName(element) === "g") {
       if (!hasUniformAxisAlignedScale(element)) {
         nodes.push(fallbackNode(element, nodes.length, deck, reasons.transform, sourcePath));
         return;
       }
       directChildren(element).forEach((child, index) =>
-        walk(child, chartElementRole(child, role, diagram), `${sourcePath}.parts[${index}]`, depth + 1));
+        walk(child, diagram === "gantt" ? ganttElementRole(child, role)
+          : chartElementRole(child, role, diagram), `${sourcePath}.parts[${index}]`, depth + 1));
       return;
     }
     if (role === "text" && !element.textContent.trim() && !element.children.length) return;
@@ -6530,17 +6538,136 @@ function chartScene(svg, deck, size, options, diagram) {
       ? !safeChartLabel(element, options)
         ? fallbackNode(element, nodes.length, deck, `unsupported-mermaid-${diagram}-label`, sourcePath)
         : simpleDiagramText(element, sourcePath, nodes.length, deck, options, meta, reasons.style)
-      : localName(element) === "path"
-        ? chartLinePath(element, sourcePath, nodes.length, deck, options, meta, reasons)
-        : localName(element) === "line"
-          ? simpleDiagramLine(element, sourcePath, nodes.length, deck, options, meta, reasons)
-          : simpleDiagramShape(element, sourcePath, nodes.length, deck, options, meta, reasons);
+      : diagram === "gantt"
+        ? ganttPrimitive(element, role, sourcePath, nodes.length, deck, options, meta, reasons)
+        : localName(element) === "path"
+          ? chartLinePath(element, sourcePath, nodes.length, deck, options, meta, reasons)
+          : localName(element) === "line"
+            ? simpleDiagramLine(element, sourcePath, nodes.length, deck, options, meta, reasons)
+            : simpleDiagramShape(element, sourcePath, nodes.length, deck, options, meta, reasons);
     if (node) nodes.push(node);
   };
-  walk(roots[0], "main", `${diagram}.main`, 0);
-  nodes.push(...collectUnexpectedVisuals(svg, deck, nodes.length, diagram, new Set(roots), options,
-    { depthLimit: MAX_GROUP_DEPTH }));
+  walk(root, rootRole, rootPath, 0);
+  if (root !== svg) {
+    nodes.push(...collectUnexpectedVisuals(svg, deck, nodes.length, diagram, new Set([root]), options,
+      { depthLimit: MAX_GROUP_DEPTH }));
+  }
   return diagramScene(svg, size, options, nodes);
+}
+
+// Bundled Gantt uses d3's M/V/H/V axis outline. Keep its actual corner vertices.
+export function ganttAxisPoints(data) {
+  const number = "([-+]?(?:\\d*\\.\\d+|\\d+\\.?\\d*)(?:e[-+]?\\d+)?)";
+  const match = new RegExp(`^M\\s*${number}(?:\\s*,\\s*|\\s+)${number}\\s*V\\s*${number}\\s*H\\s*${number}\\s*V\\s*${number}\\s*$`).exec(String(data || "").trim());
+  if (!match) return null;
+  const [x, y, baseline, right, end] = match.slice(1).map(Number);
+  if (![x, y, baseline, right, end].every(Number.isFinite) || right <= x || y !== end) return null;
+  return [{ x, y }, { x, y: baseline }, { x: right, y: baseline }, { x: right, y: end }];
+}
+
+export function isKnownGanttMilestone({ width, height, rx, ry, origin, transform } = {}) {
+  const rotation = decomposeSimpleSvgTransform(transform);
+  return [width, height, rx, ry, origin?.x, origin?.y].every(Number.isFinite) &&
+    width > 0 && sameMetric(width, height) && rx >= 0 && rx <= width / 2 && sameMetric(rx, ry) &&
+    sameMetric(origin.x, width / 2) && sameMetric(origin.y, height / 2) &&
+    Boolean(rotation) && sameMetric(rotation.rotation, 45, 0.001) &&
+    sameMetric(rotation.scale, 0.8, 0.00001) &&
+    sameMetric(transform.e, 0) && sameMetric(transform.f, 0);
+}
+
+function ganttElementRole(element, parent) {
+  const tag = localName(element);
+  if (parent === "root") {
+    if (tag === "g" && hasClass(element, "grid")) return "axis";
+    if (tag === "g" && hasClass(element, "today")) return "today";
+    if (tag === "g" && !element.getAttribute("class")) return "items";
+    if (tag === "text" && hasClass(element, "titleText")) return "text";
+  }
+  if (parent === "axis") {
+    if (tag === "path" && hasClass(element, "domain")) return "axis-line";
+    if (tag === "g" && hasClass(element, "tick")) return "tick";
+  }
+  if (parent === "tick" && tag === "text") return "text";
+  if (["tick", "today"].includes(parent) && tag === "line") return parent;
+  if (parent === "items") {
+    if (tag === "rect") {
+      if (hasClass(element, "task")) return hasClass(element, "milestone") ? "milestone" : "task";
+      if (hasClass(element, "section")) return "row";
+      if (hasClass(element, "exclude-range")) return "excluded-period";
+    }
+    if (tag === "text" && [...element.classList].some((name) =>
+      /^(?:taskText|taskTextOutsideLeft|taskTextOutsideRight|sectionTitle)$/.test(name))) return "text";
+  }
+  return null;
+}
+
+function isSeparableGanttTick(element, options) {
+  const children = directChildren(element);
+  const line = children.find((child) => localName(child) === "line");
+  const text = children.find((child) => localName(child) === "text");
+  if (children.length !== 2 || !line || !text ||
+      unsupportedVisualEffect(line) || unsupportedVisualEffect(text) || !safeChartLabel(text, options)) return false;
+  const lineStyle = getComputedStyle(line);
+  if ([lineStyle.markerStart, lineStyle.markerMid, lineStyle.markerEnd]
+    .some((value) => value && value !== "none")) return false;
+  const a = line.getBoundingClientRect();
+  const b = text.getBoundingClientRect();
+  const padding = Math.max(0, parseMetric(lineStyle.strokeWidth) * elementScale(line) / 2) + 1;
+  // Mermaid fades each tick as a group. Only its measured, nonoverlapping
+  // line/label pair can distribute that alpha without changing compositing.
+  return a.right + padding < b.left || b.right + padding < a.left ||
+    a.bottom + padding < b.top || b.bottom + padding < a.top;
+}
+
+function ganttPrimitive(element, role, sourcePath, z, deck, options, meta, reasons) {
+  if (!sceneStyleHasVisiblePaint(computedSvgStyle(element, options))) return null;
+  if (localName(element) === "path") {
+    return chartLinePath(element, sourcePath, z, deck, options, meta, reasons,
+      ganttAxisPoints(renderedPathData(element)));
+  }
+  if (localName(element) === "line") {
+    // D3 omits coordinates whose SVG initial value is zero.
+    const coordinates = ["x1", "y1", "x2", "y2"].map((name) => element[name]?.baseVal?.value);
+    return simpleDiagramLine(element, sourcePath, z, deck, options, meta, reasons,
+      coordinates.every(Number.isFinite) ? coordinates : null);
+  }
+  if (role !== "milestone") {
+    return simpleDiagramShape(element, sourcePath, z, deck, options, meta, reasons);
+  }
+  const style = getComputedStyle(element);
+  const metrics = computedMarkerGeometry(element, ["x", "y", "width", "height", "rx", "ry"]);
+  const origin = style.transformOrigin.split(/\s+/).map(Number.parseFloat);
+  const transform = style.transform.startsWith("matrix(") ? new DOMMatrixReadOnly(style.transform) : null;
+  const [x, y, width, height, rx, ry] = metrics || [];
+  const total = decomposeSimpleSvgTransform(element.getScreenCTM());
+  if (!hasUniformAxisAlignedScale(element.parentElement) ||
+      !["x", "y", "width", "height", "rx", "ry"].every((name) =>
+        /^[-+]?(?:\d*\.?\d+)(?:e[-+]?\d+)?px$/i.test(style.getPropertyValue(name))) ||
+      element.hasAttribute("transform") || style.transformBox !== "view-box" ||
+      ["translate", "rotate", "scale"].some((name) => style[name] && style[name] !== "none") ||
+      !isKnownGanttMilestone({ width, height, rx, ry,
+        origin: { x: origin[0] - x, y: origin[1] - y }, transform }) ||
+      !total || !sameMetric(total.rotation, 45, 0.001)) {
+    return fallbackNode(element, z, deck, reasons.transform, sourcePath);
+  }
+  const center = screenPoint(element, { x: x + width / 2, y: y + height / 2 }, deck);
+  const side = roundedMetric(width * total.scale);
+  // A rotated rounded square preserves Mermaid's diamond corners; a sharp
+  // diamond preset would change the bundled milestone's painted silhouette.
+  return {
+    kind: "shape", id: element.id, sourcePath, z,
+    bounds: { x: center.x - side / 2, y: center.y - side / 2, width: side, height: side },
+    preset: rx > 0 ? "roundedRect" : "rect", rotation: 45,
+    style: { ...computedSvgStyle(element, options), cornerRadius: rx * total.scale },
+    meta,
+  };
+}
+
+function ganttScene(svg, deck, size, options) {
+  if (!directChildren(svg, "g.grid").length) {
+    return specialDiagramStructureFallback(svg, deck, size, options, "unsupported-mermaid-gantt-structure");
+  }
+  return measuredDiagramScene(svg, deck, size, options, "gantt", svg, "root", "gantt");
 }
 
 function sceneFromSvg(svg, options) {
@@ -6583,6 +6710,7 @@ function sceneFromSvg(svg, options) {
   if (route === "treeView") return treeViewScene(svg, deck, size, options);
   if (route === "kanban") return kanbanScene(svg, deck, size, options);
   if (route === "block") return blockScene(svg, deck, size, options);
+  if (route === "gantt") return ganttScene(svg, deck, size, options);
   if (route === "quadrantChart" || route === "xychart") return chartScene(svg, deck, size, options, route);
   if (route === "state") return stateScene(svg, root, deck, size, options);
   if (route !== "flowchart") {

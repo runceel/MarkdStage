@@ -1,0 +1,14 @@
+%%{init: {"themeCSS": "rect.milestone { transform: rotate(25deg) scale(0.8); } .sectionTitle0 { text-decoration: underline; }"}}%%
+gantt
+    title Local milestone and label
+    dateFormat YYYY-MM-DD
+    axisFormat %m/%d
+    tickInterval 2day
+    todayMarker off
+    section Unsafe label / 装飾
+    Native task :done, research, 2026-01-05, 2d
+    Design :active, design, after research, 3d
+    Unusual milestone :milestone, gate, after design, 0d
+    section Native section
+    API :api, 2026-01-06, 4d
+    Release :crit, release, after api, 2d

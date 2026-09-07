@@ -1,0 +1,14 @@
+%%{init: {"themeCSS": "rect.active0 { filter: drop-shadow(4px 4px 2px #f97316); }"}}%%
+gantt
+    title Local task shadow / 局所効果
+    dateFormat YYYY-MM-DD
+    axisFormat %m/%d
+    tickInterval 2day
+    todayMarker off
+    section Design
+    Research :done, research, 2026-01-05, 2d
+    Shadow / 影 :active, design, after research, 3d
+    Gate :milestone, gate, after design, 0d
+    section Build
+    Native :api, 2026-01-06, 4d
+    Release :crit, release, after api, 2d

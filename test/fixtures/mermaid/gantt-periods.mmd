@@ -1,0 +1,14 @@
+%%{init: {"gantt": {"leftPadding": 110, "barHeight": 26}}}%%
+gantt
+    title Working days / 営業日
+    dateFormat YYYY-MM-DD
+    axisFormat %m/%d
+    tickInterval 2day
+    excludes weekends
+    todayMarker off
+    section 設計<br/>Design
+    仕様 :done, spec, 2026-01-08, 3d
+    section 開発<br/>Build
+    Implementation :active, impl, after spec, 4d
+    Approval :milestone, approval, after impl, 0d
+    Final :crit, final, 2026-01-19, 2d

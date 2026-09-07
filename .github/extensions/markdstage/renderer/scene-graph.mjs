@@ -52,7 +52,7 @@ const COMMON_NODE_KEYS = new Set([
 ]);
 const NODE_KEYS = {
   group: new Set(["children", "style", "text", "textLayout"]),
-  shape: new Set(["preset", "style", "text", "textLayout"]),
+  shape: new Set(["preset", "style", "text", "textLayout", "rotation"]),
   text: new Set(["text", "textLayout", "rotation"]),
   image: new Set(["src", "alt", "fit", "opacity"]),
   connector: new Set(["points", "style", "arrowStart", "arrowEnd", "label"]),
@@ -429,6 +429,16 @@ function validateNode(node, path, state, depth) {
   validateCapability(node.capability, `${path}.capability`);
   validateAccessibility(node.accessibility, `${path}.accessibility`);
   validateMeta(node.meta, `${path}.meta`);
+  if (node.kind === "shape" || node.kind === "text") {
+    rejectInheritedKeys(node, new Set(["rotation"]), path);
+    if (node.rotation !== undefined) {
+      const rotation = finiteNumber(node.rotation, `${path}.rotation`);
+      const normalized = normalizeRotationAngle(rotation);
+      if (normalized !== rotation || Object.is(rotation, -0)) {
+        fail(`${path}.rotation must be normalized to [-180, 180) degrees`);
+      }
+    }
+  }
   if (node.kind === "group") {
     if (!Array.isArray(node.children)) fail(`${path}.children must be an array`);
     validateStyle(node.style, `${path}.style`);
@@ -443,14 +453,6 @@ function validateNode(node, path, state, depth) {
   } else if (node.kind === "text") {
     validateText(node.text, `${path}.text`);
     validateTextLayout(node.textLayout, `${path}.textLayout`);
-    rejectInheritedKeys(node, new Set(["rotation"]), path);
-    if (node.rotation !== undefined) {
-      const rotation = finiteNumber(node.rotation, `${path}.rotation`);
-      const normalized = normalizeRotationAngle(rotation);
-      if (normalized !== rotation || Object.is(rotation, -0)) {
-        fail(`${path}.rotation must be normalized to [-180, 180) degrees`);
-      }
-    }
   } else if (node.kind === "image") {
     requiredString(node.src, `${path}.src`);
     stringValue(node.alt, `${path}.alt`);
@@ -591,6 +593,7 @@ function normalizeKnownNode(node, path, bounds, offsetX, offsetY, diagnostics, d
     };
   }
   if (node.kind === "shape") {
+    const rotation = node.rotation === undefined ? 0 : normalizeRotationAngle(node.rotation);
     if (!SHAPE_PRESETS.has(node.preset)) {
       const reason = `unsupported shape preset: ${String(node.preset)}`;
       unsupported(path, "fallback", reason, diagnostics);
@@ -599,6 +602,7 @@ function normalizeKnownNode(node, path, bounds, offsetX, offsetY, diagnostics, d
     return {
       ...base,
       preset: node.preset,
+      ...(rotation ? { rotation } : {}),
       ...(node.style !== undefined ? { style: normalizeStyle(node.style) } : {}),
       ...(node.text !== undefined ? { text: normalizeText(node.text) } : {}),
       ...(node.textLayout !== undefined ? { textLayout: normalizeTextLayout(node.textLayout) } : {}),
@@ -700,9 +704,9 @@ function normalizeNode(node, path, offsetX, offsetY, depth, output, diagnostics)
     output.push(normalized);
     return;
   }
-  if (node.kind === "text" && "rotation" in node &&
+  if (["text", "shape"].includes(node.kind) && "rotation" in node &&
       (!Object.hasOwn(node, "rotation") || normalizeRotationAngle(node.rotation) === null)) {
-    const reason = "text rotation is not a finite number";
+    const reason = `${node.kind} rotation is not a finite number`;
     unsupported(path, "fallback", reason, diagnostics);
     const normalized = fallbackNode(node, path, reason, bounds);
     normalized.__sortZ = Number.isFinite(Number(node.z)) ? Number(node.z) : output.length;
