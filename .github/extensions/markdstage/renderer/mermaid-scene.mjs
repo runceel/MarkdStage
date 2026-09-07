@@ -1060,7 +1060,7 @@ function maximumMatrixScale(matrix) {
   return Math.sqrt(Math.max(0, (sum + Math.sqrt(discriminant)) / 2));
 }
 
-function fallbackNode(element, z, deck, reason, sourcePath) {
+function fallbackNode(element, z, deck, reason, sourcePath, includeGroupPathStrokes = false) {
   let bounds = boundsOf(element, deck);
   let padding = 0;
   if (["path", "line", "polygon", "polyline"].includes(localName(element))) {
@@ -1091,6 +1091,23 @@ function fallbackNode(element, z, deck, reason, sourcePath) {
       ? 1 : maximumMatrixScale(rect.getScreenCTM?.());
     padding = Math.max(padding, Math.min(MAX_MARKER_FALLBACK_PADDING,
       width * scale / Math.SQRT2 + 1));
+  }
+  // Ishikawa rough.js artwork groups contain stroked paths, including almost
+  // zero-height spines. Their geometry-only group box clips the painted stroke.
+  if (includeGroupPathStrokes && localName(element) === "g") {
+    for (const part of element.querySelectorAll("path, line, polyline, polygon")) {
+      if (part.closest("defs, clipPath, mask, marker, pattern, symbol") || !isRenderedElement(part)) continue;
+      const style = getComputedStyle(part);
+      const width = parseMetric(style.strokeWidth);
+      const marked = [style.markerStart, style.markerMid, style.markerEnd].some((value) => value && value !== "none");
+      const stroked = normalizeColor(style.stroke) && width > 0 && parseOpacity(style.strokeOpacity) > 0 &&
+        (cssColorParts(style.stroke)?.alpha ?? 1) > 0;
+      if (!stroked && !marked) continue;
+      const scale = style.vectorEffect === "non-scaling-stroke" ? 1 : maximumMatrixScale(part.getScreenCTM?.());
+      const miter = style.strokeLinejoin === "miter" ? Math.max(1, parseMetric(style.strokeMiterlimit)) : 1;
+      padding = Math.max(padding, Math.min(MAX_MARKER_FALLBACK_PADDING,
+        Math.max(stroked ? width * miter / 2 : 0, marked ? markerFallbackPadding(part, style) : 0) * scale + 1));
+    }
   }
   if (padding > 0) bounds = { x: bounds.x - padding, y: bounds.y - padding,
     width: bounds.width + 2 * padding, height: bounds.height + 2 * padding };
@@ -6541,12 +6558,12 @@ function measuredDiagramScene(svg, deck, size, options, diagram, root, rootRole,
         unsupportedVisualEffect(element, false, diagram === "gantt" && role === "tick" &&
         isSeparableGanttTick(element, options)) ? reasons.style : "";
     if (reason) {
-      nodes.push(fallbackNode(element, nodes.length, deck, reason, sourcePath));
+      nodes.push(fallbackNode(element, nodes.length, deck, reason, sourcePath, diagram === "ishikawa"));
       return;
     }
     if (element === svg || localName(element) === "g") {
       if (!hasUniformAxisAlignedScale(element)) {
-        nodes.push(fallbackNode(element, nodes.length, deck, reasons.transform, sourcePath));
+        nodes.push(fallbackNode(element, nodes.length, deck, reasons.transform, sourcePath, diagram === "ishikawa"));
         return;
       }
       directChildren(element).forEach((child, index) =>

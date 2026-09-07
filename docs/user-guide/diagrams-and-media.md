@@ -103,7 +103,9 @@ Safe rectangles and individual fill/stroke alpha reuse the common primitives.
 The curved fish-head outline remains **local artwork**, while its safe text
 stays editable; therefore an ordinary Ishikawa export is hybrid. `handDrawn`
 rough lines, arrowheads, boxes, and fish heads also remain separate local images
-with safe labels editable. This is not general curved/closed-path conversion.
+with safe labels editable. Their local image bounds include the visible path
+strokes, including nearly horizontal rough spines. This is not general
+curved/closed-path conversion.
 Changed marker geometry, direction, dimensions, units, paint effects, or unsafe
 line opacity retain the affected line and its marker together as local artwork.
 Text effects, clipping, unsafe transforms, and shared group effects retain the

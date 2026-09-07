@@ -133,6 +133,35 @@ test("Ishikawa positions, line direction, arrow size and multiline baselines sur
   } finally { await harness.close(); }
 });
 
+test("Ishikawa rough group artwork includes scaled path strokes but not hidden or definition paint", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# Rough bounds"] });
+  try {
+    await page.goto(harness.url);
+    for (const scale of [0.5, 1.25]) {
+      const result = await extract(page, names[3], (scale) => {
+        const spine = document.querySelector(".ishikawa-spine");
+        spine.setAttribute("transform", `translate(30,40) scale(${scale})`);
+        spine.querySelector("path").style.strokeWidth = "8px";
+        const hidden = spine.querySelector("path").cloneNode();
+        hidden.style.cssText = "display:none;stroke-width:1000px";
+        spine.append(hidden);
+        const defs = document.createElementNS(spine.namespaceURI, "defs");
+        defs.append(hidden.cloneNode());
+        defs.firstChild.style.display = "";
+        spine.append(defs);
+      }, scale);
+      const fallback = result.scene.nodes.find((node) => node.kind === "fallback" && node.meta?.mermaid?.class === "ishikawa-spine");
+      const source = result.sources.find((source) => source.path === fallback.sourcePath);
+      const padding = 8 * 2 * source.scale + 1;
+      expect(source.bounds.x - fallback.bounds.x).toBeCloseTo(padding, 0);
+      expect(source.bounds.y - fallback.bounds.y).toBeCloseTo(padding, 0);
+      expect(fallback.bounds.width - source.bounds.width).toBeCloseTo(2 * padding, 0);
+      expect(fallback.bounds.height - source.bounds.height).toBeCloseTo(2 * padding, 0);
+      expect(result.conflicts).toEqual([]);
+    }
+  } finally { await harness.close(); }
+});
+
 test("Ishikawa native subset retains independent box, line and marker alpha", async ({ page }) => {
   const harness = await startHarness({ slides: ["# Alpha"] });
   try {
@@ -314,6 +343,8 @@ test("actual Ishikawa PPTX embeds local artwork once in paint order without nati
   await withDeckServer({ file, workspace: directory, theme: "light" }, async (session) => {
     let rendered;
     let headFill;
+    let spineFrame;
+    let sourcePng;
     const output = join(directory, "editable-hybrid.pptx");
     await exportPptx(session, output, "light", {
       findChromiumBrowser: () => chromium.executablePath(),
@@ -322,6 +353,13 @@ test("actual Ishikawa PPTX embeds local artwork once in paint order without nati
         await page.goto(args[1]);
         await page.waitForFunction(() => document.documentElement.hasAttribute("data-pptx-ready"));
         headFill = await page.locator(".deck").nth(1).locator(".ishikawa-head").evaluate((head) => getComputedStyle(head).fill);
+        spineFrame = await page.locator(".deck").nth(4).locator(".ishikawa-spine").evaluate((spine) => {
+          const box = spine.getBoundingClientRect();
+          const deck = spine.closest(".deck").getBoundingClientRect();
+          return { x: box.x - deck.x, y: box.y - deck.y, width: box.width, height: box.height };
+        });
+        await page.evaluate(() => document.body.classList.remove("pptx-artwork-mode", "pptx-layout-artwork-mode"));
+        sourcePng = await page.locator(".deck").nth(4).screenshot();
         return rendered;
       },
     });
@@ -369,6 +407,42 @@ test("actual Ishikawa PPTX embeds local artwork once in paint order without nati
           }, { base64: image.data.toString("base64"), fill: headFill });
           expect(masked.pixels).toBeGreaterThan(10);
           expect(masked.different, "Local head artwork must exclude its native text and crossing spine").toBe(0);
+        }
+        if (index === 4 && image.fallbackIndex === counts[3] - 1) {
+          expect(image.y).toBeLessThan(spineFrame.y - 1);
+          expect(image.y + image.height).toBeGreaterThan(spineFrame.y + spineFrame.height + 1);
+          const painted = await page.evaluate(async ({ source, artwork, frame, bounds }) => {
+            const decode = async (base64) => {
+              const image = new Image();
+              image.src = `data:image/png;base64,${base64}`;
+              await image.decode();
+              return image;
+            };
+            const original = document.createElement("canvas");
+            original.width = 1280; original.height = 720;
+            const context = original.getContext("2d");
+            context.drawImage(await decode(source), 0, 0);
+            const background = [...context.getImageData(Math.floor(frame.x + 5), Math.floor(frame.y - 8), 1, 1).data];
+            const composed = document.createElement("canvas");
+            composed.width = 1280; composed.height = 720;
+            const target = composed.getContext("2d");
+            target.fillStyle = `rgb(${background.slice(0, 3).join(",")})`;
+            target.fillRect(0, 0, 1280, 720);
+            target.drawImage(await decode(artwork), bounds.x, bounds.y, bounds.width, bounds.height);
+            const energy = (context) => {
+              const data = context.getImageData(Math.ceil(frame.x + frame.width * .05), Math.floor(frame.y - 4),
+                Math.floor(frame.width * .25), Math.ceil(frame.height + 8)).data;
+              let sum = 0;
+              for (let i = 0; i < data.length; i += 4) for (let channel = 0; channel < 3; channel++) {
+                sum += Math.abs(data[i + channel] - background[channel]);
+              }
+              return sum;
+            };
+            return { source: energy(context), actual: energy(target) };
+          }, { source: sourcePng.toString("base64"), artwork: image.data.toString("base64"), frame: spineFrame, bounds: image });
+          expect(painted.source).toBeGreaterThan(100);
+          expect(painted.actual / painted.source, "Rough spine stroke must not be cropped into a fading hairline").toBeGreaterThan(.9);
+          expect(painted.actual / painted.source).toBeLessThan(1.1);
         }
       }
     }
