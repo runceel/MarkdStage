@@ -1819,9 +1819,58 @@ const EDGE_LABEL_SVG_DECORATIONS = new Set([
   "use",
 ]);
 
+function cssEffectIsProvablyTransparent(value) {
+  const text = String(value || "").trim();
+  if (!text || text === "none") return true;
+  const colors = text.match(
+    /rgba?\([^)]*\)|#[0-9a-f]{3,8}\b|\btransparent\b/gi,
+  ) || [];
+  if (!colors.length) return false;
+  return colors.every((color) => {
+    const normalized = normalizeColor(color);
+    if (!normalized) return true;
+    const parts = cssColorParts(normalized);
+    return Boolean(parts && parts.alpha <= 0.000001);
+  });
+}
+
+function markerReferenceHasVisibleDecoration(value, element, options) {
+  if (!value || value === "none") return false;
+  const id = markerReferenceId(value);
+  const marker = element.ownerSVGElement?.querySelector(
+    `#${CSS.escape(id)}`,
+  );
+  if (localName(marker) !== "marker") return true;
+  if (!isRenderedElement(marker) &&
+      !hasRenderedVisualDescendant(marker)) return false;
+  if (unsupportedVisualEffect(marker)) return true;
+  const decorations = marker.querySelectorAll(
+    "circle, ellipse, image, line, path, polygon, polyline, rect, svg, use",
+  );
+  for (const decoration of decorations) {
+    if (!isRenderedElement(decoration)) continue;
+    const tag = localName(decoration);
+    if (["image", "svg", "use"].includes(tag)) return true;
+    if (sceneStyleHasVisiblePaint(computedSvgStyle(decoration, options))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function svgElementHasVisibleMarkerDecoration(element, style, options) {
+  return [
+    style.markerStart || element.getAttribute("marker-start"),
+    style.markerMid || element.getAttribute("marker-mid"),
+    style.markerEnd || element.getAttribute("marker-end"),
+  ].some((value) =>
+    markerReferenceHasVisibleDecoration(value, element, options));
+}
+
 function edgeLabelDecorationInfo(group, options) {
   const backgrounds = new Map();
   const backgroundByElement = new Map();
+  const markerElements = [];
   let complex = false;
   const signatureBounds = (element) => {
     const bounds = element.getBoundingClientRect();
@@ -1834,9 +1883,14 @@ function edgeLabelDecorationInfo(group, options) {
   };
   for (const element of group.querySelectorAll("*")) {
     if (!isRenderedElement(element)) continue;
+    const style = getComputedStyle(element);
+    if (element.namespaceURI === SVG_NS &&
+        svgElementHasVisibleMarkerDecoration(element, style, options)) {
+      complex = true;
+      markerElements.push(element);
+    }
     const bounds = element.getBoundingClientRect();
     if (!(bounds.width > 0 || bounds.height > 0)) continue;
-    const style = getComputedStyle(element);
     if (element.namespaceURI !== SVG_NS) {
       const fill = normalizeColor(
         style.backgroundColor,
@@ -1864,8 +1918,8 @@ function edgeLabelDecorationInfo(group, options) {
         if (!backgrounds.has(signature)) backgrounds.set(signature, entry);
       }
       if ((style.backgroundImage && style.backgroundImage !== "none") ||
-          (style.boxShadow && style.boxShadow !== "none") ||
-          (style.textShadow && style.textShadow !== "none") ||
+          !cssEffectIsProvablyTransparent(style.boxShadow) ||
+          !cssEffectIsProvablyTransparent(style.textShadow) ||
           localName(element) === "img" ||
           hasClass(element, "katex")) {
         complex = true;
@@ -1919,7 +1973,39 @@ function edgeLabelDecorationInfo(group, options) {
     background: selectedBackground,
     visible: complex || backgrounds.size > 0,
     complex: complex || Boolean(extraBackground),
+    markerElements,
   };
+}
+
+function edgeLabelFallbackNode(
+  group,
+  z,
+  deck,
+  reason,
+  sourcePath,
+  markerElements = [],
+) {
+  const fallback = fallbackNode(group, z, deck, reason, sourcePath);
+  for (const element of markerElements) {
+    const marker = fallbackNode(element, z, deck, reason, sourcePath);
+    const left = Math.min(fallback.bounds.x, marker.bounds.x);
+    const top = Math.min(fallback.bounds.y, marker.bounds.y);
+    const right = Math.max(
+      fallback.bounds.x + fallback.bounds.width,
+      marker.bounds.x + marker.bounds.width,
+    );
+    const bottom = Math.max(
+      fallback.bounds.y + fallback.bounds.height,
+      marker.bounds.y + marker.bounds.height,
+    );
+    fallback.bounds = {
+      x: left,
+      y: top,
+      width: right - left,
+      height: bottom - top,
+    };
+  }
+  return fallback;
 }
 
 function readEdgeLabels(root, deck, options, consumed, config = {}) {
@@ -1951,8 +2037,14 @@ function readEdgeLabels(root, deck, options, consumed, config = {}) {
     if (decoration.complex ||
         (terminal && (group.querySelectorAll("span.edgeLabel, text").length > 1 || extra.textContent.trim())) ||
         unsupportedVisualEffect(group)) {
-      labels.set(key, { fallback: fallbackNode(group, 0, deck,
-        fallbackReason, sourcePath) });
+      labels.set(key, { fallback: edgeLabelFallbackNode(
+        group,
+        0,
+        deck,
+        fallbackReason,
+        sourcePath,
+        decoration.markerElements,
+      ) });
       continue;
     }
     if (!group.textContent.trim()) continue;
@@ -1965,8 +2057,14 @@ function readEdgeLabels(root, deck, options, consumed, config = {}) {
     const textVisible = Boolean(label && sceneTextHasVisiblePaint(label.text));
     if (!textVisible) {
       if (decoration.visible) {
-        labels.set(key, { fallback: fallbackNode(group, 0, deck,
-          fallbackReason, sourcePath) });
+        labels.set(key, { fallback: edgeLabelFallbackNode(
+          group,
+          0,
+          deck,
+          fallbackReason,
+          sourcePath,
+          decoration.markerElements,
+        ) });
       }
       continue;
     }
@@ -1982,8 +2080,14 @@ function readEdgeLabels(root, deck, options, consumed, config = {}) {
           hasRenderedTextTransform(label.element) ||
           compositeOpacity ||
           (label.rotation !== undefined && fill)) {
-        labels.set(key, { fallback: fallbackNode(group, 0, deck,
-          fallbackReason, sourcePath) });
+        labels.set(key, { fallback: edgeLabelFallbackNode(
+          group,
+          0,
+          deck,
+          fallbackReason,
+          sourcePath,
+          decoration.markerElements,
+        ) });
         continue;
       }
       if (label.rotation !== undefined) options.sourceElements?.set(sourcePath, label.element);
@@ -2002,7 +2106,14 @@ function readEdgeLabels(root, deck, options, consumed, config = {}) {
     } else if (backgroundVisible ||
         [...group.querySelectorAll("rect, path, image, use")]
           .some((element) => isRenderedElement(element) && isVisibleUnknown(element))) {
-      labels.set(key, { fallback: fallbackNode(group, 0, deck, fallbackReason, sourcePath) });
+      labels.set(key, { fallback: edgeLabelFallbackNode(
+        group,
+        0,
+        deck,
+        fallbackReason,
+        sourcePath,
+        decoration.markerElements,
+      ) });
     }
   }
   return labels;

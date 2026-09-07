@@ -17,6 +17,71 @@ async function readFixture(name) {
   return readFile(join(FIXTURE_DIR, name), "utf8");
 }
 
+async function screenshotPixelDifference(page, left, right) {
+  return page.evaluate(async ({ left, right }) => {
+    const decode = (content) => new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = reject;
+      image.src = `data:image/png;base64,${content}`;
+    });
+    const [leftImage, rightImage] = await Promise.all([
+      decode(left),
+      decode(right),
+    ]);
+    if (leftImage.width !== rightImage.width ||
+        leftImage.height !== rightImage.height) return Number.POSITIVE_INFINITY;
+    const canvas = document.createElement("canvas");
+    canvas.width = leftImage.width;
+    canvas.height = leftImage.height;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    context.drawImage(leftImage, 0, 0);
+    const leftPixels = context.getImageData(
+      0,
+      0,
+      canvas.width,
+      canvas.height,
+    ).data;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(rightImage, 0, 0);
+    const rightPixels = context.getImageData(
+      0,
+      0,
+      canvas.width,
+      canvas.height,
+    ).data;
+    let difference = 0;
+    for (let index = 0; index < leftPixels.length; index += 4) {
+      if (leftPixels[index] !== rightPixels[index] ||
+          leftPixels[index + 1] !== rightPixels[index + 1] ||
+          leftPixels[index + 2] !== rightPixels[index + 2] ||
+          leftPixels[index + 3] !== rightPixels[index + 3]) {
+        difference += 1;
+      }
+    }
+    return difference;
+  }, {
+    left: left.toString("base64"),
+    right: right.toString("base64"),
+  });
+}
+
+async function waitForPaint(page) {
+  await page.evaluate(() => new Promise((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(resolve))));
+}
+
+async function screenshotClipAround(locator, padding = 16) {
+  const bounds = await locator.boundingBox();
+  if (!bounds) throw new Error("Screenshot target has no rendered bounds");
+  return {
+    x: Math.max(0, bounds.x - padding),
+    y: Math.max(0, bounds.y - padding),
+    width: bounds.width + padding * 2,
+    height: bounds.height + padding * 2,
+  };
+}
+
 async function sceneFromFixture(page, svg, path) {
   await page.evaluate(async ({ source, sourcePath }) => {
     document.body.innerHTML = [
@@ -2553,6 +2618,167 @@ test("omits hidden requirement content and localizes rendered text transforms", 
     }]);
     assertNoWholeFallback(decoratedEdgeLabel);
 
+    await sceneFromFixture(
+      page,
+      fixture,
+      "requirement-marker-only-edge-label.svg",
+    );
+    await page.evaluate(() => {
+      const group = document.querySelectorAll("g.edgeLabel")[1];
+      for (const part of [group, ...group.querySelectorAll("*")]) {
+        part.style.setProperty("color", "transparent", "important");
+        part.style.setProperty(
+          "background-color",
+          "transparent",
+          "important",
+        );
+        part.style.setProperty("border-color", "transparent", "important");
+        if (part.namespaceURI === "http://www.w3.org/2000/svg") {
+          part.style.setProperty("fill", "transparent", "important");
+          part.style.setProperty("stroke", "transparent", "important");
+        }
+      }
+      const namespace = "http://www.w3.org/2000/svg";
+      const marker = document.createElementNS(namespace, "marker");
+      marker.id = "marker-only-red";
+      for (const [name, value] of Object.entries({
+        markerWidth: "10",
+        markerHeight: "10",
+        refX: "5",
+        refY: "5",
+        orient: "auto",
+        markerUnits: "userSpaceOnUse",
+      })) {
+        marker.setAttribute(name, value);
+      }
+      const circle = document.createElementNS(namespace, "circle");
+      circle.setAttribute("cx", "5");
+      circle.setAttribute("cy", "5");
+      circle.setAttribute("r", "4");
+      circle.setAttribute("fill", "red");
+      marker.append(circle);
+      const definitions = document.createElementNS(namespace, "defs");
+      definitions.append(marker);
+      document.querySelector("#fixture-deck > svg").append(definitions);
+      for (const [attribute, data] of [
+        ["marker-start", "M0 6 L70 6"],
+        ["marker-mid", "M0 12 L35 18 L70 12"],
+        ["marker-end", "M0 24 L70 24"],
+      ]) {
+        const path = document.createElementNS(namespace, "path");
+        path.setAttribute("d", data);
+        path.setAttribute("fill", "none");
+        path.setAttribute("stroke", "transparent");
+        path.setAttribute(attribute, "url(#marker-only-red)");
+        group.append(path);
+      }
+    });
+    const markerGroup = page.locator("g.edgeLabel").nth(1);
+    const markerClip = await screenshotClipAround(markerGroup, 40);
+    await waitForPaint(page);
+    const markerVisible = await page.screenshot({ clip: markerClip });
+    await markerGroup.evaluate((group) => {
+      group.style.visibility = "hidden";
+    });
+    await waitForPaint(page);
+    const markerHidden = await page.screenshot({ clip: markerClip });
+    expect(await screenshotPixelDifference(
+      page,
+      markerVisible,
+      markerHidden,
+    )).toBeGreaterThan(0);
+    await markerGroup.evaluate((group) => {
+      group.style.visibility = "visible";
+    });
+    const markerOnly = await updateFixture(page, () => {});
+    expect(markerOnly.scene.nodes.filter((node) =>
+      node.kind === "fallback")).toMatchObject([{
+      sourcePath: "edgeLabels[root_req-copy_req-0]",
+      reason: "unsupported-mermaid-requirement-relation-label",
+      bounds: {
+        width: expect.any(Number),
+        height: expect.any(Number),
+      },
+    }]);
+    expect(markerOnly.scene.nodes.find((node) =>
+      node.sourcePath === "edgeLabels[root_req-copy_req-0]")
+      .bounds.width).toBeGreaterThan(0);
+    expect(markerOnly.scene.nodes.find((node) =>
+      node.sourcePath === "edgeLabels[root_req-copy_req-0]")
+      .bounds.height).toBeGreaterThan(0);
+    expect(markerOnly.scene.nodes.filter((node) =>
+      node.meta?.mermaid?.kind === "edge-label")).toHaveLength(6);
+    expect(scenePaths(markerOnly)).toContain("relations[1].line");
+    expect(new Set(scenePaths(markerOnly)).size)
+      .toBe(markerOnly.scene.nodes.length);
+    assertNoWholeFallback(markerOnly);
+
+    await sceneFromFixture(
+      page,
+      fixture,
+      "requirement-transparent-shadow-edge-label.svg",
+    );
+    await page.evaluate(() => {
+      const group = document.querySelectorAll("g.edgeLabel")[1];
+      for (const part of [group, ...group.querySelectorAll("*")]) {
+        part.style.setProperty("color", "transparent", "important");
+        part.style.setProperty(
+          "background-color",
+          "transparent",
+          "important",
+        );
+        part.style.setProperty("border-color", "transparent", "important");
+        if (part.namespaceURI === "http://www.w3.org/2000/svg") {
+          part.style.setProperty("fill", "transparent", "important");
+          part.style.setProperty("stroke", "transparent", "important");
+        }
+      }
+      group.querySelector("span.edgeLabel").style.textShadow =
+        "0 0 4px rgba(0, 0, 0, 0), 1px 2px 3px #00000000";
+      group.querySelector("p").style.boxShadow =
+        "0 0 4px rgba(255, 0, 0, 0)";
+    });
+    const transparentShadow = await updateFixture(page, () => {});
+    expect(transparentShadow.scene.nodes.filter((node) =>
+      node.kind === "fallback")).toEqual([]);
+    expect(scenePaths(transparentShadow))
+      .not.toContain("edgeLabels[root_req-copy_req-0]");
+    expect(scenePaths(transparentShadow)).toContain("relations[1].line");
+
+    await sceneFromFixture(
+      page,
+      fixture,
+      "requirement-visible-shadow-edge-label.svg",
+    );
+    await page.evaluate(() => {
+      const group = document.querySelectorAll("g.edgeLabel")[1];
+      for (const part of [group, ...group.querySelectorAll("*")]) {
+        part.style.setProperty("color", "transparent", "important");
+        part.style.setProperty(
+          "background-color",
+          "transparent",
+          "important",
+        );
+        part.style.setProperty("border-color", "transparent", "important");
+        if (part.namespaceURI === "http://www.w3.org/2000/svg") {
+          part.style.setProperty("fill", "transparent", "important");
+          part.style.setProperty("stroke", "transparent", "important");
+        }
+      }
+      group.querySelector("span.edgeLabel").style.textShadow =
+        "0 0 4px red";
+    });
+    const redShadow = await updateFixture(page, () => {});
+    expect(redShadow.scene.nodes.filter((node) =>
+      node.kind === "fallback")).toMatchObject([{
+      sourcePath: "edgeLabels[root_req-copy_req-0]",
+      reason: "unsupported-mermaid-requirement-relation-label",
+    }]);
+    expect(redShadow.scene.nodes.filter((node) =>
+      node.meta?.mermaid?.kind === "edge-label")).toHaveLength(6);
+    expect(scenePaths(redShadow)).toContain("relations[1].line");
+    assertNoWholeFallback(redShadow);
+
     await sceneFromFixture(page, fixture, "requirement-mixed-box.svg");
     const mixedBox = await updateFixture(page, () => {
       document.querySelector(
@@ -2627,6 +2853,113 @@ test("omits hidden requirement content and localizes rendered text transforms", 
       entry.name).toHaveLength(entry.name === "edge" ? 6 : 7);
       assertNoWholeFallback(result);
     }
+  } finally {
+    await harness.close();
+  }
+});
+
+test("distinguishes transparent and visible edge-label shadows by rendered pixels", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# Requirement shadows"] });
+  try {
+    await page.goto(harness.url);
+    const fixture = await readFixture("requirement-basic.svg");
+    const loadFixture = () => page.evaluate((source) => {
+      document.body.innerHTML = [
+        "<style>body{margin:0}#fixture-deck{position:relative;width:651.40625px;height:237.125px}</style>",
+        `<div id="fixture-deck">${source}</div>`,
+      ].join("");
+    }, fixture);
+    const readScene = (path) => page.evaluate(async (sourcePath) => {
+      const { mermaidSvgToScene } = await import(
+        "./renderer/mermaid-scene.mjs"
+      );
+      const result = mermaidSvgToScene(
+        document.querySelector("#fixture-deck > svg"),
+        {
+          deck: document.querySelector("#fixture-deck"),
+          path: sourcePath,
+          includeSourceElements: true,
+        },
+      );
+      return {
+        scene: result.scene,
+        diagnostics: result.diagnostics,
+        sources: [...result.sourceElements].map(([entryPath, element]) => ({
+          path: entryPath,
+          tag: element.localName,
+          id: element.id,
+        })),
+      };
+    }, path);
+    const applyShadow = async (textShadow, boxShadow = "none") => {
+      await page.evaluate(({ textShadow, boxShadow }) => {
+        const group = document.querySelectorAll("g.edgeLabel")[1];
+        group.setAttribute("transform", "translate(1000, 50)");
+        for (const part of [group, ...group.querySelectorAll("*")]) {
+          part.style.setProperty("color", "transparent", "important");
+          part.style.setProperty(
+            "background-color",
+            "transparent",
+            "important",
+          );
+          part.style.setProperty(
+            "border-color",
+            "transparent",
+            "important",
+          );
+          if (part.namespaceURI === "http://www.w3.org/2000/svg") {
+            part.style.setProperty("fill", "transparent", "important");
+            part.style.setProperty("stroke", "transparent", "important");
+          }
+        }
+        group.querySelector("span.edgeLabel").style.textShadow = textShadow;
+        group.querySelector("p").style.boxShadow = boxShadow;
+      }, { textShadow, boxShadow });
+    };
+    const compareHiddenPixels = async () => {
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await waitForPaint(page);
+      const visible = await page.screenshot();
+      await page.evaluate(() => {
+        document.querySelectorAll("g.edgeLabel")[1].style.visibility =
+          "hidden";
+        window.scrollTo(0, 0);
+      });
+      await waitForPaint(page);
+      const hidden = await page.screenshot();
+      await page.evaluate(() => {
+        document.querySelectorAll("g.edgeLabel")[1].style.visibility =
+          "visible";
+      });
+      return screenshotPixelDifference(page, visible, hidden);
+    };
+
+    await loadFixture();
+    await applyShadow("0 0 4px rgba(0, 0, 0, 0)");
+    expect(await compareHiddenPixels()).toBe(0);
+    const transparent = await readScene(
+      "requirement-transparent-shadow-pixels.svg",
+    );
+    expect(transparent.scene.nodes.filter((node) =>
+      node.kind === "fallback")).toEqual([]);
+    expect(transparent.scene.nodes.some((node) =>
+      node.sourcePath === "edgeLabels[root_req-copy_req-0]")).toBe(false);
+
+    await loadFixture();
+    await applyShadow("0 0 4px red");
+    expect(await compareHiddenPixels()).toBeGreaterThan(0);
+    const visible = await readScene(
+      "requirement-visible-shadow-pixels.svg",
+    );
+    expect(visible.scene.nodes.filter((node) =>
+      node.kind === "fallback")).toMatchObject([{
+      sourcePath: "edgeLabels[root_req-copy_req-0]",
+      reason: "unsupported-mermaid-requirement-relation-label",
+    }]);
+    expect(visible.scene.nodes.filter((node) =>
+      node.meta?.mermaid?.kind === "edge-label")).toHaveLength(6);
+    expect(visible.scene.nodes.some((node) =>
+      node.sourcePath === "relations[1].line")).toBe(true);
   } finally {
     await harness.close();
   }
@@ -7171,6 +7504,151 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
     }
   });
 }
+
+test("actual requirement marker-only label remains one captured local fallback", async ({ page }) => {
+  const diagram = (await readFixture("requirement-basic.mmd"))
+    .replace(
+      '{"handDrawnSeed": 42}',
+      JSON.stringify({
+        handDrawnSeed: 42,
+        themeCSS:
+          ".edgeLabel:nth-child(2) *{" +
+          "color:transparent!important;" +
+          "background-color:transparent!important;" +
+          "border-color:transparent!important;" +
+          "fill:transparent!important;" +
+          "stroke:transparent!important}",
+      }),
+    )
+    .replace(
+      "requirementDiagram",
+      "%% marker-only-label\nrequirementDiagram",
+    );
+  await page.addInitScript(() => {
+    const patch = (svg) => {
+      if (svg.dataset.markerOnlyPatched ||
+          svg.getAttribute("aria-roledescription") !== "requirement") return;
+      const group = svg.querySelectorAll("g.edgeLabel")[1];
+      if (!group) return;
+      svg.dataset.markerOnlyPatched = "true";
+      const namespace = "http://www.w3.org/2000/svg";
+      const marker = document.createElementNS(namespace, "marker");
+      marker.id = `${svg.id}-marker-only-red`;
+      for (const [name, content] of Object.entries({
+        markerWidth: "10",
+        markerHeight: "10",
+        refX: "5",
+        refY: "5",
+        orient: "auto",
+        markerUnits: "userSpaceOnUse",
+      })) {
+        marker.setAttribute(name, content);
+      }
+      const circle = document.createElementNS(namespace, "circle");
+      circle.setAttribute("cx", "5");
+      circle.setAttribute("cy", "5");
+      circle.setAttribute("r", "4");
+      circle.setAttribute("fill", "red");
+      marker.append(circle);
+      const definitions = document.createElementNS(namespace, "defs");
+      definitions.append(marker);
+      svg.append(definitions);
+      const path = document.createElementNS(namespace, "path");
+      path.setAttribute("d", "M5 12 L39 12 L73 12");
+      path.setAttribute("fill", "none");
+      path.setAttribute("stroke", "transparent");
+      path.setAttribute("marker-mid", `url(#${marker.id})`);
+      group.querySelector(":scope > g.label").append(path);
+    };
+    const observer = new MutationObserver(() => {
+      document.querySelectorAll(
+        "pre.mermaid svg:not([data-scene-backend])",
+      ).forEach(patch);
+    });
+    document.addEventListener("DOMContentLoaded", () => {
+      observer.observe(document.body, { childList: true, subtree: true });
+    });
+  });
+  const harness = await startHarness({
+    slides: [
+      `# Marker-only requirement label\n\n\`\`\`mermaid\n${diagram}\n\`\`\``,
+    ],
+  });
+  try {
+    await page.goto(
+      `${harness.url}/?pptx=1&token=${encodeURIComponent(
+        harness.printToken,
+      )}`,
+    );
+    await page.waitForFunction(() =>
+      document.documentElement.hasAttribute("data-pptx-ready") ||
+      document.documentElement.hasAttribute("data-pptx-error"),
+    undefined, { timeout: 120_000 });
+    await expect(page.locator("html"))
+      .toHaveAttribute("data-pptx-ready", "true");
+    const svg = page.locator("pre.mermaid > svg");
+    const model = await page.evaluate(() =>
+      window.__presentationPptxModel.slides[0]);
+    expect(model.fallbacks.filter((entry) =>
+      entry.type === "mermaid").map((entry) => ({
+      sourcePath: entry.sourcePath,
+      reason: entry.reason,
+      captureId: entry.captureId,
+    }))).toEqual([{
+      sourcePath: "edgeLabels[root_req-copy_req-0]",
+      reason: "unsupported-mermaid-requirement-relation-label",
+      captureId: expect.any(String),
+    }]);
+    expect(model.elements.filter((element) =>
+      element.mermaid?.kind === "requirement-relation")).toHaveLength(7);
+    expect(model.elements.filter((element) =>
+      element.mermaid?.kind === "edge-label")).toHaveLength(6);
+    await expect(svg.locator(
+      'g.edgeLabel:has([data-id="root_req-copy_req-0"])' +
+      '[data-pptx-fallback-ids]',
+    )).toHaveCount(1);
+    await expect(svg.locator(
+      'path.relationshipLine[data-id="root_req-copy_req-0"]' +
+      '[data-pptx-native=connector]',
+    )).toHaveCount(1);
+    await expect(svg.locator(
+      'marker[id$="-marker-only-red"] circle',
+    )).toHaveCSS("fill", "rgb(255, 0, 0)");
+    const markerGroup = svg.locator(
+      'g.edgeLabel:has([data-id="root_req-copy_req-0"])',
+    );
+    const markerPath = markerGroup.locator("path[marker-mid]");
+    const markerClip = await screenshotClipAround(markerGroup, 20);
+    await waitForPaint(page);
+    const markerVisible = await page.screenshot({ clip: markerClip });
+    await markerPath.evaluate((path) => {
+      path.style.visibility = "hidden";
+    });
+    await waitForPaint(page);
+    const markerHidden = await page.screenshot({ clip: markerClip });
+    expect(await screenshotPixelDifference(
+      page,
+      markerVisible,
+      markerHidden,
+    )).toBeGreaterThan(0);
+    expect(await svg.evaluate((element) => {
+      const paths = element.__presentationScene.nodes.map((node) =>
+        node.sourcePath);
+      return {
+        unique: new Set(paths).size === paths.length,
+        fallbackCount: paths.filter((path) =>
+          path === "edgeLabels[root_req-copy_req-0]").length,
+        wholeFallback: element.getAttribute("data-pptx-fallback-ids"),
+      };
+    })).toEqual({
+      unique: true,
+      fallbackCount: 1,
+      wholeFallback: null,
+    });
+  } finally {
+    await harness.close();
+  }
+});
 
 for (const theme of ["dark", "light", "microsoft", "custom"]) {
   test(`real renderer exports state aliases, exact markers and local state fallbacks (${theme})`, async ({ page }) => {
