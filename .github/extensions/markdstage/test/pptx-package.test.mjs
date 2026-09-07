@@ -689,6 +689,37 @@ test("uses Yu Gothic for Japanese theme fonts and native text", () => {
   );
 });
 
+test("keeps explicit transparent text runs unpainted instead of defaulting to black", () => {
+  const files = readStoredZip(
+    buildPptxPackage({
+      slides: [{
+        elements: [{
+          type: "text",
+          x: 40,
+          y: 40,
+          width: 600,
+          height: 80,
+          paragraphs: [{
+            runs: [
+              { text: "Hidden", color: null },
+              { text: "Visible", color: "#123456" },
+            ],
+          }],
+        }],
+      }],
+    }),
+  );
+  const slide = xml(files, "ppt/slides/slide1.xml");
+  assert.match(
+    slide,
+    /<a:rPr[^>]*><a:noFill\/><a:ea typeface="Yu Gothic"\/><\/a:rPr><a:t>Hidden<\/a:t>/,
+  );
+  assert.match(
+    slide,
+    /<a:solidFill><a:srgbClr val="123456"><\/a:srgbClr><\/a:solidFill>[\s\S]*?<a:t>Visible<\/a:t>/,
+  );
+});
+
 test("keeps rich text and visible styling together in a configured AutoShape", () => {
   const files = readStoredZip(
     buildPptxPackage({

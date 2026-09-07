@@ -22,7 +22,35 @@ const packetSlide = `# Packet\n\n\`\`\`mermaid\n${await readFile(new URL("../fix
 const treeViewSlide = `# treeView\n\n\`\`\`mermaid\n${await readFile(new URL("../fixtures/mermaid/tree-view.mmd", import.meta.url), "utf8")}\n\`\`\``;
 const stateBasicSlide = `# State diagram\n\n\`\`\`mermaid\n${await readFile(new URL("../fixtures/mermaid/state-basic.mmd", import.meta.url), "utf8")}\n\`\`\``;
 const erBasicSlide = `# ER diagram\n\n\`\`\`mermaid\n${await readFile(new URL("../fixtures/mermaid/er-basic.mmd", import.meta.url), "utf8")}\n\`\`\``;
-const requirementBasicSlide = `# Requirement diagram\n\n\`\`\`mermaid\n${await readFile(new URL("../fixtures/mermaid/requirement-basic.mmd", import.meta.url), "utf8")}\n\`\`\``;
+const requirementSource = await readFile(new URL("../fixtures/mermaid/requirement-basic.mmd", import.meta.url), "utf8");
+const requirementBasicSlide = `# Requirement diagram\n\n\`\`\`mermaid\n${requirementSource}\n\`\`\``;
+const requirementHiddenSlide = `# Hidden requirement content\n\n\`\`\`mermaid\n${requirementSource.replace(
+  '{"handDrawnSeed": 42}',
+  JSON.stringify({
+    handDrawnSeed: 42,
+    themeCSS:
+      ".nodes .node{visibility:hidden} " +
+      ".edge-pattern-dashed{visibility:hidden}",
+  }),
+)}\n\`\`\``;
+const requirementHiddenTextSlide = `# Hidden requirement text\n\n\`\`\`mermaid\n${requirementSource.replace(
+  '{"handDrawnSeed": 42}',
+  JSON.stringify({
+    handDrawnSeed: 42,
+    themeCSS:
+      ".highlighted .label{display:none} " +
+      ".node span{color:transparent!important}",
+  }),
+)}\n\`\`\``;
+const requirementTransformedSlide = `# Transformed requirement text\n\n\`\`\`mermaid\n${requirementSource.replace(
+  '{"handDrawnSeed": 42}',
+  JSON.stringify({
+    handDrawnSeed: 42,
+    themeCSS:
+      ".highlighted span{text-transform:uppercase} " +
+      ".edgeLabel span{text-transform:uppercase}",
+  }),
+)}\n\`\`\``;
 const rotatedTextSlide = [
   "# Rotated Mermaid text",
   "",
@@ -57,6 +85,9 @@ const slides = [
   stateBasicSlide,
   erBasicSlide,
   requirementBasicSlide,
+  requirementHiddenSlide,
+  requirementHiddenTextSlide,
+  requirementTransformedSlide,
 ];
 
 const customThemeCss = ":root{--bg:#102030;--fg:#f8fafc;--body:#d7e3f0;--muted:#abbdd0;--surface:#203448;--border:#486580;--accent:#39b8f2;--accent-strong:#72d4ff;--accent-soft:#163b50;}";
@@ -143,7 +174,7 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
 }
 
 test("normal, presenter, fixed preview, PNG and PDF use the same shared scene rendering", async ({ browser }) => {
-  test.setTimeout(180_000);
+  test.setTimeout(240_000);
   const surfaceSlides = [
     slides[0],
     slides[1],
@@ -172,8 +203,10 @@ test("normal, presenter, fixed preview, PNG and PDF use the same shared scene re
       const signatures = [];
       for (const query of ["", "?present=1", "?preview=1", "fixed", `?capture=1&token=${harness.printToken}&index=${index}`, `?print=1&token=${harness.printToken}`]) {
         await page.goto(`${harness.url}/${query === "fixed" ? "" : query}`);
-        if (query.includes("print=")) await expect(page.locator("html")).toHaveAttribute("data-print-ready", "true");
-        else if (query.includes("capture=")) await expect(page.locator("html")).toHaveAttribute("data-capture-ready", "true");
+        if (query.includes("print=")) await expect(page.locator("html"))
+          .toHaveAttribute("data-print-ready", "true", { timeout: 30_000 });
+        else if (query.includes("capture=")) await expect(page.locator("html"))
+          .toHaveAttribute("data-capture-ready", "true", { timeout: 30_000 });
         else await waitForSlideReady(page);
         if (query === "fixed") {
           await page.locator("#navMore").click();

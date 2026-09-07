@@ -69,8 +69,8 @@ async function sceneFromMermaidSource(page, source, path) {
   }, { diagram: source, sourcePath: path });
 }
 
-async function updateFixture(page, update) {
-  await page.evaluate(update);
+async function updateFixture(page, update, argument) {
+  await page.evaluate(update, argument);
   return page.evaluate(async () => {
     const { mermaidSvgToScene } = await import("./renderer/mermaid-scene.mjs");
     const result = mermaidSvgToScene(document.querySelector("#fixture-deck > svg"), {
@@ -2293,6 +2293,280 @@ test("extracts pinned requirement compartments, fields, relations and terminals"
   }
 });
 
+test("omits hidden requirement content and localizes rendered text transforms", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# Requirement visibility"] });
+  try {
+    await page.goto(harness.url);
+    const fixture = await readFixture("requirement-basic.svg");
+    const textOf = (node) => node.text?.paragraphs
+      ?.map((paragraph) => paragraph.runs.map((run) => run.text).join(""))
+      .join("\n");
+    const scenePaths = (result) =>
+      result.scene.nodes.map((node) => node.sourcePath);
+    const assertNoWholeFallback = (result) => {
+      expect(result.scene.nodes.filter((node) =>
+        node.kind === "fallback" && node.sourcePath === "svg")).toEqual([]);
+    };
+
+    await sceneFromFixture(page, fixture, "requirement-hidden-nodes.svg");
+    const hiddenNodes = await updateFixture(page, () => {
+      document.querySelector('g.node[id$="-root_req"]')
+        .style.visibility = "hidden";
+      document.querySelector('g.node[id$="-empty_element"]')
+        .style.display = "none";
+    });
+    expect(hiddenNodes.scene.nodes.filter((node) => node.kind === "fallback"))
+      .toEqual([]);
+    expect(scenePaths(hiddenNodes).some((path) =>
+      path.startsWith("requirements[0]") ||
+      path.startsWith("elements[2]"))).toBe(false);
+    expect(hiddenNodes.scene.nodes.filter((node) =>
+      node.meta?.mermaid?.kind === "requirement-relation")).toHaveLength(7);
+    expect(hiddenNodes.scene.nodes.filter((node) =>
+      node.meta?.mermaid?.kind === "requirement-terminal")).toHaveLength(15);
+    expect(hiddenNodes.scene.nodes.filter((node) =>
+      node.meta?.mermaid?.kind === "edge-label")).toHaveLength(7);
+    expect(hiddenNodes.scene.nodes.filter((node) =>
+      ["requirement-box", "element-box"].includes(
+        node.meta?.mermaid?.kind,
+      ))).toHaveLength(8);
+    const hiddenNodeMapped = sceneToPptxElements(hiddenNodes.scene);
+    expect(hiddenNodeMapped.fallbacks).toEqual([]);
+    const hiddenNodeXml = buildPptxPackage({
+      slides: [{ elements: hiddenNodeMapped.elements }],
+    }).toString("utf8");
+    expect(hiddenNodeXml).not.toContain("REQ-001");
+    expect(hiddenNodeXml).not.toContain("empty_element");
+    expect(hiddenNodeXml).toContain("REQ-002");
+    expect(hiddenNodeXml).toContain("&lt;&lt;copies&gt;&gt;");
+
+    for (const entry of [
+      {
+        selector: "g.nodes",
+        absent: (path) =>
+          path.startsWith("requirements[") ||
+          path.startsWith("elements["),
+        relationCount: 7,
+        labelCount: 7,
+      },
+      {
+        selector: "g.edgePaths",
+        absent: (path) => path.startsWith("relations["),
+        relationCount: 0,
+        labelCount: 7,
+      },
+      {
+        selector: "g.edgeLabels",
+        absent: (path) => path.startsWith("edgeLabels["),
+        relationCount: 7,
+        labelCount: 0,
+      },
+    ]) {
+      await sceneFromFixture(
+        page,
+        fixture,
+        `requirement-zero-opacity-${
+          entry.selector.replace(/\W+/g, "-")
+        }.svg`,
+      );
+      const result = await updateFixture(page, (selector) => {
+        document.querySelector(selector).style.opacity = "0";
+      }, entry.selector);
+      expect(result.scene.nodes.filter((node) => node.kind === "fallback"),
+        entry.selector).toEqual([]);
+      expect(scenePaths(result).some(entry.absent), entry.selector).toBe(false);
+      expect(result.scene.nodes.filter((node) =>
+        node.meta?.mermaid?.kind === "requirement-relation"),
+      entry.selector).toHaveLength(entry.relationCount);
+      expect(result.scene.nodes.filter((node) =>
+        node.meta?.mermaid?.kind === "edge-label"),
+      entry.selector).toHaveLength(entry.labelCount);
+      expect(scenePaths(result).some((path) =>
+        path.startsWith("requirement.containers[")),
+      entry.selector).toBe(false);
+    }
+
+    for (const [name, mutate] of [
+      ["hidden", () => {
+        document.querySelectorAll("path.relationshipLine")[1]
+          .style.visibility = "hidden";
+      }],
+      ["display-none", () => {
+        document.querySelectorAll("path.relationshipLine")[1]
+          .style.display = "none";
+      }],
+    ]) {
+      await sceneFromFixture(
+        page,
+        fixture,
+        `requirement-relation-${name}.svg`,
+      );
+      const result = await updateFixture(page, mutate);
+      expect(result.scene.nodes.filter((node) => node.kind === "fallback"),
+        name).toEqual([]);
+      expect(scenePaths(result).some((path) =>
+        path === "relations[1]" ||
+        path.startsWith("relations[1].")), name).toBe(false);
+      expect(result.scene.nodes.filter((node) =>
+        node.meta?.mermaid?.kind === "requirement-relation"),
+      name).toHaveLength(6);
+      expect(result.scene.nodes.filter((node) =>
+        node.meta?.mermaid?.kind === "requirement-terminal"),
+      name).toHaveLength(13);
+      const label = result.scene.nodes.find((node) =>
+        node.sourcePath === "edgeLabels[root_req-copy_req-0]");
+      expect(label?.meta?.mermaid?.kind, name).toBe("edge-label");
+      expect(textOf(label), name).toBe("<<copies>>");
+      assertNoWholeFallback(result);
+    }
+
+    await sceneFromFixture(page, fixture, "requirement-hidden-label.svg");
+    const hiddenLabel = await updateFixture(page, () => {
+      document.querySelectorAll(
+        'g.node[id$="-root_req"] > g.label',
+      )[1].style.display = "none";
+    });
+    expect(hiddenLabel.scene.nodes.filter((node) => node.kind === "fallback"))
+      .toEqual([]);
+    expect(scenePaths(hiddenLabel))
+      .not.toContain("requirements[0].labels[1]");
+    expect(scenePaths(hiddenLabel))
+      .toContain("requirements[0].labels[0]");
+    expect(scenePaths(hiddenLabel))
+      .toContain("requirements[0].labels[2]");
+
+    await sceneFromFixture(page, fixture, "requirement-hidden-edge-label.svg");
+    const hiddenEdgeLabel = await updateFixture(page, () => {
+      document.querySelectorAll("g.edgeLabel")[1]
+        .style.visibility = "collapse";
+    });
+    expect(hiddenEdgeLabel.scene.nodes.filter((node) =>
+      node.kind === "fallback")).toEqual([]);
+    expect(scenePaths(hiddenEdgeLabel))
+      .not.toContain("edgeLabels[root_req-copy_req-0]");
+    expect(scenePaths(hiddenEdgeLabel))
+      .toContain("relations[1].line");
+
+    await sceneFromFixture(
+      page,
+      fixture,
+      "requirement-hidden-svg-edge-label.svg",
+    );
+    const hiddenSvgEdgeLabel = await updateFixture(page, () => {
+      const label = document.querySelectorAll("g.edgeLabel")[1];
+      label.insertAdjacentHTML(
+        "afterbegin",
+        '<rect x="-40" y="-12" width="80" height="24" fill="red"/>',
+      );
+      label.style.visibility = "hidden";
+    });
+    expect(hiddenSvgEdgeLabel.scene.nodes.filter((node) =>
+      node.kind === "fallback")).toEqual([]);
+    expect(scenePaths(hiddenSvgEdgeLabel))
+      .not.toContain("edgeLabels[root_req-copy_req-0]");
+    expect(scenePaths(hiddenSvgEdgeLabel))
+      .toContain("relations[1].line");
+
+    await sceneFromFixture(page, fixture, "requirement-transparent-label.svg");
+    const transparentLabel = await updateFixture(page, () => {
+      const label = document.querySelectorAll(
+        'g.node[id$="-root_req"] > g.label',
+      )[3];
+      for (const part of [label, ...label.querySelectorAll("*")]) {
+        part.style.setProperty("color", "transparent", "important");
+      }
+    });
+    expect(transparentLabel.scene.nodes.filter((node) =>
+      node.kind === "fallback")).toEqual([]);
+    expect(scenePaths(transparentLabel))
+      .not.toContain("requirements[0].labels[3]");
+    const transparentMapped = sceneToPptxElements(transparentLabel.scene);
+    expect(transparentMapped.fallbacks).toEqual([]);
+    const transparentXml = buildPptxPackage({
+      slides: [{ elements: transparentMapped.elements }],
+    }).toString("utf8");
+    expect(transparentXml).not.toContain("Text: 顧客");
+    expect(transparentXml).toContain("ID: REQ-001");
+
+    await sceneFromFixture(page, fixture, "requirement-mixed-box.svg");
+    const mixedBox = await updateFixture(page, () => {
+      document.querySelector(
+        'g.node[id$="-root_req"] > g.outer-path > path',
+      ).style.visibility = "hidden";
+      document.querySelector(
+        'g.node[id$="-root_req"] > g.divider > path',
+      ).style.visibility = "collapse";
+    });
+    expect(mixedBox.scene.nodes.filter((node) => node.kind === "fallback"))
+      .toEqual([]);
+    expect(scenePaths(mixedBox))
+      .toContain("requirements[0].box.paths[1]");
+    expect(scenePaths(mixedBox))
+      .not.toContain("requirements[0].box.paths[0]");
+    expect(scenePaths(mixedBox).some((path) =>
+      path.startsWith("requirements[0].dividers[0]"))).toBe(false);
+    expect(mixedBox.scene.nodes.find((node) =>
+      node.sourcePath === "requirements[0].box.paths[1]")).toMatchObject({
+      kind: "shape",
+      style: { fill: null, stroke: "rgb(37, 99, 235)" },
+    });
+
+    for (const entry of [
+      {
+        name: "node",
+        path: "requirements[0].labels[1]",
+        reason: "unsupported-mermaid-requirement-text-transform",
+        mutate: () => {
+          document.querySelector(
+            'g.node[id$="-root_req"] > g.label:nth-of-type(3) span',
+          ).style.textTransform = "uppercase";
+        },
+      },
+      {
+        name: "edge",
+        path: "edgeLabels[root_req-copy_req-0]",
+        reason: "unsupported-mermaid-requirement-relation-label",
+        mutate: () => {
+          document.querySelectorAll("g.edgeLabel span.edgeLabel")[1]
+            .style.textTransform = "uppercase";
+        },
+      },
+    ]) {
+      await sceneFromFixture(
+        page,
+        fixture,
+        `requirement-uppercase-${entry.name}.svg`,
+      );
+      const result = await updateFixture(page, entry.mutate);
+      expect(result.scene.nodes.filter((node) => node.kind === "fallback"),
+        entry.name).toMatchObject([{
+        sourcePath: entry.path,
+        reason: entry.reason,
+      }]);
+      expect(scenePaths(result).filter((path) => path === entry.path),
+        entry.name).toHaveLength(1);
+      expect(result.sources.find((source) => source.path === entry.path),
+        entry.name).toMatchObject({ tag: "g" });
+      expect(sceneToPptxElements(result.scene).fallbacks.map((fallback) => ({
+        sourcePath: fallback.sourcePath,
+        reason: fallback.reason,
+      })), entry.name).toEqual([{
+        sourcePath: entry.path,
+        reason: entry.reason,
+      }]);
+      expect(result.scene.nodes.filter((node) =>
+        node.meta?.mermaid?.kind === "requirement-relation"),
+      entry.name).toHaveLength(7);
+      expect(result.scene.nodes.filter((node) =>
+        node.meta?.mermaid?.kind === "edge-label"),
+      entry.name).toHaveLength(entry.name === "edge" ? 6 : 7);
+      assertNoWholeFallback(result);
+    }
+  } finally {
+    await harness.close();
+  }
+});
+
 test("preserves independent requirement paint alpha in native DrawingML", async ({ page }) => {
   const harness = await startHarness({ slides: ["# Requirement paint"] });
   try {
@@ -2459,6 +2733,22 @@ test("keeps unsupported requirement details at the smallest safe fallback bounda
         sourceTag: "g",
       },
       {
+        name: "mixed box visibility",
+        mutate: () => {
+          const box = document.querySelector(
+            'g.node[id$="-root_req"] > g.outer-path',
+          );
+          box.style.visibility = "hidden";
+          box.querySelectorAll("path")[1].style.visibility = "visible";
+        },
+        fallback: {
+          sourcePath: "requirements[0].box",
+          reason: "unsupported-mermaid-requirement-node-visibility",
+        },
+        boxCount: 9,
+        sourceTag: "g",
+      },
+      {
         name: "decorated field label",
         mutate: () => {
           document.querySelectorAll(
@@ -2467,6 +2757,24 @@ test("keeps unsupported requirement details at the smallest safe fallback bounda
             "beforeend",
             '<circle cx="4" cy="4" r="3" fill="red"/>',
           );
+        },
+        fallback: {
+          sourcePath: "requirements[0].labels[3]",
+          reason: "unsupported-mermaid-requirement-text",
+        },
+        textCount: 39,
+        sourceTag: "g",
+      },
+      {
+        name: "transparent text with visible decoration",
+        mutate: () => {
+          const label = document.querySelectorAll(
+            'g.node[id$="-root_req"] > g.label',
+          )[3];
+          for (const part of [label, ...label.querySelectorAll("*")]) {
+            part.style.setProperty("color", "transparent", "important");
+          }
+          label.querySelector("p").style.backgroundColor = "red";
         },
         fallback: {
           sourcePath: "requirements[0].labels[3]",
@@ -6368,6 +6676,33 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
           ".edgePaths path:nth-child(2){opacity:.5}",
       }),
     );
+    const visibilityDiagram = diagram.replace(
+      '{"handDrawnSeed": 42}',
+      JSON.stringify({
+        handDrawnSeed: 42,
+        themeCSS:
+          ".nodes .node{visibility:hidden} " +
+          ".edge-pattern-dashed{visibility:hidden}",
+      }),
+    );
+    const hiddenTextDiagram = diagram.replace(
+      '{"handDrawnSeed": 42}',
+      JSON.stringify({
+        handDrawnSeed: 42,
+        themeCSS:
+          ".highlighted .label{display:none} " +
+          ".node span{color:transparent!important}",
+      }),
+    );
+    const transformDiagram = diagram.replace(
+      '{"handDrawnSeed": 42}',
+      JSON.stringify({
+        handDrawnSeed: 42,
+        themeCSS:
+          ".highlighted span{text-transform:uppercase} " +
+          ".edgeLabel span{text-transform:uppercase}",
+      }),
+    );
     const harness = await startHarness({
       slides: [
         `# Requirement\n\n\`\`\`mermaid\n${diagram}\n\`\`\``,
@@ -6376,6 +6711,9 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
           "requirementdiagram",
         )}\n\`\`\``,
         `# Requirement local fallback\n\n\`\`\`mermaid\n${fallbackDiagram}\n\`\`\``,
+        `# Requirement hidden content\n\n\`\`\`mermaid\n${visibilityDiagram}\n\`\`\``,
+        `# Requirement hidden text\n\n\`\`\`mermaid\n${hiddenTextDiagram}\n\`\`\``,
+        `# Requirement transformed text\n\n\`\`\`mermaid\n${transformDiagram}\n\`\`\``,
       ],
       theme,
       customThemeCss: theme === "custom"
@@ -6396,7 +6734,7 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
         .toHaveAttribute("data-pptx-ready", "true");
       await expect(page.locator(
         "pre.mermaid > svg[data-scene-backend=svg]",
-      )).toHaveCount(3);
+      )).toHaveCount(6);
       const model = await page.evaluate(() => window.__presentationPptxModel);
       const native = model.slides[0].elements.filter((element) =>
         element.path?.startsWith("mermaid[0]."));
@@ -6462,7 +6800,17 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
       const basicSvg = page.locator("pre.mermaid > svg").nth(0);
       const lowercaseSvg = page.locator("pre.mermaid > svg").nth(1);
       const fallbackSvg = page.locator("pre.mermaid > svg").nth(2);
-      for (const svg of [basicSvg, lowercaseSvg, fallbackSvg]) {
+      const visibilitySvg = page.locator("pre.mermaid > svg").nth(3);
+      const hiddenTextSvg = page.locator("pre.mermaid > svg").nth(4);
+      const transformSvg = page.locator("pre.mermaid > svg").nth(5);
+      for (const svg of [
+        basicSvg,
+        lowercaseSvg,
+        fallbackSvg,
+        visibilitySvg,
+        hiddenTextSvg,
+        transformSvg,
+      ]) {
         await expect(svg).toHaveAttribute(
           "aria-roledescription",
           "requirement",
@@ -6546,6 +6894,127 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
       )).toHaveCount(7);
       expect(await fallbackSvg.getAttribute("data-pptx-fallback-ids"))
         .toBeNull();
+
+      const visibility = model.slides[3];
+      expect(visibility.fallbacks.filter((entry) =>
+        entry.type === "mermaid")).toEqual([]);
+      expect(visibility.elements.some((element) =>
+        element.path?.startsWith("mermaid[0].requirements[") ||
+        element.path?.startsWith("mermaid[0].elements[")))
+        .toBe(false);
+      expect(visibility.elements.some((element) =>
+        element.path?.startsWith("mermaid[0].relations[1]") ||
+        element.path?.startsWith("mermaid[0].relations[2]") ||
+        element.path?.startsWith("mermaid[0].relations[3]") ||
+        element.path?.startsWith("mermaid[0].relations[4]") ||
+        element.path?.startsWith("mermaid[0].relations[5]") ||
+        element.path?.startsWith("mermaid[0].relations[6]")))
+        .toBe(false);
+      expect(visibility.elements.some((element) =>
+        element.path?.startsWith("mermaid[0].relations[0]")))
+        .toBe(true);
+      expect(visibility.elements.some((element) =>
+        element.path ===
+          "mermaid[0].edgeLabels[root_req-copy_req-0]"))
+        .toBe(true);
+      await expect(visibilitySvg.locator(
+        "g.node[data-pptx-native], " +
+        "g.node [data-pptx-native], " +
+        "g.node[data-pptx-fallback-ids], " +
+        "g.node [data-pptx-fallback-ids]",
+      )).toHaveCount(0);
+      await expect(visibilitySvg.locator(
+        "path.relationshipLine.edge-pattern-dashed[data-pptx-native], " +
+        "path.relationshipLine.edge-pattern-dashed" +
+        "[data-pptx-fallback-ids]",
+      )).toHaveCount(0);
+      await expect(visibilitySvg.locator(
+        "path.relationshipLine.edge-pattern-solid" +
+        "[data-pptx-native=connector]",
+      )).toHaveCount(1);
+      await expect(visibilitySvg.locator(
+        'g.edgeLabel:has([data-id="root_req-copy_req-0"])' +
+        '[data-pptx-native=shape]',
+      )).toHaveCount(1);
+
+      const hiddenText = model.slides[4];
+      expect(hiddenText.fallbacks.filter((entry) =>
+        entry.type === "mermaid")).toEqual([]);
+      expect(hiddenText.elements.filter((element) =>
+        element.path?.startsWith("mermaid[0].") &&
+        element.type === "text")).toHaveLength(0);
+      expect(hiddenText.elements.filter((element) =>
+        element.mermaid?.kind === "edge-label")).toHaveLength(7);
+      expect(hiddenText.elements.filter((element) =>
+        ["requirement-box", "element-box"].includes(
+          element.mermaid?.kind,
+        ))).toHaveLength(10);
+      await expect(hiddenTextSvg.locator(
+        "g.node > g.label[data-pptx-native], " +
+        "g.node > g.label[data-pptx-fallback-ids]",
+      )).toHaveCount(0);
+      await expect(hiddenTextSvg.locator(
+        "g.node > g.outer-path[data-pptx-native=shape]",
+      )).toHaveCount(10);
+
+      const transformed = model.slides[5];
+      const transformedFallbacks = transformed.fallbacks
+        .filter((entry) => entry.type === "mermaid")
+        .map((entry) => ({
+          sourcePath: entry.sourcePath,
+          reason: entry.reason,
+          captureId: entry.captureId,
+        }))
+        .sort((left, right) =>
+          left.sourcePath.localeCompare(right.sourcePath));
+      expect(transformedFallbacks).toHaveLength(13);
+      expect(transformedFallbacks.every((entry) =>
+        entry.captureId &&
+        (
+          entry.reason ===
+            "unsupported-mermaid-requirement-relation-label" ||
+          entry.reason ===
+            "unsupported-mermaid-requirement-text-transform"
+        ))).toBe(true);
+      expect(transformedFallbacks).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          sourcePath: "edgeLabels[root_req-copy_req-0]",
+          reason: "unsupported-mermaid-requirement-relation-label",
+        }),
+        expect.objectContaining({
+          sourcePath: "requirements[0].labels[1]",
+          reason: "unsupported-mermaid-requirement-text-transform",
+        }),
+      ]));
+      expect(transformed.elements.filter((element) =>
+        element.mermaid?.kind === "requirement-relation"))
+        .toHaveLength(7);
+      expect(transformed.elements.filter((element) =>
+        element.mermaid?.kind === "requirement-terminal"))
+        .toHaveLength(15);
+      expect(transformed.elements.filter((element) =>
+        element.mermaid?.kind === "edge-label")).toHaveLength(0);
+      expect(transformed.elements.filter((element) =>
+        element.path?.startsWith("mermaid[0].") &&
+        element.type === "text")).toHaveLength(34);
+      await expect(transformSvg.locator(
+        'g.node[id$="-root_req"] > g.label' +
+        '[data-pptx-fallback-ids]',
+      )).toHaveCount(6);
+      await expect(transformSvg.locator(
+        "g.edgeLabel" +
+        '[data-pptx-fallback-ids]',
+      )).toHaveCount(7);
+      await expect(transformSvg.locator(
+        'path.relationshipLine[data-id="root_req-copy_req-0"]' +
+        '[data-pptx-native=connector]',
+      )).toHaveCount(1);
+      expect(await transformSvg.locator(
+        'g.node[id$="-root_req"] > g.label span',
+      ).nth(1).evaluate((element) => element.innerText)).toBe("ROOT_REQ");
+      expect(await transformSvg.locator(
+        "g.edgeLabel span.edgeLabel",
+      ).nth(1).evaluate((element) => element.innerText)).toBe("<<COPIES>>");
 
       const packageBytes = buildPptxPackage({
         slides: [{ elements: native }],

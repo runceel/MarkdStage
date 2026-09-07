@@ -631,6 +631,73 @@ function effectiveOpacity(element) {
   return opacity;
 }
 
+function hasDisplayNone(element) {
+  for (let current = element; current; current = current.parentElement) {
+    if (getComputedStyle(current).display === "none") return true;
+    if (localName(current) === "svg") break;
+  }
+  return false;
+}
+
+function hasVisibleVisibility(element) {
+  const visibility = getComputedStyle(element).visibility;
+  return visibility !== "hidden" && visibility !== "collapse";
+}
+
+function isRenderedElement(element) {
+  return Boolean(element) &&
+    !hasDisplayNone(element) &&
+    hasVisibleVisibility(element) &&
+    effectiveOpacity(element) > 0.000001;
+}
+
+function hasRenderedVisualDescendant(element) {
+  const candidates = [
+    ...(VISUAL_TAGS.has(localName(element)) ? [element] : []),
+    ...element.querySelectorAll([...VISUAL_TAGS].join(",")),
+    ...[element, ...element.querySelectorAll("*")].filter((candidate) =>
+      [...candidate.childNodes].some((node) =>
+        node.nodeType === 3 && node.textContent)),
+  ];
+  return candidates
+    .some((candidate) => isRenderedElement(candidate));
+}
+
+function hasMixedRenderedVisibility(element) {
+  return !isRenderedElement(element) && hasRenderedVisualDescendant(element);
+}
+
+function sceneTextHasContent(text) {
+  return Boolean(text?.paragraphs?.some((paragraph) =>
+    paragraph.runs?.some((run) => run.text)));
+}
+
+function sceneTextHasVisiblePaint(text) {
+  return Boolean(text?.paragraphs?.some((paragraph) =>
+    paragraph.runs?.some((run) => {
+      if (!run.text || run.color === null || (run.opacity ?? 1) <= 0) {
+        return false;
+      }
+      const color = cssColorParts(run.color);
+      return !color || color.alpha * (run.opacity ?? 1) > 0.000001;
+    })));
+}
+
+function sceneStyleHasVisiblePaint(style) {
+  return effectiveFillAlpha(style) > 0.000001 ||
+    effectiveStrokeAlpha(style) > 0.000001;
+}
+
+function hasRenderedTextTransform(element) {
+  return [element, ...element.querySelectorAll("*")].some((candidate) => {
+    if (hasDisplayNone(candidate) ||
+        ![...candidate.childNodes].some((node) =>
+          node.nodeType === 3 && node.textContent)) return false;
+    const transform = getComputedStyle(candidate).textTransform;
+    return Boolean(transform && transform !== "none");
+  });
+}
+
 function textGeometrySource(element) {
   if (!element) return null;
   if (element.namespaceURI !== SVG_NS) return element.closest?.("foreignObject") || null;
@@ -695,11 +762,12 @@ function measuredTextGeometry(element, deck) {
 
 function labelInfo(root, selector, deck, options) {
   const label = root.querySelector(selector);
-  const text = label?.innerText?.trim() || label?.textContent?.trim() || "";
-  if (!text) return null;
+  if (!label) return null;
+  const text = structuredLabelText(label, options);
+  if (!sceneTextHasContent(text)) return null;
   const geometry = measuredTextGeometry(label, deck);
   return {
-    text: structuredLabelText(label, options),
+    text,
     element: label,
     ...(geometry || { bounds: boundsOf(label, deck), unsupportedTransform: true }),
   };
@@ -719,13 +787,21 @@ function structuredLabelText(element, options) {
   };
   const walk = (node) => {
     if (node.nodeType === 3) {
+      if (hasDisplayNone(node.parentElement)) return;
       const text = (node.textContent || "").replace(/\s+/g, " ");
       if (text) {
         const run = textToSceneText("x", computedTextStyle(node.parentElement, options), options).paragraphs[0].runs[0];
-        runs.push({ ...run, text });
+        runs.push({
+          ...run,
+          text,
+          ...(!hasVisibleVisibility(node.parentElement)
+            ? { color: null }
+            : {}),
+        });
       }
       return;
     }
+    if (node.nodeType === 1 && hasDisplayNone(node)) return;
     const tag = localName(node);
     if (IGNORED_TAGS.has(tag)) return;
     if (tag === "br") { flush(); return; }
@@ -1752,6 +1828,7 @@ function readEdgeLabels(root, deck, options, consumed, config = {}) {
       ? `${config.sourcePathPrefix}.${collection}[${key}]`
       : `${collection}[${key}]`;
     options.sourceElements?.set(sourcePath, group);
+    if (!hasRenderedVisualDescendant(group)) continue;
     const extra = terminal ? group.cloneNode(true) : null;
     extra?.querySelectorAll("span.edgeLabel, text").forEach((label) => label.remove());
     if (group.querySelector("img, image, svg, .katex, use, path, line, polygon, polyline, circle, ellipse, rect") ||
@@ -1761,18 +1838,31 @@ function readEdgeLabels(root, deck, options, consumed, config = {}) {
         fallbackReason, sourcePath) });
       continue;
     }
+    if (!group.textContent.trim()) continue;
     const label = labelInfo(group, "span.edgeLabel, text", deck, options);
     const background = group.querySelector(".edgeLabel p, span.edgeLabel, rect");
     const backgroundStyle = background && getComputedStyle(background);
-    if (label && label.bounds.width > 0 && label.bounds.height > 0) {
-      const fill = normalizeColor(backgroundStyle?.backgroundColor === "rgba(0, 0, 0, 0)"
-        ? (background?.localName === "rect" ? backgroundStyle.fill : null)
-        : backgroundStyle?.backgroundColor, options.resolveColor);
-      const svgPaint = background?.namespaceURI === SVG_NS
-        ? computedSvgStyle(background, options)
-        : null;
-      const opacity = background ? effectiveOpacity(background) : 1;
-      const compositeOpacity = fill && [
+    const fill = normalizeColor(backgroundStyle?.backgroundColor === "rgba(0, 0, 0, 0)"
+      ? (background?.localName === "rect" ? backgroundStyle.fill : null)
+      : backgroundStyle?.backgroundColor, options.resolveColor);
+    const svgPaint = background?.namespaceURI === SVG_NS
+      ? computedSvgStyle(background, options)
+      : null;
+    const opacity = background ? effectiveOpacity(background) : 1;
+    const fillAlpha = fill
+      ? (cssColorParts(fill)?.alpha ?? 1) *
+        opacity *
+        (svgPaint?.fillOpacity ?? 1)
+      : 0;
+    const backgroundVisible = Boolean(
+      background &&
+      isRenderedElement(background) &&
+      fillAlpha > 0.000001,
+    );
+    const textVisible = Boolean(label && sceneTextHasVisiblePaint(label.text));
+    if (!textVisible && !backgroundVisible) continue;
+    if (label && label.bounds.width > 0 && label.bounds.height > 0 && textVisible) {
+      const compositeOpacity = backgroundVisible && [
         group,
         ...group.querySelectorAll("*"),
       ].some((part) =>
@@ -1780,6 +1870,7 @@ function readEdgeLabels(root, deck, options, consumed, config = {}) {
         part.contains(background) &&
         part.contains(label.element));
       if (label.unsupportedTransform ||
+          hasRenderedTextTransform(label.element) ||
           compositeOpacity ||
           (label.rotation !== undefined && fill)) {
         labels.set(key, { fallback: fallbackNode(group, 0, deck,
@@ -1799,7 +1890,9 @@ function readEdgeLabels(root, deck, options, consumed, config = {}) {
           opacity: opacity === 1 ? undefined : opacity,
         }),
       });
-    } else if (group.textContent.trim() || [...group.querySelectorAll("rect, path, image, use")].some(isVisibleUnknown)) {
+    } else if (backgroundVisible ||
+        [...group.querySelectorAll("rect, path, image, use")]
+          .some((element) => isRenderedElement(element) && isVisibleUnknown(element))) {
       labels.set(key, { fallback: fallbackNode(group, 0, deck, fallbackReason, sourcePath) });
     }
   }
@@ -4604,7 +4697,8 @@ function markerElementAt(root, path) {
 function hasUnsafeCompositeOpacity(element) {
   return [element, ...element.querySelectorAll("g, marker")].some((part) =>
     localOpacity(part) < 1 &&
-    part.querySelectorAll([...VISUAL_TAGS].join(",")).length > 1);
+    [...part.querySelectorAll([...VISUAL_TAGS].join(","))]
+      .filter((candidate) => isRenderedElement(candidate)).length > 1);
 }
 
 function requirementTerminalParts(
@@ -4861,6 +4955,9 @@ function markedRequirementRelation(connector, terminal, relation, options) {
 function requirementRelationPath(path, sourcePath, z, deck, options) {
   const fallback = (reason) => fallbackNode(path, z, deck, reason, sourcePath);
   try {
+    if (!isRenderedElement(path) || effectiveOpacity(path) <= 0.000001) {
+      return null;
+    }
     if (!hasClass(path, "relationshipLine") ||
         path.getAttribute("data-et") !== "edge" ||
         path.getAttribute("data-edge") !== "true" ||
@@ -4992,6 +5089,13 @@ function requirementDividerPart(
     options.sourceElements.set(sourcePath, owner);
     return fallbackNode(boundsSource, z, deck, reason, sourcePath);
   };
+  if (!hasRenderedVisualDescendant(element)) return null;
+  if (hasMixedRenderedVisibility(element)) {
+    return fallback(
+      "unsupported-mermaid-requirement-divider-visibility",
+      element,
+    );
+  }
   const paths = directChildren(element, "path");
   if (paths.length !== 1 || directChildren(element).length !== 1) {
     return fallback("unsupported-mermaid-requirement-divider-geometry");
@@ -5024,6 +5128,7 @@ function requirementDividerPart(
     );
   }
   const style = computedConnectorStyle(path, options);
+  if (!sceneStyleHasVisiblePaint(style)) return null;
   const css = getComputedStyle(path);
   if (!normalizeColor(css.stroke, options.resolveColor) ||
       !cssColorParts(css.stroke) ||
@@ -5114,8 +5219,31 @@ function requirementLabelPart(
   itemIndex,
   labelIndex,
 ) {
+  if (!hasRenderedVisualDescendant(element)) return null;
+  const text = structuredLabelText(element, options);
+  const safe = safeClassLabel(element);
+  if (!sceneTextHasVisiblePaint(text)) {
+    if (safe) return null;
+    options.sourceElements.set(sourcePath, element);
+    return fallbackNode(
+      element,
+      z,
+      deck,
+      "unsupported-mermaid-requirement-text",
+      sourcePath,
+    );
+  }
   options.sourceElements.set(sourcePath, element);
-  if (!safeClassLabel(element)) {
+  if (hasRenderedTextTransform(element)) {
+    return fallbackNode(
+      element,
+      z,
+      deck,
+      "unsupported-mermaid-requirement-text-transform",
+      sourcePath,
+    );
+  }
+  if (!safe) {
     return fallbackNode(
       element,
       z,
@@ -5147,6 +5275,7 @@ function requirementLabelPart(
       })(),
     },
   });
+  if (measured.kind !== "fallback") measured.text = text;
   return measured.kind === "fallback"
     ? fallbackNode(
         element,
@@ -5169,6 +5298,103 @@ function requirementItemKind(group) {
   return null;
 }
 
+function requirementBoxParts(
+  element,
+  sourcePath,
+  z,
+  deck,
+  options,
+  meta,
+) {
+  const renderedPaths = directChildren(element, "path")
+    .filter((path) => isRenderedElement(path));
+  if (!renderedPaths.length) return [];
+  options.sourceElements.set(sourcePath, element);
+  if (hasMixedRenderedVisibility(element)) {
+    return [fallbackNode(
+      element,
+      z,
+      deck,
+      "unsupported-mermaid-requirement-node-visibility",
+      sourcePath,
+    )];
+  }
+  if (unsupportedVisualEffect(element)) {
+    return [fallbackNode(
+      element,
+      z,
+      deck,
+      "unsupported-mermaid-requirement-node-style",
+      sourcePath,
+    )];
+  }
+  const paths = rectangularOutlinePaths(element, options);
+  if (!paths) {
+    return [fallbackNode(
+      element,
+      z,
+      deck,
+      "unsupported-mermaid-requirement-node-geometry",
+      sourcePath,
+    )];
+  }
+  if (!hasUniformAxisAlignedScale(element) ||
+      renderedPaths.some((path) => !hasUniformAxisAlignedScale(path))) {
+    return [fallbackNode(
+      element,
+      z,
+      deck,
+      "unsupported-mermaid-requirement-node-transform",
+      sourcePath,
+    )];
+  }
+  const visible = paths.map((path, index) => ({
+    path,
+    index,
+    style: computedSvgStyle(path, options),
+  })).filter(({ path, style }) =>
+    isRenderedElement(path) && sceneStyleHasVisiblePaint(style));
+  if (!visible.length) return [];
+  const bounds = boundsOf(element, deck);
+  if (visible.length === paths.length) {
+    const node = classOutlineNode(
+      paths,
+      sourcePath,
+      z,
+      bounds,
+      options,
+      meta,
+    );
+    if (node.kind === "group") {
+      node.children.forEach((child, index) => {
+        if (paths[index]) {
+          options.sourceElements.set(child.sourcePath, paths[index]);
+        }
+      });
+    }
+    return [node];
+  }
+  return visible.map(({ path, index, style }, visibleIndex) => {
+    const partPath = `${sourcePath}.paths[${index}]`;
+    options.sourceElements.set(partPath, path);
+    return {
+      kind: "shape",
+      sourcePath: partPath,
+      z: z + visibleIndex / Math.max(1, visible.length),
+      bounds,
+      preset: "rect",
+      style,
+      meta: {
+        ...meta,
+        mermaid: {
+          ...meta.mermaid,
+          part: `path[${index}]`,
+        },
+      },
+    };
+  });
+}
+
 function requirementItemParts(
   group,
   itemKind,
@@ -5178,6 +5404,17 @@ function requirementItemParts(
   options,
 ) {
   const sourcePath = `${itemKind}s[${itemIndex}]`;
+  if (!hasRenderedVisualDescendant(group)) return [];
+  if (hasMixedRenderedVisibility(group)) {
+    options.sourceElements.set(sourcePath, group);
+    return [fallbackNode(
+      group,
+      z,
+      deck,
+      "unsupported-mermaid-requirement-node-visibility",
+      sourcePath,
+    )];
+  }
   const children = directChildren(group);
   const outer = children.filter((child) =>
     hasClass(child, "basic") &&
@@ -5221,7 +5458,7 @@ function requirementItemParts(
   let decorationIndex = 0;
   for (const child of children) {
     if (child === outer[0]) {
-      const box = erRectPart(
+      nodes.push(...requirementBoxParts(
         child,
         `${sourcePath}.box`,
         z + nodes.length,
@@ -5233,25 +5470,11 @@ function requirementItemParts(
             item: itemIndex,
           },
         },
-        {
-          geometry: "unsupported-mermaid-requirement-node-geometry",
-          style: "unsupported-mermaid-requirement-node-style",
-          transform: "unsupported-mermaid-requirement-node-transform",
-        },
-      );
-      if (box.kind === "group") {
-        const paths = directChildren(child, "path");
-        box.children.forEach((part, index) => {
-          if (paths[index]) {
-            options.sourceElements.set(part.sourcePath, paths[index]);
-          }
-        });
-      }
-      nodes.push(box);
+      ));
       continue;
     }
     if (labels.includes(child)) {
-      nodes.push(requirementLabelPart(
+      const label = requirementLabelPart(
         child,
         `${sourcePath}.labels[${labelIndex}]`,
         z + nodes.length,
@@ -5260,19 +5483,21 @@ function requirementItemParts(
         itemKind,
         itemIndex,
         labelIndex,
-      ));
+      );
+      if (label) nodes.push(label);
       labelIndex += 1;
       continue;
     }
     if (dividers.includes(child)) {
-      nodes.push(requirementDividerPart(
+      const divider = requirementDividerPart(
         child,
         `${sourcePath}.dividers[${dividerIndex}]`,
         z + nodes.length,
         deck,
         options,
         dividerIndex,
-      ));
+      );
+      if (divider) nodes.push(divider);
       dividerIndex += 1;
       continue;
     }
@@ -5296,7 +5521,14 @@ function unsupportedRequirementContainers(root, deck, nodes, options) {
   const blocked = new Set();
   const containers = directChildren(root, "g").filter(isClassCollection);
   for (const [index, container] of containers.entries()) {
-    const reason = unsupportedVisualEffect(container, false)
+    if (!hasRenderedVisualDescendant(container)) {
+      consumed.add(container);
+      blocked.add(container);
+      continue;
+    }
+    const reason = hasMixedRenderedVisibility(container)
+      ? "unsupported-mermaid-requirement-container-visibility"
+      : unsupportedVisualEffect(container, false)
       ? "unsupported-mermaid-requirement-container-style"
       : !hasUniformAxisAlignedScale(container)
         ? "unsupported-mermaid-requirement-container-transform"
@@ -5355,13 +5587,14 @@ function requirementScene(svg, root, deck, size, options) {
     const sourcePath = `relations[${relationIndex}]`;
     consumed.add(path);
     options.sourceElements.set(sourcePath, path);
-    nodes.push(requirementRelationPath(
+    const relation = requirementRelationPath(
       path,
       sourcePath,
       nodes.length,
       deck,
       options,
-    ));
+    );
+    if (relation) nodes.push(relation);
   }
   appendEdgeLabels(nodes, edgeLabels);
   const itemCounts = { requirement: 0, element: 0 };

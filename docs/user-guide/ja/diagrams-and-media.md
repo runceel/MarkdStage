@@ -125,6 +125,14 @@ plain／quoted field text、日本語、`<br/>` は描画された label のま�
 表示され、MarkdStage が改行へ再解釈することはありません。表示 label には Mermaid の
 `<<Requirement>>`／`<<Element>>` title、太字の block identifier、および renderer が追加する
 `ID:`、`Text:`、`Risk:`、`Verification:`、`Type:`、`Doc Ref:` prefix が含まれます。
+renderer が `display: none`、`visibility: hidden`／`collapse`、または実効 opacity 0 で完全に
+非表示にした requirement box、divider、relation、terminal、label は、表示中の兄弟を隠さずに
+ネイティブ PowerPoint 内容から省略します。完全に透明な文字 paint に PowerPoint 既定の黒を
+割り当てることもありません。mixed text 内の透明 run は text fill なしで layout 幅だけを保持します。
+透明な文字の label に表示中の背景、border、icon、その他の decoration が残る場合は、
+decoration を落とさず label 全体を 1 枚の局所画像にします。CSS `text-transform` が `none`
+以外の場合は、影響する node／relation label だけを局所画像にし、computed transform を
+shared SVG に保存するため、uppercase／lowercase の表示を正確に保持します。
 
 対応する relation word は `contains`、`copies`、`derives`、`satisfies`、`verifies`、
 `refines`、`traces` です。relation keyword は大文字小文字を区別せず、独立した label は

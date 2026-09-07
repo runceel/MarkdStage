@@ -129,6 +129,15 @@ Plain or quoted field text, Japanese text, and `<br/>` are preserved from the re
 characters `\` and `n`; MarkdStage does not reinterpret it as a line break. The visible labels
 include Mermaid's `<<Requirement>>`/`<<Element>>` titles, the bold block identifier, and the
 renderer-generated `ID:`, `Text:`, `Risk:`, `Verification:`, `Type:`, and `Doc Ref:` prefixes.
+Requirement boxes, dividers, relations, terminals, and labels that the renderer fully suppresses
+with `display: none`, `visibility: hidden`/`collapse`, or zero effective opacity are omitted from
+native PowerPoint content without hiding visible siblings. Fully transparent text paint is also
+kept nonvisible rather than receiving PowerPoint's default black; transparent runs inside mixed
+text retain their layout space with no text fill. If the transparent text's label still has a
+visible background, border, icon, or other decoration, that label remains one local picture
+instead of dropping the decoration. A non-`none` CSS `text-transform` keeps only the affected node
+or relation label as local artwork, with the computed transform captured into the shared SVG so
+uppercase/lowercase rendering remains exact.
 
 The supported relation words are `contains`, `copies`, `derives`, `satisfies`, `verifies`,
 `refines`, and `traces`; relation keywords are case-insensitive and Mermaid normalizes their

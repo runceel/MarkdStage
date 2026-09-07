@@ -614,26 +614,28 @@ function runMermaid(scope, deckEl, token, revealWhenDone = true) {
   }
 }
 
+function withoutMermaidLoadingVeil(callback) {
+  const loading = document.body.classList.contains("mermaid-loading");
+  if (loading) document.body.classList.remove("mermaid-loading");
+  try {
+    return callback();
+  } finally {
+    if (loading) document.body.classList.add("mermaid-loading");
+  }
+}
+
 function renderMermaidScene(svg, deck, blockIndex) {
-  const result = mermaidSvgToScene(svg, {
-    path: `mermaid[${blockIndex}]`,
-    deck,
-    includeSourceElements: true,
-    resolveColor: (value) => resolveModelColor(value, deck),
-  });
+  const result = withoutMermaidLoadingVeil(() =>
+    mermaidSvgToScene(svg, {
+      path: `mermaid[${blockIndex}]`,
+      deck,
+      includeSourceElements: true,
+      resolveColor: (value) => resolveModelColor(value, deck),
+    }),
+  );
   let { scene } = result;
-  const computedStyle = (element) => {
-    const style = getComputedStyle(element);
-    return {
-      getPropertyValue(property) {
-        // The loading veil is inherited by every SVG descendant, not diagram style.
-        if (property === "visibility" && document.body.classList.contains("mermaid-loading")) {
-          return element.style?.visibility || element.getAttribute("visibility") || "";
-        }
-        return style.getPropertyValue(property);
-      },
-    };
-  };
+  const capture = (element, options) =>
+    withoutMermaidLoadingVeil(() => captureSvgTree(element, options));
   const slots = new Map();
   try {
     for (const [index, node] of scene.nodes.entries()) {
@@ -656,7 +658,7 @@ function renderMermaidScene(svg, deck, blockIndex) {
         node.meta = { ...node.meta, svgOwner: slots.get(source) };
         continue;
       }
-      node.meta = { ...node.meta, svg: captureSvgTree(source, { computedStyle }) };
+      node.meta = { ...node.meta, svg: capture(source) };
       slots.set(source, index);
     }
     for (const [source, index] of slots) {
@@ -675,14 +677,14 @@ function renderMermaidScene(svg, deck, blockIndex) {
       kind: "fallback", sourcePath: "svg", z: 0,
       bounds: { x: 0, y: 0, width: scene.width, height: scene.height },
       capability: { pptx: "fallback", reason }, reason,
-      meta: { svg: captureSvgTree(svg, { computedStyle }) },
+      meta: { svg: capture(svg) },
     }] };
     slots.clear();
     slots.set(svg, 0);
   }
   const template = slots.has(svg)
     ? { sceneNode: slots.get(svg) }
-    : captureSvgTree(svg, { slots, computedStyle });
+    : capture(svg, { slots });
   scene.meta = { ...scene.meta, svgRoot: template };
   svg.replaceWith(sceneToSvg(scene, { document, template }));
 }

@@ -508,7 +508,7 @@ function runXml(run, path, relationships) {
     .filter(Boolean)
     .join(" ");
   let properties = colorXml(
-    run.color ?? "#000000",
+    run.color === undefined ? "#000000" : run.color,
     `${path}.color`,
     optionalOwnUnitInterval(run, "opacity", path),
   );

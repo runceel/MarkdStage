@@ -253,6 +253,35 @@ test("SVG capture preserves precise inline sizing and computed transforms", () =
   assert.equal(primitive.style["transform-box"], "fill-box");
 });
 
+test("SVG capture preserves computed text transforms for local fallbacks", () => {
+  const source = {
+    nodeType: 1,
+    localName: "span",
+    namespaceURI: "http://www.w3.org/1999/xhtml",
+    attributes: [],
+    childNodes: [{ nodeType: 3, textContent: "root_req" }],
+    getAttribute: () => null,
+    style: { getPropertyValue: () => "" },
+  };
+  const primitive = captureSvgTree(source, {
+    computedStyle: () => ({
+      getPropertyValue: (name) =>
+        name === "text-transform" ? "uppercase" : "",
+    }),
+  });
+  assert.equal(primitive.style["text-transform"], "uppercase");
+  const restored = sceneToSvg(scene([{
+    kind: "fallback",
+    sourcePath: "label",
+    z: 0,
+    bounds,
+    reason: "unsupported",
+    meta: { svg: primitive },
+  }]), { document });
+  const span = all(restored).find((node) => node.tagName === "span");
+  assert.equal(span.attributes.get("style:text-transform"), "uppercase");
+});
+
 test("text preserves explicit transparent paint and zero font sizes", () => {
   const svg = sceneToSvg(scene([{
     kind: "text", sourcePath: "label", z: 0, bounds,
