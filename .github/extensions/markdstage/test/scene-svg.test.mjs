@@ -254,6 +254,7 @@ test("SVG capture preserves precise inline sizing and computed transforms", () =
 });
 
 test("SVG capture preserves intrinsic HTML sizing for local fallbacks", () => {
+  const transformed = {};
   const source = {
     nodeType: 1,
     localName: "p",
@@ -262,17 +263,18 @@ test("SVG capture preserves intrinsic HTML sizing for local fallbacks", () => {
     childNodes: [{ nodeType: 3, textContent: "root_req" }],
     getAttribute: () => null,
     style: { getPropertyValue: () => "" },
+    querySelectorAll: () => [transformed],
     computedStyleMap: () => new Map([
       ["width", { toString: () => "auto" }],
       ["height", { toString: () => "auto" }],
     ]),
   };
   const primitive = captureSvgTree(source, {
-    computedStyle: () => ({
+    computedStyle: (element) => ({
       getPropertyValue: (name) => ({
         width: "89.7969px",
         height: "24px",
-        "text-transform": "uppercase",
+        "text-transform": element === transformed ? "uppercase" : "none",
       }[name] || ""),
     }),
   });
