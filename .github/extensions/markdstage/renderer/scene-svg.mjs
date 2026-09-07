@@ -370,6 +370,10 @@ export function sceneToSvg(scene, {
     });
     const halfHeight = h / 2;
     const heightBasedPresets = {
+      quarterHeightHexagon: [
+        [x + h / 4, y + h], [x + w - h / 4, y + h], [x + w, y + h / 2],
+        [x + w - h / 4, y], [x + h / 4, y], [x, y + h / 2],
+      ],
       reverseParallelogram: [
         [x + halfHeight, y + h],
         [x + w, y + h],
@@ -399,6 +403,13 @@ export function sceneToSvg(scene, {
     if (node.preset === "sequenceTab") {
       return dom("path", {
         d: `M ${x} ${y} L ${x + w} ${y} L ${x + w} ${y + h * 0.65} L ${x + w * 0.832} ${y + h} L ${x} ${y + h} Z`,
+        ...attrs,
+      });
+    }
+    if (node.preset === "topRoundedRect") {
+      const r = Math.min(node.style?.cornerRadius ?? 5, w / 2, h / 2);
+      return dom("path", {
+        d: `M ${x} ${y + h} V ${y + r} Q ${x} ${y} ${x + r} ${y} H ${x + w - r} Q ${x + w} ${y} ${x + w} ${y + r} V ${y + h} Z`,
         ...attrs,
       });
     }

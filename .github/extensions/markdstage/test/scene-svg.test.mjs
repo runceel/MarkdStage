@@ -31,6 +31,16 @@ function scene(nodes) {
   })).scene;
 }
 
+test("renders bounded narrative cards and hexagons without changing their corner geometry", () => {
+  const svg = sceneToSvg(scene([
+    { kind: "shape", preset: "topRoundedRect", bounds, z: 0, style: { cornerRadius: 5 } },
+    { kind: "shape", preset: "quarterHeightHexagon", bounds, z: 1 },
+  ]), { document });
+  assert.equal(all(svg).find((node) => node.tagName === "path").attributes.get("d"),
+    "M 10 80 V 25 Q 10 20 15 20 H 105 Q 110 20 110 25 V 80 Z");
+  assert.equal(all(svg).find((node) => node.tagName === "polygon").attributes.get("points"),
+    "25,80 95,80 110,50 95,20 25,20 10,50");
+});
 test("rotates a milestone's rounded square and attached text together exactly once", () => {
   const svg = sceneToSvg(scene([{
     kind: "shape", preset: "roundedRect", sourcePath: "milestone", z: 0,

@@ -52,6 +52,9 @@ cannot be separated safely.
 | Gantt | `gantt` ordinary tasks (done/active/critical included), task/section/title labels, date ticks, row backgrounds, rectangular excluded periods, and known rounded diamond milestones |
 | Treemap | `treemap` / `treemap-beta` section/header and leaf rectangles, titles, fitting cell labels and values, with independent fill/stroke alpha |
 | Ishikawa | `ishikawa` / `ishikawa-beta` normal-look spine/branch lines, cause-label rectangles, Japanese and measured multiline text, and exact filled spine-facing arrow triangles |
+| Mindmap | `mindmap` basic rectangular, rounded, circular, default underlined, and known hexagonal nodes; measured branches and simple HTML labels |
+| Timeline | `timeline` known square-bottom/top-rounded cards, underlines, titles, measured SVG text lines, and exact line-end triangles when effects are absent |
+| Journey | `journey` task/section rectangles, person/legend circles, face circles/eyes and neutral mouths, visible labels, and exact line-end triangles |
 | Other Mermaid diagrams | Render normally in slides and use image fallback where editable conversion is unavailable |
 
 Coverage is intentionally approximate: editability depends on the structures
@@ -155,6 +158,41 @@ retain the entire affected subtree when splitting it is unsafe. Diagnostics
 retain source paths and reasons, native exclusion masks avoid duplicate content,
 and existing scene/element/depth limits still apply. This adds no arbitrary
 clip/mask geometry, general group compositing, or data-backed PowerPoint chart.
+
+Mindmap, timeline, and journey reuse their rendered positions and dimensions;
+they do not rebuild a hierarchy, timeline layout, or satisfaction calculation.
+Mindmap's default underlined node retains its rounded background and independent
+underline. Its known hexagon uses the rendered quarter-height inset, not a
+nearest-width polygon preset. Cloud/bang outlines, rendered icons, rich labels,
+and unknown nodes remain local artwork while separable text and branches stay
+editable. This does not promise all special nodes or complex mindmap hierarchy.
+
+Timeline cards keep their two quadratic top corners and **square bottom corners**
+as a bounded editable shape. SVG-wrapped labels use one text object per measured
+line. The bundled renderer applies `brightness(1.2)` to event wrappers: these
+default event subtrees remain local images to retain their compositing. If the
+source explicitly removes that filter (for example, an init `themeCSS` rule
+`.eventWrapper { filter: none; }`), their known cards and text are editable too.
+Other filters and shared effects remain local; the exporter never removes them
+from the source merely to increase editability.
+
+Journey exports only the visible first `foreignObject` label from its known
+SVG `switch`, not the inactive alternative SVG text. Plain, single-line HTML
+labels remain editable; wrapped or decorated HTML and conditional/unknown
+switch structures retain their own local image. Japanese text is supported.
+Timeline/journey preserve literal `<br/>` strings when Mermaid renders them
+literally rather than treating them as HTML line breaks. Happy/sad mouth arcs
+remain small local images; neutral mouths, eyes, faces, people, task/section
+cards, and safe labels stay editable. No satisfaction face or icon is silently
+dropped. Timeline/journey's end triangles preserve the measured marker size,
+orientation, paint, and offset beyond the line endpoint.
+
+All three subsets keep the existing element, node, point, and nesting limits.
+Unsafe transforms, group opacity, changed markers, unknown geometry, and effects
+retain diagnostic reasons, source paths, local bounds, paint order, and native
+exclusion masks. They do not add general closed curves, arbitrary icons, or
+new Architecture DSL shapes; the bounded card/hexagon presets are internal to
+the common scene and SVG/PowerPoint backends.
 
 See the presentation-ready
 [Mermaid support example deck](../examples/mermaid-support.md) for representative

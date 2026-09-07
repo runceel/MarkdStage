@@ -657,6 +657,7 @@ function nativeShapeXml(element, path, id, relationships) {
     parallelogram: "parallelogram",
   };
   const customGeometries = {
+    quarterHeightHexagon: '<a:custGeom><a:avLst/><a:gdLst><a:gd name="dx" fmla="*/ h 1 4"/><a:gd name="rx" fmla="+- w 0 dx"/><a:gd name="cy" fmla="*/ h 1 2"/></a:gdLst><a:ahLst/><a:cxnLst/><a:rect l="l" t="t" r="r" b="b"/><a:pathLst><a:path><a:moveTo><a:pt x="dx" y="h"/></a:moveTo><a:lnTo><a:pt x="rx" y="h"/></a:lnTo><a:lnTo><a:pt x="w" y="cy"/></a:lnTo><a:lnTo><a:pt x="rx" y="0"/></a:lnTo><a:lnTo><a:pt x="dx" y="0"/></a:lnTo><a:lnTo><a:pt x="0" y="cy"/></a:lnTo><a:close/></a:path></a:pathLst></a:custGeom>',
     sequenceTab: '<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="l" t="t" r="r" b="b"/><a:pathLst><a:path w="50000" h="20000"><a:moveTo><a:pt x="0" y="0"/></a:moveTo><a:lnTo><a:pt x="50000" y="0"/></a:lnTo><a:lnTo><a:pt x="50000" y="13000"/></a:lnTo><a:lnTo><a:pt x="41600" y="20000"/></a:lnTo><a:lnTo><a:pt x="0" y="20000"/></a:lnTo><a:close/></a:path></a:pathLst></a:custGeom>',
     reverseParallelogram: '<a:custGeom><a:avLst/><a:gdLst><a:gd name="dx" fmla="*/ h 1 2"/><a:gd name="rx" fmla="+- w 0 dx"/></a:gdLst><a:ahLst/><a:cxnLst/><a:rect l="l" t="t" r="r" b="b"/><a:pathLst><a:path><a:moveTo><a:pt x="dx" y="h"/></a:moveTo><a:lnTo><a:pt x="w" y="h"/></a:lnTo><a:lnTo><a:pt x="rx" y="0"/></a:lnTo><a:lnTo><a:pt x="0" y="0"/></a:lnTo><a:close/></a:path></a:pathLst></a:custGeom>',
     trapezoid: '<a:custGeom><a:avLst/><a:gdLst><a:gd name="dx" fmla="*/ h 1 2"/><a:gd name="rx" fmla="+- w 0 dx"/></a:gdLst><a:ahLst/><a:cxnLst/><a:rect l="l" t="t" r="r" b="b"/><a:pathLst><a:path><a:moveTo><a:pt x="0" y="h"/></a:moveTo><a:lnTo><a:pt x="w" y="h"/></a:lnTo><a:lnTo><a:pt x="rx" y="0"/></a:lnTo><a:lnTo><a:pt x="dx" y="0"/></a:lnTo><a:close/></a:path></a:pathLst></a:custGeom>',
@@ -665,6 +666,13 @@ function nativeShapeXml(element, path, id, relationships) {
   const adjustedGeometries = {
     stadium: '<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val 50000"/></a:avLst></a:prstGeom>',
   };
+  if (element.shape === "topRoundedRect") {
+    const radius = Math.min(nonNegativeNumber(element.cornerRadius === undefined ? 5 : element.cornerRadius, `${path}.cornerRadius`),
+      bounds.width / 2, bounds.height / 2);
+    const r = Math.round(radius * 9525);
+    // This bounded preset retains Mermaid's two quadratic top corners and square bottom.
+    customGeometries.topRoundedRect = `<a:custGeom><a:avLst/><a:gdLst><a:gd name="r" fmla="val ${r}"/><a:gd name="rx" fmla="+- w 0 r"/></a:gdLst><a:ahLst/><a:cxnLst/><a:rect l="l" t="t" r="r" b="b"/><a:pathLst><a:path><a:moveTo><a:pt x="0" y="h"/></a:moveTo><a:lnTo><a:pt x="0" y="r"/></a:lnTo><a:quadBezTo><a:pt x="0" y="0"/><a:pt x="r" y="0"/></a:quadBezTo><a:lnTo><a:pt x="rx" y="0"/></a:lnTo><a:quadBezTo><a:pt x="w" y="0"/><a:pt x="w" y="r"/></a:quadBezTo><a:lnTo><a:pt x="w" y="h"/></a:lnTo><a:close/></a:path></a:pathLst></a:custGeom>`;
+  }
   if (element.shape === "roundedRect" && element.cornerRadius !== undefined) {
     const radius = nonNegativeNumber(element.cornerRadius, `${path}.cornerRadius`);
     const adjustment = Math.round(Math.min(50000,
@@ -685,7 +693,7 @@ function nativeShapeXml(element, path, id, relationships) {
       : "");
   if (!geometry) {
     fail(
-      `${path}.shape must be rect, roundedRect, stadium, ellipse, diamond, triangle, hexagon, parallelogram, reverseParallelogram, trapezoid, invertedTrapezoid, or sequenceTab`,
+      `${path}.shape must be rect, roundedRect, topRoundedRect, stadium, ellipse, diamond, triangle, hexagon, quarterHeightHexagon, parallelogram, reverseParallelogram, trapezoid, invertedTrapezoid, or sequenceTab`,
     );
   }
   const opacities = paintOpacities(element, path);
