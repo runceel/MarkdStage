@@ -292,6 +292,9 @@ internal sealed class PresentationServer(
         application.MapGet($"{prefix}/assets/{{**path}}", (
             HttpContext context,
             string path) => SendDeckAssetAsync(context, path));
+        application.MapGet($"{prefix}/background-assets/{{**path}}", (
+            HttpContext context,
+            string path) => SendBackgroundAssetAsync(context, path));
         application.MapGet($"{prefix}/theme-assets/{{**path}}", (
             HttpContext context,
             string path) => SendThemeAssetAsync(context, path));
@@ -307,26 +310,29 @@ internal sealed class PresentationServer(
             return;
         }
 
-        foreach (var root in new[]
-                 {
-                     Path.Combine(Path.GetDirectoryName(snapshot.SourcePath)!, "assets"),
-                     Path.Combine(snapshot.WorkspaceRoot, "assets"),
-                 }.Distinct(StringComparer.OrdinalIgnoreCase))
+        var resolved = DeckAssetResolver.Resolve(snapshot.SourcePath, snapshot.WorkspaceRoot, relativePath);
+        if (resolved is not null)
         {
-            if (!Directory.Exists(root))
-            {
-                continue;
-            }
-
-            var resolved = PathSecurity.ResolveFileInside(root, relativePath);
-            if (resolved is not null)
-            {
-                await SendFileAsync(context, resolved, MimeFor(resolved));
-                return;
-            }
+            await SendFileAsync(context, resolved, MimeFor(resolved));
+            return;
         }
 
         context.Response.StatusCode = StatusCodes.Status404NotFound;
+    }
+
+    private async Task SendBackgroundAssetAsync(HttpContext context, string relativePath)
+    {
+        var snapshot = session.GetSnapshot();
+        try
+        {
+            var resolved = SlideBackgrounds.Resolve(
+                snapshot.SourcePath, snapshot.WorkspaceRoot, "/assets/" + relativePath);
+            await SendFileAsync(context, resolved, MimeFor(resolved));
+        }
+        catch (Exception error) when (error is DeckLoadException or IOException or UnauthorizedAccessException)
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+        }
     }
 
     private async Task SendThemeAssetAsync(HttpContext context, string relativePath)
@@ -338,14 +344,15 @@ internal sealed class PresentationServer(
             return;
         }
 
-        var resolved = PathSecurity.ResolveFileInside(root, relativePath);
-        if (resolved is null)
+        try
+        {
+            var resolved = ThemeService.ResolveAsset(root, relativePath);
+            await SendFileAsync(context, resolved, MimeFor(resolved));
+        }
+        catch (Exception error) when (error is DeckLoadException or IOException or UnauthorizedAccessException)
         {
             context.Response.StatusCode = StatusCodes.Status404NotFound;
-            return;
         }
-
-        await SendFileAsync(context, resolved, MimeFor(resolved));
     }
 
     private static Task SendStaticAsync(

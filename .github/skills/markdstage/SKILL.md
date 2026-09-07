@@ -286,8 +286,26 @@ followed by GFM-compatible Markdown.
 | `size` | `auto` (default), `normal`, `large`, or `xlarge`. `auto` safely enlarges only spacious standard slides. |
 | `theme` | Per-slide override: `dark`, `light`, `microsoft`, or `custom`. An explicit canvas theme has precedence. |
 | `theme-file` | CSS custom-property file for `custom`, resolved first beside the source Markdown and then from the workspace root. A sibling `theme.json` loads automatically. |
+| `background-image` | Per-slide decorative image, e.g. `/assets/background.png`, overriding all layouts and themes. Never inherited by later slides, including from initial front matter. |
 | `logo` | Back-cover text at top left. Overrides the `theme.json` logo; empty hides it. |
 | `copyright` | Back-cover copyright text at bottom left. Overrides `theme.json`; empty hides it. |
+
+The `assets/background.png` alias without a leading slash is also accepted.
+Background images use the normal lookup: Markdown-adjacent `assets/` before
+workspace-root `assets/`, or workspace root only without `sourceName`.
+Only `.svg`, `.png`, `.webp`, `.jpg`, and `.jpeg` files up to 2 MiB are accepted;
+remote and `data:` URLs are forbidden. Use literal filenames (spaces and percent
+signs allowed) with `/` separators. Source paths are not URL-decoded: `%20`
+means literal filename text, not a space. Queries, fragments, backslashes, and
+`.` / `..` path segments are rejected. Symlinks must stay inside
+the assets folder and workspace. Images are centered cover behind content
+and logos with existing colors underneath. For custom default/center layouts,
+priority is per-slide `background-image` → `layouts.default.background` or
+`layouts.center.background` → root `background` → existing background.
+Theme entries use `{ image, alt? }` with theme-local `assets/` paths. Title
+slides retain `cover.background`; section/back-cover layouts do not inherit the
+common image. Only absent settings fall back; invalid values, missing files,
+and oversized images are errors. Existing covers and logos are otherwise unchanged.
 
 Use normal Markdown: headings, lists, emphasis, inline and fenced code, block
 quotes, tables, links, images, `mermaid`, `architecture`, and emoji. Write raw

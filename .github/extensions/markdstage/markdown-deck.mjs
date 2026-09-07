@@ -24,7 +24,8 @@ const META_COMMENT = /^[ \t]*#/;
 // - layout: Inheritance would make every page a cover or back cover. The leading
 //   front matter is also the first slide's front matter, so it still applies there.
 // - page: Sequence numbers are slide-specific; a deck-wide value has no meaning.
-const NON_INHERITED_KEYS = new Set(["layout", "page"]);
+// - background-image: An explicit image overrides only its own slide's background.
+const NON_INHERITED_KEYS = new Set(["layout", "page", "background-image"]);
 
 // Layouts that do not receive automatic page numbers (cover, section divider, and back cover).
 const UNNUMBERED_LAYOUTS = new Set(["title", "section", "backcover"]);
@@ -177,8 +178,8 @@ export function splitMarkdownDeck(text) {
  * Convert a Markdown file to slide fragments the extension can render directly.
  *
  * - Inherit shared deck front matter on each slide; slide-level values take precedence.
- * - Do not inherit `layout`. Leading file front matter also belongs to the first
- *   slide, so it still applies there (for example, `layout: title`).
+ * - Do not inherit `layout` or `background-image`. Leading file front matter also
+ *   belongs to the first slide, so these values still apply there.
  * - Add `page` / `total` automatically only when neither the deck nor slide
  *   specifies them. Do not display numbers on covers, section dividers, or back
  *   covers, although they still participate in sequence numbering.
@@ -190,8 +191,11 @@ export function buildDeckSlides(text) {
   const merged = slides.map((slide, i) => {
     const meta = new Map();
     for (const [key, entry] of deckMeta) {
-      // Leading file front matter also belongs to the first slide, so include its layout.
-      if (NON_INHERITED_KEYS.has(key) && !(i === 0 && key === "layout")) continue;
+      // Preserve the first slide's layout and background, but never inherit page numbers.
+      if (
+        NON_INHERITED_KEYS.has(key) &&
+        !(i === 0 && (key === "layout" || key === "background-image"))
+      ) continue;
       meta.set(key, entry);
     }
     for (const [key, entry] of slide.meta) meta.set(key, entry);

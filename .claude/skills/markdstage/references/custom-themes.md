@@ -9,7 +9,8 @@ MarkdStage canvas and for AI systems that generate themes.
 ## Minimum setup
 
 Themes can be managed by folder. Put only custom properties in the CSS, and
-define optional cover and back-cover assets in `theme.json` in the same folder.
+define optional slide backgrounds, cover and back-cover assets in `theme.json`
+in the same folder.
 
 ```markdown
 ---
@@ -116,7 +117,8 @@ supporting brand colors.
 `--section-bg` and `--print-section-bg` are used as CSS `background` values.
 They support solid colors and multiple comma-separated gradients. Theme-file
 security restrictions prohibit `url()`. Section dividers have no image, logo,
-or icon settings in `theme.json`.
+or icon settings in `theme.json`; use per-slide `background-image` for a section
+background image.
 
 ## theme.json
 
@@ -127,6 +129,11 @@ paths relative to `theme.json` using the `assets/...` form.
 {
   "$schema": "../../.github/extensions/markdstage/schema/theme-metadata-v1.schema.json",
   "version": 1,
+  "background": { "image": "assets/common.png" },
+  "layouts": {
+    "default": { "background": { "image": "assets/default.webp" } },
+    "center": { "background": { "image": "assets/center.jpg" } }
+  },
   "cover": {
     "background": { "image": "assets/cover.svg" },
     "logo": { "image": "assets/logo.svg", "alt": "Example" }
@@ -138,14 +145,64 @@ paths relative to `theme.json` using the `assets/...` form.
 }
 ```
 
-- `cover.background` is decorative, so `alt` is optional.
+- `background`, `layouts.default.background`, `layouts.center.background`, and
+  `cover.background` are decorative `{ "image": "assets/...", "alt": "..." }`
+  entries; `alt` is optional.
+- The common root `background` applies only to standard (`default`) and `center`
+  layouts. Each layout's own `background` takes precedence over the common one.
+- `title` continues to use `cover.background`; `section` and `backcover` do not
+  inherit the common background. Existing cover and back-cover logos are unchanged.
 - Logo `alt` text is required.
-- Supported formats are SVG / PNG / WebP / JPEG, with a 2 MiB limit per file.
+- Supported extensions are `.svg`, `.png`, `.webp`, `.jpg`, and `.jpeg`, with a
+  2 MiB limit per file.
 - Absolute paths, external URLs, `..`, and symbolic links outside the theme
   folder are rejected.
 - If an existing `theme.json` is invalid, loading returns an error rather than
   silently falling back to CSS only.
 - Slide-front-matter `logo` / `copyright` values override back-cover metadata.
+
+### Per-slide background images
+
+Every theme (`dark`, `light`, `microsoft`, and `custom`) and every layout,
+including `title`, `section`, and `backcover`, accepts this front matter:
+
+```markdown
+---
+layout: center
+background-image: /assets/background.png
+---
+
+## One decision
+```
+
+The `assets/background.png` form without the leading slash is also accepted.
+This override applies only to that slide, even in the file's initial front
+matter. Paths use the normal image lookup: first `assets/` beside the source
+Markdown, then workspace-root `assets/`. Without a source name, only the
+workspace root is searched. These are deck assets, not theme-folder assets.
+Only `.svg`, `.png`, `.webp`, `.jpg`, and `.jpeg` files of at most 2 MiB are
+accepted. Remote URLs and `data:` URLs are not allowed.
+Write literal filenames, including spaces and percent signs, with `/`
+separators. Source paths are not URL-decoded: `%20` names those three literal
+characters, not a space. Query strings, fragments, `.` / `..` segments, and
+backslashes are rejected. Resolved files must remain inside their assets
+folder and workspace, including when symbolic links are involved.
+
+Background selection, from highest to lowest priority:
+
+| Layout | Image selection |
+| --- | --- |
+| Standard (`default`) | Slide `background-image` → `layouts.default.background` → root `background` → existing background |
+| `center` | Slide `background-image` → `layouts.center.background` → root `background` → existing background |
+| `title` | Slide `background-image` → `cover.background` → existing cover background |
+| `section` / `backcover` | Slide `background-image` → existing layout background |
+
+Images are centered and cropped to fill the slide (`object-fit: cover`) behind
+content, diagrams, and logos, with the existing background color or gradient
+underneath. No extra overlay or per-layout color properties are introduced.
+Only an absent setting triggers fallback: an invalid value, missing file, or
+oversized image is an error, not a reason to silently substitute another image.
+Omitting all image settings preserves CSS-only themes and existing output.
 
 ### Sizing and spacing
 

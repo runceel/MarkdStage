@@ -9,9 +9,9 @@ Custom properties available for theme authoring, extracted from the bundled `sch
 {
   "format": "CSS custom property declarations, optionally wrapped in one :root block.",
   "allowedValueSyntax": "Any non-empty CSS value except selectors, @import, url(), javascript:, expression(), and style tags.",
-  "metadata": "When present, theme.json beside the CSS file must conform to theme-metadata-v1.schema.json.",
+  "metadata": "When present, theme.json beside the CSS file must conform to theme-metadata-v1.schema.json. Decorative { image, alt? } entries in background and layouts.default.background/layouts.center.background use theme-local assets/ paths. Layout images override the common background for default/center only; title retains cover.background. Per-slide background-image overrides every layout and theme. Images are centered cover over existing colors; missing settings, not invalid images, trigger fallback.",
   "properties": {
-    "--bg": "Standard slide background",
+    "--bg": "Standard slide background beneath optional decorative images",
     "--fg": "Headings and primary text",
     "--muted": "Secondary text",
     "--body": "Body text",

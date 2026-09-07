@@ -16,3 +16,13 @@ workspace-relative source path as `sourceName`.
 | `light` | Bright, white-based, clean, and neutral |
 | `microsoft` | Microsoft, Fluent, Office, or the Microsoft four-color style |
 | `custom` | Reproduce brand colors or an organizational template with CSS custom properties |
+
+Custom `theme.json` may specify a common `background` and individual
+`layouts.default.background` / `layouts.center.background` entries, each using
+`{ "image": "assets/background.png", "alt": "Optional description" }`.
+These theme-local images use the existing safe `assets/` grammar and 2 MiB
+limit. For default/center, precedence is per-slide `background-image`, then
+layout image, then common image, then the existing background. Common images
+never replace `cover.background` on title slides or section/back-cover
+backgrounds. Per-slide overrides work across all layouts and built-in themes.
+See [Custom theme authoring](docs/custom-theme-authoring.md) for the full contract.

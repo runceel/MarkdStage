@@ -60,8 +60,9 @@ The themed slide is displayed and updates automatically
   Theme-file lookup tries the source Markdown folder before the repository
   root, allowing a deck-local file to override a shared file with the same
   path. Files outside the workspace and arbitrary selectors are rejected.
-  A sibling `theme.json` may define cover background, cover/back-cover logos,
-  and copyright. **Every theme automatically receives a final
+  A sibling `theme.json` may define common and default/center backgrounds, cover
+  background, cover/back-cover logos, and copyright. Per-slide `background-image`
+  overrides all themes and layouts. **Every theme automatically receives a final
   `layout: backcover` slide** unless one already exists. Logo and copyright
   appear only when supplied by metadata or front matter.
 - See [`docs/custom-theme-authoring.md`](docs/custom-theme-authoring.md) for
@@ -187,7 +188,8 @@ slides remains the AI's responsibility.
 - **Initial front matter is deck configuration** inherited by all slides
   (`theme`, `theme-file`, `deck`, `kicker`, `size`, `logo`, `copyright`, and
   related keys). It is also slide one's own front matter, so
-  `layout: title` affects slide one only.
+  `layout: title` affects slide one only. `background-image` is also per-slide
+  and is never inherited by later slides.
 - **Each page may have front matter.** When the block after the separator
   contains only `key: value` entries and is closed by `---`, it is treated as
   that page's front matter; the separator line also opens the block.
@@ -300,6 +302,7 @@ delimited by `---`, followed by GFM-compatible content.
 | `size` | `auto` (default), `normal`, `large`, or `xlarge` |
 | `theme` | Per-slide override; normally use the deck theme |
 | `theme-file` | CSS for `custom`, resolved beside the Markdown before workspace root |
+| `background-image` | Per-slide decorative image, e.g. `/assets/background.png`; overrides every layout and theme |
 | `logo` / `copyright` | Override `backcover` metadata |
 
 Make the first slide a `layout: title` cover. The extension appends a final
@@ -348,7 +351,8 @@ total: 8
 
 For an intermediate chapter divider, use `layout: section`, normally with one
 H1/H2. Add `kicker` or footer data only when needed. The background follows the
-theme and contains no image, logo, or icon.
+theme and contains no image, logo, or icon unless a per-slide `background-image`
+is supplied.
 
 ```markdown
 ---
@@ -357,6 +361,23 @@ layout: section
 
 ## Key GitHub Copilot features
 ```
+
+Use `background-image: /assets/background.png` (or the `assets/background.png`
+alias without the leading slash) in a slide's front matter to
+override its background, including `title`, `section`, and `backcover`, under
+`dark`, `light`, `microsoft`, or `custom`. It applies only to that slide, even
+when specified in the initial file front matter. Lookup tries `assets/` beside
+the Markdown, then workspace-root `assets/`; without `sourceName`, it uses the
+workspace root. Accepted extensions are `.svg`, `.png`, `.webp`, `.jpg`, and
+`.jpeg`, at most 2 MiB per image. Remote and `data:` URLs are rejected.
+
+Images are centered and cropped to fill the slide (`object-fit: cover`) behind
+content and logos, preserving the existing background underneath. A custom
+theme uses `layouts.default.background` or `layouts.center.background` before
+its common root `background`; that common fallback applies to default/center
+only. Without a per-slide override, `title` still uses `cover.background` and
+section/back-cover colors and logos are unchanged. Only absent settings trigger
+fallback: invalid paths, missing files, and oversized images fail explicitly.
 
 ### `sourceName` role
 
@@ -387,6 +408,16 @@ workspace-relative source path as `sourceName`.
 | `light` | Bright, white-based, clean, and neutral |
 | `microsoft` | Microsoft, Fluent, Office, or the Microsoft four-color style |
 | `custom` | Reproduce brand colors or an organizational template with CSS custom properties |
+
+Custom `theme.json` may specify a common `background` and individual
+`layouts.default.background` / `layouts.center.background` entries, each using
+`{ "image": "assets/background.png", "alt": "Optional description" }`.
+These theme-local images use the existing safe `assets/` grammar and 2 MiB
+limit. For default/center, precedence is per-slide `background-image`, then
+layout image, then common image, then the existing background. Common images
+never replace `cover.background` on title slides or section/back-cover
+backgrounds. Per-slide overrides work across all layouts and built-in themes.
+See [Custom theme authoring](docs/custom-theme-authoring.md) for the full contract.
 
 ## Architecture DSL v1
 

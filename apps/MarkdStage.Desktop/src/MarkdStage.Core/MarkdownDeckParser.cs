@@ -7,7 +7,7 @@ public sealed partial class MarkdownDeckParser
     private const string DefaultBackCover = "---\nlayout: backcover\n---\n";
 
     private static readonly HashSet<string> NonInheritedKeys =
-        new(StringComparer.OrdinalIgnoreCase) { "layout", "page" };
+        new(StringComparer.OrdinalIgnoreCase) { "layout", "page", "background-image" };
 
     private static readonly HashSet<string> UnnumberedLayouts =
         new(StringComparer.OrdinalIgnoreCase) { "title", "section", "backcover" };
@@ -44,7 +44,7 @@ public sealed partial class MarkdownDeckParser
             foreach (var entry in deckMetadata.Values)
             {
                 if (NonInheritedKeys.Contains(entry.Key) &&
-                    !(index == 0 && entry.Key.Equals("layout", StringComparison.OrdinalIgnoreCase)))
+                    !(index == 0 && !entry.Key.Equals("page", StringComparison.OrdinalIgnoreCase)))
                 {
                     continue;
                 }

@@ -36,6 +36,7 @@ delimited by `---`, followed by GFM-compatible content.
 | `size` | `auto` (default), `normal`, `large`, or `xlarge` |
 | `theme` | Per-slide override; normally use the deck theme |
 | `theme-file` | CSS for `custom`, resolved beside the Markdown before workspace root |
+| `background-image` | Per-slide decorative image, e.g. `/assets/background.png`; overrides every layout and theme |
 | `logo` / `copyright` | Override `backcover` metadata |
 
 Make the first slide a `layout: title` cover. The extension appends a final
@@ -84,7 +85,8 @@ total: 8
 
 For an intermediate chapter divider, use `layout: section`, normally with one
 H1/H2. Add `kicker` or footer data only when needed. The background follows the
-theme and contains no image, logo, or icon.
+theme and contains no image, logo, or icon unless a per-slide `background-image`
+is supplied.
 
 ```markdown
 ---
@@ -93,6 +95,23 @@ layout: section
 
 ## Key GitHub Copilot features
 ```
+
+Use `background-image: /assets/background.png` (or the `assets/background.png`
+alias without the leading slash) in a slide's front matter to
+override its background, including `title`, `section`, and `backcover`, under
+`dark`, `light`, `microsoft`, or `custom`. It applies only to that slide, even
+when specified in the initial file front matter. Lookup tries `assets/` beside
+the Markdown, then workspace-root `assets/`; without `sourceName`, it uses the
+workspace root. Accepted extensions are `.svg`, `.png`, `.webp`, `.jpg`, and
+`.jpeg`, at most 2 MiB per image. Remote and `data:` URLs are rejected.
+
+Images are centered and cropped to fill the slide (`object-fit: cover`) behind
+content and logos, preserving the existing background underneath. A custom
+theme uses `layouts.default.background` or `layouts.center.background` before
+its common root `background`; that common fallback applies to default/center
+only. Without a per-slide override, `title` still uses `cover.background` and
+section/back-cover colors and logos are unchanged. Only absent settings trigger
+fallback: invalid paths, missing files, and oversized images fail explicitly.
 
 ### `sourceName` role
 

@@ -336,8 +336,12 @@ footer .page{color:var(--accent-strong);font-weight:600;background:var(--accent-
        letter-spacing:-.045em;text-wrap:balance;}
 .deck.markdstage-placeholder p{
        max-width:32em;margin-top:1.25em;color:#c8cedd;font-size:clamp(18px,2.2vw,30px);}
-.theme-cover-background{position:absolute;inset:0;width:100%;height:100%;max-width:none;
-      max-height:none;object-fit:cover;border-radius:0;box-shadow:none;z-index:0;}
+.slide-background{position:absolute;inset:0;width:100%;height:100%;max-width:none;
+      max-height:none;object-fit:cover;object-position:center;border-radius:0;box-shadow:none;
+      z-index:0;pointer-events:none;}
+.deck.has-slide-background>header,.deck.has-slide-background>.body,
+.deck.has-slide-background>footer,.deck.has-slide-background>.theme-backcover-logo,
+.deck.has-slide-background>.theme-backcover-copyright{z-index:1;}
 .theme-cover-logo{position:absolute;top:var(--deck-pad-y);left:var(--deck-pad-x);
       width:var(--cover-logo-width,clamp(130px,16vw,230px));height:auto;max-height:none;
       border-radius:0;box-shadow:none;z-index:2;}
@@ -659,7 +663,7 @@ body.fixed-output-mode .deck.backcover-slide{background:var(--backcover-bg,var(-
 body.fixed-output-mode .deck::before{position:absolute;}
 body.fixed-output-mode .body{overflow:hidden;}
 body.fixed-output-mode .kicker{font-size:12px;}
-body.fixed-output-mode img:not(.theme-cover-background){max-height:346px;}
+body.fixed-output-mode img:not(.slide-background){max-height:346px;}
 body.fixed-output-mode pre.mermaid svg{max-height:317px;}
 body.fixed-output-mode .architecture-svg{max-height:504px;}
 body.fixed-output-mode footer{gap:.65em;font-size:11px;margin-top:16px;}
@@ -728,7 +732,7 @@ body.pptx-slide-artwork-mode .deck:not(.pptx-layout-template){
 body.pptx-slide-artwork-mode .deck:not(.pptx-layout-template)::before{
   display:none!important;
 }
-body.pptx-slide-artwork-mode .deck:not(.pptx-layout-template)>.theme-cover-background,
+body.pptx-slide-artwork-mode .deck:not(.pptx-layout-template)>.slide-background,
 body.pptx-slide-artwork-mode .deck:not(.pptx-layout-template)>.theme-cover-logo{
   visibility:hidden!important;
 }

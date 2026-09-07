@@ -18,6 +18,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
 import { resolveAssetFile } from "../scripts/asset-paths.mjs";
+import { loadSlideBackgrounds, resolveSlideBackgroundFile } from "./slide-backgrounds.mjs";
 import { importedArchitectureBlockIndex } from "../scripts/markdown-blocks.mjs";
 import { isMarkdownPath, listMarkdownFiles } from "../scripts/markdown-files.mjs";
 import { createMarkdownWatcher } from "../scripts/markdown-watcher.mjs";
@@ -675,6 +676,11 @@ export async function startPresentationServer(
             body: { ok: false, error: "block_not_found" },
           };
         }
+        try {
+          await loadSlideBackgrounds(session.workspaceRoot, session.sourceName, session.slides);
+        } catch (error) {
+          return { status: 400, body: { ok: false, error: error.code, message: error.message } };
+        }
         const result = await saveArchitectureSource({
           workspaceRoot: session.workspaceRoot,
           sourcePath: session.sourceName,
@@ -973,6 +979,22 @@ export async function startPresentationServer(
       } catch (_) {
         res.statusCode = 404;
         res.end("Theme asset not found");
+      }
+      return;
+    }
+
+    if (route.startsWith("/background-assets/")) {
+      try {
+        const file = await resolveSlideBackgroundFile(
+          session.workspaceRoot,
+          session.sourceName,
+          `/assets/${route.slice("/background-assets/".length)}`,
+        );
+        await sendFile(res, file, { cache: false });
+      } catch (error) {
+        res.statusCode = error?.code === "slide_background_too_large" ? 413
+          : error?.code === "invalid_slide_background" ? 403 : 404;
+        res.end(error.message);
       }
       return;
     }

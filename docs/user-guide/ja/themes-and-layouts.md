@@ -114,7 +114,67 @@ theme-file: themes/brand/theme.css
 ```
 
 セレクター、`@import`、`url()`、JavaScript、ワークスペース外のパスは受け付けません。
-同じフォルダーに `theme.json` を置くと、表紙と裏表紙の画像、ロゴ、著作権表記を指定できます。
+同じフォルダーに `theme.json` を置くと、スライド背景、表紙画像、表紙・裏表紙のロゴ、
+著作権表記を指定できます。
+
+```json
+{
+  "version": 1,
+  "background": { "image": "assets/common.png" },
+  "layouts": {
+    "default": { "background": { "image": "assets/default.webp" } },
+    "center": { "background": { "image": "assets/center.jpg" } }
+  }
+}
+```
+
+各背景は任意の文字列 `alt` も受け付けます。画像パスは `theme.json` からの相対パスで、
+従来の安全なパス規則に従うテーマ内の `assets/` に限定されます。未知のキーや不正な値は
+エラーになります。
+
+## 背景画像
+
+**すべてのテーマ・レイアウト**で、スライドごとに背景を上書きできます。タイトル、
+セクション、裏表紙も対象です。
+
+```markdown
+---
+layout: center
+background-image: /assets/background.png
+---
+
+## One decision
+```
+
+先頭のスラッシュを省いた `assets/background.png` 形式も使えます。
+ファイル先頭のフロントマターに書いても、後続スライドには継承されません。
+探索順は Markdown と同じ階層の `assets/`、ワークスペース直下の `assets/` です。
+ソース名がない場合はワークスペース直下だけを使います。これはテーマフォルダー内の
+画像とは別の、デッキ用の画像です。
+
+テーマ背景・個別背景ともに拡張子は `.svg`、`.png`、`.webp`、`.jpg`、`.jpeg` のみ、
+1 ファイル最大 2 MiB です。リモート URL と `data:` URL は指定できません。
+個別背景のファイル名は空白やパーセント記号を含めそのまま書き、区切りには `/` を使います。
+ソースのパスは URL デコードされないため、`%20` は空白ではなくそのままの文字列です。
+クエリ、フラグメント、バックスラッシュ、`.` / `..` のパス要素は指定できません。
+シンボリックリンクの解決先も
+assets フォルダーとワークスペースの内側に限定されます。
+
+| レイアウト | 背景の優先順位 |
+| --- | --- |
+| 標準 (`default`) | 個別画像 → `layouts.default.background` → ルートの `background` → 既存背景 |
+| `center` | 個別画像 → `layouts.center.background` → ルートの `background` → 既存背景 |
+| `title` | 個別画像 → `cover.background` → 既存の表紙背景 |
+| `section` / `backcover` | 個別画像 → 既存のレイアウト背景 |
+
+共通背景は default/center にだけ適用されます。画像は中央配置でスライド全体を覆うように
+トリミングされ (`object-fit: cover`)、本文・図・ロゴの背面に表示されます。
+既存の背景色やグラデーションは下地として残ります。追加のオーバーレイやレイアウト別の
+色設定はありません。新しい画像を指定しなければ、従来の表紙・ロゴや CSS のみのテーマは
+そのまま維持されます。
+
+フォールバックするのは**未指定の場合だけ**です。不正な値、ファイルの不存在、
+2 MiB 超過はエラーになり、別の画像に黙って置き換わることはありません。
 
 指定できるプロパティの一覧は
 [カスタムテーマ作成ガイド](../../../.github/extensions/markdstage/docs/custom-theme-authoring.md)を参照してください。

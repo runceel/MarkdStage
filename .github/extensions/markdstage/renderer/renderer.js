@@ -9,7 +9,9 @@ import {
   mermaidThemeVariables,
   normalizeTheme,
   parseFrontMatter,
+  resolveThemeBackground,
 } from "./theme.mjs";
+import { parseSlideBackground } from "./slide-background.mjs";
 import {
   extractSpeakerNotes,
   speakerNotesToPlainText,
@@ -700,7 +702,12 @@ function moveLeadingSlideTitle(header, bodyEl, specialLayout) {
   return title;
 }
 
-function createSlide(markdown, fallbackTheme, themeLocked = deckThemeLocked) {
+function createSlide(
+  markdown,
+  fallbackTheme,
+  themeLocked = deckThemeLocked,
+  { backgroundImage: backgroundOverride } = {},
+) {
   const placeholder = !nonEmpty(markdown);
   const md = placeholder ? PLACEHOLDER : markdown;
   const { meta, body: rawBody } = splitFrontMatter(md);
@@ -723,6 +730,11 @@ function createSlide(markdown, fallbackTheme, themeLocked = deckThemeLocked) {
   // as well as <html> so print mode can render differently themed pages together.
   const theme = normalizeTheme(themeLocked ? fallbackTheme : meta.theme || fallbackTheme);
   const themeMetadata = theme === "custom" ? customThemeMeta : null;
+  const backgroundImage = parseSlideBackground(backgroundOverride ?? meta["background-image"]);
+  const backgroundUrl = backgroundImage
+    ? localAssetUrl(backgroundImage.replace(/^\/assets\//, "/background-assets/")
+        .split("/").map(encodeURIComponent).join("/"))
+    : "";
 
   const deck = document.createElement("div");
   deck.className = "deck";
@@ -734,13 +746,18 @@ function createSlide(markdown, fallbackTheme, themeLocked = deckThemeLocked) {
   if (placeholder) deck.classList.add("markdstage-placeholder");
   if (sizeMode !== "auto") setSizeLevel(deck, sizeMode);
 
+  const background = themeImage(
+    backgroundUrl
+      ? { image: backgroundUrl }
+      : resolveThemeBackground(themeMetadata, layout),
+    titleSlide ? "slide-background theme-cover-background" : "slide-background",
+    { decorative: true },
+  );
+  if (background) {
+    deck.classList.add("has-slide-background");
+    deck.appendChild(background);
+  }
   if (titleSlide) {
-    const background = themeImage(
-      themeMetadata?.cover?.background,
-      "theme-cover-background",
-      { decorative: true },
-    );
-    if (background) deck.appendChild(background);
     const logo = themeImage(themeMetadata?.cover?.logo, "theme-cover-logo");
     if (logo) deck.appendChild(logo);
   }
@@ -872,6 +889,7 @@ function createSlide(markdown, fallbackTheme, themeLocked = deckThemeLocked) {
     deck,
     bodyEl,
     theme,
+    backgroundImage,
     sizeMode,
     titleSlide,
     sectionSlide,
@@ -919,9 +937,15 @@ function renderSlide(markdown) {
   // that the slide is fully painted, and PDF export and the visual regression
   // suite rely on it. Revealing while an architecture icon under `assets/` is
   // still loading would capture a half-drawn slide.
-  const images = waitForImages(slide.deck).then(() => {
-    if (token === renderToken) scheduleLayoutRefresh();
-  });
+  const images = waitForImages(slide.deck)
+    .then(() => {
+      if (token === renderToken) scheduleLayoutRefresh();
+    })
+    .catch((error) => {
+      if (token !== renderToken) return;
+      console.error(error.message);
+      showExportNotification("error", error.message);
+    });
   const mermaid = runMermaid(slide.bodyEl, slide.deck, token, false).finally(() => {
     if (token === renderToken) scheduleLayoutRefresh();
   });
@@ -963,7 +987,14 @@ function waitForImages(root) {
       }),
     );
   }
-  return Promise.all(pending);
+  return Promise.all(pending).then(() => {
+    const failedBackground = [...root.querySelectorAll("img.slide-background")].find(
+      (image) => !image.naturalWidth,
+    );
+    if (failedBackground) {
+      throw new Error(`Could not load slide background: ${failedBackground.getAttribute("src")}`);
+    }
+  });
 }
 
 async function reportOutputStatus(token, status, error = "", layout = null) {
@@ -2515,7 +2546,7 @@ async function collectPptxSlide(slide, index, options = {}) {
   for (const image of deck.querySelectorAll("img")) {
     if (
       image.closest(".architecture-diagram") ||
-      image.classList.contains("theme-cover-background") ||
+      image.classList.contains("slide-background") ||
       image.classList.contains("theme-cover-logo") ||
       insideFallback(image)
     ) {
@@ -2616,20 +2647,20 @@ async function collectPptxSlide(slide, index, options = {}) {
   };
 }
 
-function createPptxLayoutTemplate(theme, layout) {
+function createPptxLayoutTemplate(theme, layout, id = `${theme}:${layout}`, backgroundImage) {
   const markdown = `---
 layout: ${layout}
 theme: ${theme}
 ---
 `;
-  const slide = createSlide(markdown, theme, true);
+  const slide = createSlide(markdown, theme, true, { backgroundImage });
   if (layout === "backcover") {
     slide.deck
       .querySelectorAll(".theme-backcover-logo, .theme-backcover-copyright")
       .forEach((element) => element.remove());
   }
   slide.deck.classList.add("pptx-layout-template");
-  slide.deck.dataset.pptxLayoutId = `${theme}:${layout}`;
+  slide.deck.dataset.pptxLayoutId = id;
   return slide;
 }
 
@@ -2686,6 +2717,26 @@ async function renderPptxDeck(
       slide: createPptxLayoutTemplate(slideTheme, layout),
     })),
   );
+  // Per-slide overrides need their own layout artwork, not a background shared
+  // with every slide of the same theme and layout.
+  const backgroundLayouts = new Map();
+  for (const [index, slide] of rendered.entries()) {
+    if (!slide.backgroundImage) continue;
+    const model = pptxSlides[index];
+    const key = JSON.stringify([slide.theme, model.layout, slide.backgroundImage]);
+    let id = backgroundLayouts.get(key);
+    if (!id) {
+      id = `${model.layoutId}:background-${backgroundLayouts.size + 1}`;
+      backgroundLayouts.set(key, id);
+      layoutTemplates.push({
+        id,
+        name: model.layout,
+        theme: slide.theme,
+        slide: createPptxLayoutTemplate(slide.theme, model.layout, id, slide.backgroundImage),
+      });
+    }
+    model.layoutId = id;
+  }
   stage.append(...layoutTemplates.map((layout) => layout.slide.deck));
   await waitForImages(stage);
   await afterLayout();
@@ -2703,7 +2754,7 @@ async function renderPptxDeck(
     masters: themes.map((slideTheme) => ({
       id: slideTheme,
       theme: slideTheme,
-      layoutIds: PPTX_LAYOUT_NAMES.map((layout) => `${slideTheme}:${layout}`),
+      layoutIds: pptxLayouts.filter((layout) => layout.theme === slideTheme).map((layout) => layout.id),
     })),
     layouts: pptxLayouts,
     slides: pptxSlides,
