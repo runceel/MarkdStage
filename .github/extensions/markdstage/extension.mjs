@@ -357,8 +357,8 @@ function exportPdf(inst, requestedPath, requestedTheme) {
   return runOutputAction(() => runtimeExportPdf(inst, requestedPath, requestedTheme));
 }
 
-function exportPptx(inst, requestedPath, requestedTheme) {
-  return runOutputAction(() => runtimeExportPptx(inst, requestedPath, requestedTheme));
+function exportPptx(inst, requestedPath, requestedTheme, options = {}) {
+  return runOutputAction(() => runtimeExportPptx(inst, requestedPath, requestedTheme, undefined, options));
 }
 
 let logger = null;
@@ -1300,10 +1300,24 @@ async function startServer(inst) {
       }
       try {
         activateInstance(inst);
+        let body = {};
+        try {
+          body = await readJsonBody(req);
+          if (!body || typeof body !== "object" || Array.isArray(body) ||
+              (body.mermaidImageFallback !== undefined && typeof body.mermaidImageFallback !== "boolean")) {
+            throw new Error("invalid_export_options");
+          }
+        } catch (error) {
+          res.statusCode = error?.message === "payload_too_large" ? 413 : 400;
+          res.setHeader("Content-Type", "application/json; charset=utf-8");
+          res.end(JSON.stringify({ ok: false, error: error?.message || "bad_request" }));
+          return;
+        }
         const result = await exportPptx(
           inst,
           pptxNameForSource(inst.sourceName),
           inst.theme,
+          { mermaidImageFallback: body.mermaidImageFallback === true },
         );
         res.statusCode = 200;
         res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -1342,6 +1356,7 @@ async function startServer(inst) {
           themeLocked: snapshot.themeLocked,
           customThemeCss: snapshot.customThemeCss,
           customThemeMeta: snapshot.customThemeMeta,
+          mermaidImageFallback: snapshot.mermaidImageFallback === true,
         }),
       );
       return;

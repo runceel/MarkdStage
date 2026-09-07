@@ -78,6 +78,12 @@ Markdown からデッキを読み込んだ場合、Canvas と CLI アプリケ�
 2. **More controls > Output preview** を選び、クリッピング警告を解消します。
 3. **More controls > Export PowerPoint** を選ぶか、
    `markdstage export slides.md --output slides.pptx` を実行します。
+
+Mermaid 図を含むデッキでは、**Export PowerPoint…** を選ぶと小さなダイアログが開きます。
+**Editable shapes**（編集可能な図形・初期値）または **Images**（画像）を選び、
+**Export** で書き出します。画像では図内のテキストや線を個別に編集できません。
+**Cancel** または **Esc** で書き出さずに閉じられます。開くたびに編集可能な図形へ戻り、
+選択は保存されません。Mermaid がないデッキはそのまま書き出します。
 4. 生成されたプレゼンテーションを開き、全スライドを確認します。
 
 PowerPoint のネイティブオブジェクトは編集可能なまま残ります。ネイティブに表現できない要素は、

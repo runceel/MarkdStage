@@ -76,6 +76,12 @@ Speaker notes and Architecture editing controls are excluded.
 2. Select **More controls > Output preview** and resolve clipping warnings.
 3. Select **More controls > Export PowerPoint**, or run
    `markdstage export slides.md --output slides.pptx`.
+
+If the deck contains Mermaid diagrams, **Export PowerPoint…** opens a small dialog.
+Choose **Editable shapes** (the default) or **Images**, then select **Export**.
+Images keep each diagram together but its text and lines cannot be edited individually.
+**Cancel** or **Esc** closes the dialog without exporting. Each opening resets to
+editable shapes; the choice is not saved. Decks without Mermaid export immediately.
 4. Open the generated presentation and review every slide.
 
 Native PowerPoint objects stay editable; anything the converter cannot express natively becomes a

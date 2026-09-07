@@ -26,6 +26,7 @@ markdstage inspect slides.md --json
 markdstage capture slides.md --pages 2,4
 markdstage export slides.md --output slides.pdf
 markdstage export slides.md --output slides.pptx
+markdstage export slides.md --output slides.pptx --mermaid-image-fallback
 markdstage guide architecture-dsl
 markdstage skill install --target codex
 ```
@@ -41,7 +42,7 @@ markdstage skill install --target codex
 | `validate` | デッキ構造、Architecture DSL ブロック、テーマ、テーマのパスを検証します。 |
 | `inspect` | Canvas の `inspect_layout` と同じ 1280x720 のクリッピング診断を返します。`--slide <n>` で 1 ページだけ、`--all` で収まっているスライドも含め、`--fail-on-issues` で終了コード 5 を返します。 |
 | `capture` | 1280x720 の PNG を書き出します。`--pages` を指定しない場合はクリッピングが報告されたスライドだけを取得します。 |
-| `export` | Canvas Extension と同じ 16:9 の PDF、または編集可能な要素を残したハイブリッド PowerPoint を生成します。`--output` の拡張子で形式を選び、省略時は PDF です。 |
+| `export` | Canvas Extension と同じ 16:9 の PDF、または編集可能な要素を残したハイブリッド PowerPoint を生成します。`--output` の拡張子で形式を選び、省略時は PDF です。明示的な `.pptx` 出力で `--mermaid-image-fallback` を指定すると、UI の出力ダイアログで **Images** を選ぶ場合と同様に、Mermaid 図を編集可能な PowerPoint 図形ではなく 1 枚の画像として配置します。 |
 | `guide` | MarkdStage の公式ガイド（`overview`、`slide-format`、`themes`、`custom-themes`、`theme-schema`、`architecture-dsl`、`architecture-schema`）を表示します。 |
 | `skill` | 持ち運べる Agent Skills を導入・確認します。 |
 | `help` | 全体の使い方、または 1 つのコマンドのヘルプを表示します。`markdstage help <command>` は `markdstage <command> --help` と同じ内容です。 |

@@ -40,6 +40,7 @@ markdstage inspect slides.md --json
 markdstage capture slides.md --pages 2,4
 markdstage export slides.md --output slides.pdf
 markdstage export slides.md --output slides.pptx
+markdstage export slides.md --output slides.pptx --mermaid-image-fallback
 markdstage guide architecture-dsl
 markdstage skill install --target codex
 markdstage skill install --target claude
@@ -56,7 +57,7 @@ in slide view with automatic refresh enabled.
 | `validate` | Checks deck structure, Architecture DSL blocks, themes, and theme paths. |
 | `inspect` | Reports the same compact 1280x720 clipping diagnostics as the canvas `inspect_layout` action. `--slide <n>` limits it to one page, `--all` includes slides that fit, `--fail-on-issues` exits with code 5. |
 | `capture` | Writes 1280x720 PNG files. Without `--pages` only the slides reported as clipped are captured. |
-| `export` | Produces the same 16:9 PDF or hybrid editable PowerPoint as the canvas Extension. PowerPoint output includes speaker-note Markdown as readable plain text notes. The `--output` extension selects the format; PDF remains the default. |
+| `export` | Produces the same 16:9 PDF or hybrid editable PowerPoint as the canvas Extension. PowerPoint output includes speaker-note Markdown as readable plain text notes. The `--output` extension selects the format; PDF remains the default. Use `--mermaid-image-fallback` with an explicit `.pptx` output to place each Mermaid diagram as one image instead of editable PowerPoint shapes, equivalent to choosing **Images** in the UI export dialog. |
 | `guide` | Prints the canonical `markdstage_guide` topics. |
 | `skill` | Installs or checks the portable Agent Skills for Codex (`.agents/skills/markdstage/`), Claude Code (`.claude/skills/markdstage/`), and GitHub Copilot (`.github/skills/markdstage/`). Locally modified files are never overwritten without `--force`. |
 | `help` | Shows the overview, or the help for one command. `markdstage help <command>` prints the same text as `markdstage <command> --help`. |

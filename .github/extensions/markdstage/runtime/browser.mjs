@@ -440,6 +440,48 @@ export async function runCdpOutputBrowser(browser, pageUrl, profileDir, job, cap
   }
 }
 
+// Runs in Chromium so PNG cropping needs no separate image codec dependency.
+async function trimTransparentArtwork(data) {
+  const image = new Image();
+  image.src = `data:image/png;base64,${data}`;
+  await image.decode();
+  const canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth;
+  canvas.height = image.naturalHeight;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  context.drawImage(image, 0, 0);
+  const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+  let left = canvas.width;
+  let top = canvas.height;
+  let right = 0;
+  let bottom = 0;
+  for (let y = 0; y < canvas.height; y++) {
+    for (let x = 0; x < canvas.width; x++) {
+      if (pixels[(y * canvas.width + x) * 4 + 3] === 0) continue;
+      left = Math.min(left, x);
+      top = Math.min(top, y);
+      right = Math.max(right, x + 1);
+      bottom = Math.max(bottom, y + 1);
+    }
+  }
+  // An intentionally invisible diagram has no meaningful painted bounds to trim.
+  if (right <= left || bottom <= top) {
+    return { x: 0, y: 0, width: canvas.width, height: canvas.height, data };
+  }
+  const padding = 2;
+  left = Math.max(0, left - padding);
+  top = Math.max(0, top - padding);
+  right = Math.min(canvas.width, right + padding);
+  bottom = Math.min(canvas.height, bottom + padding);
+  const width = right - left;
+  const height = bottom - top;
+  const cropped = context.getImageData(left, top, width, height);
+  canvas.width = width;
+  canvas.height = height;
+  context.putImageData(cropped, 0, 0);
+  return { x: left, y: top, width, height, data: canvas.toDataURL("image/png").split(",")[1] };
+}
+
 export async function runPptxOutputBrowser(browser, pageUrl, profileDir, job, total) {
   const { cdp, child } = await openCdpOutputPage(browser, pageUrl, profileDir, job);
   try {
@@ -527,11 +569,16 @@ export async function runPptxOutputBrowser(browser, pageUrl, profileDir, job, to
             `PowerPoint fallback ${fallbackIndex + 1} on slide ${slideIndex + 1} has invalid bounds.`,
           );
         }
-        const bounds = {
-          x: left,
-          y: top,
-          width: right - left,
-          height: bottom - top,
+        const trimMermaid = fallback.type === "mermaid" &&
+          fallback.reason === "mermaid-rendered-as-artwork";
+        // Integer capture coordinates keep cropped pixels at their original slide positions.
+        const bounds = trimMermaid ? {
+          x: Math.floor(left),
+          y: Math.floor(top),
+          width: Math.ceil(right) - Math.floor(left),
+          height: Math.ceil(bottom) - Math.floor(top),
+        } : {
+          x: left, y: top, width: right - left, height: bottom - top,
         };
         await cdp.send("Runtime.evaluate", {
           expression: `(() => {
@@ -560,6 +607,28 @@ export async function runPptxOutputBrowser(browser, pageUrl, profileDir, job, to
           throw new Error(
             `Chromium did not return fallback artwork ${fallbackIndex + 1} for slide ${slideIndex + 1}.`,
           );
+        }
+        if (trimMermaid) {
+          const cropped = await cdp.send("Runtime.evaluate", {
+            expression: `(${trimTransparentArtwork.toString()})(${JSON.stringify(screenshot.data)})`,
+            awaitPromise: true,
+            returnByValue: true,
+          });
+          const result = cropped.result?.value;
+          if (cropped.exceptionDetails || !result ||
+              ![result.x, result.y, result.width, result.height].every(Number.isInteger) ||
+              result.x < 0 || result.y < 0 || result.width <= 0 || result.height <= 0 ||
+              result.x + result.width > bounds.width || result.y + result.height > bounds.height ||
+              typeof result.data !== "string" || !result.data) {
+            throw new Error(
+              `Chromium could not trim Mermaid artwork ${fallbackIndex + 1} on slide ${slideIndex + 1}.`,
+            );
+          }
+          bounds.x += result.x;
+          bounds.y += result.y;
+          bounds.width = result.width;
+          bounds.height = result.height;
+          screenshot.data = result.data;
         }
         images.push({
           fallbackIndex,

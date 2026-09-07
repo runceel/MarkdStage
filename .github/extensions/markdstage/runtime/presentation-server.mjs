@@ -401,6 +401,7 @@ export async function startPresentationServer(
         themeLocked: job.themeLocked,
         customThemeCss: job.customThemeCss,
         customThemeMeta: job.customThemeMeta,
+        mermaidImageFallback: job.mermaidImageFallback === true,
       });
       return;
     }
@@ -852,12 +853,30 @@ export async function startPresentationServer(
         return;
       }
       const pptx = route === "/export-pptx";
+      let body = {};
+      if (pptx) {
+        try {
+          body = await readJsonBody(req);
+          if (!body || typeof body !== "object" || Array.isArray(body) ||
+              (body.mermaidImageFallback !== undefined && typeof body.mermaidImageFallback !== "boolean")) {
+            throw new Error("invalid_export_options");
+          }
+        } catch (error) {
+          json(res, error?.message === "payload_too_large" ? 413 : 400, {
+            ok: false,
+            error: error?.message || "bad_request",
+          });
+          return;
+        }
+      }
       try {
         const result = pptx
           ? await exportPptxImpl(
               session,
               pptxNameForSource(session.sourceName),
               session.theme,
+              undefined,
+              { mermaidImageFallback: body.mermaidImageFallback === true },
             )
           : await exportPdfImpl(
               session,

@@ -108,6 +108,11 @@ The themed slide is displayed and updates automatically
   notes are converted from Markdown to readable plain text in the corresponding
   PowerPoint notes pane. AI may call `export_pptx` with another
   workspace-confined `.pptx` path.
+- **PowerPoint export offers Mermaid output options when the deck contains diagrams.**
+  Choose **Editable shapes** or **Images** in the export dialog, then **Export**.
+  Each opening defaults to editable shapes. **Cancel** or **Esc** closes without
+  exporting; decks without Mermaid export immediately. This choice is not saved
+  in the deck. The CLI equivalent is `--mermaid-image-fallback` for image output.
 - **Both export buttons show a visible notification outside More controls.**
   Progress remains visible while saving, and both buttons are disabled until
   the operation finishes. Export buttons return to their normal appearance and

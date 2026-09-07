@@ -66,7 +66,7 @@ export function createOutputSnapshot(inst, requestedTheme) {
   };
 }
 
-export function createOutputJob(snapshot, kind) {
+export function createOutputJob(snapshot, kind, options = {}) {
   return {
     slides: snapshot.slides,
     theme: snapshot.theme,
@@ -74,6 +74,7 @@ export function createOutputJob(snapshot, kind) {
     customThemeCss: snapshot.customThemeCss,
     customThemeMeta: snapshot.customThemeMeta,
     kind,
+    mermaidImageFallback: options.mermaidImageFallback === true,
     status: "pending",
     error: "",
     layout: null,
@@ -708,6 +709,7 @@ export async function exportPptx(
     requestedPath,
     requestedTheme,
     dependencies = {},
+    options = {},
 ) {
     const findBrowser = dependencies.findChromiumBrowser ?? findChromiumBrowser;
     const runBrowser = dependencies.runPptxOutputBrowser ?? runPptxOutputBrowser;
@@ -748,7 +750,7 @@ export async function exportPptx(
       profileDir = await mkdtemp(join(tmpdir(), "markdstage-pptx-"));
       const outputBase = basename(outputPath, extname(outputPath)) || "markdstage";
       temporaryOutputPath = join(outputParent, `.${outputBase}.${token}.tmp.pptx`);
-      const job = createOutputJob(snapshot, "pptx");
+      const job = createOutputJob(snapshot, "pptx", options);
       inst.exportJobs.set(token, job);
 
       const pageUrl = pageUrlFor(inst, { pptx: 1, token });
