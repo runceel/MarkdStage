@@ -46,6 +46,7 @@ const VISUAL_TAGS = new Set([
 ]);
 const LINE_CAPS = new Set(["butt", "round", "square"]);
 const SEQUENCE_FRAME_KINDS = new Set(["loop", "alt", "opt", "par"]);
+const MAX_MARKER_FALLBACK_PADDING = 2048;
 
 function finiteNumberOr(value, fallback) {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
@@ -837,40 +838,142 @@ function structuredLabelText(element, options) {
   return { paragraphs: paragraphs.length ? paragraphs : textToSceneText("", computedTextStyle(element, options), options).paragraphs };
 }
 
-function markerFallbackPadding(element, style) {
-  let padding = 20;
-  for (const value of [style.markerStart, style.markerMid, style.markerEnd]) {
-    if (!value || value === "none") continue;
-    const marker = element.ownerSVGElement?.querySelector(`#${CSS.escape(markerReferenceId(value))}`);
-    if (localName(marker) !== "marker") continue;
-    const refX = marker.refX.baseVal.value;
-    const refY = marker.refY.baseVal.value;
-    const unit = (marker.getAttribute("markerUnits") || "strokeWidth") === "strokeWidth" ? parseMetric(style.strokeWidth) : 1;
-    const view = marker.viewBox.baseVal;
-    const viewScale = marker.hasAttribute("viewBox") && view.width > 0 && view.height > 0
-      ? Math.max(marker.markerWidth.baseVal.value / view.width, marker.markerHeight.baseVal.value / view.height) : 1;
-    for (const child of directChildren(marker)) {
-      if (typeof child.getBBox !== "function") continue;
-      const box = child.getBBox();
-      const stroke = parseMetric(getComputedStyle(child).strokeWidth) || 0;
-      const outline = visibleOutlineExtent(child);
-      const matrix = new DOMMatrix(getComputedStyle(child).transform === "none" ? undefined : getComputedStyle(child).transform);
-      const markerMatrix = new DOMMatrix(getComputedStyle(marker).transform === "none" ? undefined : getComputedStyle(marker).transform);
-      const transform = markerMatrix.multiply(matrix);
-      for (const [x, y] of [[box.x, box.y], [box.x + box.width, box.y], [box.x, box.y + box.height], [box.x + box.width, box.y + box.height]]) {
-        const point = new DOMPoint(x, y).matrixTransform(transform);
-        // A radius is independent of the tangent/orient and safe for either end.
-        const radius = (Math.hypot(point.x - refX, point.y - refY) +
-          (stroke * 4 + outline * 2) *
-            Math.max(
-              Math.hypot(transform.a, transform.b),
-              Math.hypot(transform.c, transform.d),
-            )) * viewScale * unit;
-        if (Number.isFinite(radius)) padding = Math.max(padding, radius);
-      }
+function markerEffectExtent(element) {
+  const elements = [element, ...element.querySelectorAll("*")];
+  let extent = 0;
+  for (const candidate of elements) {
+    const style = getComputedStyle(candidate);
+    extent = Math.max(extent, visibleOutlineExtent(candidate));
+    for (const value of [
+      style.filter,
+      style.boxShadow,
+      style.textShadow,
+    ]) {
+      if (!value || value === "none" ||
+          cssEffectIsProvablyTransparent(value)) continue;
+      const lengths = [...String(value).matchAll(
+        /-?\d+(?:\.\d+)?px/g,
+      )].map((match) => Math.abs(Number.parseFloat(match[0])));
+      extent = Math.max(
+        extent,
+        lengths.length
+          ? Math.min(256, lengths.reduce((sum, value) => sum + value, 0) * 2)
+          : 32,
+      );
     }
   }
-  return padding;
+  return extent;
+}
+
+function localTransformMatrix(element) {
+  const value = getComputedStyle(element).transform;
+  try {
+    const matrix = new DOMMatrix(value === "none" ? undefined : value);
+    return ["a", "b", "c", "d", "e", "f"].every((key) =>
+      typeof matrix[key] === "number" && Number.isFinite(matrix[key]))
+      ? matrix
+      : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function markerFallbackPadding(element, style) {
+  let padding = 20;
+  const invalid = () => {
+    padding = Math.max(padding, 256);
+  };
+  for (const value of [style.markerStart, style.markerMid, style.markerEnd]) {
+    if (!value || value === "none") continue;
+    const marker = element.ownerSVGElement?.querySelector(
+      `#${CSS.escape(markerReferenceId(value))}`,
+    );
+    if (localName(marker) !== "marker") {
+      invalid();
+      continue;
+    }
+    const refX = marker.refX.baseVal.value;
+    const refY = marker.refY.baseVal.value;
+    const unit = (marker.getAttribute("markerUnits") || "strokeWidth") === "strokeWidth"
+      ? parseMetric(style.strokeWidth)
+      : 1;
+    const view = marker.viewBox.baseVal;
+    const viewScale = marker.hasAttribute("viewBox") &&
+        view.width > 0 &&
+        view.height > 0
+      ? Math.max(
+          marker.markerWidth.baseVal.value / view.width,
+          marker.markerHeight.baseVal.value / view.height,
+        )
+      : 1;
+    const markerMatrix = localTransformMatrix(marker);
+    if (!markerMatrix ||
+        ![refX, refY, unit, viewScale].every(Number.isFinite) ||
+        !(unit > 0) ||
+        !(viewScale > 0)) {
+      invalid();
+      continue;
+    }
+    const visit = (child, parentMatrix, depth) => {
+      if (depth > MAX_GROUP_DEPTH) {
+        invalid();
+        return;
+      }
+      const localMatrix = localTransformMatrix(child);
+      if (!localMatrix) {
+        invalid();
+        return;
+      }
+      const transform = parentMatrix.multiply(localMatrix);
+      const tag = localName(child);
+      if (child.namespaceURI === SVG_NS &&
+          tag !== "g" &&
+          !IGNORED_TAGS.has(tag) &&
+          typeof child.getBBox === "function") {
+        try {
+          const box = child.getBBox();
+          if (![box.x, box.y, box.width, box.height].every(Number.isFinite)) {
+            invalid();
+          } else {
+            const paint = getComputedStyle(child);
+            const stroke = parseMetric(paint.strokeWidth) || 0;
+            const paintExtent =
+              stroke * 4 +
+              markerEffectExtent(child) * 2;
+            const scale = maximumMatrixScale(transform);
+            for (const [x, y] of [
+              [box.x, box.y],
+              [box.x + box.width, box.y],
+              [box.x, box.y + box.height],
+              [box.x + box.width, box.y + box.height],
+            ]) {
+              const point = new DOMPoint(x, y).matrixTransform(transform);
+              const radius = (
+                Math.hypot(point.x - refX, point.y - refY) +
+                paintExtent * scale
+              ) * viewScale * unit;
+              if (Number.isFinite(radius)) {
+                padding = Math.max(padding, radius);
+              } else {
+                invalid();
+              }
+            }
+          }
+        } catch (_) {
+          invalid();
+        }
+      }
+      if (child.namespaceURI !== SVG_NS ||
+          tag === "foreignObject") return;
+      for (const descendant of directChildren(child)) {
+        visit(descendant, transform, depth + 1);
+      }
+    };
+    for (const child of directChildren(marker)) {
+      visit(child, markerMatrix, 1);
+    }
+  }
+  return Math.min(MAX_MARKER_FALLBACK_PADDING, padding);
 }
 
 function maximumMatrixScale(matrix) {
@@ -896,9 +999,14 @@ function fallbackNode(element, z, deck, reason, sourcePath) {
   if (["path", "line", "polygon", "polyline"].includes(localName(element))) {
     const style = getComputedStyle(element);
     const marked = [style.markerStart, style.markerMid, style.markerEnd].some((value) => value && value !== "none");
-    const padding = Math.max(1, Number.parseFloat(getComputedStyle(element).strokeWidth) || 0,
-      marked ? markerFallbackPadding(element, style) : 0) *
-      maximumMatrixScale(element.getScreenCTM?.());
+    const padding = Math.min(
+      MAX_MARKER_FALLBACK_PADDING,
+      Math.max(
+        1,
+        Number.parseFloat(getComputedStyle(element).strokeWidth) || 0,
+        marked ? markerFallbackPadding(element, style) : 0,
+      ) * maximumMatrixScale(element.getScreenCTM?.()),
+    );
     bounds = { x: bounds.x - padding, y: bounds.y - padding,
       width: bounds.width + 2 * padding, height: bounds.height + 2 * padding };
   }
@@ -1968,7 +2076,7 @@ function markerReferenceHasVisibleDecoration(value, element, options) {
     }
     if (["image", "svg", "use"].includes(tag)) return true;
     if (tag === "text" || tag === "tspan") {
-      if (decoration.textContent &&
+      if (decoration.textContent.trim() &&
           sceneStyleHasVisiblePaint(computedSvgStyle(decoration, options))) {
         return true;
       }

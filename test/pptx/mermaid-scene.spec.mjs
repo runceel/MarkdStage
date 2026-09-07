@@ -3032,10 +3032,13 @@ test("detects marker text, HTML, and polygon-only edge-label decoration", async 
         const span = document.createElementNS(namespace, "tspan");
         span.setAttribute(
           "fill",
-          config.state === "visible" ? "red" : "transparent",
+          ["visible", "whitespace"].includes(config.state)
+            ? "red"
+            : "transparent",
         );
         span.setAttribute("stroke", "transparent");
-        span.textContent = "!";
+        span.textContent =
+          config.state === "whitespace" ? " \n  " : "!";
         text.append(span);
         marker.append(text);
       } else if (config.kind === "html") {
@@ -3061,7 +3064,7 @@ test("detects marker text, HTML, and polygon-only edge-label decoration", async 
           config.state === "whitespace" ? "\n   \n" : "!";
         foreignObject.append(div);
         marker.append(foreignObject);
-      } else if (config.kind === "outline") {
+      } else if (["outline", "nested-outline"].includes(config.kind)) {
         const rectangle = document.createElementNS(namespace, "rect");
         rectangle.setAttribute("x", "2");
         rectangle.setAttribute("y", "2");
@@ -3078,7 +3081,20 @@ test("detects marker text, HTML, and polygon-only edge-label decoration", async 
         } else {
           rectangle.style.outline = "none";
         }
-        marker.append(rectangle);
+        if (config.kind === "nested-outline") {
+          const outer = document.createElementNS(namespace, "g");
+          outer.setAttribute(
+            "transform",
+            "translate(10 10) rotate(35) scale(0.5 3) translate(-10 -10)",
+          );
+          const inner = document.createElementNS(namespace, "g");
+          inner.setAttribute("transform", "translate(3 -2) rotate(-15)");
+          inner.append(rectangle);
+          outer.append(inner);
+          marker.append(outer);
+        } else {
+          marker.append(rectangle);
+        }
       } else {
         const circle = document.createElementNS(namespace, "circle");
         circle.setAttribute("cx", "15");
@@ -3100,7 +3116,10 @@ test("detects marker text, HTML, and polygon-only edge-label decoration", async 
         source.setAttribute("marker-end", `url(#${marker.id})`);
       } else {
         source.setAttribute("d", "M5 12 L39 12 L73 12");
-        source.setAttribute("marker-mid", `url(#${marker.id})`);
+        source.setAttribute(
+          config.kind === "nested-outline" ? "marker-start" : "marker-mid",
+          `url(#${marker.id})`,
+        );
       }
       source.setAttribute("fill", "transparent");
       source.setAttribute("stroke", "transparent");
@@ -3140,7 +3159,7 @@ test("detects marker text, HTML, and polygon-only edge-label decoration", async 
       return screenshotPixelDifference(page, visible, hidden);
     };
 
-    for (const kind of ["text", "html", "outline"]) {
+    for (const kind of ["text", "html", "outline", "nested-outline"]) {
       await loadFixture();
       await installMarker({ kind, state: "visible" });
       expect(await markerPixelDifference(), kind).toBeGreaterThan(0);
@@ -3160,10 +3179,13 @@ test("detects marker text, HTML, and polygon-only edge-label decoration", async 
 
     for (const entry of [
       { kind: "text", state: "transparent" },
+      { kind: "text", state: "whitespace" },
       { kind: "html", state: "hidden" },
       { kind: "html", state: "whitespace" },
       { kind: "outline", state: "transparent" },
       { kind: "outline", state: "none" },
+      { kind: "nested-outline", state: "transparent" },
+      { kind: "nested-outline", state: "none" },
     ]) {
       await loadFixture();
       await installMarker(entry);
@@ -7972,14 +7994,37 @@ test("actual requirement text, HTML, outline, and polygon markers remain capture
         rectangle.setAttribute("stroke", "transparent");
         rectangle.style.outline = "4px solid red";
         rectangle.style.outlineOffset = "-4px";
-        marker.append(rectangle);
+        const outer = document.createElementNS(namespace, "g");
+        outer.setAttribute(
+          "transform",
+          "translate(10 10) rotate(35) scale(0.5 3) translate(-10 -10)",
+        );
+        const inner = document.createElementNS(namespace, "g");
+        inner.setAttribute("transform", "translate(3 -2) rotate(-15)");
+        inner.append(rectangle);
+        outer.append(inner);
+        marker.append(outer);
       } else {
-        const circle = document.createElementNS(namespace, "circle");
-        circle.setAttribute("cx", "15");
-        circle.setAttribute("cy", "15");
-        circle.setAttribute("r", "14");
-        circle.setAttribute("fill", "red");
-        marker.append(circle);
+        const outer = document.createElementNS(namespace, "g");
+        outer.setAttribute(
+          "transform",
+          "translate(15 15) rotate(-30) scale(0.4 4) translate(-15 -15)",
+        );
+        const inner = document.createElementNS(namespace, "g");
+        inner.setAttribute("transform", "translate(2 -1) rotate(20)");
+        const rectangle = document.createElementNS(namespace, "rect");
+        rectangle.setAttribute("x", "5");
+        rectangle.setAttribute("y", "5");
+        rectangle.setAttribute("width", "20");
+        rectangle.setAttribute("height", "20");
+        rectangle.setAttribute("fill", "transparent");
+        rectangle.setAttribute("stroke", "red");
+        rectangle.setAttribute("stroke-width", "3");
+        rectangle.style.outline = "2px solid red";
+        rectangle.style.outlineOffset = "3px";
+        inner.append(rectangle);
+        outer.append(inner);
+        marker.append(outer);
       }
       const definitions = document.createElementNS(namespace, "defs");
       definitions.append(marker);
