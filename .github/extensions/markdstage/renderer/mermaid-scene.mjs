@@ -842,13 +842,17 @@ function ownMarkerEffectExtent(element) {
   const style = getComputedStyle(element);
   let extent = 0;
   extent = Math.max(extent, visibleOutlineExtent(element));
-  for (const value of [
-    style.filter,
-    style.boxShadow,
-    style.textShadow,
+  for (const [kind, value] of [
+    ["filter", style.filter],
+    ["box-shadow", style.boxShadow],
+    ["text-shadow", style.textShadow],
   ]) {
     if (!value || value === "none" ||
         cssEffectIsProvablyTransparent(value)) continue;
+    if (kind === "filter" && /url\s*\(/i.test(value)) {
+      extent = Math.max(extent, 256);
+      continue;
+    }
     const lengths = [...String(value).matchAll(
       /-?\d+(?:\.\d+)?px/g,
     )].map((match) => Math.abs(Number.parseFloat(match[0])));

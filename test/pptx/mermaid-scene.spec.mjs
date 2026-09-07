@@ -2640,6 +2640,7 @@ test("omits hidden requirement content and localizes rendered text transforms", 
       }
       const namespace = "http://www.w3.org/2000/svg";
       const marker = document.createElementNS(namespace, "marker");
+      let referencedFilter = null;
       marker.id = "marker-only-red";
       for (const [name, value] of Object.entries({
         markerWidth: "10",
@@ -3014,6 +3015,7 @@ test("detects rich marker content and group effects on edge labels", async ({ pa
       const svg = document.querySelector("#fixture-deck > svg");
       const namespace = "http://www.w3.org/2000/svg";
       const marker = document.createElementNS(namespace, "marker");
+      let referencedFilter = null;
       marker.id = `marker-${config.kind}-${config.state}`;
       const markerSize = config.kind === "polygon" ? 30 : 20;
       for (const [name, content] of Object.entries({
@@ -3038,6 +3040,33 @@ test("detects rich marker content and group effects on edge labels", async ({ pa
           : config.state === "transparent"
             ? "drop-shadow(30px 20px 10px rgba(0, 0, 0, 0))"
             : "none";
+      } else if (["marker-url-filter", "nested-url-filter"].includes(
+        config.kind,
+      )) {
+        referencedFilter = document.createElementNS(namespace, "filter");
+        referencedFilter.id = `filter-${config.kind}-${config.state}`;
+        for (const [name, content] of Object.entries({
+          filterUnits: "userSpaceOnUse",
+          x: "-300",
+          y: "-100",
+          width: "600",
+          height: "300",
+        })) {
+          referencedFilter.setAttribute(name, content);
+        }
+        const shadow = document.createElementNS(
+          namespace,
+          "feDropShadow",
+        );
+        shadow.setAttribute("dx", "-180");
+        shadow.setAttribute("dy", "0");
+        shadow.setAttribute("stdDeviation", "8");
+        shadow.setAttribute("flood-color", "blue");
+        referencedFilter.append(shadow);
+        if (config.kind === "marker-url-filter" &&
+            config.state === "visible") {
+          marker.style.filter = `url(#${referencedFilter.id})`;
+        }
       }
       if (config.kind === "text") {
         const text = document.createElementNS(namespace, "text");
@@ -3166,6 +3195,30 @@ test("detects rich marker content and group effects on edge labels", async ({ pa
         );
         rectangle.setAttribute("stroke", "transparent");
         marker.append(rectangle);
+      } else if (["marker-url-filter", "nested-url-filter"].includes(
+        config.kind,
+      )) {
+        const outer = document.createElementNS(namespace, "g");
+        outer.setAttribute(
+          "transform",
+          "translate(10 10) rotate(20) scale(0.8 2) translate(-10 -10)",
+        );
+        if (config.kind === "nested-url-filter" &&
+            config.state === "visible") {
+          outer.style.filter = `url(#${referencedFilter.id})`;
+        }
+        const rectangle = document.createElementNS(namespace, "rect");
+        rectangle.setAttribute("x", "5");
+        rectangle.setAttribute("y", "5");
+        rectangle.setAttribute("width", "10");
+        rectangle.setAttribute("height", "10");
+        rectangle.setAttribute(
+          "fill",
+          config.state === "visible" ? "red" : "transparent",
+        );
+        rectangle.setAttribute("stroke", "transparent");
+        outer.append(rectangle);
+        marker.append(outer);
       } else {
         const circle = document.createElementNS(namespace, "circle");
         circle.setAttribute("cx", "15");
@@ -3175,6 +3228,7 @@ test("detects rich marker content and group effects on edge labels", async ({ pa
         marker.append(circle);
       }
       const definitions = document.createElementNS(namespace, "defs");
+      if (referencedFilter) definitions.append(referencedFilter);
       definitions.append(marker);
       svg.append(definitions);
       const source = document.createElementNS(
@@ -3219,10 +3273,10 @@ test("detects rich marker content and group effects on edge labels", async ({ pa
         diagnostics: result.diagnostics,
       };
     }, path);
-    const markerPixelDifference = async () => {
+    const markerPixelDifference = async (padding = 40) => {
       const group = page.locator("g.edgeLabel").nth(1);
       const source = group.locator("[data-marker-source]");
-      const clip = await screenshotClipAround(group, 40);
+      const clip = await screenshotClipAround(group, padding);
       await waitForPaint(page);
       const visible = await page.screenshot({ clip });
       await source.evaluate((element) => {
@@ -3245,6 +3299,8 @@ test("detects rich marker content and group effects on edge labels", async ({ pa
       "nested-shadow",
       "marker-outline",
       "marker-shadow",
+      "marker-url-filter",
+      "nested-url-filter",
     ]) {
       await loadFixture();
       await installMarker({ kind, state: "visible" });
@@ -3261,7 +3317,9 @@ test("detects rich marker content and group effects on edge labels", async ({ pa
           bottom: bounds.bottom - deck.top,
         };
       });
-      expect(await markerPixelDifference(), kind).toBeGreaterThan(0);
+      expect(await markerPixelDifference(
+        kind.includes("url-filter") ? 250 : 40,
+      ), kind).toBeGreaterThan(0);
       const result = await readScene(
         `requirement-${kind}-marker-visible.svg`,
       );
@@ -3317,6 +3375,8 @@ test("detects rich marker content and group effects on edge labels", async ({ pa
       { kind: "marker-outline", state: "none" },
       { kind: "marker-shadow", state: "transparent" },
       { kind: "marker-shadow", state: "none" },
+      { kind: "marker-url-filter", state: "none" },
+      { kind: "nested-url-filter", state: "none" },
     ]) {
       await loadFixture();
       await installMarker(entry);
@@ -8071,6 +8131,8 @@ test("actual rich marker content and group effects remain captured local fallbac
       const title = svg.closest(".deck")?.querySelector("h1")?.textContent || "";
       const kind = title.includes("Marker root outline") ? "root-outline"
         : title.includes("Marker root shadow") ? "root-shadow"
+        : title.includes("Marker root URL filter") ? "root-url-filter"
+        : title.includes("Nested URL filter") ? "nested-url-filter"
         : title.includes("HTML marker") ? "html"
         : title.includes("Text marker") ? "text"
           : title.includes("Outline marker") ? "outline"
@@ -8083,6 +8145,7 @@ test("actual rich marker content and group effects remain captured local fallbac
       svg.dataset.richMarkerPatched = kind;
       const namespace = "http://www.w3.org/2000/svg";
       const marker = document.createElementNS(namespace, "marker");
+      let referencedFilter = null;
       marker.id = `${svg.id}-${kind}-marker`;
       const markerSize = kind === "polygon" ? 30 : 20;
       for (const [name, content] of Object.entries({
@@ -8100,6 +8163,31 @@ test("actual rich marker content and group effects remain captured local fallbac
         marker.style.outline = "60px solid blue";
       } else if (kind === "root-shadow") {
         marker.style.filter = "drop-shadow(30px 20px 10px blue)";
+      } else if (kind === "root-url-filter" ||
+          kind === "nested-url-filter") {
+        referencedFilter = document.createElementNS(namespace, "filter");
+        referencedFilter.id = `${svg.id}-${kind}-shadow`;
+        for (const [name, content] of Object.entries({
+          filterUnits: "userSpaceOnUse",
+          x: "-300",
+          y: "-100",
+          width: "600",
+          height: "300",
+        })) {
+          referencedFilter.setAttribute(name, content);
+        }
+        const shadow = document.createElementNS(
+          namespace,
+          "feDropShadow",
+        );
+        shadow.setAttribute("dx", "-180");
+        shadow.setAttribute("dy", "0");
+        shadow.setAttribute("stdDeviation", "8");
+        shadow.setAttribute("flood-color", "blue");
+        referencedFilter.append(shadow);
+        if (kind === "root-url-filter") {
+          marker.style.filter = `url(#${referencedFilter.id})`;
+        }
       }
       if (kind === "text") {
         const text = document.createElementNS(namespace, "text");
@@ -8181,6 +8269,25 @@ test("actual rich marker content and group effects remain captured local fallbac
         );
         rectangle.setAttribute("stroke", "transparent");
         marker.append(rectangle);
+      } else if (kind === "root-url-filter" ||
+          kind === "nested-url-filter") {
+        const outer = document.createElementNS(namespace, "g");
+        outer.setAttribute(
+          "transform",
+          "translate(10 10) rotate(20) scale(0.8 2) translate(-10 -10)",
+        );
+        if (kind === "nested-url-filter") {
+          outer.style.filter = `url(#${referencedFilter.id})`;
+        }
+        const rectangle = document.createElementNS(namespace, "rect");
+        rectangle.setAttribute("x", "5");
+        rectangle.setAttribute("y", "5");
+        rectangle.setAttribute("width", "10");
+        rectangle.setAttribute("height", "10");
+        rectangle.setAttribute("fill", "red");
+        rectangle.setAttribute("stroke", "transparent");
+        outer.append(rectangle);
+        marker.append(outer);
       } else {
         const outer = document.createElementNS(namespace, "g");
         outer.setAttribute(
@@ -8204,6 +8311,7 @@ test("actual rich marker content and group effects remain captured local fallbac
         marker.append(outer);
       }
       const definitions = document.createElementNS(namespace, "defs");
+      if (referencedFilter) definitions.append(referencedFilter);
       definitions.append(marker);
       svg.append(definitions);
       const source = document.createElementNS(
@@ -8227,6 +8335,8 @@ test("actual rich marker content and group effects remain captured local fallbac
             "shadow",
             "root-outline",
             "root-shadow",
+            "root-url-filter",
+            "nested-url-filter",
           ].includes(kind)
             ? "M35 12 L39 12 L43 12"
             : "M5 12 L39 12 L73 12",
@@ -8255,6 +8365,8 @@ test("actual rich marker content and group effects remain captured local fallbac
       `# Shadow marker requirement\n\n\`\`\`mermaid\n${diagram}\n\`\`\``,
       `# Marker root outline requirement\n\n\`\`\`mermaid\n${diagram}\n\`\`\``,
       `# Marker root shadow requirement\n\n\`\`\`mermaid\n${diagram}\n\`\`\``,
+      `# Marker root URL filter requirement\n\n\`\`\`mermaid\n${diagram}\n\`\`\``,
+      `# Nested URL filter requirement\n\n\`\`\`mermaid\n${diagram}\n\`\`\``,
       `# Polygon marker requirement\n\n\`\`\`mermaid\n${diagram}\n\`\`\``,
     ],
   });
@@ -8280,6 +8392,8 @@ test("actual rich marker content and group effects remain captured local fallbac
       "shadow",
       "root-outline",
       "root-shadow",
+      "root-url-filter",
+      "nested-url-filter",
       "polygon",
     ].entries()) {
       const model = models[index];
@@ -8320,6 +8434,8 @@ test("actual rich marker content and group effects remain captured local fallbac
         "shadow",
         "root-outline",
         "root-shadow",
+        "root-url-filter",
+        "nested-url-filter",
         "polygon",
       ].includes(kind)) {
         const sourceBounds = await source.boundingBox();
@@ -8393,6 +8509,18 @@ test("actual rich marker content and group effects remain captured local fallbac
         ).evaluate((element) =>
           getComputedStyle(element).filter))
           .toContain("drop-shadow");
+      } else if (kind === "root-url-filter") {
+        expect(await svg.locator(
+          'marker[id$="-root-url-filter-marker"]',
+        ).evaluate((element) =>
+          getComputedStyle(element).filter))
+          .toContain("url(");
+      } else if (kind === "nested-url-filter") {
+        expect(await svg.locator(
+          'marker[id$="-nested-url-filter-marker"] > g',
+        ).evaluate((element) =>
+          getComputedStyle(element).filter))
+          .toContain("url(");
       }
       if (kind !== "html") {
         await waitForPaint(page);
