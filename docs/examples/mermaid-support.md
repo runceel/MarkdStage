@@ -327,6 +327,37 @@ titles, fitting labels/values, and independent fill/stroke alpha. Layout comes f
 
 ---
 
+## Ishikawa: lines, labels, and spine-facing arrows
+
+```mermaid
+ishikawa-beta
+  品質低下
+    人材
+      Training
+    方法
+      Review
+    設備
+      Tools
+    材料
+      Supply
+```
+
+`ishikawa` and `ishikawa-beta` share native normal-look spine/branch lines,
+cause-label rectangles, and exact filled arrow triangles. Layout is measured, not rebuilt.
+
+---
+
+## Ishikawa: the editable boundary
+
+- Japanese and simple wrapped SVG labels keep each line's actual position and advance.
+- Arrow tips remain at the line start, toward the spine; their size and angle are preserved as editable triangles.
+- The curved fish-head outline stays a local image with its safe label native, so the default output is hybrid.
+- `handDrawn` rough lines, arrows, boxes, and heads stay local artwork; safe text remains editable.
+- Changed/unsafe markers retain the affected line and marker together; effects and transforms retain the smallest safe subtree.
+- Diagnostics, source ownership, native exclusion masks, paint order, and all existing limits remain in force.
+
+---
+
 ## Hybrid PowerPoint export
 
 1. Convert supported primitives to native, editable PowerPoint objects.

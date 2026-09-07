@@ -6,6 +6,7 @@ import {
   chartPathPoints,
   ganttAxisPoints,
   isKnownGanttMilestone,
+  isKnownIshikawaArrow,
   classifyPolygonPreset,
   cssStyleToSceneStyle,
   decomposeSimpleSvgTransform,
@@ -65,6 +66,8 @@ test("routes only bundled Mermaid SVG roles with their actual root signals", () 
   assert.equal(classifyMermaidDiagramRoute("xychart"), "xychart");
   assert.equal(classifyMermaidDiagramRoute("gantt"), "gantt");
   assert.equal(classifyMermaidDiagramRoute("treemap"), "treemap");
+  assert.equal(classifyMermaidDiagramRoute("ishikawa"), "ishikawa");
+  assert.equal(classifyMermaidDiagramRoute("ishikawa-beta"), null);
   assert.equal(classifyMermaidDiagramRoute("treemap-beta"), null);
   assert.equal(classifyMermaidDiagramRoute("gantt-beta"), null);
   assert.equal(classifyMermaidDiagramRoute("xychart-beta"), null);
@@ -111,6 +114,15 @@ test("routes only bundled Mermaid SVG roles with their actual root signals", () 
   assert.equal(classifyMermaidDiagramRoute("stateDiagram", "statediagram", false), null);
   assert.equal(classifyMermaidDiagramRoute("error", "statediagram", true), null);
   assert.equal(classifyMermaidDiagramRoute("packet", "flowchart", false), "packet");
+});
+
+test("recognizes only the pinned Ishikawa filled start triangle", () => {
+  assert.equal(isKnownIshikawaArrow("M 10 0 L 0 5 L 10 10 Z"), true);
+  assert.equal(isKnownIshikawaArrow("M10,0L0,5L10,10Z"), true);
+  for (const data of ["", "M10,0L0,5L10,10", "M0,0L10,5L0,10Z", "M10,0L0,5L10,11Z",
+    "m10,0l0,5l10,10z", "M10,0L0,5L10,10L0,0Z", "M10,0Q0,5,10,10Z", "M10,,0L0,5L10,10Z"]) {
+    assert.equal(isKnownIshikawaArrow(data), false, data);
+  }
 });
 
 test("recognizes only the bundled Gantt milestone transform and square geometry", () => {
