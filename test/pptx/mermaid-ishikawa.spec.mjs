@@ -17,6 +17,9 @@ const fixture = (name, extension = "svg") => readFile(join(process.cwd(), "test"
 const textOf = (node) => (node.text?.paragraphs || node.paragraphs || [])
   .map((paragraph) => paragraph.runs.map((run) => run.text).join("")).join("\n").trim();
 const flatten = (nodes) => nodes.flatMap((node) => [node, ...flatten(node.children || [])]);
+// The exporter launches full Chromium, not Playwright's default headless shell.
+// Their SVG measurements/rasterization differ even at the same viewport and version.
+const runtimeTest = test.extend({ launchOptions: { executablePath: chromium.executablePath() } });
 
 async function extract(page, name = names[0], mutate, arg) {
   await page.evaluate((svg) => {
@@ -334,7 +337,7 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
   });
 }
 
-test("actual Ishikawa PPTX embeds local artwork once in paint order without native siblings", async ({ page }) => {
+runtimeTest("actual Ishikawa PPTX embeds local artwork once in paint order without native siblings", async ({ page }) => {
   test.setTimeout(120_000);
   const directory = test.info().outputPath();
   const sources = await Promise.all(names.map((name) => fixture(name, "mmd")));
@@ -426,9 +429,7 @@ test("actual Ishikawa PPTX embeds local artwork once in paint order without nati
             const composed = document.createElement("canvas");
             composed.width = 1280; composed.height = 720;
             const target = composed.getContext("2d");
-            target.fillStyle = `rgb(${background.slice(0, 3).join(",")})`;
-            target.fillRect(0, 0, 1280, 720);
-            target.drawImage(await decode(artwork), bounds.x, bounds.y, bounds.width, bounds.height);
+            const raster = await decode(artwork);
             const energy = (context) => {
               const data = context.getImageData(Math.ceil(frame.x + frame.width * .05), Math.floor(frame.y - 4),
                 Math.floor(frame.width * .25), Math.ceil(frame.height + 8)).data;
@@ -438,11 +439,34 @@ test("actual Ishikawa PPTX embeds local artwork once in paint order without nati
               }
               return sum;
             };
-            return { source: energy(context), actual: energy(target) };
+            const paint = ({ cropped = false, copies = 1 } = {}) => {
+              target.fillStyle = `rgb(${background.slice(0, 3).join(",")})`;
+              target.fillRect(0, 0, 1280, 720);
+              target.save();
+              if (cropped) {
+                // Reproduce geometry-only clipping that discards the rough path's stroke.
+                target.beginPath();
+                target.rect(bounds.x, frame.y, bounds.width, frame.height);
+                target.clip();
+              }
+              for (let copy = 0; copy < copies; copy++) {
+                target.drawImage(raster, bounds.x, bounds.y, bounds.width, bounds.height);
+              }
+              target.restore();
+              return energy(target);
+            };
+            return { source: energy(context), actual: paint(), cropped: paint({ cropped: true }), doubled: paint({ copies: 2 }) };
           }, { source: sourcePng.toString("base64"), artwork: image.data.toString("base64"), frame: spineFrame, bounds: image });
+          await test.info().attach("rough-spine-coverage", {
+            body: JSON.stringify({ browser: chromium.executablePath(), frame: spineFrame,
+              bounds: { x: image.x, y: image.y, width: image.width, height: image.height }, ...painted }, null, 2),
+            contentType: "application/json",
+          });
           expect(painted.source).toBeGreaterThan(100);
           expect(painted.actual / painted.source, "Rough spine stroke must not be cropped into a fading hairline").toBeGreaterThan(.9);
           expect(painted.actual / painted.source).toBeLessThan(1.1);
+          expect(painted.cropped / painted.source, "The lower bound must reject geometry-only stroke clipping").toBeLessThan(.9);
+          expect(painted.doubled / painted.source, "The upper bound must reject painting the same artwork twice").toBeGreaterThan(1.1);
         }
       }
     }
