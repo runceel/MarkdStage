@@ -51,6 +51,7 @@ cannot be separated safely.
 | XY chart | `xychart` / `xychart-beta` rectangular bars, straight line-plot segments, ticks, axes, titles, and axis labels; vertical and horizontal orientation |
 | Gantt | `gantt` ordinary tasks (done/active/critical included), task/section/title labels, date ticks, row backgrounds, rectangular excluded periods, and known rounded diamond milestones |
 | Treemap | `treemap` / `treemap-beta` section/header and leaf rectangles, titles, fitting cell labels and values, with independent fill/stroke alpha |
+| Ishikawa | `ishikawa` / `ishikawa-beta` normal-look spine/branch lines, cause-label rectangles, Japanese and measured multiline text, and exact filled spine-facing arrow triangles |
 | Other Mermaid diagrams | Render normally in slides and use image fallback where editable conversion is unavailable |
 
 Coverage is intentionally approximate: editability depends on the structures
@@ -90,6 +91,25 @@ Closed, curved, disconnected, or over-limit line paths are not approximated as
 editable chart lines. Shared group effects preserve the affected subtree as one
 image, without consuming separable axes, labels, or neighboring bars/points.
 SVG element, scene node, connector point, and depth limits remain in force.
+
+Ishikawa uses the bundled renderer's actual positions, line endpoints, sizes, and
+text baselines, including subordinate branches. Its filled start markers become
+separate editable triangles at the measured size and angle, with the tip toward
+the spine; they are not replaced by approximate PowerPoint arrow presets.
+Simple multiline labels use one editable text object per rendered SVG line,
+preserving Mermaid's wrapping and line advance rather than recomputing layout.
+Safe rectangles and individual fill/stroke alpha reuse the common primitives.
+
+The curved fish-head outline remains **local artwork**, while its safe text
+stays editable; therefore an ordinary Ishikawa export is hybrid. `handDrawn`
+rough lines, arrowheads, boxes, and fish heads also remain separate local images
+with safe labels editable. This is not general curved/closed-path conversion.
+Changed marker geometry, direction, dimensions, units, paint effects, or unsafe
+line opacity retain the affected line and its marker together as local artwork.
+Text effects, clipping, unsafe transforms, and shared group effects retain the
+smallest safe label or subtree, with source paths, reasons, native exclusion
+masks, and paint order intact. Existing size, node, element, point, and depth
+limits are unchanged; other diagram families are not expanded by this subset.
 
 Gantt uses Mermaid's date positions, durations, task ordering, calendar exclusions,
 and SVG dimensions directly. No date arithmetic or calendar layout is reimplemented.
