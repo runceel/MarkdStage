@@ -2422,6 +2422,10 @@ function readEdgeLabels(root, deck, options, consumed, config = {}) {
       if (label.rotation !== undefined) options.sourceElements?.set(sourcePath, label.element);
       labels.set(key, {
         ...label,
+        ...(config.labelBounds === "group" &&
+            label.rotation === undefined
+          ? { bounds: boundsOf(group, deck) }
+          : {}),
         sourcePath,
         terminal,
         style: definedEntries({
@@ -3976,6 +3980,7 @@ function stateScene(svg, root, deck, size, options) {
 
     const edgeLabels = readEdgeLabels(current, deck, options, consumed, {
       sourcePathPrefix: prefix,
+      labelBounds: "group",
     });
     for (const [index, path] of directChildren(containers.edgePaths[0], "path").entries()) {
       if (!hasClass(path, "transition")) continue;

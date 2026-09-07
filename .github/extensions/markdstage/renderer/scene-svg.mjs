@@ -220,21 +220,15 @@ export function captureSvgTree(element, { slots = new Map(), computedStyle = glo
     }
     if (computedStyle) {
       const style = computedStyle(source);
-      const requiresPreciseTextSizing = (html || math) &&
-        [source, ...(source.querySelectorAll?.("*") || [])].some((candidate) => {
-          const transform = computedStyle(candidate).getPropertyValue("text-transform");
-          return transform && transform !== "none";
-        });
       primitive.style = {};
       for (const property of CSS_PROPERTIES) {
         // SVG geometry and the root's responsive CSS must not become screen pixels.
         if (!html && !math && /^(?:min-|max-)?(?:width|height)$/.test(property)) continue;
         let value = localPaint(style.getPropertyValue(property), source);
-        if (requiresPreciseTextSizing &&
-            (property === "width" || property === "height")) {
-          // CSSOM rounds used pixels; snap back to Chromium's layout unit to avoid glyph drift.
-          const metric = simplePixelMetric(value);
-          if (metric !== null) value = `${Math.round(metric * 64) / 64}px`;
+        if ((html || math) && (property === "width" || property === "height")) {
+          // CSSOM rounds intrinsic used pixels; retaining auto avoids fallback layout drift.
+          const specified = source.computedStyleMap?.().get(property)?.toString?.();
+          if (specified === "auto") value = specified;
         }
         if (property === "transform") {
           // Typed OM retains matrix precision and includes stylesheet overrides.
