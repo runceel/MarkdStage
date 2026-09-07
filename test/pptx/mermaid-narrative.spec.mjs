@@ -271,6 +271,7 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
         await page.goto(`${harness.url}?present=1`);
         await waitForSlideReady(page);
         const before = await page.locator(".deck").screenshot();
+        const displayMarkup = await page.locator("pre.mermaid > svg").evaluate((svg) => svg.outerHTML);
         await page.locator("svg[data-scene-source=mermaid]").evaluate(async (element) => {
           const { captureSvgTree, sceneToSvg } = await import("./renderer/scene-svg.mjs");
           window.__sceneReference = element.__presentationScene;
@@ -283,10 +284,18 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
           original.replaceWith(sceneToSvg({ ...window.__sceneReference, nodes: [], meta: { svgRoot } }));
         });
         const original = await page.locator(".deck").screenshot();
-        await page.locator("pre.mermaid > svg").evaluate(async (element) => {
+        const serializedScene = await page.evaluate(() => JSON.parse(JSON.stringify(window.__sceneReference)));
+        // Match the reference's one-replacement paint history. Repeated swaps in
+        // one document change a Chromium cloud-path edge pixel even when the
+        // in-memory scene, DOM, computed styles and geometry are unchanged.
+        await page.goto(`${harness.url}?present=1`);
+        await waitForSlideReady(page);
+        await page.locator("pre.mermaid > svg").evaluate(async (element, scene) => {
           const { sceneToSvg } = await import("./renderer/scene-svg.mjs");
-          element.replaceWith(sceneToSvg(JSON.parse(JSON.stringify(window.__sceneReference))));
-        });
+          element.replaceWith(sceneToSvg(scene));
+        }, serializedScene);
+        expect(await page.locator("pre.mermaid > svg").evaluate((svg) => svg.outerHTML),
+          `${names[index]} serialization preserves the exact displayed SVG`).toBe(displayMarkup);
         const serialized = await page.locator(".deck").screenshot();
         for (const [operation, actual] of [["display", before], ["serialized", serialized]]) {
           const matches = original.equals(actual);
@@ -295,6 +304,21 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
             await writeFile(test.info().outputPath(`${names[index]}-${operation}-source.png`), original);
           }
           expect(matches, `${names[index]} ${operation} equals the unchanged source snapshot raster`).toBe(true);
+        }
+        if (names[index] === "mindmap-hybrid") {
+          const cloud = page.locator('pre.mermaid > svg path[data-scene-node="fallback"]').nth(1);
+          for (const control of ["missing", "subpixel-shift"]) {
+            await cloud.evaluate((element, control) => {
+              element.style.visibility = control === "missing" ? "hidden" : "visible";
+              element.style.translate = control === "subpixel-shift" ? ".25px 0" : "none";
+            }, control);
+            expect((await page.locator(".deck").screenshot()).equals(original),
+              `${control} cloud negative control must be detected`).toBe(false);
+          }
+          await cloud.evaluate((element) => {
+            element.style.visibility = "visible";
+            element.style.removeProperty("translate");
+          });
         }
         await page.locator("pre.mermaid > svg").evaluate((svg) => {
           svg.style.transform = "translateX(2px)";
