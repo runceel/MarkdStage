@@ -291,7 +291,7 @@ and rectangular excluded periods use Mermaid's rendered geometry, not recreated 
 ## Gantt: the editable boundary
 
 - Known milestones keep their rounded diamond silhouette as editable rounded squares: centered 45° rotation and 0.8 scale only.
-- Japanese, explicit SVG multiline labels, and simple rotated tick text reuse the common text adapter.
+- Japanese, explicit SVG multiline labels, and simple rotated tick text reuse the common text adapter; multiline Gantt lines keep their individual rendered positions.
 - The usual faded tick line/label pair is native only when its painted extents are safely separated.
 - Overlapping or uncertain tick groups (including default top-axis labels) remain local images with their group alpha intact.
 - Arbitrary transforms, effects, decorations, or unknown geometry retain local fallback bounds, source paths, reasons, and paint order.

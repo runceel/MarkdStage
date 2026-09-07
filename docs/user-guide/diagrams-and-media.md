@@ -104,7 +104,10 @@ effects are safe. Uncertain or overlapping groups, including default top-axis
 labels whose text bounds meet their tick lines, retain one local image and their
 original group alpha. This is not general group-opacity flattening. Plain Japanese,
 explicit SVG line breaks (including multiline section titles), and safe rotated
-tick labels share the existing text adapter. Filters, gradients, clipping, decorated
+tick labels share the existing text adapter. Simple multiline Gantt labels use
+separately positioned editable text for each rendered SVG line, preserving its
+actual advance rather than PowerPoint's default paragraph spacing. Unsupported
+multiline structures remain local label images. Filters, gradients, clipping, decorated
 text, unusual milestones, and unknown geometry preserve the smallest safe subtree;
 source ownership and native exclusion masks retain separable siblings exactly once
 in their original paint order. Existing element, node, point, and depth limits apply.

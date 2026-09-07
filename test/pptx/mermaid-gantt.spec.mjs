@@ -61,7 +61,8 @@ for (const name of names.slice(0, 3)) {
       expect(nodes.filter((node) => node.meta?.mermaid?.kind === "gantt-milestone")).toHaveLength(name === "gantt-ticks" ? 2 : 1);
       expect(nodes.filter((node) => node.meta?.mermaid?.kind === "gantt-row")).toHaveLength(name === "gantt-basic" ? 5 : 4);
       expect(nodes.some((node) => node.meta?.mermaid?.kind === "gantt-tick")).toBe(true);
-      expect(nodes.map(textOf)).toContain(name === "gantt-basic" ? "Gate / 承認" : name === "gantt-periods" ? "設計\nDesign" : "Build / 実装");
+      expect(nodes.map(textOf)).toContain(name === "gantt-basic" ? "Gate / 承認" : name === "gantt-periods" ? "Design" : "Build / 実装");
+      if (name === "gantt-periods") expect(nodes.map(textOf)).toContain("設計");
       if (name === "gantt-periods") expect(nodes.filter((node) => node.meta?.mermaid?.kind === "gantt-excluded-period")).toHaveLength(2);
       if (name === "gantt-ticks") expect(nodes.filter((node) => node.kind === "text" && node.rotation === 25).length).toBeGreaterThan(0);
       for (const node of nodes) {
@@ -115,7 +116,8 @@ test("Gantt uses SVG placement/scale, exact axis corners, multiline labels and i
         svg.querySelector(".grid .domain").style.strokeWidth = "1px";
       }, scale);
       expect(result.diagnostics).toEqual([]);
-      expect(result.scene.nodes.map(textOf)).toContain("日本語\nSecond line");
+      expect(result.scene.nodes.map(textOf)).toContain("日本語");
+      expect(result.scene.nodes.map(textOf)).toContain("Second line");
       const milestone = result.scene.nodes.find((node) => node.meta?.mermaid?.kind === "gantt-milestone");
       const source = result.sources.find((entry) => entry.path === milestone.sourcePath);
       expect(milestone.bounds.width).toBeCloseTo(20 * 0.8 * 0.5 * scale, 1);
@@ -131,6 +133,81 @@ test("Gantt uses SVG placement/scale, exact axis corners, multiline labels and i
       const bytes = buildPptxPackage({ slides: [{ elements: sceneToPptxElements(result.scene).elements }] });
       expect(bytes.toString("utf8")).toContain('<a:alpha val="32000"/>');
       expect(bytes.toString("utf8")).toContain('<a:alpha val="12000"/>');
+    }
+  } finally { await harness.close(); }
+});
+
+test("Gantt multiline text preserves each rendered line's advance, bounds and independent ownership", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# Gantt line positions"] });
+  try {
+    await page.goto(harness.url);
+    for (const entry of [
+      { scale: 1, advance: "1em", rotation: 0 },
+      { scale: 0.5, advance: "18px", rotation: 0 },
+      { scale: 1.25, advance: "0.8em", rotation: 25 },
+    ]) {
+      const result = await extract(page, "gantt-periods", ({ scale, advance, rotation }) => {
+        const svg = document.querySelector("svg");
+        svg.style.cssText = "width:640px;height:auto;margin-left:63px;margin-top:27px";
+        const label = svg.querySelector(".sectionTitle");
+        label.parentElement.setAttribute("transform", `translate(17,13) scale(${scale})`);
+        label.setAttribute("transform", `rotate(${rotation} 10 80)`);
+        label.children[1].setAttribute("dy", advance);
+      }, entry);
+      expect(result.diagnostics).toEqual([]);
+      const lines = result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "gantt-text-line");
+      expect(lines).toHaveLength(4);
+      expect(lines.map(textOf)).toEqual(["設計", "Design", "開発", "Build"]);
+      for (const line of lines) {
+        expect(line.text.paragraphs).toHaveLength(1);
+        const source = result.sources.find((source) => source.path === line.sourcePath);
+        expect(source.tag).toBe("tspan");
+        expect(source.text).toBe(textOf(line));
+        if (!line.rotation) {
+          for (const key of ["x", "y", "width", "height"]) {
+            expect(Math.abs(line.bounds[key] - source.bounds[key])).toBeLessThanOrEqual(0.11);
+          }
+        } else {
+          expect(line.rotation).toBe(entry.rotation);
+          expect(line.bounds.x + line.bounds.width / 2).toBeCloseTo(source.center.x, 0);
+          expect(line.bounds.y + line.bounds.height / 2).toBeCloseTo(source.center.y, 0);
+        }
+      }
+      const [first, second] = lines;
+      const sourceFirst = result.sources.find((source) => source.path === first.sourcePath);
+      const sourceSecond = result.sources.find((source) => source.path === second.sourcePath);
+      if (!first.rotation) {
+        expect(Math.abs((second.bounds.y - first.bounds.y) -
+          (sourceSecond.bounds.y - sourceFirst.bounds.y))).toBeLessThanOrEqual(0.11);
+      } else {
+        expect((second.bounds.y + second.bounds.height / 2) - (first.bounds.y + first.bounds.height / 2))
+          .toBeCloseTo(sourceSecond.center.y - sourceFirst.center.y, 0);
+      }
+      const mapped = sceneToPptxElements(result.scene);
+      const bytes = buildPptxPackage({ slides: [{ elements: mapped.elements }] });
+      const xml = bytes.toString("utf8");
+      const objects = [...xml.matchAll(/<p:sp>[\s\S]*?<\/p:sp>/g)].map((match) => match[0]);
+      for (const line of lines) {
+        const object = objects.find((object) => object.includes(`<a:t>${textOf(line)}</a:t>`));
+        expect(object).toBeTruthy();
+        expect([...object.matchAll(/<a:p>/g)]).toHaveLength(1);
+        const offset = /<a:off x="(-?\d+)" y="(-?\d+)"/.exec(object);
+        expect(Number(offset[1]) / 9525).toBeCloseTo(line.bounds.x, 3);
+        expect(Number(offset[2]) / 9525).toBeCloseTo(line.bounds.y, 3);
+      }
+      expect(result.conflicts).toEqual([]);
+    }
+    for (const mutation of ["nested", "inline", "per-glyph", "effect"]) {
+      const result = await extract(page, "gantt-periods", (mutation) => {
+        const label = document.querySelector(".sectionTitle");
+        if (mutation === "nested") label.children[1].innerHTML = "<tspan>Design</tspan>";
+        if (mutation === "inline") label.prepend(document.createTextNode("Inline"));
+        if (mutation === "per-glyph") label.children[1].setAttribute("x", "10 20");
+        if (mutation === "effect") label.children[1].style.filter = "blur(2px)";
+      }, mutation);
+      expect(result.scene.nodes.filter((node) => node.kind === "fallback")).toHaveLength(1);
+      expect(result.scene.nodes.filter((node) => node.meta?.mermaid?.kind === "gantt-text-line").map(textOf)).toEqual(["開発", "Build"]);
+      expect(result.conflicts).toEqual([]);
     }
   } finally { await harness.close(); }
 });
@@ -281,6 +358,25 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
         fallback.hasAttribute("data-pptx-native") || fallback.closest("[data-pptx-native]") || fallback.querySelector("[data-pptx-native]")).length);
       expect(ownership).toBe(0);
       expect(model.slides[0].elements.map(textOf)).toContain("Gate / 承認");
+      const lineBounds = await svgs.nth(1).locator(".sectionTitle tspan").evaluateAll((spans) => spans.map((span) => {
+        const box = span.getBoundingClientRect();
+        const deck = span.closest(".deck").getBoundingClientRect();
+        return { text: span.textContent, x: box.x - deck.x, y: box.y - deck.y,
+          width: box.width, height: box.height, native: span.getAttribute("data-pptx-native") };
+      }));
+      expect(lineBounds).toHaveLength(4);
+      for (const source of lineBounds) {
+        expect(source.native).toBe("text");
+        const line = model.slides[1].elements.filter((element) => textOf(element) === source.text);
+        expect(line).toHaveLength(1);
+        expect(line[0].paragraphs).toHaveLength(1);
+        for (const key of ["x", "y", "width", "height"]) {
+          expect(Math.abs(line[0][key] - source[key])).toBeLessThanOrEqual(0.11);
+        }
+      }
+      const first = model.slides[1].elements.find((element) => textOf(element) === "設計");
+      const second = model.slides[1].elements.find((element) => textOf(element) === "Design");
+      expect(second.y - first.y).toBeCloseTo(11, 1);
       await writeFile(test.info().outputPath(`${theme}-model.json`), JSON.stringify(model, null, 2));
     } finally { await harness.close(); }
   });
@@ -305,7 +401,7 @@ test("real top-axis tick groups retain local images when their painted extents m
 test("actual Gantt PPTX packages each local fallback once in native SVG paint order", async () => {
   test.setTimeout(120_000);
   const directory = test.info().outputPath();
-  const sources = await Promise.all(names.slice(3).map((name) => fixture(name, "mmd")));
+  const sources = await Promise.all([...names.slice(3), "gantt-periods"].map((name) => fixture(name, "mmd")));
   const file = join(directory, "slides.md");
   await writeFile(file, ["# Gantt hybrid", ...sources.map((source) => `## Gantt\n\n\`\`\`mermaid\n${source}\n\`\`\``)].join("\n\n---\n\n"));
   await withDeckServer({ file, workspace: directory, theme: "dark" }, async (session) => {
@@ -354,5 +450,14 @@ test("actual Gantt PPTX packages each local fallback once in native SVG paint or
     const imageIndex = shapeOrder.findIndex((match) => match[1] === "pic" && match[0].includes('name="mermaid artwork"'));
     expect(shapeOrder[imageIndex - 1][0]).toContain('<a:prstGeom prst="roundRect">');
     expect(shapeOrder[imageIndex + 1][0]).toContain('rot="2700000"');
+    const multilineObjects = [...slides[3].matchAll(/<p:sp>[\s\S]*?<\/p:sp>/g)].map((match) => match[0]);
+    const lineY = (label) => {
+      const objects = multilineObjects.filter((object) => object.includes(`<a:t>${label}</a:t>`));
+      expect(objects).toHaveLength(1);
+      expect([...objects[0].matchAll(/<a:p>/g)]).toHaveLength(1);
+      return Number(/<a:off x="-?\d+" y="(-?\d+)"/.exec(objects[0])[1]) / 9525;
+    };
+    expect(lineY("Design") - lineY("設計")).toBeCloseTo(11, 3);
+    expect(lineY("Build") - lineY("開発")).toBeCloseTo(11, 3);
   });
 });

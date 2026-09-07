@@ -758,8 +758,7 @@ function hasUnsupportedTextSemantics(source) {
   });
 }
 
-function measuredTextGeometry(element, deck) {
-  const source = textGeometrySource(element);
+function measuredTextGeometry(element, deck, source = textGeometrySource(element)) {
   const matrix = source?.getScreenCTM?.();
   const transform = decomposeSimpleSvgTransform(matrix);
   if (!source || !transform || hasUnsupportedTextSemantics(source)) return null;
@@ -6533,6 +6532,13 @@ function measuredDiagramScene(svg, deck, size, options, diagram, root, rootRole,
       return;
     }
     if (role === "text" && !element.textContent.trim() && !element.children.length) return;
+    if (diagram === "gantt" && role === "text") {
+      const lines = ganttMultilineText(element, sourcePath, nodes.length, deck, options, reasons);
+      if (lines) {
+        nodes.push(...lines);
+        return;
+      }
+    }
     const meta = { mermaid: { kind: `${diagram}-${role}` } };
     const node = role === "text"
       ? !safeChartLabel(element, options)
@@ -6599,6 +6605,37 @@ function ganttElementRole(element, parent) {
       /^(?:taskText|taskTextOutsideLeft|taskTextOutsideRight|sectionTitle)$/.test(name))) return "text";
   }
   return null;
+}
+
+function ganttMultilineText(element, sourcePath, z, deck, options, reasons) {
+  if (structuredLabelText(element, options).paragraphs.length <= 1) return null;
+  const fallback = (reason) => [fallbackNode(element, z, deck, reason, sourcePath)];
+  if (unsupportedVisualEffect(element)) return fallback(reasons.style);
+  if (!safeChartLabel(element, options)) return fallback("unsupported-mermaid-gantt-label");
+  if (!measuredTextGeometry(element, deck)) return fallback("unsupported-mermaid-text-transform");
+  const lines = directChildren(element);
+  if (lines.length < 2 || lines.length > MAX_TEXT_PARAGRAPHS ||
+      [...element.childNodes].some((node) => node.nodeType === 3 && node.textContent.trim()) ||
+      lines.some((line) => localName(line) !== "tspan" || line.children.length ||
+        !line.textContent.trim() || !line.hasAttribute("x"))) {
+    return fallback("unsupported-mermaid-gantt-label");
+  }
+  const parts = lines.map((line, index) => {
+    const geometry = measuredTextGeometry(line, deck, line);
+    const text = structuredLabelText(line, options);
+    if (!geometry || text.paragraphs.length !== 1) return null;
+    return definedEntries({
+      kind: "text", sourcePath: `${sourcePath}.lines[${index}]`, z: z + index,
+      bounds: geometry.bounds, rotation: geometry.rotation, text,
+      textLayout: { alignment: "center", verticalAlignment: "middle", textWrap: "none" },
+      meta: { mermaid: { kind: "gantt-text-line" } },
+    });
+  });
+  if (parts.some((part) => !part)) return fallback("unsupported-mermaid-gantt-label");
+  // Each SVG tspan owns its measured position. Default paragraph spacing loses
+  // Mermaid's explicit dy advance (notably the 1em multiline section labels).
+  parts.forEach((part, index) => options.sourceElements.set(part.sourcePath, lines[index]));
+  return parts;
 }
 
 function isSeparableGanttTick(element, options) {
