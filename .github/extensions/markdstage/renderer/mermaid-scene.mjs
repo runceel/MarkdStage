@@ -1806,6 +1806,122 @@ function hasAncestorInSet(element, set) {
   return false;
 }
 
+const EDGE_LABEL_SVG_DECORATIONS = new Set([
+  "circle",
+  "ellipse",
+  "image",
+  "line",
+  "path",
+  "polygon",
+  "polyline",
+  "rect",
+  "svg",
+  "use",
+]);
+
+function edgeLabelDecorationInfo(group, options) {
+  const backgrounds = new Map();
+  const backgroundByElement = new Map();
+  let complex = false;
+  const signatureBounds = (element) => {
+    const bounds = element.getBoundingClientRect();
+    return [
+      roundedMetric(bounds.left),
+      roundedMetric(bounds.top),
+      roundedMetric(bounds.width),
+      roundedMetric(bounds.height),
+    ].join(",");
+  };
+  for (const element of group.querySelectorAll("*")) {
+    if (!isRenderedElement(element)) continue;
+    const bounds = element.getBoundingClientRect();
+    if (!(bounds.width > 0 || bounds.height > 0)) continue;
+    const style = getComputedStyle(element);
+    if (element.namespaceURI !== SVG_NS) {
+      const fill = normalizeColor(
+        style.backgroundColor,
+        options.resolveColor,
+      );
+      const opacity = effectiveOpacity(element);
+      const fillAlpha = fill
+        ? (cssColorParts(fill)?.alpha ?? 1) * opacity
+        : 0;
+      if (fill && fillAlpha > 0.000001) {
+        const color = cssColorParts(fill);
+        const signature = [
+          "background",
+          signatureBounds(element),
+          color?.rgb || fill,
+        ].join(":");
+        const entry = {
+          element,
+          fill,
+          opacity,
+          svgPaint: null,
+          signature,
+        };
+        backgroundByElement.set(element, entry);
+        if (!backgrounds.has(signature)) backgrounds.set(signature, entry);
+      }
+      if ((style.backgroundImage && style.backgroundImage !== "none") ||
+          (style.boxShadow && style.boxShadow !== "none") ||
+          (style.textShadow && style.textShadow !== "none") ||
+          localName(element) === "img" ||
+          hasClass(element, "katex")) {
+        complex = true;
+      }
+      for (const side of ["Top", "Right", "Bottom", "Left"]) {
+        const width = parseMetric(style[`border${side}Width`]);
+        const borderStyle = style[`border${side}Style`];
+        const color = normalizeColor(
+          style[`border${side}Color`],
+          options.resolveColor,
+        );
+        const alpha = color
+          ? (cssColorParts(color)?.alpha ?? 1) * opacity
+          : 0;
+        if (width > 0 &&
+            !["none", "hidden"].includes(borderStyle) &&
+            alpha > 0.000001) {
+          complex = true;
+        }
+      }
+      continue;
+    }
+    const tag = localName(element);
+    if (!EDGE_LABEL_SVG_DECORATIONS.has(tag)) continue;
+    if (["image", "svg", "use"].includes(tag)) {
+      complex = true;
+      continue;
+    }
+    if (sceneStyleHasVisiblePaint(computedSvgStyle(element, options))) {
+      complex = true;
+    }
+  }
+  const preferredBackground = [
+    group.querySelector("span.edgeLabel"),
+    group.querySelector(".edgeLabel p"),
+    group.querySelector("rect"),
+    group.querySelector(".labelBkg"),
+  ].map((element) => backgroundByElement.get(element))
+    .find(Boolean);
+  const selectedBackground =
+    preferredBackground ||
+    backgrounds.values().next().value ||
+    null;
+  const extraBackground = selectedBackground && [
+    ...backgroundByElement.values(),
+  ].some((entry) =>
+    entry !== selectedBackground &&
+    !hasClass(entry.element, "labelBkg") &&
+    entry.signature !== selectedBackground.signature);
+  return {
+    background: selectedBackground,
+    visible: complex || backgrounds.size > 0,
+    complex: complex || Boolean(extraBackground),
+  };
+}
+
 function readEdgeLabels(root, deck, options, consumed, config = {}) {
   const labels = new Map();
   const fallbackReason = nonEmptyStringOr(
@@ -1831,7 +1947,8 @@ function readEdgeLabels(root, deck, options, consumed, config = {}) {
     if (!hasRenderedVisualDescendant(group)) continue;
     const extra = terminal ? group.cloneNode(true) : null;
     extra?.querySelectorAll("span.edgeLabel, text").forEach((label) => label.remove());
-    if (group.querySelector("img, image, svg, .katex, use, path, line, polygon, polyline, circle, ellipse, rect") ||
+    const decoration = edgeLabelDecorationInfo(group, options);
+    if (decoration.complex ||
         (terminal && (group.querySelectorAll("span.edgeLabel, text").length > 1 || extra.textContent.trim())) ||
         unsupportedVisualEffect(group)) {
       labels.set(key, { fallback: fallbackNode(group, 0, deck,
@@ -1840,34 +1957,26 @@ function readEdgeLabels(root, deck, options, consumed, config = {}) {
     }
     if (!group.textContent.trim()) continue;
     const label = labelInfo(group, "span.edgeLabel, text", deck, options);
-    const background = group.querySelector(".edgeLabel p, span.edgeLabel, rect");
-    const backgroundStyle = background && getComputedStyle(background);
-    const fill = normalizeColor(backgroundStyle?.backgroundColor === "rgba(0, 0, 0, 0)"
-      ? (background?.localName === "rect" ? backgroundStyle.fill : null)
-      : backgroundStyle?.backgroundColor, options.resolveColor);
-    const svgPaint = background?.namespaceURI === SVG_NS
-      ? computedSvgStyle(background, options)
-      : null;
-    const opacity = background ? effectiveOpacity(background) : 1;
-    const fillAlpha = fill
-      ? (cssColorParts(fill)?.alpha ?? 1) *
-        opacity *
-        (svgPaint?.fillOpacity ?? 1)
-      : 0;
-    const backgroundVisible = Boolean(
-      background &&
-      isRenderedElement(background) &&
-      fillAlpha > 0.000001,
-    );
+    const background = decoration.background;
+    const fill = background?.fill || null;
+    const svgPaint = background?.svgPaint || null;
+    const opacity = background?.opacity ?? 1;
+    const backgroundVisible = Boolean(background);
     const textVisible = Boolean(label && sceneTextHasVisiblePaint(label.text));
-    if (!textVisible && !backgroundVisible) continue;
+    if (!textVisible) {
+      if (decoration.visible) {
+        labels.set(key, { fallback: fallbackNode(group, 0, deck,
+          fallbackReason, sourcePath) });
+      }
+      continue;
+    }
     if (label && label.bounds.width > 0 && label.bounds.height > 0 && textVisible) {
       const compositeOpacity = backgroundVisible && [
         group,
         ...group.querySelectorAll("*"),
       ].some((part) =>
         localOpacity(part) < 1 &&
-        part.contains(background) &&
+        part.contains(background.element) &&
         part.contains(label.element));
       if (label.unsupportedTransform ||
           hasRenderedTextTransform(label.element) ||

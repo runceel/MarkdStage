@@ -2488,6 +2488,71 @@ test("omits hidden requirement content and localizes rendered text transforms", 
     expect(transparentXml).not.toContain("Text: 顧客");
     expect(transparentXml).toContain("ID: REQ-001");
 
+    await sceneFromFixture(
+      page,
+      fixture,
+      "requirement-transparent-edge-label.svg",
+    );
+    const transparentEdgeLabel = await updateFixture(page, () => {
+      const group = document.querySelectorAll("g.edgeLabel")[1];
+      for (const part of [group, ...group.querySelectorAll("*")]) {
+        part.style.setProperty("color", "transparent", "important");
+        part.style.setProperty(
+          "background-color",
+          "transparent",
+          "important",
+        );
+      }
+    });
+    expect(transparentEdgeLabel.scene.nodes.filter((node) =>
+      node.kind === "fallback")).toEqual([]);
+    expect(scenePaths(transparentEdgeLabel))
+      .not.toContain("edgeLabels[root_req-copy_req-0]");
+    expect(scenePaths(transparentEdgeLabel))
+      .toContain("relations[1].line");
+
+    await sceneFromFixture(
+      page,
+      fixture,
+      "requirement-decorated-transparent-edge-label.svg",
+    );
+    const decoratedEdgeLabel = await updateFixture(page, () => {
+      const group = document.querySelectorAll("g.edgeLabel")[1];
+      const span = group.querySelector("span.edgeLabel");
+      span.style.setProperty("color", "transparent", "important");
+      span.style.setProperty(
+        "background-color",
+        "transparent",
+        "important",
+      );
+      span.querySelector("p").style.setProperty(
+        "background-color",
+        "red",
+        "important",
+      );
+    });
+    expect(decoratedEdgeLabel.scene.nodes.filter((node) =>
+      node.kind === "fallback")).toMatchObject([{
+      sourcePath: "edgeLabels[root_req-copy_req-0]",
+      reason: "unsupported-mermaid-requirement-relation-label",
+    }]);
+    expect(decoratedEdgeLabel.scene.nodes.filter((node) =>
+      node.meta?.mermaid?.kind === "edge-label")).toHaveLength(6);
+    expect(scenePaths(decoratedEdgeLabel))
+      .toContain("relations[1].line");
+    expect(new Set(scenePaths(decoratedEdgeLabel)).size)
+      .toBe(decoratedEdgeLabel.scene.nodes.length);
+    expect(sceneToPptxElements(decoratedEdgeLabel.scene).fallbacks.map(
+      (fallback) => ({
+        sourcePath: fallback.sourcePath,
+        reason: fallback.reason,
+      }),
+    )).toEqual([{
+      sourcePath: "edgeLabels[root_req-copy_req-0]",
+      reason: "unsupported-mermaid-requirement-relation-label",
+    }]);
+    assertNoWholeFallback(decoratedEdgeLabel);
+
     await sceneFromFixture(page, fixture, "requirement-mixed-box.svg");
     const mixedBox = await updateFixture(page, () => {
       document.querySelector(
@@ -6703,6 +6768,18 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
           ".edgeLabel span{text-transform:uppercase}",
       }),
     );
+    const decoratedLabelDiagram = diagram.replace(
+      '{"handDrawnSeed": 42}',
+      JSON.stringify({
+        handDrawnSeed: 42,
+        themeCSS:
+          ".edgeLabel:nth-child(2) span{" +
+          "color:transparent!important;" +
+          "background-color:transparent!important} " +
+          ".edgeLabel:nth-child(2) p{" +
+          "background-color:red!important}",
+      }),
+    );
     const harness = await startHarness({
       slides: [
         `# Requirement\n\n\`\`\`mermaid\n${diagram}\n\`\`\``,
@@ -6714,6 +6791,7 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
         `# Requirement hidden content\n\n\`\`\`mermaid\n${visibilityDiagram}\n\`\`\``,
         `# Requirement hidden text\n\n\`\`\`mermaid\n${hiddenTextDiagram}\n\`\`\``,
         `# Requirement transformed text\n\n\`\`\`mermaid\n${transformDiagram}\n\`\`\``,
+        `# Requirement decorated label\n\n\`\`\`mermaid\n${decoratedLabelDiagram}\n\`\`\``,
       ],
       theme,
       customThemeCss: theme === "custom"
@@ -6734,7 +6812,7 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
         .toHaveAttribute("data-pptx-ready", "true");
       await expect(page.locator(
         "pre.mermaid > svg[data-scene-backend=svg]",
-      )).toHaveCount(6);
+      )).toHaveCount(7);
       const model = await page.evaluate(() => window.__presentationPptxModel);
       const native = model.slides[0].elements.filter((element) =>
         element.path?.startsWith("mermaid[0]."));
@@ -6803,6 +6881,7 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
       const visibilitySvg = page.locator("pre.mermaid > svg").nth(3);
       const hiddenTextSvg = page.locator("pre.mermaid > svg").nth(4);
       const transformSvg = page.locator("pre.mermaid > svg").nth(5);
+      const decoratedLabelSvg = page.locator("pre.mermaid > svg").nth(6);
       for (const svg of [
         basicSvg,
         lowercaseSvg,
@@ -6810,6 +6889,7 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
         visibilitySvg,
         hiddenTextSvg,
         transformSvg,
+        decoratedLabelSvg,
       ]) {
         await expect(svg).toHaveAttribute(
           "aria-roledescription",
@@ -7015,6 +7095,68 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
       expect(await transformSvg.locator(
         "g.edgeLabel span.edgeLabel",
       ).nth(1).evaluate((element) => element.innerText)).toBe("<<COPIES>>");
+
+      const decoratedLabel = model.slides[6];
+      expect(decoratedLabel.fallbacks.filter((entry) =>
+        entry.type === "mermaid").map((entry) => ({
+        sourcePath: entry.sourcePath,
+        reason: entry.reason,
+        captureId: entry.captureId,
+      }))).toEqual([{
+        sourcePath: "edgeLabels[root_req-copy_req-0]",
+        reason: "unsupported-mermaid-requirement-relation-label",
+        captureId: expect.any(String),
+      }]);
+      expect(decoratedLabel.elements.filter((element) =>
+        element.mermaid?.kind === "requirement-relation"))
+        .toHaveLength(7);
+      expect(decoratedLabel.elements.filter((element) =>
+        element.mermaid?.kind === "requirement-terminal"))
+        .toHaveLength(15);
+      expect(decoratedLabel.elements.filter((element) =>
+        element.mermaid?.kind === "edge-label")).toHaveLength(6);
+      await expect(decoratedLabelSvg.locator(
+        'g.edgeLabel:has([data-id="root_req-copy_req-0"])' +
+        '[data-pptx-fallback-ids]',
+      )).toHaveCount(1);
+      await expect(decoratedLabelSvg.locator(
+        'path.relationshipLine[data-id="root_req-copy_req-0"]' +
+        '[data-pptx-native=connector]',
+      )).toHaveCount(1);
+      await expect(decoratedLabelSvg.locator(
+        "g.edgeLabel[data-pptx-native=shape]",
+      )).toHaveCount(6);
+      const decoratedPaint = await decoratedLabelSvg.locator(
+        'g.edgeLabel:has([data-id="root_req-copy_req-0"]) p',
+      ).evaluate((element) => {
+        const bounds = element.getBoundingClientRect();
+        return {
+          background: getComputedStyle(element).backgroundColor,
+          width: bounds.width,
+          height: bounds.height,
+        };
+      });
+      expect(decoratedPaint.background).toBe("rgb(255, 0, 0)");
+      expect(decoratedPaint.width).toBeGreaterThan(0);
+      expect(decoratedPaint.height).toBeGreaterThan(0);
+      expect(await decoratedLabelSvg.evaluate((svg) => {
+        const paths = svg.__presentationScene.nodes.map((node) =>
+          node.sourcePath);
+        return {
+          labelCount: paths.filter((path) =>
+            path === "edgeLabels[root_req-copy_req-0]").length,
+          svgFallback: svg.getAttribute("data-pptx-fallback-ids"),
+        };
+      })).toEqual({
+        labelCount: 1,
+        svgFallback: null,
+      });
+      const decoratedOwnership = await decoratedLabelSvg.evaluate((svg) => {
+        const paths = svg.__presentationScene.nodes.map((node) =>
+          node.sourcePath);
+        return new Set(paths).size === paths.length;
+      });
+      expect(decoratedOwnership).toBe(true);
 
       const packageBytes = buildPptxPackage({
         slides: [{ elements: native }],

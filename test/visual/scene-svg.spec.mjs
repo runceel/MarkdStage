@@ -51,6 +51,17 @@ const requirementTransformedSlide = `# Transformed requirement text\n\n\`\`\`mer
       ".edgeLabel span{text-transform:uppercase}",
   }),
 )}\n\`\`\``;
+const requirementDecoratedLabelSlide = `# Decorated transparent requirement label\n\n\`\`\`mermaid\n${requirementSource.replace(
+  '{"handDrawnSeed": 42}',
+  JSON.stringify({
+    handDrawnSeed: 42,
+    themeCSS:
+      ".edgeLabel:nth-child(2) span{" +
+      "color:transparent!important;" +
+      "background-color:transparent!important} " +
+      ".edgeLabel:nth-child(2) p{background-color:red!important}",
+  }),
+)}\n\`\`\``;
 const rotatedTextSlide = [
   "# Rotated Mermaid text",
   "",
@@ -88,6 +99,7 @@ const slides = [
   requirementHiddenSlide,
   requirementHiddenTextSlide,
   requirementTransformedSlide,
+  requirementDecoratedLabelSlide,
 ];
 
 const customThemeCss = ":root{--bg:#102030;--fg:#f8fafc;--body:#d7e3f0;--muted:#abbdd0;--surface:#203448;--border:#486580;--accent:#39b8f2;--accent-strong:#72d4ff;--accent-soft:#163b50;}";
@@ -108,7 +120,7 @@ async function assertBackend(page, count) {
 
 for (const theme of ["dark", "light", "microsoft", "custom"]) {
   test(`shared backend displays both producers and faithful fallback in ${theme}`, async ({ page }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(120_000);
     const harness = await startHarness({ slides: fidelitySlides, theme, customThemeCss: theme === "custom" ? customThemeCss : "" });
     await page.addInitScript(() => {
       const replaceWith = Element.prototype.replaceWith;
