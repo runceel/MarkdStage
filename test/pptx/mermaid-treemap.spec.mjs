@@ -269,6 +269,43 @@ test("treemap unknown structures, transforms and limits stay diagnostic", async 
   } finally { await harness.close(); }
 });
 
+test("group artwork bounds include visible transformed rectangle strokes, not clip definitions or hidden paint", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# Group stroke"] });
+  try {
+    await page.goto(harness.url);
+    for (const entry of [
+      { scale: 0.5, rotation: 0, width: 8 },
+      { scale: 1.25, rotation: 25, width: 8 },
+      { scale: 0.5, rotation: 0, width: 8, vectorEffect: "non-scaling-stroke" },
+      { scale: 1, rotation: 0, width: 0 },
+    ]) {
+      const result = await extract(page, names[0], (entry) => {
+        const group = document.querySelector(".treemapLeafGroup");
+        group.style.opacity = ".6";
+        group.setAttribute("transform", `translate(45,80) scale(${entry.scale}) rotate(${entry.rotation})`);
+        const rect = group.querySelector("rect");
+        rect.style.strokeWidth = `${entry.width}px`;
+        if (entry.vectorEffect) rect.style.vectorEffect = entry.vectorEffect;
+        group.querySelector("clipPath rect").style.strokeWidth = "1000px";
+        const hidden = rect.cloneNode();
+        hidden.style.cssText = "stroke-width:1000px;display:none";
+        group.append(hidden);
+      }, entry);
+      const fallback = result.scene.nodes.find((node) => node.kind === "fallback");
+      expect(fallback.reason).toBe("unsupported-mermaid-treemap-style");
+      const source = result.sources.find((source) => source.path === fallback.sourcePath);
+      // Fixed source SVG is capped at its 996px viewBox width.
+      const scale = entry.vectorEffect ? 1 : entry.scale;
+      const expected = entry.width ? entry.width * scale / Math.SQRT2 + 1 : 0;
+      expect(source.bounds.x - fallback.bounds.x).toBeCloseTo(expected, 0);
+      expect(source.bounds.y - fallback.bounds.y).toBeCloseTo(expected, 0);
+      expect(fallback.bounds.width - source.bounds.width).toBeCloseTo(expected * 2, 0);
+      expect(fallback.bounds.height - source.bounds.height).toBeCloseTo(expected * 2, 0);
+      expect(result.conflicts).toEqual([]);
+    }
+  } finally { await harness.close(); }
+});
+
 for (const theme of ["dark", "light", "microsoft", "custom"]) {
   test(`real treemap aliases retain exact native masks and local text/cell/group artwork (${theme})`, async ({ page }) => {
     const sources = await Promise.all(names.map((name) => fixture(name, "mmd")));
@@ -360,13 +397,24 @@ test("actual treemap PPTX embeds each local image once with native exclusions an
   const sources = await Promise.all(names.map((name) => fixture(name, "mmd")));
   const file = join(directory, "slides.md");
   await writeFile(file, ["# Treemap hybrid", ...sources.map((source) => `## Treemap\n\n\`\`\`mermaid\n${source}\n\`\`\``)].join("\n\n---\n\n"));
-  await withDeckServer({ file, workspace: directory, theme: "dark" }, async (session) => {
+  await withDeckServer({ file, workspace: directory, theme: "light" }, async (session) => {
     let rendered;
+    let groupBounds;
+    let sourcePng;
     const output = join(directory, "editable-hybrid.pptx");
-    await exportPptx(session, output, "dark", {
+    await exportPptx(session, output, "light", {
       findChromiumBrowser: () => chromium.executablePath(),
       runPptxOutputBrowser: async (...args) => {
         rendered = await runPptxOutputBrowser(...args);
+        await page.goto(args[1]);
+        await page.waitForFunction(() => document.documentElement.hasAttribute("data-pptx-ready"));
+        groupBounds = await page.locator(".deck").nth(3).locator(".leaf2x > rect").evaluate((rect) => {
+          const bounds = rect.getBoundingClientRect();
+          const deck = rect.closest(".deck").getBoundingClientRect();
+          return { x: bounds.x - deck.x, y: bounds.y - deck.y, width: bounds.width, height: bounds.height };
+        });
+        await page.evaluate(() => document.body.classList.remove("pptx-artwork-mode", "pptx-layout-artwork-mode"));
+        sourcePng = await page.locator(".deck").nth(3).screenshot();
         return rendered;
       },
     });
@@ -410,6 +458,48 @@ test("actual treemap PPTX embeds each local image once with native exclusions an
             return count;
           }, image.data.toString("base64"));
           expect(leakedPixels).toBe(0);
+        }
+        if (index === 3 && image.fallbackIndex === 2) {
+          expect(image.x).toBeLessThan(groupBounds.x - 1);
+          expect(image.y).toBeLessThan(groupBounds.y - 1);
+          expect(image.x + image.width).toBeGreaterThan(groupBounds.x + groupBounds.width + 1);
+          expect(image.y + image.height).toBeGreaterThan(groupBounds.y + groupBounds.height + 1);
+          const pixels = await page.evaluate(async ({ source, artwork, bounds, frame }) => {
+            const decode = async (base64) => {
+              const image = new Image();
+              image.src = `data:image/png;base64,${base64}`;
+              await image.decode();
+              return image;
+            };
+            const original = document.createElement("canvas");
+            original.width = 1280;
+            original.height = 720;
+            const context = original.getContext("2d");
+            context.drawImage(await decode(source), 0, 0);
+            const rgb = (context, x, y) => [...context.getImageData(x, y, 1, 1).data];
+            const background = rgb(context, Math.floor(frame.x + frame.width / 2), Math.floor(frame.y - 5));
+            const composed = document.createElement("canvas");
+            composed.width = 1280;
+            composed.height = 720;
+            const target = composed.getContext("2d");
+            target.fillStyle = `rgb(${background.slice(0, 3).join(",")})`;
+            target.fillRect(0, 0, 1280, 720);
+            // Use actual package placement and scaling, not a standalone PNG.
+            target.drawImage(await decode(artwork), bounds.x, bounds.y, bounds.width, bounds.height);
+            const points = [
+              [Math.floor(frame.x + frame.width / 2), Math.floor(frame.y - 1)],
+              [Math.floor(frame.x + frame.width), Math.floor(frame.y + frame.height / 4)],
+              [Math.floor(frame.x + frame.width / 2), Math.ceil(frame.y + frame.height)],
+              [Math.floor(frame.x - 1), Math.floor(frame.y + frame.height / 4)],
+            ];
+            return points.map(([x, y]) => ({ x, y, source: rgb(context, x, y), actual: rgb(target, x, y), background }));
+          }, { source: sourcePng.toString("base64"), artwork: image.data.toString("base64"),
+            bounds: image, frame: groupBounds });
+          for (const pixel of pixels) {
+            expect(pixel.source[0], JSON.stringify(pixel)).toBeLessThan(pixel.background[0] - 5);
+            expect(Math.abs(pixel.actual[0] - pixel.source[0]), JSON.stringify(pixel)).toBeLessThanOrEqual(5);
+          }
+          await writeFile(join(directory, "group-outer-stroke-pixels.json"), JSON.stringify(pixels, null, 2));
         }
       }
     }

@@ -1061,10 +1061,11 @@ function maximumMatrixScale(matrix) {
 
 function fallbackNode(element, z, deck, reason, sourcePath) {
   let bounds = boundsOf(element, deck);
+  let padding = 0;
   if (["path", "line", "polygon", "polyline"].includes(localName(element))) {
     const style = getComputedStyle(element);
     const marked = [style.markerStart, style.markerMid, style.markerEnd].some((value) => value && value !== "none");
-    const padding = Math.min(
+    padding = Math.min(
       MAX_MARKER_FALLBACK_PADDING,
       Math.max(
         1,
@@ -1072,9 +1073,26 @@ function fallbackNode(element, z, deck, reason, sourcePath) {
         marked ? markerFallbackPadding(element, style) : 0,
       ) * maximumMatrixScale(element.getScreenCTM?.()),
     );
-    bounds = { x: bounds.x - padding, y: bounds.y - padding,
-      width: bounds.width + 2 * padding, height: bounds.height + 2 * padding };
   }
+  // getBBox/getBoundingClientRect exclude rectangle strokes, including those
+  // inside a group-opacity fallback. Preserve their transformed outer corners
+  // and one raster pixel of slack without flattening the group's compositing.
+  const rectangles = localName(element) === "rect" ? [element]
+    : localName(element) === "g" ? [...element.querySelectorAll("rect")] : [];
+  for (const rect of rectangles) {
+    if (rect.closest("defs, clipPath, mask, marker, pattern, symbol") || !isRenderedElement(rect)) continue;
+    const style = getComputedStyle(rect);
+    if (style.stroke === "none" || parseOpacity(style.strokeOpacity) <= 0 ||
+        (cssColorParts(style.stroke)?.alpha ?? 1) <= 0) continue;
+    const width = Number.parseFloat(style.strokeWidth);
+    if (!(width > 0)) continue;
+    const scale = style.vectorEffect === "non-scaling-stroke"
+      ? 1 : maximumMatrixScale(rect.getScreenCTM?.());
+    padding = Math.max(padding, Math.min(MAX_MARKER_FALLBACK_PADDING,
+      width * scale / Math.SQRT2 + 1));
+  }
+  if (padding > 0) bounds = { x: bounds.x - padding, y: bounds.y - padding,
+    width: bounds.width + 2 * padding, height: bounds.height + 2 * padding };
   return {
     kind: "fallback",
     id: element.getAttribute?.("id") || undefined,
