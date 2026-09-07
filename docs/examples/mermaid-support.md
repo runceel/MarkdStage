@@ -30,7 +30,7 @@ The compatibility guide summarizes editable coverage and fallback behavior.
 flowchart LR
     subgraph Authoring
         direction LR
-        A([Design<br/>設計]) --> B{Review}
+        A([Design / 設計]) --> B{Review}
     end
     B -->|Ready| C[[Publish]]
     B -->|Revise| D[Edit]
