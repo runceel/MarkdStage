@@ -167,6 +167,134 @@ function shapeElement(node, index, options, shape) {
   return element;
 }
 
+function sameValue(left, right) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function sameMetric(left, right) {
+  return Math.abs(left - right) <= 0.1;
+}
+
+function samePoints(actual, expected) {
+  return Array.isArray(actual) &&
+    actual.length === expected.length &&
+    actual.every((point, index) =>
+      sameMetric(point.x, expected[index].x) &&
+      sameMetric(point.y, expected[index].y));
+}
+
+function stadiumMapping(scene, group, index, options) {
+  if (
+    group.kind !== "group" ||
+    group.meta?.mermaid?.shape !== "stadium" ||
+    typeof group.sourcePath !== "string"
+  ) {
+    return null;
+  }
+  const prefix = `${group.sourcePath}.`;
+  const descendants = scene.nodes.filter((node) =>
+    node.sourcePath?.startsWith(prefix));
+  const part = (partIndex) => descendants.find((node) =>
+    node.sourcePath === `${group.sourcePath}.parts[${partIndex}]`);
+  const left = part(0);
+  const right = part(1);
+  const center = part(2);
+  const top = part(3);
+  const bottom = part(4);
+  const label = descendants.find((node) =>
+    node.sourcePath === `${group.sourcePath}.label`);
+  if (
+    !left ||
+    !right ||
+    !center ||
+    !top ||
+    !bottom ||
+    descendants.length !== (label ? 6 : 5)
+  ) {
+    return null;
+  }
+  const unsupported = [group, ...descendants].find((node) =>
+    node.kind === "fallback" ||
+    node.capability?.pptx === "fallback");
+  if (unsupported) {
+    return {
+      prefix,
+      fallback: fallbackFor(
+        group,
+        index,
+        options,
+        fallbackReason(unsupported, "stadium-rendered-as-artwork"),
+      ),
+    };
+  }
+  if (
+    left.kind !== "shape" ||
+    left.preset !== "ellipse" ||
+    right.kind !== "shape" ||
+    right.preset !== "ellipse" ||
+    center.kind !== "shape" ||
+    center.preset !== "rect" ||
+    top.kind !== "connector" ||
+    bottom.kind !== "connector" ||
+    (label && (label.kind !== "text" || label.rotation !== undefined))
+  ) {
+    return null;
+  }
+  const { x, y, width, height } = group.bounds;
+  const radius = height / 2;
+  const expectedCenterStyle = { ...left.style, stroke: null, strokeWidth: 0 };
+  const expectedOutlineStyle = { ...left.style, fill: null };
+  const expectedGeometry = (
+    sameMetric(left.bounds.x, x) &&
+    sameMetric(left.bounds.y, y) &&
+    sameMetric(left.bounds.width, height) &&
+    sameMetric(left.bounds.height, height) &&
+    sameMetric(right.bounds.x, x + width - height) &&
+    sameMetric(right.bounds.y, y) &&
+    sameMetric(right.bounds.width, height) &&
+    sameMetric(right.bounds.height, height) &&
+    sameMetric(center.bounds.x, x + radius) &&
+    sameMetric(center.bounds.y, y) &&
+    sameMetric(center.bounds.width, width - height) &&
+    sameMetric(center.bounds.height, height) &&
+    samePoints(top.points, [
+      { x: x + radius, y },
+      { x: x + width - radius, y },
+    ]) &&
+    samePoints(bottom.points, [
+      { x: x + radius, y: y + height },
+      { x: x + width - radius, y: y + height },
+    ])
+  );
+  if (
+    !expectedGeometry ||
+    !sameValue(left.style, right.style) ||
+    !sameValue(center.style, expectedCenterStyle) ||
+    !sameValue(top.style, expectedOutlineStyle) ||
+    !sameValue(bottom.style, expectedOutlineStyle) ||
+    top.arrowStart !== "none" ||
+    top.arrowEnd !== "none" ||
+    bottom.arrowStart !== "none" ||
+    bottom.arrowEnd !== "none"
+  ) {
+    return null;
+  }
+  return {
+    prefix,
+    element: shapeElement({
+      ...group,
+      kind: "shape",
+      style: left.style,
+      ...(label
+        ? {
+            text: label.text,
+            textLayout: label.textLayout,
+          }
+        : {}),
+    }, index, options, "stadium"),
+  };
+}
+
 function groupElement(node, index, options) {
   if (!hasVisibleStyle(node.style) && node.text === undefined) return null;
   return shapeElement(node, index, options, options.groupPreset);
@@ -261,7 +389,19 @@ export function sceneToPptxElements(scene, options = {}) {
   const normalizedOptions = normalizeOptions(scene, options);
   const elements = [];
   const fallbacks = [];
+  const collapsedPrefixes = [];
   scene.nodes.forEach((node, index) => {
+    if (collapsedPrefixes.some((prefix) =>
+      node.sourcePath?.startsWith(prefix))) {
+      return;
+    }
+    const stadium = stadiumMapping(scene, node, index, normalizedOptions);
+    if (stadium) {
+      if (stadium.fallback) fallbacks.push(stadium.fallback);
+      else elements.push(stadium.element);
+      collapsedPrefixes.push(stadium.prefix);
+      return;
+    }
     const mapped = mappedNode(node, index, normalizedOptions);
     if (!mapped) return;
     if (mapped.reason !== undefined && !["shape", "text", "image", "connector"].includes(mapped.type)) {

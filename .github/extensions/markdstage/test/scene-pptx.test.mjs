@@ -41,6 +41,149 @@ test("maps a sequence frame tab through the scene and PowerPoint contracts", () 
   assert.match(buildPptxPackage({ slides: [{ elements }] }).toString("utf8"), /<a:custGeom>/);
 });
 
+test("collapses a Mermaid stadium composite into one adjusted PowerPoint shape", () => {
+  const style = {
+    fill: "#123456",
+    stroke: "#abcdef",
+    strokeWidth: 3,
+    dash: "solid",
+    opacity: 1,
+  };
+  const scene = normalizeScene(createScene({
+    width: 160,
+    height: 100,
+    source: { kind: "mermaid", path: "flowchart.svg" },
+    nodes: [{
+      kind: "group",
+      sourcePath: "nodes[0]",
+      z: 0,
+      bounds: { x: 20, y: 30, width: 80, height: 40 },
+      children: [
+        {
+          kind: "shape",
+          sourcePath: "nodes[0].parts[0]",
+          z: 0,
+          bounds: { x: 0, y: 0, width: 40, height: 40 },
+          preset: "ellipse",
+          style,
+        },
+        {
+          kind: "shape",
+          sourcePath: "nodes[0].parts[1]",
+          z: 1,
+          bounds: { x: 40, y: 0, width: 40, height: 40 },
+          preset: "ellipse",
+          style,
+        },
+        {
+          kind: "shape",
+          sourcePath: "nodes[0].parts[2]",
+          z: 2,
+          bounds: { x: 20, y: 0, width: 40, height: 40 },
+          preset: "rect",
+          style: { ...style, stroke: null, strokeWidth: 0 },
+        },
+        {
+          kind: "connector",
+          sourcePath: "nodes[0].parts[3]",
+          z: 3,
+          points: [{ x: 20, y: 0 }, { x: 60, y: 0 }],
+          style: { ...style, fill: null },
+          arrowStart: "none",
+          arrowEnd: "none",
+        },
+        {
+          kind: "connector",
+          sourcePath: "nodes[0].parts[4]",
+          z: 4,
+          points: [{ x: 20, y: 40 }, { x: 60, y: 40 }],
+          style: { ...style, fill: null },
+          arrowStart: "none",
+          arrowEnd: "none",
+        },
+        {
+          kind: "text",
+          sourcePath: "nodes[0].label",
+          z: 5,
+          bounds: { x: 24, y: 8, width: 32, height: 24 },
+          text: richText("Start"),
+          textLayout: {
+            alignment: "center",
+            verticalAlignment: "middle",
+            textWrap: "none",
+          },
+        },
+      ],
+      style: { fill: null, stroke: null, strokeWidth: 0 },
+      meta: { mermaid: { kind: "node", shape: "stadium" } },
+    }],
+  })).scene;
+  const { elements, fallbacks } = sceneToPptxElements(scene);
+  assert.deepEqual(fallbacks, []);
+  assert.equal(elements.length, 1);
+  assert.equal(elements[0].shape, "stadium");
+  assert.equal(elements[0].path, "nodes[0]");
+  assert.equal(elements[0].text.paragraphs[0].runs[0].text, "Start");
+  const xml = buildPptxPackage({ slides: [{ elements }] }).toString("utf8");
+  assert.match(
+    xml,
+    /<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val 50000"\/><\/a:avLst><\/a:prstGeom>/,
+  );
+
+  const forcedGroupFallback = JSON.parse(JSON.stringify(scene));
+  forcedGroupFallback.nodes.find((node) =>
+    node.sourcePath === "nodes[0]").capability = {
+      pptx: "fallback",
+      reason: "forced-group-artwork",
+    };
+  const groupFallback = sceneToPptxElements(forcedGroupFallback);
+  assert.deepEqual(groupFallback.elements, []);
+  assert.deepEqual(groupFallback.fallbacks.map((fallback) => ({
+    sourcePath: fallback.sourcePath,
+    reason: fallback.reason,
+  })), [{
+    sourcePath: "nodes[0]",
+    reason: "forced-group-artwork",
+  }]);
+
+  const forcedPartFallback = JSON.parse(JSON.stringify(scene));
+  forcedPartFallback.nodes.find((node) =>
+    node.sourcePath === "nodes[0].parts[0]").capability = {
+      pptx: "fallback",
+      reason: "forced-part-artwork",
+    };
+  const partFallback = sceneToPptxElements(forcedPartFallback);
+  assert.deepEqual(partFallback.elements, []);
+  assert.deepEqual(partFallback.fallbacks.map((fallback) => ({
+    sourcePath: fallback.sourcePath,
+    reason: fallback.reason,
+  })), [{
+    sourcePath: "nodes[0]",
+    reason: "forced-part-artwork",
+  }]);
+
+  const normalizedPartFallback = JSON.parse(JSON.stringify(scene));
+  const normalizedPart = normalizedPartFallback.nodes.find((node) =>
+    node.sourcePath === "nodes[0].parts[0]");
+  normalizedPart.kind = "fallback";
+  delete normalizedPart.preset;
+  delete normalizedPart.style;
+  normalizedPart.reason = "normalized-part-artwork";
+  normalizedPart.capability = {
+    pptx: "fallback",
+    reason: "normalized-part-artwork",
+  };
+  const normalizedFallback = sceneToPptxElements(normalizedPartFallback);
+  assert.deepEqual(normalizedFallback.elements, []);
+  assert.deepEqual(normalizedFallback.fallbacks.map((fallback) => ({
+    sourcePath: fallback.sourcePath,
+    reason: fallback.reason,
+  })), [{
+    sourcePath: "nodes[0]",
+    reason: "normalized-part-artwork",
+  }]);
+});
+
 test("maps exact Mermaid quadrilaterals through scene and DrawingML contracts", () => {
   const presets = ["trapezoid", "invertedTrapezoid", "reverseParallelogram"];
   const scene = normalizeScene(createScene({

@@ -661,17 +661,23 @@ function nativeShapeXml(element, path, id, relationships) {
     trapezoid: '<a:custGeom><a:avLst/><a:gdLst><a:gd name="dx" fmla="*/ h 1 2"/><a:gd name="rx" fmla="+- w 0 dx"/></a:gdLst><a:ahLst/><a:cxnLst/><a:rect l="l" t="t" r="r" b="b"/><a:pathLst><a:path><a:moveTo><a:pt x="0" y="h"/></a:moveTo><a:lnTo><a:pt x="w" y="h"/></a:lnTo><a:lnTo><a:pt x="rx" y="0"/></a:lnTo><a:lnTo><a:pt x="dx" y="0"/></a:lnTo><a:close/></a:path></a:pathLst></a:custGeom>',
     invertedTrapezoid: '<a:custGeom><a:avLst/><a:gdLst><a:gd name="dx" fmla="*/ h 1 2"/><a:gd name="rx" fmla="+- w 0 dx"/></a:gdLst><a:ahLst/><a:cxnLst/><a:rect l="l" t="t" r="r" b="b"/><a:pathLst><a:path><a:moveTo><a:pt x="dx" y="h"/></a:moveTo><a:lnTo><a:pt x="rx" y="h"/></a:lnTo><a:lnTo><a:pt x="w" y="0"/></a:lnTo><a:lnTo><a:pt x="0" y="0"/></a:lnTo><a:close/></a:path></a:pathLst></a:custGeom>',
   };
+  const adjustedGeometries = {
+    stadium: '<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val 50000"/></a:avLst></a:prstGeom>',
+  };
   const shape = Object.hasOwn(element, "shape") ? element.shape : undefined;
   const preset = typeof shape === "string" && Object.hasOwn(presets, shape) ? presets[shape] : "";
   const customGeometry = typeof shape === "string" && Object.hasOwn(customGeometries, shape)
     ? customGeometries[shape]
     : "";
-  const geometry = customGeometry || (preset
+  const adjustedGeometry = typeof shape === "string" && Object.hasOwn(adjustedGeometries, shape)
+    ? adjustedGeometries[shape]
+    : "";
+  const geometry = adjustedGeometry || customGeometry || (preset
       ? `<a:prstGeom prst="${preset}"><a:avLst/></a:prstGeom>`
       : "");
   if (!geometry) {
     fail(
-      `${path}.shape must be rect, roundedRect, ellipse, diamond, triangle, hexagon, parallelogram, reverseParallelogram, trapezoid, invertedTrapezoid, or sequenceTab`,
+      `${path}.shape must be rect, roundedRect, stadium, ellipse, diamond, triangle, hexagon, parallelogram, reverseParallelogram, trapezoid, invertedTrapezoid, or sequenceTab`,
     );
   }
   const opacities = paintOpacities(element, path);

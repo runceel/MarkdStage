@@ -5592,7 +5592,20 @@ test("preserves classDef styling, stadium, cylinder, hexagon and double-circle s
     expect(circles[1].text.paragraphs[0].runs[0].text).toBe("Done");
     const { elements, fallbacks } = sceneToPptxElements(scene);
     expect(fallbacks).toEqual([]);
-    expect(inspectPptxPackage(buildPptxPackage({ slides: [{ elements }] })).valid).toBe(true);
+    const mappedStadium = elements.filter((element) =>
+      element.path === stadium.sourcePath ||
+      element.path?.startsWith(`${stadium.sourcePath}.`));
+    expect(mappedStadium).toMatchObject([{
+      type: "shape",
+      path: stadium.sourcePath,
+      shape: "stadium",
+      text: stadiumParts[5].text,
+    }]);
+    const packageBytes = buildPptxPackage({ slides: [{ elements }] });
+    expect(inspectPptxPackage(packageBytes).valid).toBe(true);
+    expect(packageBytes.toString("utf8")).toContain(
+      '<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val 50000"/></a:avLst></a:prstGeom>',
+    );
   } finally {
     await harness.close();
   }

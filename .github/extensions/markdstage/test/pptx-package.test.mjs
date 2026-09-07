@@ -911,6 +911,30 @@ test("emits PowerPoint-native presets for the extended Architecture shapes", () 
   }
 });
 
+test("emits a maximally adjusted round rectangle for stadium shapes", () => {
+  const files = readStoredZip(
+    buildPptxPackage({
+      slides: [{
+        elements: [{
+          type: "shape",
+          shape: "stadium",
+          x: 20,
+          y: 40,
+          width: 120,
+          height: 40,
+          fill: "#ffffff",
+          stroke: "#000000",
+        }],
+      }],
+    }),
+  );
+  const slide = xml(files, "ppt/slides/slide1.xml");
+  assert.match(
+    slide,
+    /<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val 50000"\/><\/a:avLst><\/a:prstGeom>/,
+  );
+});
+
 test("emits the fixed editable geometry for Mermaid sequence frame tabs", () => {
   const files = readStoredZip(
     buildPptxPackage({
