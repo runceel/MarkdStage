@@ -16,6 +16,9 @@ const test = base.extend({
       await page.clock.install({ time: new Date("2026-01-01T00:00:00Z") });
       await page.goto(harness.url, { waitUntil: "load" });
       await waitForSlideReady(page);
+      // These notification tests opt into the retained responsive mode unless a
+      // case explicitly activates output preview.
+      await clickMoreControl(page, "#navFixedPreview");
       await page.clock.pauseAt(new Date("2026-01-01T00:01:00Z"));
       await use(harness);
     } finally {

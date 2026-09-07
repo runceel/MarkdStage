@@ -157,7 +157,7 @@ for (const theme of THEMES) {
           if (message.type() === "error") consoleErrors.push(message.text());
         });
         try {
-          await page.goto(`${harness.url}/`, { waitUntil: "load" });
+          await page.goto(`${harness.url}/?responsive=1`, { waitUntil: "load" });
           await waitForSlideReady(page);
           await page.addStyleTag({ content: DETERMINISTIC_CSS });
 
@@ -199,7 +199,7 @@ for (const theme of THEMES) {
 test("regular slide titles stay at the same top position regardless of body length", async ({ page }) => {
   const harness = await startHarness({ slides: STANDARD_SLIDES, theme: "dark" });
   try {
-    await page.goto(`${harness.url}/`, { waitUntil: "load" });
+    await page.goto(`${harness.url}/?responsive=1`, { waitUntil: "load" });
     await waitForSlideReady(page);
 
     const readLayout = () =>
@@ -242,7 +242,7 @@ for (const theme of [...THEMES, "custom"]) {
         theme === "custom" ? "--bg:#f8fafc;--fg:#172033;--body:#344054;--accent:#2563eb;" : "",
     });
     try {
-      await page.goto(`${harness.url}/`, { waitUntil: "load" });
+      await page.goto(`${harness.url}/?responsive=1`, { waitUntil: "load" });
       await waitForSlideReady(page);
 
       for (let index = 0; index < BODY_SPACING_CASES.length; index += 1) {
@@ -314,7 +314,7 @@ for (const theme of [...THEMES, "custom"]) {
 test("regular slides move only a leading H1 or H2 into the title region", async ({ page }) => {
   const harness = await startHarness({ slides: STANDARD_SLIDES, theme: "light", index: 2 });
   try {
-    await page.goto(`${harness.url}/`, { waitUntil: "load" });
+    await page.goto(`${harness.url}/?responsive=1`, { waitUntil: "load" });
     await waitForSlideReady(page);
 
     await expect(page.locator(".deck.has-slide-title > header > h1.slide-title")).toHaveCount(1);
@@ -334,7 +334,7 @@ test("regular slides move only a leading H1 or H2 into the title region", async 
 test("regular slide bodies start top-aligned directly below the title", async ({ page }) => {
   const harness = await startHarness({ slides: STANDARD_SLIDES, theme: "dark" });
   try {
-    await page.goto(`${harness.url}/`, { waitUntil: "load" });
+    await page.goto(`${harness.url}/?responsive=1`, { waitUntil: "load" });
     await waitForSlideReady(page);
 
     const metrics = await page.locator("#stage > .deck").evaluate((deck) => {
@@ -357,7 +357,7 @@ test("regular slide bodies start top-aligned directly below the title", async ({
 test("layout: center vertically centers the heading and body together", async ({ page }) => {
   const harness = await startHarness({ slides: [CENTER_SLIDE], theme: "dark" });
   try {
-    await page.goto(`${harness.url}/`, { waitUntil: "load" });
+    await page.goto(`${harness.url}/?responsive=1`, { waitUntil: "load" });
     await waitForSlideReady(page);
 
     await expect(page.locator("#stage > .deck.center-slide.has-slide-title")).toHaveCount(1);
@@ -392,7 +392,7 @@ for (const { className, heading, markdown } of SPECIAL_LAYOUTS) {
   test(`${className} preserves heading placement`, async ({ page }) => {
     const harness = await startHarness({ slides: [markdown] });
     try {
-      await page.goto(`${harness.url}/`, { waitUntil: "load" });
+      await page.goto(`${harness.url}/?responsive=1`, { waitUntil: "load" });
       await waitForSlideReady(page);
 
       await expect(page.locator(`#stage > .deck.${className}`)).toHaveCount(1);

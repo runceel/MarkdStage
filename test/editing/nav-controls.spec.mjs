@@ -18,7 +18,10 @@ test("keeps frequent navigation visible and groups the remaining controls", asyn
     await expect(page.getByRole("button", { name: "Next slide" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Slide list" })).toBeVisible();
 
-    const more = page.getByRole("button", { name: "More controls", exact: true });
+    const more = page.getByRole("button", {
+      name: "More controls (an option is active)",
+      exact: true,
+    });
     await expect(more).toBeVisible();
     await expect(more).toHaveAttribute("aria-expanded", "false");
     await expect(page.locator("#navMorePanel")).toBeHidden();
@@ -53,14 +56,15 @@ test("surfaces nested active state on the More controls button", async ({ page }
     await openMoreControls(page);
     await page.locator("#navFixedPreview").click();
     await expect(page.locator("#navMorePanel")).toBeHidden();
+    await expect(page.locator("#navMore")).not.toHaveAttribute("data-state", "active");
+    await expect(page.locator("#navMore")).toHaveAccessibleName("More controls");
+
+    await openMoreControls(page);
+    await page.locator("#navFixedPreview").click();
     await expect(page.locator("#navMore")).toHaveAttribute("data-state", "active");
     await expect(page.locator("#navMore")).toHaveAccessibleName(
       "More controls (an option is active)",
     );
-
-    await openMoreControls(page);
-    await page.locator("#navFixedPreview").click();
-    await expect(page.locator("#navMore")).not.toHaveAttribute("data-state", "active");
   } finally {
     await harness.close();
   }
@@ -78,6 +82,9 @@ test("keeps Open Markdown as the only direct action for an empty deck", async ({
     await expect(page.locator("#navMorePanel")).toBeVisible();
     await expect(page.locator("#navImport")).toBeVisible();
     await expect(page.locator("#navMorePanel .nav-more-item:visible")).toHaveCount(1);
+    await expect(page.locator("#layoutWarning")).toBeHidden();
+    await expect(page.locator("body")).not.toHaveClass(/fixed-preview-overflow/);
+    await expect(page.locator("#navFixedPreview")).not.toHaveAttribute("data-state", "error");
   } finally {
     await harness.close();
   }

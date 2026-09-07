@@ -50,12 +50,12 @@ test("only the Copilot skill mentions the canvas adapter", async () => {
   assert.doesNotMatch(codex, /## Canvas adapter/);
 });
 
-test("generated skills explain watch-mode Architecture editing", async () => {
+test("generated skills explain direct live Architecture editing", async () => {
   const skill = (await buildSkillFiles("codex")).get("SKILL.md");
-  assert.match(skill, /preview --watch/);
+  assert.match(skill, /markdstage slides\.md/);
   assert.match(skill, /starts in viewing mode/);
   assert.match(skill, /detailed designer/);
-  assert.match(skill, /without\s+`--watch`\s+is read-only/);
+  assert.match(skill, /Automatic refresh can be toggled/);
 });
 
 test("generated skills teach the diagnostic-first authoring loop", async () => {
@@ -63,7 +63,7 @@ test("generated skills teach the diagnostic-first authoring loop", async () => {
   const stages = [
     "markdstage guide slide-format",
     "markdstage validate slides.md --json",
-    "markdstage preview slides.md --watch",
+    "markdstage slides.md",
     "markdstage inspect slides.md --json",
     "markdstage capture slides.md",
     "markdstage present slides.md",

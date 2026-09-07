@@ -68,12 +68,12 @@ for supported elements and fallback details.
 ## Use the canvas Extension
 
 When you open this repository as a project, `.github/extensions/markdstage/` loads at project
-scope. To install the current **[v3.3.0 release](https://github.com/runceel/markdstage/releases/tag/v3.3.0)**
+scope. To install the current **[v3.4.0 release](https://github.com/runceel/markdstage/releases/tag/v3.4.0)**
 at user scope in another repository, ask GitHub Copilot:
 
 > Install MarkdStage at user scope from the following GitHub repository folder.
 >
-> `https://github.com/runceel/markdstage/tree/v3.3.0/.github/extensions/markdstage`
+> `https://github.com/runceel/markdstage/tree/v3.4.0/.github/extensions/markdstage`
 
 The Extension runs local code in the user's environment. Review its contents before installation,
 and use a trusted release tag or commit SHA for a reproducible install. The `main` branch tracks
@@ -91,7 +91,7 @@ There is no need to create `slides.md` first. For a focused revision, try:
 > Keep the theme and shorten only the explanation on slide 2.
 
 1. Refine wording in Markdown or use the [Architecture Editor](#see-markdown-on-stage) for diagram changes.
-2. Ask Copilot, "Check whether the content fits on the slides." Use **More controls > Output preview** when reviewing the appearance yourself.
+2. Ask Copilot, "Check whether the content fits on the slides." The canvas starts in **More controls > Output preview**; toggle it to compare the retained responsive layout.
 3. Navigate with **◀ ▶**, the **arrow keys**, or the **☰ slide list**. Surface Pen navigation is available in supported environments.
 4. Open the presentation window or export PDF / PowerPoint from **More controls**. Check the final output before sharing.
 
@@ -140,11 +140,11 @@ Open the same folder in your chosen agent, attach notes or source material, and 
 ### Refine, inspect, and deliver
 
 ```console
-markdstage preview slides.md --watch
+markdstage slides.md
 ```
 
-Edit Markdown in your text editor; the preview reloads on save. `preview --watch` also enables the
-pencil placement editor and **Advanced edit** for Architecture diagrams. Placement changes save
+Edit Markdown in your text editor; the UI reloads on save. The same UI includes the pencil
+placement editor and **Advanced edit** for Architecture diagrams. Placement changes save
 immediately; the detailed designer keeps a draft until **Save** writes it back to Markdown.
 
 Ask the same agent to check fit in natural language:
@@ -175,8 +175,9 @@ markdstage export slides.md --output slides.pdf
 markdstage export slides.md --output slides.pptx
 ```
 
-`present` opens the presenter dashboard. Select **Start presentation** there to open the
-synchronized audience window. Review every page of the final export before distribution.
+`present` opens the same full UI with presenter view selected. Select **Start presentation**
+there to open the synchronized audience window. Review every page of the final export before
+distribution.
 
 ## Present without AI
 
@@ -185,11 +186,13 @@ Write Markdown yourself, use the [minimal format below](#markdown-format), or do
 No Skill registration is needed. Without a global install, you can run:
 
 ```console
-npx @markdstage/markdstage preview slides.md
+npx @markdstage/markdstage
+npx @markdstage/markdstage slides.md
 npx @markdstage/markdstage present slides.md
 ```
 
-`preview` without `--watch` is read-only. Canvas also opens files directly through
+The first command opens an empty Canvas-equivalent UI for the current workspace. The second opens
+`slides.md` with automatic refresh. Both the CLI UI and Canvas open files through
 **More controls > Open Markdown**. Native presenters are another option:
 
 ## Use MarkdStage Desktop
@@ -199,11 +202,11 @@ from a file picker. It displays the current and next slides with the current sli
 and launches a synchronized native presentation window without GitHub Copilot.
 
 It requires Windows and the Microsoft Edge WebView2 Runtime. The current
-**[v3.3.0 release](https://github.com/runceel/markdstage/releases/tag/v3.3.0)** includes portable
+**[v3.4.0 release](https://github.com/runceel/markdstage/releases/tag/v3.4.0)** includes portable
 builds and SHA-256 checksum files for Windows x64 and ARM64:
 
-- [MarkdStage-win-x64.zip](https://github.com/runceel/markdstage/releases/download/v3.3.0/MarkdStage-win-x64.zip)
-- [MarkdStage-win-arm64.zip](https://github.com/runceel/markdstage/releases/download/v3.3.0/MarkdStage-win-arm64.zip)
+- [MarkdStage-win-x64.zip](https://github.com/runceel/markdstage/releases/download/v3.4.0/MarkdStage-win-x64.zip)
+- [MarkdStage-win-arm64.zip](https://github.com/runceel/markdstage/releases/download/v3.4.0/MarkdStage-win-arm64.zip)
 
 Extract the whole folder, run `MarkdStageApp.exe`, and open your Markdown file.
 

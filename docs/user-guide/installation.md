@@ -33,10 +33,13 @@ reproducible installation.
 Run directly with `npx`, or install globally:
 
 ```console
-npx @markdstage/markdstage present slides.md
-npx @markdstage/markdstage preview slides.md
+npx @markdstage/markdstage
+npx @markdstage/markdstage slides.md
 npm install --global @markdstage/markdstage
 ```
+
+The first command opens an empty UI for the current workspace. The second opens
+`slides.md` in live slide view.
 
 For offline installation, download the versioned `markdstage-markdstage-<version>.tgz` asset and
 its `.sha256` checksum from the [GitHub Release](https://github.com/runceel/markdstage/releases),

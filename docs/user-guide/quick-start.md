@@ -46,7 +46,19 @@ The complete deck opens immediately. Use **◀**, **▶**, the arrow keys, or **
 
 ![The Canvas Extension showing a Markdown deck and its presentation controls](images/canvas-main.png)
 
-## 3. Open it in MarkdStage Desktop
+## 3. Open it in the CLI application
+
+Run the CLI with the Markdown path to open the Canvas-equivalent UI with live
+refresh enabled:
+
+```console
+npx @markdstage/markdstage docs/user-guide/examples/quick-start.md
+```
+
+Run `markdstage` without a file to open an empty UI, then select
+**More controls > Open Markdown**.
+
+## 4. Open it in MarkdStage Desktop
 
 1. Download the appropriate portable ZIP from the
    [latest MarkdStage release](https://github.com/runceel/markdstage/releases/latest).
@@ -58,14 +70,16 @@ The main window shows the current slide, next slide, and current speaker notes.
 
 ![MarkdStage Desktop showing current and next slides with speaker notes](images/desktop-main.png)
 
-## 4. Present
+## 5. Present
 
 - **Canvas Extension:** Select **More controls > External window** for an external audience window,
   or **More controls > Presenter view** to keep the current slide, next slide, and notes together.
+- **CLI:** Use the same controls, or start directly in presenter view with
+  `markdstage present slides.md`.
 - **Desktop:** Select **Start presentation** to open the synchronized audience window.
 - Press `F11` in the audience window for fullscreen and `Esc` to leave fullscreen.
 
-## 5. Export a PDF or PowerPoint
+## 6. Export a PDF or PowerPoint
 
 Export from the Canvas Extension:
 
@@ -81,7 +95,8 @@ npx @markdstage/markdstage export slides.md --output slides.pdf
 npx @markdstage/markdstage export slides.md --output slides.pptx
 ```
 
-MarkdStage Desktop does not export. Use the Canvas Extension or the CLI.
+The CLI application also exposes **Export PDF** and **Export PowerPoint** in
+**More controls**. MarkdStage Desktop does not export.
 
 ## Next steps
 

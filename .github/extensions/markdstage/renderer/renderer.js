@@ -426,13 +426,14 @@ function collectDeckLayout(rendered) {
 function updateFixedPreviewWarning() {
   const warning = document.getElementById("layoutWarning");
   const button = document.getElementById("navFixedPreview");
-  if (!fixedPreviewMode || !layoutTarget) {
+  const empty = document.body.classList.contains("markdstage-empty");
+  if (!fixedPreviewMode || !layoutTarget || empty) {
     document.body.classList.remove("fixed-preview-overflow");
     if (warning) {
       warning.hidden = true;
       warning.textContent = "";
     }
-    if (button) button.dataset.state = fixedPreviewMode ? "active" : "";
+    if (button) button.dataset.state = fixedPreviewMode && !empty ? "active" : "";
     syncMoreControls();
     return;
   }
@@ -3033,6 +3034,7 @@ async function fetchDeck() {
 function setArchitectureEditMode(enabled) {
   const next = Boolean(enabled) && architectureEditAvailable && !presenterMode;
   if (next === architectureEditMode) return false;
+  if (next && fixedPreviewMode) setFixedPreviewMode(false);
   architectureEditMode = next;
   document.body.classList.toggle("architecture-edit-mode", next);
   updateArchitectureEditButton(next);
@@ -4363,6 +4365,17 @@ function init() {
     // Notify the server first so its state remains authoritative. The enabled state
     // then returns through /state.
     requestArchitectureEditMode(true);
+  }
+
+  // Canvas and CLI preview start on the fixed 16:9 output surface. Presenter
+  // views keep their purpose-built layouts, and the control still lets users
+  // switch back to the responsive canvas layout.
+  if (
+    !presenterMode &&
+    !presenterViewRequested &&
+    params.get("responsive") !== "1"
+  ) {
+    setFixedPreviewMode(true);
   }
 
   updateArchitectureEditButton();

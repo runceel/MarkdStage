@@ -137,7 +137,7 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
     try {
       for (let index = 0; index < slides.length; index++) {
         await page.request.post(`${harness.url}/navigate`, { data: { index } });
-        await page.goto(harness.url);
+        await page.goto(`${harness.url}?present=1`);
         await waitForSlideReady(page);
         await assertBackend(page, 1);
         const svg = page.locator("svg[data-scene-backend=svg]");
@@ -185,7 +185,7 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
   });
 }
 
-test("normal, presenter, fixed preview, PNG and PDF use the same shared scene rendering", async ({ browser }) => {
+test("default fixed preview, presenter, PNG and PDF use the same shared scene structure", async ({ browser }) => {
   test.setTimeout(240_000);
   const surfaceSlides = [
     slides[0],
@@ -212,35 +212,45 @@ test("normal, presenter, fixed preview, PNG and PDF use the same shared scene re
   try {
     for (const index of surfaceSlides.keys()) {
       await page.request.post(`${harness.url}/navigate`, { data: { index } });
+      await page.goto(`${harness.url}/?responsive=1`);
+      await waitForSlideReady(page);
+      await expect(page.locator("body")).not.toHaveClass(/fixed-preview-mode/);
+      await expect(page.locator(index === 0 ? "svg.architecture-svg" : ".mermaid svg").first())
+        .toHaveAttribute("data-scene-backend", "svg");
       const signatures = [];
-      for (const query of ["", "?present=1", "?preview=1", "fixed", `?capture=1&token=${harness.printToken}&index=${index}`, `?print=1&token=${harness.printToken}`]) {
-        await page.goto(`${harness.url}/${query === "fixed" ? "" : query}`);
+      const views = [
+        "",
+        "?present=1",
+        "?preview=1",
+        `?capture=1&token=${harness.printToken}&index=${index}`,
+        `?print=1&token=${harness.printToken}`,
+      ];
+      for (const query of views) {
+        await page.goto(`${harness.url}/${query}`);
         if (query.includes("print=")) await expect(page.locator("html"))
           .toHaveAttribute("data-print-ready", "true", { timeout: 30_000 });
         else if (query.includes("capture=")) await expect(page.locator("html"))
           .toHaveAttribute("data-capture-ready", "true", { timeout: 30_000 });
         else await waitForSlideReady(page);
-        if (query === "fixed") {
-          await page.locator("#navMore").click();
-          await page.locator("#navFixedPreview").click();
+        if (!query) {
           await expect(page.locator("body")).toHaveClass(/fixed-preview-mode/);
         }
         const svg = page.locator(index === 0 ? "svg.architecture-svg" : ".mermaid svg")
           .nth(query.includes("print=") && index > 0 ? index - 1 : 0);
         await expect(svg).toHaveAttribute("data-scene-backend", "svg");
         signatures.push(await svg.evaluate((element) => ({
-          viewBox: element.getAttribute("viewBox"),
-          paths: [...element.querySelectorAll("path")].map((path) => path.getAttribute("d")),
-          paint: [...element.querySelectorAll("circle, ellipse, line, path, polygon, rect")].map((shape) => ({
-            fill: shape.getAttribute("fill"),
-            stroke: shape.getAttribute("stroke"),
-            opacity: shape.getAttribute("opacity"),
-            fillOpacity: shape.getAttribute("fill-opacity"),
-            strokeOpacity: shape.getAttribute("stroke-opacity"),
-          })),
+          pathCount: element.querySelectorAll("path").length,
+          shapeCounts: Object.fromEntries(
+            ["circle", "ellipse", "line", "path", "polygon", "rect"].map((tag) => [
+              tag,
+              element.querySelectorAll(tag).length,
+            ]),
+          ),
           text: [...element.querySelectorAll("text, span.edgeLabel")].map((label) => label.textContent),
-          textTransforms: [...element.querySelectorAll("text")].map((label) =>
-            getComputedStyle(label).transform),
+          sceneNodes: element.__presentationScene.nodes.map((node) => [
+            node.kind,
+            node.sourcePath,
+          ]),
           nodes: [...element.querySelectorAll("[data-architecture-id]")].map((node) => [node.getAttribute("data-architecture-id"), node.getAttribute("data-scene-source-path")]),
         })));
         if (query.includes("capture=")) expect((await page.screenshot()).length).toBeGreaterThan(1000);

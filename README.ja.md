@@ -71,12 +71,12 @@ PowerPoint 側の変更は Markdown には逆反映されません。対応範�
 
 このリポジトリをプロジェクトとして開くと、`.github/extensions/markdstage/` がプロジェクトスコープで
 読み込まれます。別のリポジトリへユーザースコープでインストールする場合は、現在の
-**[v3.3.0 リリース](https://github.com/runceel/markdstage/releases/tag/v3.3.0)** を指定して
+**[v3.4.0 リリース](https://github.com/runceel/markdstage/releases/tag/v3.4.0)** を指定して
 GitHub Copilot に依頼します。
 
 > 次の GitHub リポジトリフォルダーから MarkdStage をユーザースコープへインストールしてください。
 >
-> `https://github.com/runceel/markdstage/tree/v3.3.0/.github/extensions/markdstage`
+> `https://github.com/runceel/markdstage/tree/v3.4.0/.github/extensions/markdstage`
 
 Extension は利用者の環境でローカルのコードを実行します。インストールする前に中身を確認し、
 同じ状態を再現できるよう、信頼できるリリースタグかコミット SHA を指定してください。
@@ -144,13 +144,12 @@ Codex を使う場合は、スキル登録の行を `markdstage skill install --
 ### 調整・確認・発表
 
 ```console
-markdstage preview slides.md --watch
+markdstage slides.md
 ```
 
-Markdown をテキストエディターで編集すると、保存時にプレビューが更新されます。
-`preview --watch` では鉛筆ボタンから Architecture 図の配置を調整でき、**Advanced edit** で
-詳細な編集ができます。配置変更はその場で保存され、詳細デザイナーの下書きは **Save** で
-Markdown に書き戻されます。
+Markdown をテキストエディターで編集すると、保存時に UI が更新されます。同じ UI で
+鉛筆ボタンから Architecture 図の配置を調整でき、**Advanced edit** で詳細な編集ができます。
+配置変更はその場で保存され、詳細デザイナーの下書きは **Save** で Markdown に書き戻されます。
 
 収まりの確認は、同じエージェントに自然言語で依頼できます。
 
@@ -180,7 +179,7 @@ markdstage export slides.md --output slides.pdf
 markdstage export slides.md --output slides.pptx
 ```
 
-`present` は発表者用ダッシュボードを開きます。そこで **Start presentation** を選ぶと、
+`present` は同じフル UI を発表者ビューで開きます。そこで **Start presentation** を選ぶと、
 同期された観客向けウィンドウが開きます。配布前には最終出力の全ページを確認します。
 
 <a id="present-without-ai"></a>
@@ -193,12 +192,15 @@ Markdown を自分で書くか、[最小の記述例](#markdown-format)や
 次のように実行できます。
 
 ```console
-npx @markdstage/markdstage preview slides.md
+npx @markdstage/markdstage
+npx @markdstage/markdstage slides.md
 npx @markdstage/markdstage present slides.md
 ```
 
-`--watch` のない `preview` は読み取り専用です。Canvas の **More controls > Open Markdown**
-からも直接開けます。発表用のネイティブアプリも利用できます。
+最初のコマンドは現在のワークスペースを対象に Canvas と同等の空の UI を開きます。2つ目は
+`slides.md` を自動更新付きで開きます。CLI UI と Canvas のどちらでも
+**More controls > Open Markdown** からファイルを直接開けます。発表用のネイティブアプリも
+利用できます。
 
 <a id="desktop"></a>
 
@@ -209,11 +211,11 @@ WinUI 3 アプリです。現在のスライドと次のスライド、スピー
 GitHub Copilot を開かずに、操作が同期するネイティブの投影用ウィンドウで発表できます。
 
 Windows と Microsoft Edge WebView2 Runtime が必要です。
-現在の **[v3.3.0 リリース](https://github.com/runceel/markdstage/releases/tag/v3.3.0)** には、
+現在の **[v3.4.0 リリース](https://github.com/runceel/markdstage/releases/tag/v3.4.0)** には、
 Windows x64 / ARM64 向けのポータブルビルドと SHA-256 チェックサムファイルが含まれます。
 
-- [MarkdStage-win-x64.zip](https://github.com/runceel/markdstage/releases/download/v3.3.0/MarkdStage-win-x64.zip)
-- [MarkdStage-win-arm64.zip](https://github.com/runceel/markdstage/releases/download/v3.3.0/MarkdStage-win-arm64.zip)
+- [MarkdStage-win-x64.zip](https://github.com/runceel/markdstage/releases/download/v3.4.0/MarkdStage-win-x64.zip)
+- [MarkdStage-win-arm64.zip](https://github.com/runceel/markdstage/releases/download/v3.4.0/MarkdStage-win-arm64.zip)
 
 フォルダーごと展開し、`MarkdStageApp.exe` を実行して Markdown ファイルを開きます。
 

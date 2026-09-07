@@ -21,7 +21,7 @@ import {
   exitCodeFor,
 } from "./exit.mjs";
 import { parsePageList } from "./deck.mjs";
-import { presentCommand } from "./commands/present.mjs";
+import { applicationCommand } from "./commands/present.mjs";
 import { validateCommand, formatValidateReport } from "./commands/validate.mjs";
 import { inspectCommand, formatInspectReport } from "./commands/inspect.mjs";
 import { captureCommand, formatCaptureReport } from "./commands/capture.mjs";
@@ -36,8 +36,8 @@ import {
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const COMMANDS = [
-  ["present", "Open presenter view and launch the audience view from it."],
-  ["preview", "Serve a deck on loopback and open it in a browser window."],
+  ["present", "Open the MarkdStage UI in presenter view."],
+  ["preview", "Open the MarkdStage UI in slide view."],
   ["validate", "Check deck structure, Architecture DSL blocks, and themes."],
   ["inspect", "Report 1280x720 clipping diagnostics for a deck."],
   ["capture", "Write 1280x720 PNG files for selected or clipped slides."],
@@ -78,7 +78,14 @@ function usage(command) {
     const lines = [
       "MarkdStage — turn Markdown into 16:9 slides.",
       "",
-      "Usage: markdstage <command> [options]",
+      "Usage:",
+      "  markdstage [options]",
+      "  markdstage <file.md> [options]",
+      "  markdstage <command> [options]",
+      "",
+      "Application:",
+      "  With no file, open an empty UI and choose Markdown from the workspace.",
+      "  With a Markdown file, open it in live slide view and refresh it on save.",
       "",
       "Commands:",
     ];
@@ -91,6 +98,7 @@ function usage(command) {
       "  --workspace <dir>   Confine every read and write to this directory.",
       "  --theme <name>      Override the deck theme.",
       "  --theme-file <path> Use a custom theme metadata file.",
+      "  --no-open           Serve the UI without launching a browser.",
       "  --json              Print machine-readable JSON.",
       "  -h, --help          Show help for a command.",
       "  -v, --version       Print the CLI version.",
@@ -106,10 +114,10 @@ function usage(command) {
     present: [
       "Usage: markdstage present <file.md> [options]",
       "",
-      "Opens presenter view with the current slide, next-slide preview, and speaker notes.",
-      "Use Start presentation in that view to open the synchronized audience window.",
+      "Opens the full MarkdStage UI in presenter view.",
+      "Open Markdown, automatic refresh, editing, export, and audience controls remain available.",
       "",
-      "  --watch     Reload on save.",
+      "  --watch     Start with automatic refresh enabled.",
       "  --no-open   Serve the presenter view without launching a browser.",
       "",
       "Presentation requires an installed Microsoft Edge, Google Chrome, or Chromium.",
@@ -117,11 +125,13 @@ function usage(command) {
     preview: [
       "Usage: markdstage preview <file.md> [options]",
       "",
-      "  --watch     Reload on save and enable Architecture editing.",
-      "  --no-open   Serve the deck without launching a browser.",
+      "Opens the full MarkdStage UI in slide view.",
       "",
-      "Without --watch, preview is read-only. Watch mode starts in normal viewing mode;",
-      "use the pencil control to edit Architecture diagrams and open the detailed designer.",
+      "  --watch     Start with automatic refresh enabled.",
+      "  --no-open   Serve the UI without launching a browser.",
+      "",
+      "Preview starts on the fixed 16:9 output surface. Use Output preview to switch",
+      "to the responsive layout. Architecture editing and export remain available.",
       "",
       "Preview requires an installed Microsoft Edge, Google Chrome, or Chromium.",
     ],
@@ -201,6 +211,10 @@ function deckOptions(file, values) {
   };
 }
 
+function isMarkdownArgument(value) {
+  return typeof value === "string" && /\.(?:md|markdown)$/i.test(value);
+}
+
 export async function run(argv, io = {}) {
   const out = io.out ?? ((text) => console.log(text));
   const err = io.err ?? ((text) => console.error(text));
@@ -208,7 +222,7 @@ export async function run(argv, io = {}) {
 
   const command = argv[0];
   const rest = argv.slice(1);
-  if (command === "--help" || command === "-h" || command === undefined) {
+  if (command === "--help" || command === "-h") {
     out(usage());
     return EXIT_OK;
   }
@@ -229,9 +243,63 @@ export async function run(argv, io = {}) {
     out(await packageVersion());
     return EXIT_OK;
   }
-  if (command.startsWith("-")) {
-    err(`Unknown option: ${command}\n\n${usage()}`);
-    return EXIT_USAGE;
+  if (command === undefined || isMarkdownArgument(command) || command.startsWith("-")) {
+    let values;
+    let positionals;
+    try {
+      ({ values, positionals } = parseArgs({
+        args: argv,
+        options: {
+          ...GLOBAL_OPTIONS,
+          "no-open": { type: "boolean" },
+        },
+        allowPositionals: true,
+      }));
+    } catch (error) {
+      err(`${error.message}\n\n${usage()}`);
+      return EXIT_USAGE;
+    }
+    if (values.help) {
+      out(usage());
+      return EXIT_OK;
+    }
+    if (values.version) {
+      out(await packageVersion());
+      return EXIT_OK;
+    }
+    if (positionals.length > 1) {
+      err(`Application mode accepts at most one Markdown file.\n\n${usage()}`);
+      return EXIT_USAGE;
+    }
+    const file = positionals[0];
+    if (file && !isMarkdownArgument(file)) {
+      err(`Unknown command: ${file}\n\n${usage()}`);
+      return EXIT_USAGE;
+    }
+    try {
+      const report = await applicationCommand(
+        {
+          ...deckOptions(file, values),
+          live: Boolean(file),
+          open: io.open ?? !values["no-open"],
+          until: io.until,
+        },
+        {
+          print: values.json ? () => {} : (message) => out(message),
+          status: (message, isError) => {
+            if (isError) err(message);
+            else if (!values.json) out(message);
+          },
+        },
+      );
+      if (values.json) json(report);
+      return EXIT_OK;
+    } catch (error) {
+      const code = exitCodeFor(error);
+      if (values.json) json(errorPayload(error));
+      else err(error?.message || String(error));
+      return code || EXIT_FAILURE;
+    }
   }
   if (!COMMAND_OPTIONS[command]) {
     err(`Unknown command: ${command}\n\n${usage()}`);
@@ -264,8 +332,13 @@ export async function run(argv, io = {}) {
     switch (command) {
       case "preview": {
         const file = requireFile(positionals, "preview");
-        const report = await presentCommand(
-          { ...deckOptions(file, values), watch: values.watch, open: !values["no-open"], until: io.until },
+        const report = await applicationCommand(
+          {
+            ...deckOptions(file, values),
+            watch: values.watch,
+            open: io.open ?? !values["no-open"],
+            until: io.until,
+          },
           {
             print: values.json ? () => {} : (message) => out(message),
             status: (message, isError) => {
@@ -279,11 +352,11 @@ export async function run(argv, io = {}) {
       }
       case "present": {
         const file = requireFile(positionals, "present");
-        const report = await presentCommand(
+        const report = await applicationCommand(
           {
             ...deckOptions(file, values),
             watch: values.watch,
-            open: !values["no-open"],
+            open: io.open ?? !values["no-open"],
             presenterView: true,
             until: io.until,
           },
