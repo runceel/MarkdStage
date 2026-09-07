@@ -64,6 +64,8 @@ test("routes only bundled Mermaid SVG roles with their actual root signals", () 
   assert.equal(classifyMermaidDiagramRoute("quadrantChart"), "quadrantChart");
   assert.equal(classifyMermaidDiagramRoute("xychart"), "xychart");
   assert.equal(classifyMermaidDiagramRoute("gantt"), "gantt");
+  assert.equal(classifyMermaidDiagramRoute("treemap"), "treemap");
+  assert.equal(classifyMermaidDiagramRoute("treemap-beta"), null);
   assert.equal(classifyMermaidDiagramRoute("gantt-beta"), null);
   assert.equal(classifyMermaidDiagramRoute("xychart-beta"), null);
   assert.equal(classifyMermaidDiagramRoute("quadrantChart-beta"), null);
