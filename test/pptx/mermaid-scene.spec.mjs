@@ -3053,11 +3053,32 @@ test("detects marker text, HTML, and polygon-only edge-label decoration", async 
           "div",
         );
         div.style.color =
-          config.state === "visible" ? "red" : "transparent";
+          ["visible", "whitespace"].includes(config.state)
+            ? "red"
+            : "transparent";
         div.style.fontSize = "16px";
-        div.textContent = "!";
+        div.textContent =
+          config.state === "whitespace" ? "\n   \n" : "!";
         foreignObject.append(div);
         marker.append(foreignObject);
+      } else if (config.kind === "outline") {
+        const rectangle = document.createElementNS(namespace, "rect");
+        rectangle.setAttribute("x", "2");
+        rectangle.setAttribute("y", "2");
+        rectangle.setAttribute("width", "16");
+        rectangle.setAttribute("height", "16");
+        rectangle.setAttribute("fill", "transparent");
+        rectangle.setAttribute("stroke", "transparent");
+        if (config.state === "visible") {
+          rectangle.style.outline = "4px solid red";
+          rectangle.style.outlineOffset = "-4px";
+        } else if (config.state === "transparent") {
+          rectangle.style.outline = "4px solid rgba(0, 0, 0, 0)";
+          rectangle.style.outlineOffset = "-4px";
+        } else {
+          rectangle.style.outline = "none";
+        }
+        marker.append(rectangle);
       } else {
         const circle = document.createElementNS(namespace, "circle");
         circle.setAttribute("cx", "15");
@@ -3119,7 +3140,7 @@ test("detects marker text, HTML, and polygon-only edge-label decoration", async 
       return screenshotPixelDifference(page, visible, hidden);
     };
 
-    for (const kind of ["text", "html"]) {
+    for (const kind of ["text", "html", "outline"]) {
       await loadFixture();
       await installMarker({ kind, state: "visible" });
       expect(await markerPixelDifference(), kind).toBeGreaterThan(0);
@@ -3140,6 +3161,9 @@ test("detects marker text, HTML, and polygon-only edge-label decoration", async 
     for (const entry of [
       { kind: "text", state: "transparent" },
       { kind: "html", state: "hidden" },
+      { kind: "html", state: "whitespace" },
+      { kind: "outline", state: "transparent" },
+      { kind: "outline", state: "none" },
     ]) {
       await loadFixture();
       await installMarker(entry);
@@ -7869,7 +7893,7 @@ test("actual requirement marker-only label remains one captured local fallback",
   }
 });
 
-test("actual requirement text, HTML, and polygon markers remain captured local fallbacks", async ({ page }) => {
+test("actual requirement text, HTML, outline, and polygon markers remain captured local fallbacks", async ({ page }) => {
   const diagram = (await readFixture("requirement-basic.mmd")).replace(
     '{"handDrawnSeed": 42}',
     JSON.stringify({
@@ -7890,7 +7914,8 @@ test("actual requirement text, HTML, and polygon markers remain captured local f
       const title = svg.closest(".deck")?.querySelector("h1")?.textContent || "";
       const kind = title.includes("HTML marker") ? "html"
         : title.includes("Text marker") ? "text"
-          : title.includes("Polygon marker") ? "polygon" : "";
+          : title.includes("Outline marker") ? "outline"
+            : title.includes("Polygon marker") ? "polygon" : "";
       if (!kind) return;
       const group = svg.querySelectorAll("g.edgeLabel")[1];
       if (!group) return;
@@ -7937,6 +7962,17 @@ test("actual requirement text, HTML, and polygon markers remain captured local f
         div.textContent = "!";
         foreignObject.append(div);
         marker.append(foreignObject);
+      } else if (kind === "outline") {
+        const rectangle = document.createElementNS(namespace, "rect");
+        rectangle.setAttribute("x", "2");
+        rectangle.setAttribute("y", "2");
+        rectangle.setAttribute("width", "16");
+        rectangle.setAttribute("height", "16");
+        rectangle.setAttribute("fill", "transparent");
+        rectangle.setAttribute("stroke", "transparent");
+        rectangle.style.outline = "4px solid red";
+        rectangle.style.outlineOffset = "-4px";
+        marker.append(rectangle);
       } else {
         const circle = document.createElementNS(namespace, "circle");
         circle.setAttribute("cx", "15");
@@ -7956,6 +7992,10 @@ test("actual requirement text, HTML, and polygon markers remain captured local f
       if (kind === "polygon") {
         source.setAttribute("points", "0,0 120,0 120,20");
         source.setAttribute("marker-end", `url(#${marker.id})`);
+        source.setAttribute(
+          "transform",
+          "translate(60 10) rotate(35) scale(0.2 8) translate(-60 -10)",
+        );
       } else {
         source.setAttribute("d", "M5 12 L39 12 L73 12");
         source.setAttribute("marker-mid", `url(#${marker.id})`);
@@ -7977,6 +8017,7 @@ test("actual requirement text, HTML, and polygon markers remain captured local f
     slides: [
       `# Text marker requirement\n\n\`\`\`mermaid\n${diagram}\n\`\`\``,
       `# HTML marker requirement\n\n\`\`\`mermaid\n${diagram}\n\`\`\``,
+      `# Outline marker requirement\n\n\`\`\`mermaid\n${diagram}\n\`\`\``,
       `# Polygon marker requirement\n\n\`\`\`mermaid\n${diagram}\n\`\`\``,
     ],
   });
@@ -7994,7 +8035,12 @@ test("actual requirement text, HTML, and polygon markers remain captured local f
       .toHaveAttribute("data-pptx-ready", "true");
     const models = await page.evaluate(() =>
       window.__presentationPptxModel.slides);
-    for (const [index, kind] of ["text", "html", "polygon"].entries()) {
+    for (const [index, kind] of [
+      "text",
+      "html",
+      "outline",
+      "polygon",
+    ].entries()) {
       const model = models[index];
       expect(model.fallbacks.filter((entry) =>
         entry.type === "mermaid").map((entry) => ({
@@ -8024,12 +8070,24 @@ test("actual requirement text, HTML, and polygon markers remain captured local f
       await expect(svg.locator(
         'path.relationshipLine[data-id="root_req-copy_req-0"]',
       )).toHaveAttribute("data-pptx-native", "connector");
+      const deck = page.locator(
+        ".deck:not(.pptx-layout-template)",
+      ).nth(index);
       if (kind === "polygon") {
         const sourceBounds = await source.boundingBox();
+        const deckBounds = await deck.boundingBox();
         const fallback = model.fallbacks.find((entry) =>
           entry.sourcePath === "edgeLabels[root_req-copy_req-0]");
-        expect(fallback.width).toBeGreaterThan(sourceBounds.width);
-        expect(fallback.height).toBeGreaterThan(sourceBounds.height);
+        const relative = {
+          left: sourceBounds.x - deckBounds.x,
+          top: sourceBounds.y - deckBounds.y,
+          right: sourceBounds.x - deckBounds.x + sourceBounds.width,
+          bottom: sourceBounds.y - deckBounds.y + sourceBounds.height,
+        };
+        expect(fallback.x).toBeLessThan(relative.left);
+        expect(fallback.y).toBeLessThan(relative.top);
+        expect(fallback.x + fallback.width).toBeGreaterThan(relative.right);
+        expect(fallback.y + fallback.height).toBeGreaterThan(relative.bottom);
       }
       if (kind === "html") {
         expect(await svg.locator(
@@ -8041,10 +8099,25 @@ test("actual requirement text, HTML, and polygon markers remain captured local f
           text: "!",
           color: "rgb(255, 0, 0)",
         });
-      } else {
-        const deck = page.locator(
-          ".deck:not(.pptx-layout-template)",
-        ).nth(index);
+      } else if (kind === "outline") {
+        expect(await svg.locator(
+          'marker[id$="-outline-marker"] rect',
+        ).evaluate((element) => {
+          const style = getComputedStyle(element);
+          return {
+            width: style.outlineWidth,
+            style: style.outlineStyle,
+            color: style.outlineColor,
+            offset: style.outlineOffset,
+          };
+        })).toEqual({
+          width: "4px",
+          style: "solid",
+          color: "rgb(255, 0, 0)",
+          offset: "-4px",
+        });
+      }
+      if (kind !== "html") {
         await waitForPaint(page);
         const visible = await deck.screenshot();
         await source.evaluate((element) => {

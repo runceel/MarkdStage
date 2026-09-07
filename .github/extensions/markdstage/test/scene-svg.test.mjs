@@ -282,6 +282,49 @@ test("SVG capture preserves computed text transforms for local fallbacks", () =>
   assert.equal(span.attributes.get("style:text-transform"), "uppercase");
 });
 
+test("SVG capture preserves computed outline paint for marker fallbacks", () => {
+  const source = {
+    nodeType: 1,
+    localName: "rect",
+    namespaceURI: "http://www.w3.org/2000/svg",
+    attributes: [],
+    childNodes: [],
+    getAttribute: () => null,
+    style: { getPropertyValue: () => "" },
+    closest: () => null,
+  };
+  const primitive = captureSvgTree(source, {
+    computedStyle: () => ({
+      getPropertyValue: (name) => ({
+        "outline-width": "4px",
+        "outline-style": "solid",
+        "outline-color": "rgb(255, 0, 0)",
+        "outline-offset": "-4px",
+      }[name] || ""),
+    }),
+  });
+  assert.equal(primitive.style["outline-width"], "4px");
+  assert.equal(primitive.style["outline-style"], "solid");
+  assert.equal(primitive.style["outline-color"], "rgb(255, 0, 0)");
+  assert.equal(primitive.style["outline-offset"], "-4px");
+  const restored = sceneToSvg(scene([{
+    kind: "fallback",
+    sourcePath: "marker",
+    z: 0,
+    bounds,
+    reason: "unsupported",
+    meta: { svg: primitive },
+  }]), { document });
+  const rectangle = all(restored).find((node) => node.tagName === "rect");
+  assert.equal(rectangle.attributes.get("style:outline-width"), "4px");
+  assert.equal(rectangle.attributes.get("style:outline-style"), "solid");
+  assert.equal(
+    rectangle.attributes.get("style:outline-color"),
+    "rgb(255, 0, 0)",
+  );
+  assert.equal(rectangle.attributes.get("style:outline-offset"), "-4px");
+});
+
 test("text preserves explicit transparent paint and zero font sizes", () => {
   const svg = sceneToSvg(scene([{
     kind: "text", sourcePath: "label", z: 0, bounds,

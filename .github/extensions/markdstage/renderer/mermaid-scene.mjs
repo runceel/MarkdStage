@@ -631,6 +631,23 @@ function effectiveOpacity(element) {
   return opacity;
 }
 
+function visibleOutlineExtent(element, options = {}) {
+  const style = getComputedStyle(element);
+  const width = parseMetric(style.outlineWidth);
+  const outlineStyle = style.outlineStyle;
+  const color = normalizeColor(
+    style.outlineColor,
+    options.resolveColor,
+  );
+  const alpha = color
+    ? (cssColorParts(color)?.alpha ?? 1) * effectiveOpacity(element)
+    : 0;
+  if (!(width > 0) ||
+      ["none", "hidden"].includes(outlineStyle) ||
+      alpha <= 0.000001) return 0;
+  return width + Math.abs(parseMetric(style.outlineOffset) || 0);
+}
+
 function hasDisplayNone(element) {
   for (let current = element; current; current = current.parentElement) {
     if (getComputedStyle(current).display === "none") return true;
@@ -836,6 +853,7 @@ function markerFallbackPadding(element, style) {
       if (typeof child.getBBox !== "function") continue;
       const box = child.getBBox();
       const stroke = parseMetric(getComputedStyle(child).strokeWidth) || 0;
+      const outline = visibleOutlineExtent(child);
       const matrix = new DOMMatrix(getComputedStyle(child).transform === "none" ? undefined : getComputedStyle(child).transform);
       const markerMatrix = new DOMMatrix(getComputedStyle(marker).transform === "none" ? undefined : getComputedStyle(marker).transform);
       const transform = markerMatrix.multiply(matrix);
@@ -843,12 +861,34 @@ function markerFallbackPadding(element, style) {
         const point = new DOMPoint(x, y).matrixTransform(transform);
         // A radius is independent of the tangent/orient and safe for either end.
         const radius = (Math.hypot(point.x - refX, point.y - refY) +
-          stroke * 4 * Math.max(Math.hypot(transform.a, transform.b), Math.hypot(transform.c, transform.d))) * viewScale * unit;
+          (stroke * 4 + outline * 2) *
+            Math.max(
+              Math.hypot(transform.a, transform.b),
+              Math.hypot(transform.c, transform.d),
+            )) * viewScale * unit;
         if (Number.isFinite(radius)) padding = Math.max(padding, radius);
       }
     }
   }
   return padding;
+}
+
+function maximumMatrixScale(matrix) {
+  if (!matrix || !["a", "b", "c", "d"].every((key) =>
+    typeof matrix[key] === "number" && Number.isFinite(matrix[key]))) {
+    return 1;
+  }
+  const sum =
+    matrix.a * matrix.a +
+    matrix.b * matrix.b +
+    matrix.c * matrix.c +
+    matrix.d * matrix.d;
+  const determinant = matrix.a * matrix.d - matrix.b * matrix.c;
+  const discriminant = Math.max(
+    0,
+    sum * sum - 4 * determinant * determinant,
+  );
+  return Math.sqrt(Math.max(0, (sum + Math.sqrt(discriminant)) / 2));
 }
 
 function fallbackNode(element, z, deck, reason, sourcePath) {
@@ -858,7 +898,7 @@ function fallbackNode(element, z, deck, reason, sourcePath) {
     const marked = [style.markerStart, style.markerMid, style.markerEnd].some((value) => value && value !== "none");
     const padding = Math.max(1, Number.parseFloat(getComputedStyle(element).strokeWidth) || 0,
       marked ? markerFallbackPadding(element, style) : 0) *
-      Math.max(elementScale(element), Math.abs(element.getScreenCTM()?.d || 1));
+      maximumMatrixScale(element.getScreenCTM?.());
     bounds = { x: bounds.x - padding, y: bounds.y - padding,
       width: bounds.width + 2 * padding, height: bounds.height + 2 * padding };
   }
@@ -1867,8 +1907,9 @@ function htmlElementHasVisibleMarkerContent(element, options) {
   const style = getComputedStyle(element);
   const opacity = effectiveOpacity(element);
   const color = normalizeColor(style.color, options.resolveColor);
-  if ([...element.childNodes].some((node) =>
-    node.nodeType === 3 && node.textContent) &&
+  const hasText = [...element.childNodes].some((node) =>
+    node.nodeType === 3 && node.textContent.trim());
+  if (hasText &&
     color &&
     (cssColorParts(color)?.alpha ?? 1) * opacity > 0.000001) {
     return true;
@@ -1883,10 +1924,11 @@ function htmlElementHasVisibleMarkerContent(element, options) {
   }
   if ((style.backgroundImage && style.backgroundImage !== "none") ||
       !cssEffectIsProvablyTransparent(style.boxShadow) ||
-      !cssEffectIsProvablyTransparent(style.textShadow) ||
+      (hasText && !cssEffectIsProvablyTransparent(style.textShadow)) ||
       localName(element) === "img") {
     return true;
   }
+  if (visibleOutlineExtent(element, options) > 0) return true;
   return ["Top", "Right", "Bottom", "Left"].some((side) => {
     const width = parseMetric(style[`border${side}Width`]);
     const borderStyle = style[`border${side}Style`];
@@ -1920,6 +1962,7 @@ function markerReferenceHasVisibleDecoration(value, element, options) {
       }
       continue;
     }
+    if (visibleOutlineExtent(decoration, options) > 0) return true;
     if (IGNORED_TAGS.has(tag) || tag === "g" || tag === "foreignObject") {
       continue;
     }
