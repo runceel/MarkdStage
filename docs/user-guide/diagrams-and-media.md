@@ -83,7 +83,7 @@ syntax and current coverage.
 
 #### Fallback behavior
 
-- Export never silently drops visible Mermaid content.
+- Visible Mermaid content is preserved in the exported presentation.
 
 - The smallest safe node, label, connector, marker, decoration, or control frame
   is preferred for image fallback.
