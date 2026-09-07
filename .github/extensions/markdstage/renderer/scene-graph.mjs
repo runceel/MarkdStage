@@ -23,10 +23,12 @@ const SOURCE_KINDS = new Set(["architecture", "mermaid"]);
 const SHAPE_PRESETS = new Set([
   "rect",
   "roundedRect",
+  "topRoundedRect",
   "ellipse",
   "diamond",
   "triangle",
   "hexagon",
+  "quarterHeightHexagon",
   "parallelogram",
   "reverseParallelogram",
   "trapezoid",

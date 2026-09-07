@@ -122,6 +122,7 @@ export function classifyMermaidDiagramRoute(diagramType, svgClass = "", hasRoot 
   if (diagramType === "gantt") return "gantt";
   if (diagramType === "treemap") return "treemap";
   if (diagramType === "ishikawa") return "ishikawa";
+  if (["mindmap", "timeline", "journey"].includes(diagramType)) return diagramType;
   if (diagramType === "quadrantChart" || diagramType === "xychart") return diagramType;
   if (diagramType === "stateDiagram") {
     return hasRoot && classes.includes("statediagram") ? "state" : null;
@@ -1060,7 +1061,7 @@ function maximumMatrixScale(matrix) {
   return Math.sqrt(Math.max(0, (sum + Math.sqrt(discriminant)) / 2));
 }
 
-function fallbackNode(element, z, deck, reason, sourcePath, includeGroupPathStrokes = false) {
+function fallbackNode(element, z, deck, reason, sourcePath, includeOutlineStrokes = false) {
   let bounds = boundsOf(element, deck);
   let padding = 0;
   if (["path", "line", "polygon", "polyline"].includes(localName(element))) {
@@ -1092,10 +1093,13 @@ function fallbackNode(element, z, deck, reason, sourcePath, includeGroupPathStro
     padding = Math.max(padding, Math.min(MAX_MARKER_FALLBACK_PADDING,
       width * scale / Math.SQRT2 + 1));
   }
-  // Ishikawa rough.js artwork groups contain stroked paths, including almost
-  // zero-height spines. Their geometry-only group box clips the painted stroke.
-  if (includeGroupPathStrokes && localName(element) === "g") {
-    for (const part of element.querySelectorAll("path, line, polyline, polygon")) {
+  // Known narrative/rough.js artwork needs its painted outlines, not only
+  // geometry boxes (nearly flat spines and stroked journey faces included).
+  if (includeOutlineStrokes) {
+    const outlines = localName(element) === "g"
+      ? element.querySelectorAll("path, line, polyline, polygon, circle, ellipse")
+      : ["circle", "ellipse"].includes(localName(element)) ? [element] : [];
+    for (const part of outlines) {
       if (part.closest("defs, clipPath, mask, marker, pattern, symbol") || !isRenderedElement(part)) continue;
       const style = getComputedStyle(part);
       const width = parseMetric(style.strokeWidth);
@@ -1104,7 +1108,8 @@ function fallbackNode(element, z, deck, reason, sourcePath, includeGroupPathStro
         (cssColorParts(style.stroke)?.alpha ?? 1) > 0;
       if (!stroked && !marked) continue;
       const scale = style.vectorEffect === "non-scaling-stroke" ? 1 : maximumMatrixScale(part.getScreenCTM?.());
-      const miter = style.strokeLinejoin === "miter" ? Math.max(1, parseMetric(style.strokeMiterlimit)) : 1;
+      const miter = !["circle", "ellipse"].includes(localName(part)) && style.strokeLinejoin === "miter"
+        ? Math.max(1, parseMetric(style.strokeMiterlimit)) : 1;
       padding = Math.max(padding, Math.min(MAX_MARKER_FALLBACK_PADDING,
         Math.max(stroked ? width * miter / 2 : 0, marked ? markerFallbackPadding(part, style) : 0) * scale + 1));
     }
@@ -6539,6 +6544,176 @@ function chartScene(svg, deck, size, options, diagram) {
   return measuredDiagramScene(svg, deck, size, options, diagram, roots[0], "main", `${diagram}.main`);
 }
 
+function basicNarrativeElementRole(element, parent, diagram) {
+  const tag = localName(element);
+  if (diagram === "mindmap") {
+    if (parent === "root" && tag === "g") {
+      if (hasClass(element, "nodes")) return "nodes";
+      if (hasClass(element, "edgePaths")) return "edges";
+      if (hasClass(element, "edgeLabels")) return "edge-labels";
+    }
+    if (parent === "nodes" && tag === "g" && hasClass(element, "mindmap-node")) return "node";
+    if (parent === "edges" && tag === "path" && hasClass(element, "edge") &&
+        element.getAttribute("data-look") === "classic" && !normalizeColor(getComputedStyle(element).fill)) return "branch";
+    if (parent === "node") {
+      if (tag === "g" && hasClass(element, "label")) return "label";
+      if (SHAPE_TAGS.has(tag) && hasClass(element, "label-container")) return "node-shape";
+      if (tag === "path" && hasClass(element, "node-bkg")) return "rounded-card";
+      if (tag === "line" && element.getAttribute("class")?.startsWith("node-line-")) return "node-line";
+    }
+    if (parent === "edge-labels" && tag === "g" && hasClass(element, "edgeLabel")) return "label";
+  } else if (diagram === "timeline") {
+    if (parent === "root") {
+      if (tag === "text") return "text";
+      if (tag === "g" && (["taskWrapper", "eventWrapper", "lineWrapper"].some((name) => hasClass(element, name)) ||
+          (!element.getAttribute("class") && directChildren(element, "g.timeline-node").length === 1))) return "wrapper";
+    }
+    if (parent === "wrapper") {
+      if (tag === "g" && hasClass(element, "timeline-node")) return "node";
+      if (tag === "line") return "line";
+    }
+    if (parent === "node" && tag === "g" && !element.getAttribute("class")) return "parts";
+    if (parent === "parts") {
+      if (tag === "path" && hasClass(element, "node-bkg")) return "rounded-card";
+      if (tag === "line" && element.getAttribute("class")?.startsWith("node-line-")) return "node-line";
+      if (tag === "text") return "text";
+    }
+  } else if (diagram === "journey") {
+    const actor = /^actor-\d+$/.test(element.getAttribute("class") || "");
+    if (parent === "root") {
+      if (tag === "text") return "text";
+      if (tag === "circle" && actor) return "person";
+      if (tag === "line") return "line";
+      if (tag === "g" && !element.getAttribute("class")) {
+        if (directChildren(element, "rect.journey-section").length === 1) return "section";
+        if (directChildren(element, "rect.task").length === 1) return "task";
+      }
+    }
+    if (["section", "task"].includes(parent)) {
+      if (tag === "rect" && (hasClass(element, "journey-section") || hasClass(element, "task"))) return "card";
+      if (tag === "circle" && (actor || hasClass(element, "face"))) return actor ? "person" : "face";
+      if (tag === "line" && hasClass(element, "task-line")) return "task-line";
+      if (tag === "switch") return "switch";
+      if (tag === "g" && !element.getAttribute("class") &&
+          directChildren(element, "circle").length === 2 && element.querySelector(".mouth")) return "face-parts";
+    }
+    if (parent === "face-parts") {
+      if (tag === "circle") return "eye";
+      if (tag === "line" && hasClass(element, "mouth")) return "mouth";
+      // Filled satisfaction arcs remain local artwork, not sampled open lines.
+    }
+  }
+  return null;
+}
+
+export function knownNarrativeCard(data, diagram) {
+  const values = String(data).match(/[-+]?(?:\d*\.?\d+)(?:e[-+]?\d+)?/gi)?.map(Number) || [];
+  if (!values.every(Number.isFinite)) return null;
+  if (diagram === "timeline") {
+    const absolute = String(data).includes("Q");
+    const height = absolute ? values[12] : values[1] + 5;
+    const width = values[7] + (absolute ? 5 : 10);
+    if (width >= 10 && height >= 10 &&
+        exactPathGeometry(data, absolute ? "MVQHQVHZ" : "MvqhqvHZ", absolute
+          ? [0, values[1], 5, 0, 0, 5, 0, width - 5, width, 0, width, 5, height, 0]
+          : [0, height - 5, 10 - height, 0, -5, 5, -5, width - 10, 5, 0, 5, 5, height - 5, 0]) &&
+        sameMetric(values[1], height - 5, .001)) {
+      return { preset: "topRoundedRect", cornerRadius: 5 };
+    }
+  } else if (diagram === "mindmap") {
+    const absolute = String(data).includes("Q");
+    const width = absolute ? -2 * values[0] : values[7] + 10;
+    const height = absolute ? 2 * values[1] + 10 : 10 - values[2];
+    const x = -width / 2;
+    const y = (height - 10) / 2;
+    if (width >= 10 && height >= 10 &&
+        exactPathGeometry(data, absolute ? "MVQHQVQHQZ" : "MvqhqvqhqZ", absolute ? [
+          x, y, -y, x, -y - 5, x + 5, -y - 5, -x - 5,
+          -x, -y - 5, -x, -y, y, -x, y + 5, -x - 5, y + 5,
+          x + 5, x, y + 5, x, y,
+        ] : [
+          -width / 2, (height - 10) / 2, 10 - height, 0, -5, 5, -5, width - 10,
+          5, 0, 5, 5, height - 10, 0, 5, -5, 5, 10 - width, -5, 0, -5, -5,
+        ])) return { preset: "roundedRect", cornerRadius: 5 };
+  }
+  return null;
+}
+
+function narrativeRoundedCard(element, sourcePath, z, deck, options, meta, reasons, diagram) {
+  const known = knownNarrativeCard(renderedPathData(element), diagram);
+  if (!known) return fallbackNode(element, z, deck, reasons.geometry, sourcePath);
+  if (unsupportedVisualEffect(element)) return fallbackNode(element, z, deck, reasons.style, sourcePath);
+  if (!hasUniformAxisAlignedScale(element)) return fallbackNode(element, z, deck, reasons.transform, sourcePath);
+  return {
+    kind: "shape", sourcePath, z, bounds: boundsOf(element, deck), preset: known.preset,
+    style: { ...computedSvgStyle(element, options), cornerRadius: known.cornerRadius * elementScale(element) }, meta,
+  };
+}
+
+function mindmapPolygon(element, sourcePath, z, deck, options, meta, reasons) {
+  const node = simpleDiagramShape(element, sourcePath, z, deck, options, meta, reasons);
+  if (node.preset !== "hexagon") return node;
+  const points = parsePoints(element.getAttribute("points"));
+  const { x, y, width: w, height: h } = element.getBBox();
+  const expected = [
+    [x + h / 4, y + h], [x + w - h / 4, y + h], [x + w, y + h / 2],
+    [x + w - h / 4, y], [x + h / 4, y], [x, y + h / 2],
+  ];
+  if (w < h / 2 || !points.every((point, index) =>
+    closeToPoint(point, ...expected[index], .001))) {
+    return fallbackNode(element, z, deck, reasons.geometry, sourcePath);
+  }
+  return { ...node, preset: "quarterHeightHexagon" };
+}
+
+function journeySwitchText(element, sourcePath, z, deck, options, reasons) {
+  const fallback = () => [fallbackNode(element, z, deck, reasons.label, sourcePath)];
+  const children = directChildren(element);
+  const foreign = children[0];
+  // Chromium selects the first unconditional foreignObject. Inactive SVG text
+  // alternatives must never be extracted or unhidden by local artwork isolation.
+  if (localName(foreign) !== "foreignObject" ||
+      [element, ...children].some((child) =>
+        ["requiredExtensions", "requiredFeatures", "systemLanguage"].some((name) => child.hasAttribute(name))) ||
+      children.slice(1).some((child) => localName(child) !== "text" ||
+        child.getBoundingClientRect().width > 0 || child.getBoundingClientRect().height > 0) ||
+      !hasUniformAxisAlignedScale(foreign) || !safeChartLabel(foreign, options)) return fallback();
+  const labels = foreign.querySelectorAll("div.label");
+  const label = labels[0];
+  if (labels.length !== 1 || !label.textContent.trim()) return fallback();
+  const range = document.createRange();
+  range.selectNodeContents(label);
+  const rects = [...range.getClientRects()].filter((rect) => rect.width > 0 && rect.height > 0);
+  const tops = new Set(rects.map((rect) => roundedMetric(rect.top)));
+  // Wrapped/decorated HTML is kept as this switch's image; no source reflow.
+  if (tops.size !== 1 || structuredLabelText(label, options).paragraphs.length !== 1) return fallback();
+  if ([label, ...foreign.querySelectorAll("*")].some((part) => {
+    const style = getComputedStyle(part);
+    return ["transform", "rotate", "scale", "translate"].some((name) => style[name] && style[name] !== "none");
+  })) return fallback();
+  // Measure the rendered line, not its taller table cell. Ordinary native text
+  // uses top anchoring; centering belongs to the source HTML layout.
+  return [{
+    kind: "text", sourcePath, z, bounds: boundsOf(range, deck),
+    text: structuredLabelText(label, options),
+    textLayout: { alignment: normalizeAlignment(getComputedStyle(label).textAlign),
+      verticalAlignment: "top", textWrap: "none" },
+    meta: { mermaid: { kind: "journey-label" } },
+  }];
+}
+
+function basicNarrativeScene(svg, deck, size, options, diagram) {
+  const roots = diagram === "mindmap"
+    ? directChildren(svg, "g").filter((group) => directChildren(group, "g.nodes").length === 1 &&
+      directChildren(group, "g.edgePaths").length === 1)
+    : [svg];
+  if (roots.length !== 1 || (diagram === "timeline" && !svg.querySelector("g.timeline-node")) ||
+      (diagram === "journey" && !svg.querySelector("rect.task"))) {
+    return specialDiagramStructureFallback(svg, deck, size, options, `unsupported-mermaid-${diagram}-structure`);
+  }
+  return measuredDiagramScene(svg, deck, size, options, diagram, roots[0], "root", diagram);
+}
+
 function measuredDiagramScene(svg, deck, size, options, diagram, root, rootRole, rootPath) {
   const nodes = [];
   const reasons = {
@@ -6558,18 +6733,30 @@ function measuredDiagramScene(svg, deck, size, options, diagram, root, rootRole,
         unsupportedVisualEffect(element, false, diagram === "gantt" && role === "tick" &&
         isSeparableGanttTick(element, options)) ? reasons.style : "";
     if (reason) {
-      nodes.push(fallbackNode(element, nodes.length, deck, reason, sourcePath, diagram === "ishikawa"));
+      nodes.push(fallbackNode(element, nodes.length, deck, reason, sourcePath,
+        ["ishikawa", "mindmap", "timeline", "journey"].includes(diagram)));
+      return;
+    }
+    if (diagram === "journey" && role === "switch") {
+      nodes.push(...journeySwitchText(element, sourcePath, nodes.length, deck, options, reasons));
+      return;
+    }
+    if (diagram === "mindmap" && role === "label") {
+      const node = basicItemLabel(element, sourcePath, nodes.length, deck, options, diagram);
+      if (node) nodes.push(node);
       return;
     }
     if (element === svg || localName(element) === "g") {
       if (!hasUniformAxisAlignedScale(element)) {
-        nodes.push(fallbackNode(element, nodes.length, deck, reasons.transform, sourcePath, diagram === "ishikawa"));
+        nodes.push(fallbackNode(element, nodes.length, deck, reasons.transform, sourcePath,
+          ["ishikawa", "mindmap", "timeline", "journey"].includes(diagram)));
         return;
       }
       directChildren(element).forEach((child, index) =>
         walk(child, diagram === "gantt" ? ganttElementRole(child, role)
           : diagram === "treemap" ? treemapElementRole(child, role)
           : diagram === "ishikawa" ? ishikawaElementRole(child, role)
+          : ["mindmap", "timeline", "journey"].includes(diagram) ? basicNarrativeElementRole(child, role, diagram)
           : chartElementRole(child, role, diagram), `${sourcePath}.parts[${index}]`, depth + 1));
       return;
     }
@@ -6578,12 +6765,17 @@ function measuredDiagramScene(svg, deck, size, options, diagram, root, rootRole,
       nodes.push(...treemapText(element, sourcePath, nodes.length, deck, options, reasons));
       return;
     }
-    if (["gantt", "ishikawa"].includes(diagram) && role === "text") {
+    if (["gantt", "ishikawa", "timeline", "journey"].includes(diagram) && role === "text") {
       const lines = measuredDiagramMultilineText(element, sourcePath, nodes.length, deck, options, reasons, diagram);
       if (lines) {
         nodes.push(...lines);
         return;
       }
+    }
+    if (["mindmap", "timeline", "journey"].includes(diagram) && localName(element) === "line") {
+      const paint = getComputedStyle(element);
+      if (effectiveStrokeAlpha(computedConnectorStyle(element, options)) <= .000001 &&
+          ![paint.markerStart, paint.markerMid, paint.markerEnd].some((value) => value && value !== "none")) return;
     }
     const meta = { mermaid: { kind: `${diagram}-${role}` } };
     const node = role === "text"
@@ -6592,8 +6784,14 @@ function measuredDiagramScene(svg, deck, size, options, diagram, root, rootRole,
         : simpleDiagramText(element, sourcePath, nodes.length, deck, options, meta, reasons.style)
       : diagram === "gantt"
         ? ganttPrimitive(element, role, sourcePath, nodes.length, deck, options, meta, reasons)
-        : diagram === "ishikawa" && localName(element) === "line"
-          ? ishikawaLine(element, sourcePath, nodes.length, deck, options, meta, reasons)
+        : ["ishikawa", "timeline", "journey"].includes(diagram) && localName(element) === "line"
+          ? measuredArrowLine(element, sourcePath, nodes.length, deck, options, meta, reasons, diagram)
+        : ["mindmap", "timeline"].includes(diagram) && role === "rounded-card"
+          ? narrativeRoundedCard(element, sourcePath, nodes.length, deck, options, meta, reasons, diagram)
+        : diagram === "mindmap" && role === "branch"
+          ? connectorPath(element, sourcePath, nodes.length, deck, options)
+        : diagram === "mindmap" && localName(element) === "polygon"
+          ? mindmapPolygon(element, sourcePath, nodes.length, deck, options, meta, reasons)
         : localName(element) === "path"
           ? chartLinePath(element, sourcePath, nodes.length, deck, options, meta, reasons)
           : localName(element) === "line"
@@ -6636,29 +6834,34 @@ export function isKnownIshikawaArrow(data) {
     points.every((point, index) => point.x === [10, 0, 10][index] && point.y === [0, 5, 10][index]);
 }
 
-function ishikawaLine(element, sourcePath, z, deck, options, meta, reasons) {
+function measuredArrowLine(element, sourcePath, z, deck, options, meta, reasons, diagram) {
   const style = getComputedStyle(element);
   if (![style.markerStart, style.markerMid, style.markerEnd].some((value) => value && value !== "none")) {
     return simpleDiagramLine(element, sourcePath, z, deck, options, meta, reasons);
   }
   const fallback = (reason) => fallbackNode(element, z, deck, reason, sourcePath);
   const svg = element.ownerSVGElement;
-  const id = markerReferenceId(style.markerStart);
+  const start = diagram === "ishikawa";
+  const id = markerReferenceId(start ? style.markerStart : style.markerEnd);
   const markers = [...svg.querySelectorAll("[id]")].filter((marker) => marker.id === id);
   const marker = markers[0];
   const outline = marker?.children[0];
   const coordinates = numericAttributes(element, ["x1", "y1", "x2", "y2"]);
-  if (id !== `ishikawa-arrow-${svg.id}` || markers.length !== 1 || localName(marker) !== "marker" || marker.children.length !== 1 ||
-      localName(outline) !== "path" || !hasClass(outline, "ishikawa-arrow") || outline.children.length ||
-      !isKnownIshikawaArrow(renderedPathData(outline)) ||
-      (style.markerEnd && style.markerEnd !== "none") || (style.markerMid && style.markerMid !== "none") ||
+  if (id !== (start ? `ishikawa-arrow-${svg.id}` : `${svg.id}-arrowhead`) ||
+      markers.length !== 1 || localName(marker) !== "marker" || marker.children.length !== 1 ||
+      localName(outline) !== "path" || (start && !hasClass(outline, "ishikawa-arrow")) || outline.children.length ||
+      !(start ? isKnownIshikawaArrow(renderedPathData(outline))
+        : exactPathGeometry(renderedPathData(outline), "MVLZ", [0, 0, 4, 6, 2])) ||
+      ((start ? style.markerEnd : style.markerStart) && (start ? style.markerEnd : style.markerStart) !== "none") ||
+      (style.markerMid && style.markerMid !== "none") ||
       (marker.getAttribute("markerUnits") || "strokeWidth") !== "strokeWidth" ||
       marker.getAttribute("orient") !== "auto" ||
       (marker.getAttribute("preserveAspectRatio") || "xMidYMid meet") !== "xMidYMid meet" ||
-      marker.getAttribute("viewBox")?.trim().split(/[\s,]+/).map(Number).join(",") !== "0,0,10,10" ||
+      (start ? marker.getAttribute("viewBox")?.trim().split(/[\s,]+/).map(Number).join(",") !== "0,0,10,10"
+        : marker.hasAttribute("viewBox")) ||
       !numericAttributes(marker, ["markerWidth", "markerHeight", "refX", "refY"])
-        ?.every((value, index) => value === [6, 6, 0, 5][index]) || !coordinates) {
-    return fallback("unsupported-mermaid-ishikawa-marker-geometry");
+        ?.every((value, index) => value === (start ? [6, 6, 0, 5] : [6, 4, 5, 2])[index]) || !coordinates) {
+    return fallback(`unsupported-mermaid-${diagram}-marker-geometry`);
   }
   if (!hasUniformAxisAlignedScale(element)) return fallback(reasons.transform);
   const paint = getComputedStyle(outline);
@@ -6671,27 +6874,31 @@ function ishikawaLine(element, sourcePath, z, deck, options, meta, reasons) {
         const computed = getComputedStyle(part);
         return computed.animationName !== "none" || [computed.markerStart, computed.markerMid, computed.markerEnd]
           .some((value) => value && value !== "none");
-      })) return fallback("unsupported-mermaid-ishikawa-marker-style");
+      })) return fallback(`unsupported-mermaid-${diagram}-marker-style`);
   const [x1, y1, x2, y2] = coordinates;
   const points = [screenPoint(element, { x: x1, y: y1 }, deck), screenPoint(element, { x: x2, y: y2 }, deck)];
   if (pointKey(points[0]) === pointKey(points[1])) return fallback(reasons.geometry);
   const angle = Math.atan2(y2 - y1, x2 - x1);
-  const size = 6 * parseMetric(style.strokeWidth) * elementScale(element);
-  const center = { x: points[0].x + Math.cos(angle) * size / 2, y: points[0].y + Math.sin(angle) * size / 2 };
-  // A measured triangle, not an approximate PPTX arrowhead: Mermaid places the
-  // tip at the line start, pointing toward the spine, with a 6*strokeWidth base.
+  const unit = parseMetric(style.strokeWidth) * elementScale(element);
+  const size = 6 * unit;
+  const width = (start ? 6 : 4) * unit;
+  const anchor = points[start ? 0 : 1];
+  const advance = (start ? 3 : -2) * unit;
+  const center = { x: anchor.x + Math.cos(angle) * advance, y: anchor.y + Math.sin(angle) * advance };
+  // Exact triangles, not approximate PPTX heads: Ishikawa points at the spine;
+  // the narrative refX=5 puts its tip one stroke unit beyond the line end.
   const arrow = {
     kind: "shape", sourcePath: `${sourcePath}.arrow`, z: z + 1,
-    bounds: { x: center.x - size / 2, y: center.y - size / 2, width: size, height: size },
-    preset: "triangle", rotation: angle * 180 / Math.PI - 90,
+    bounds: { x: center.x - width / 2, y: center.y - size / 2, width, height: size },
+    preset: "triangle", rotation: angle * 180 / Math.PI + (start ? -90 : 90),
     style: cssStyleToSceneStyle({ fill: paint.fill, stroke: "none", strokeWidth: 0,
       fillOpacity: paint.fillOpacity, opacity: localOpacity(marker) * localOpacity(outline) }, options),
-    meta: { mermaid: { kind: "ishikawa-arrow", placement: "start" } },
+    meta: { mermaid: { kind: `${diagram}-arrow`, placement: start ? "start" : "end" } },
   };
   return markedRelation({
     kind: "connector", sourcePath, z, points, style: computedConnectorStyle(element, options),
     arrowStart: "none", arrowEnd: "none", meta,
-  }, [{ nodes: [arrow] }], element, options, "ishikawa-marked-line");
+  }, [{ nodes: [arrow] }], element, options, `${diagram}-marked-line`);
 }
 
 function ishikawaScene(svg, deck, size, options) {
@@ -6990,6 +7197,7 @@ function sceneFromSvg(svg, options) {
   if (route === "gantt") return ganttScene(svg, deck, size, options);
   if (route === "treemap") return treemapScene(svg, deck, size, options);
   if (route === "ishikawa") return ishikawaScene(svg, deck, size, options);
+  if (["mindmap", "timeline", "journey"].includes(route)) return basicNarrativeScene(svg, deck, size, options, route);
   if (route === "quadrantChart" || route === "xychart") return chartScene(svg, deck, size, options, route);
   if (route === "state") return stateScene(svg, root, deck, size, options);
   if (route !== "flowchart") {

@@ -7,6 +7,7 @@ import {
   ganttAxisPoints,
   isKnownGanttMilestone,
   isKnownIshikawaArrow,
+  knownNarrativeCard,
   classifyPolygonPreset,
   cssStyleToSceneStyle,
   decomposeSimpleSvgTransform,
@@ -67,6 +68,10 @@ test("routes only bundled Mermaid SVG roles with their actual root signals", () 
   assert.equal(classifyMermaidDiagramRoute("gantt"), "gantt");
   assert.equal(classifyMermaidDiagramRoute("treemap"), "treemap");
   assert.equal(classifyMermaidDiagramRoute("ishikawa"), "ishikawa");
+  for (const name of ["mindmap", "timeline", "journey"]) {
+    assert.equal(classifyMermaidDiagramRoute(name), name);
+    assert.equal(classifyMermaidDiagramRoute(`${name}-beta`), null);
+  }
   assert.equal(classifyMermaidDiagramRoute("ishikawa-beta"), null);
   assert.equal(classifyMermaidDiagramRoute("treemap-beta"), null);
   assert.equal(classifyMermaidDiagramRoute("gantt-beta"), null);
@@ -122,6 +127,22 @@ test("recognizes only the pinned Ishikawa filled start triangle", () => {
   for (const data of ["", "M10,0L0,5L10,10", "M0,0L10,5L0,10Z", "M10,0L0,5L10,11Z",
     "m10,0l0,5l10,10z", "M10,0L0,5L10,10L0,0Z", "M10,0Q0,5,10,10Z", "M10,,0L0,5L10,10Z"]) {
     assert.equal(isKnownIshikawaArrow(data), false, data);
+  }
+});
+
+test("recognizes only the bounded timeline and default mindmap card profiles", () => {
+  for (const [diagram, data, preset] of [
+    ["timeline", "M0 45 v-40 q0,-5,5,-5 h180 q5,0,5,5 v45 H0 Z", "topRoundedRect"],
+    ["timeline", "M 0 45 V 5 Q 0 0 5 0 H 185 Q 190 0 190 5 V 50 H 0 Z", "topRoundedRect"],
+    ["mindmap", "M-36 12 v-24 q0,-5 5,-5 h62 q5,0 5,5 v24 q0,5 -5,5 h-62 q-5,0 -5,-5 Z", "roundedRect"],
+    ["mindmap", "M -36 12 V -12 Q -36 -17 -31 -17 H 31 Q 36 -17 36 -12 V 12 Q 36 17 31 17 H -31 Q -36 17 -36 12 Z", "roundedRect"],
+  ]) {
+    assert.deepEqual(knownNarrativeCard(data, diagram), { preset, cornerRadius: 5 });
+    for (const changed of [data.replace(/Z$/, ""), data + " M0 0", data.replace(/[qQ]/, "C"),
+      data.replace(/-?\d+/, "999"), "M0 0L10 10Z", ""]) {
+      assert.equal(knownNarrativeCard(changed, diagram), null, changed);
+    }
+    assert.equal(knownNarrativeCard(data, "journey"), null);
   }
 });
 

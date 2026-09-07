@@ -1275,3 +1275,19 @@ test("rejects invalid AutoShape text body options and text models", () => {
   rejects({ text: "Node", paragraphs: [] }, /either text or paragraphs/);
   rejects({ text: undefined, paragraphs: "Node" }, /\.paragraphs must be a non-empty array/);
 });
+test("writes only bounded narrative quadratic cards and quarter-height hexagons", () => {
+  const shape = { type: "shape", x: 10, y: 20, width: 100, height: 60, fill: "#123456" };
+  const xml = buildPptxPackage({ slides: [{ elements: [
+    { ...shape, shape: "topRoundedRect", cornerRadius: 5 },
+    { ...shape, shape: "quarterHeightHexagon" },
+  ] }] }).toString("utf8");
+  assert.equal([...xml.matchAll(/<a:quadBezTo>/g)].length, 2);
+  assert.ok(xml.includes('<a:gd name="r" fmla="val 47625"/>'));
+  assert.ok(xml.includes('<a:gd name="dx" fmla="*/ h 1 4"/>'));
+  assert.ok(!xml.includes('prst="roundRect"'));
+  for (const cornerRadius of [-1, Infinity, NaN, "5", null]) {
+    assert.throws(() => buildPptxPackage({ slides: [{ elements: [
+      { ...shape, shape: "topRoundedRect", cornerRadius },
+    ] }] }), /cornerRadius/);
+  }
+});

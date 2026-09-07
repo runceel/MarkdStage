@@ -24,6 +24,56 @@ The compatibility guide summarizes editable coverage and fallback behavior.
 
 ---
 
+## Mindmap: basic editable nodes and branches
+
+```mermaid
+mindmap
+  root((計画))
+    A[設計<br/>Design]
+    B(実装)
+      検証
+    C{{公開}}
+```
+
+Basic node outlines, underlines, branches, and simple labels stay editable.
+Cloud/bang nodes and rendered icons retain their own local artwork.
+
+---
+
+## Timeline: cards and measured labels
+
+```mermaid
+%%{init: {"themeCSS": ".eventWrapper { filter: none; }"}}%%
+timeline
+  title 公開計画
+  section 準備
+    2026 : 設計 Design : レビュー
+  section 配信
+    2027 : 公開 : 改善
+```
+
+This source explicitly removes the default event brightness filter for native
+cards/text. Without that rule, event subtrees retain the original effect as local artwork.
+
+---
+
+## Journey: tasks, people, and local mouth arcs
+
+```mermaid
+journey
+  title 利用者の一日
+  section 開始
+    準備 Prepare: 5: 利用者, 担当者
+    確認: 1: 利用者
+  section 完了
+    公開: 3: 担当者
+```
+
+Cards, people, visible single-line labels, eyes, and neutral mouths are editable.
+Happy/sad mouth arcs remain local images; inactive SVG alternative labels are not duplicated.
+
+---
+
 ## Flowcharts: common shapes and routes
 
 ```mermaid
