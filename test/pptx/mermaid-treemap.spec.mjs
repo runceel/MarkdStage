@@ -354,7 +354,7 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
   });
 }
 
-test("actual treemap PPTX embeds each local image once with native exclusions and original paint order", async () => {
+test("actual treemap PPTX embeds each local image once with native exclusions and original paint order", async ({ page }) => {
   test.setTimeout(120_000);
   const directory = test.info().outputPath();
   const sources = await Promise.all(names.map((name) => fixture(name, "mmd")));
@@ -391,6 +391,26 @@ test("actual treemap PPTX embeds each local image once with native exclusions an
         expect(image.width).toBeLessThan(1280);
         expect(image.height).toBeLessThan(720);
         expect(model.elements.some((element) => element.path === fallback.path)).toBe(false);
+        if (index === 3 && image.fallbackIndex === 1) {
+          // This padded cell-shadow capture overlaps the adjacent group fallback.
+          // Its far-right padding must not contain that group's fill or label.
+          const leakedPixels = await page.evaluate(async (base64) => {
+            const image = new Image();
+            image.src = `data:image/png;base64,${base64}`;
+            await image.decode();
+            const canvas = document.createElement("canvas");
+            canvas.width = image.naturalWidth;
+            canvas.height = image.naturalHeight;
+            const context = canvas.getContext("2d");
+            context.drawImage(image, 0, 0);
+            const data = context.getImageData(canvas.width - 8, Math.floor(canvas.height / 4),
+              8, Math.floor(canvas.height / 2)).data;
+            let count = 0;
+            for (let i = 3; i < data.length; i += 4) if (data[i] > 0) count++;
+            return count;
+          }, image.data.toString("base64"));
+          expect(leakedPixels).toBe(0);
+        }
       }
     }
     expect(count).toBe(4);
