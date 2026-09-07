@@ -28,6 +28,25 @@ If Mermaid syntax is invalid, the slide shows an error while preserving the rest
 
 ### Editable Mermaid in PowerPoint
 
+PowerPoint export is hybrid. Supported shapes, text, and connectors stay editable; unsupported
+diagram types or unsupported or unsafe elements and effects are not dropped. MarkdStage preserves
+the smallest safe local portion as an image, or the whole diagram when that portion cannot be
+separated safely.
+
+| Diagram | Approximate editable coverage |
+| --- | --- |
+| Flowchart | Common nodes, subgraphs, connectors, labels, and supported styling |
+| Sequence | Basic participants and actors, lifelines, messages, notes, activations, and `loop`/`alt`/`opt`/`par` frames |
+| Class | Class compartments, common relations and markers, multiplicities, notes, and namespaces |
+| State | Basic states, start/end pseudo-states, labels, and simple transitions |
+| ER | Entities and attributes, solid/dashed relations, labels, and crow's-foot cardinalities |
+| Requirement | Requirement/element blocks, supported relations, labels, and markers |
+| Packet / tree view | Packet fields and bit labels; `treeView-beta` hierarchy lines and labels |
+| Other Mermaid diagrams | Render normally in slides; use image fallback where editable conversion is unavailable |
+
+See the presentation-ready [Mermaid support example deck](../examples/mermaid-support.md), then use
+the detailed sections below for exact compatibility boundaries.
+
 Flowcharts preserve `style`, `classDef`, and `class` colors and text styles. Supported nodes,
 subgraphs, connectors, and labels export as editable objects; edge-label backgrounds keep lines
 from crossing the text. Stadium, cylinder, and double-circle nodes use multiple editable shapes

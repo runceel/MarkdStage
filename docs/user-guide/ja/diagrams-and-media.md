@@ -27,6 +27,24 @@ Mermaid の構文に誤りがある場合は、スライドの他の内容はそ
 
 ### PowerPoint で編集できる Mermaid
 
+PowerPoint 書き出しはハイブリッドです。対応する図形、文字、コネクターは編集可能なまま保持し、
+未対応の図の種類や、未対応または安全に変換できない要素・エフェクトも削除しません。
+分離できる最小の安全な範囲を画像として保持し、安全に分離できない場合だけ図全体を画像にします。
+
+| 図 | PowerPoint で編集できるおおよその範囲 |
+| --- | --- |
+| フローチャート | 一般的なノード、subgraph、コネクター、ラベル、対応するスタイル |
+| シーケンス図 | 基本的な participant／actor、lifeline、message、note、activation、`loop`／`alt`／`opt`／`par` の制御枠 |
+| クラス図 | class の区画、一般的な関係と marker、多重度、note、namespace |
+| 状態図 | 基本的な state、開始・終了 pseudo-state、ラベル、単純な transition |
+| ER 図 | entity と属性、実線／破線の relation、ラベル、crow's-foot cardinality |
+| requirement 図 | requirement／element block、対応する relation、ラベル、marker |
+| packet／tree view | packet の field と bit label、`treeView-beta` の階層線とラベル |
+| その他の Mermaid 図 | スライドでは通常どおり描画し、編集可能変換の対象外は画像として保持 |
+
+プレゼンテーション向けの [Mermaid 対応例デッキ](../../examples/mermaid-support.md) を参照し、
+正確な互換性の境界は以下の詳細説明で確認してください。
+
 フローチャートでは `style`、`classDef`、`class` の色や文字スタイルを保持します。
 対応するノード、subgraph、コネクター、ラベルは編集可能なオブジェクトになり、
 エッジラベルの背景で線が文字を横切るのを防ぎます。stadium、cylinder、二重円は、
