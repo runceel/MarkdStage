@@ -46,25 +46,20 @@ Common nodes, connectors, labels, subgraphs, and supported styling stay editable
 ## Sequence: messages and control frames
 
 ```mermaid
-%%{init: {"sequence": {"diagramMarginX": 100, "actorMargin": 180, "width": 200, "messageMargin": 25, "mirrorActors": false}}}%%
+%%{init: {"sequence": {"diagramMarginX": 80, "actorMargin": 160, "width": 220, "messageMargin": 22}}}%%
 sequenceDiagram
     autonumber
-    actor U as Customer<br/>利用者
+    participant U as Customer<br/>利用者
     participant A as Orders API
-    participant D as Database
     U->>A: 注文<br/>Submit order
-    activate A
     loop Up to 3 attempts
-        A->>D: Save order
-        D-->>A: Result
+        A->>A: Validate and save
     end
-    alt Created
+    alt Accepted
         A-->>U: 201 Created
     else Rejected
         A-->>U: 409 Conflict
     end
-    deactivate A
-    Note over A,D: Supported note
 ```
 
 ---
@@ -195,5 +190,13 @@ Packet fields and bit labels, plus tree hierarchy lines and labels, remain edita
 2. Preserve an unsupported element or effect as the **smallest safe local image**.
 3. Use a whole-diagram image only when the unsupported content cannot be separated safely.
 
-Other Mermaid diagram types still render in slides. Content is never omitted merely because
-editable conversion is unavailable.
+Other Mermaid diagram types still render and are preserved as images when editable conversion
+is unavailable.
+
+---
+layout: backcover
+---
+
+# Mermaid support
+
+Editable where safe. Faithfully preserved everywhere.
