@@ -47,6 +47,8 @@ cannot be separated safely.
 | Packet / tree view | `packet` fields and bit labels; exact `treeView-beta` hierarchy lines and labels |
 | Kanban | Basic columns and cards; plain ticket/assignee fields, priority bars, and simple HTML labels |
 | Block | `block` / `block-beta` basic existing shapes, connectors, and simple HTML node/edge labels |
+| Quadrant | `quadrantChart` quadrant rectangles, circular data points, borders/axes, titles, and axis/point labels |
+| XY chart | `xychart` / `xychart-beta` rectangular bars, straight line-plot segments, ticks, axes, titles, and axis labels; vertical and horizontal orientation |
 | Other Mermaid diagrams | Render normally in slides and use image fallback where editable conversion is unavailable |
 
 Coverage is intentionally approximate: editability depends on the structures
@@ -71,6 +73,21 @@ label, shape, or container image. Text clipped by its original HTML viewport
 also stays a local label image rather than overflowing the exported card.
 No label or decoration is intentionally
 discarded, and fallback diagnostics identify its source path and reason.
+
+Quadrant and XY charts use Mermaid's rendered coordinates, including numeric or
+categorical ticks, negative ranges, point radii, and each explicit line-plot
+vertex. Simple rotated axis labels reuse the common text adapter. These are
+editable shapes, lines, and text, **not data-backed PowerPoint charts**; no chart
+layout, scale calculation, or source data workbook is recreated.
+
+The chart subset supports plain Japanese text and explicit SVG text line breaks;
+it does not interpret HTML line-break markup that Mermaid renders literally.
+Filters, shadows, gradients, clipping/masks, decorated or stroked text, unsupported
+transforms, and unknown geometry remain local shape, label, or container images.
+Closed, curved, disconnected, or over-limit line paths are not approximated as
+editable chart lines. Shared group effects preserve the affected subtree as one
+image, without consuming separable axes, labels, or neighboring bars/points.
+SVG element, scene node, connector point, and depth limits remain in force.
 
 See the presentation-ready
 [Mermaid support example deck](../examples/mermaid-support.md) for representative

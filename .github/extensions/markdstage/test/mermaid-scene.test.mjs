@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   classifyMermaidDiagramRoute,
+  chartPathPoints,
   classifyPolygonPreset,
   cssStyleToSceneStyle,
   decomposeSimpleSvgTransform,
@@ -58,6 +59,10 @@ test("routes only bundled Mermaid SVG roles with their actual root signals", () 
   assert.equal(classifyMermaidDiagramRoute("treeView"), "treeView");
   assert.equal(classifyMermaidDiagramRoute("kanban"), "kanban");
   assert.equal(classifyMermaidDiagramRoute("block"), "block");
+  assert.equal(classifyMermaidDiagramRoute("quadrantChart"), "quadrantChart");
+  assert.equal(classifyMermaidDiagramRoute("xychart"), "xychart");
+  assert.equal(classifyMermaidDiagramRoute("xychart-beta"), null);
+  assert.equal(classifyMermaidDiagramRoute("quadrantChart-beta"), null);
   assert.equal(classifyMermaidDiagramRoute("block-beta"), null);
   assert.equal(classifyMermaidDiagramRoute("kanban-beta"), null);
   assert.equal(classifyMermaidDiagramRoute("sequence"), "sequence");
@@ -100,6 +105,19 @@ test("routes only bundled Mermaid SVG roles with their actual root signals", () 
   assert.equal(classifyMermaidDiagramRoute("stateDiagram", "statediagram", false), null);
   assert.equal(classifyMermaidDiagramRoute("error", "statediagram", true), null);
   assert.equal(classifyMermaidDiagramRoute("packet", "flowchart", false), "packet");
+});
+
+test("chart paths retain explicit rendered vertices and reject unsupported or oversized geometry", () => {
+  assert.deepEqual(chartPathPoints("M 1,2 L 3.5,-4L5e1,6.25"), [
+    { x: 1, y: 2 }, { x: 3.5, y: -4 }, { x: 50, y: 6.25 },
+  ]);
+  for (const data of ["", "M0,0", "M0,0L1,1Z", "M0,0M1,1", "M0,0C1,1,2,2,3,3",
+    "m0,0l1,1", "M0,0LNaN,1", "M0,0L1e999,1", "M0,0L1,1 trailing", "M0,0L1,1,2,2", "M0,,0L1,1"]) {
+    assert.equal(chartPathPoints(data), null, data);
+  }
+  const points = Array.from({ length: MAX_CONNECTOR_POINTS }, (_, i) => `${i ? "L" : "M"}${i},${i % 2}`).join("");
+  assert.equal(chartPathPoints(points).length, MAX_CONNECTOR_POINTS);
+  assert.equal(chartPathPoints(`${points}L0,0`), null);
 });
 
 test("maps Mermaid marker IDs and URL references to scene arrows", () => {
