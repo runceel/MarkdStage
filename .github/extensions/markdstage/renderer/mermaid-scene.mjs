@@ -117,6 +117,8 @@ export function classifyMermaidDiagramRoute(diagramType, svgClass = "", hasRoot 
   }
   if (diagramType === "packet") return "packet";
   if (diagramType === "treeView") return "treeView";
+  if (diagramType === "kanban") return "kanban";
+  if (diagramType === "block") return "block";
   if (diagramType === "stateDiagram") {
     return hasRoot && classes.includes("statediagram") ? "state" : null;
   }
@@ -585,7 +587,7 @@ function computedSvgStyle(element, options) {
     opacity: effectiveOpacity(element),
     fillOpacity: style.fillOpacity,
     strokeOpacity: style.strokeOpacity,
-    rx: element.getAttribute("rx"),
+    rx: parseMetric(element.getAttribute("rx")) * elementScale(element),
   }, options);
 }
 
@@ -1737,7 +1739,8 @@ function nodeShape(group, sourceIndex, z, deck, options, config = {}) {
   if (unsupportedVisualEffect(group) || group.querySelector("img, image, svg, .katex, use")) {
     return fallbackNode(group, z, deck, "unsupported-mermaid-node-content", sourcePath);
   }
-  const shape = directChildren(group).find((child) => hasClass(child, "label-container"));
+  const shape = config.shape ||
+    directChildren(group).find((child) => hasClass(child, "label-container"));
   if (!shape) return fallbackNode(group, z, deck, "unsupported-mermaid-node-structure", sourcePath);
   if (directChildren(group).some((child) => child !== shape && !hasClass(child, "label"))) {
     return fallbackNode(group, z, deck, "unsupported-mermaid-node-shape", sourcePath);
@@ -1761,7 +1764,8 @@ function nodeShape(group, sourceIndex, z, deck, options, config = {}) {
   if (localName(shape) === "g") {
     const circles = directChildren(shape, "circle");
     if (circles.length === 2 && directChildren(shape).length === 2 &&
-        hasClass(circles[0], "outer-circle") && hasClass(circles[1], "inner-circle")) {
+        ((hasClass(circles[0], "outer-circle") && hasClass(circles[1], "inner-circle")) ||
+          config.blockDoubleCircle === true)) {
       const bounds = boundsOf(shape, deck);
       const nodeLabel = nodeText(group, deck, options);
       if (nodeLabel.label?.unsupportedTransform) {
@@ -2343,9 +2347,9 @@ function readEdgeLabels(root, deck, options, consumed, config = {}) {
     config.fallbackReason,
     "unsupported-mermaid-edge-label",
   );
-  const selector = config.recursive
+  const selector = config.selector || (config.recursive
     ? "g.edgeLabels > g.edgeLabel, g.edgeLabels > g.edgeTerminals"
-    : ":scope > g.edgeLabels > g.edgeLabel, :scope > g.edgeLabels > g.edgeTerminals";
+    : ":scope > g.edgeLabels > g.edgeLabel, :scope > g.edgeLabels > g.edgeTerminals");
   for (const [index, group] of [...root.querySelectorAll(selector)].entries()) {
     if (hasAncestorInSet(group, config.blocked || consumed)) continue;
     consumed?.add(group);
@@ -6206,6 +6210,200 @@ function requirementScene(svg, root, deck, size, options) {
   return diagramScene(svg, size, options, nodes);
 }
 
+function hasBasicItemGeneratedContent(element) {
+  return [element, ...element.querySelectorAll("*")].some((part) =>
+    part.namespaceURI !== SVG_NS && ["::before", "::after"].some((pseudo) =>
+      !["none", "normal", '""'].includes(getComputedStyle(part, pseudo).content)));
+}
+
+function safeBasicItemLabel(element, options) {
+  const decoration = edgeLabelDecorationInfo(element, options);
+  if (!safeClassLabel(element) || decoration.complex || decoration.visible ||
+      hasRenderedTextTransform(element) || hasBasicItemGeneratedContent(element)) return false;
+  for (const foreign of element.querySelectorAll("foreignObject")) {
+    if (!["hidden", "clip"].includes(getComputedStyle(foreign).overflow)) continue;
+    const box = foreign.getBoundingClientRect();
+    const range = document.createRange();
+    range.selectNodeContents(foreign);
+    if ([...range.getClientRects()].some((rect) =>
+      rect.width > 0 && rect.height > 0 &&
+      (rect.left < box.left - 0.75 || rect.right > box.right + 0.75 ||
+        rect.top < box.top - 0.75 || rect.bottom > box.bottom + 0.75))) return false;
+  }
+  return [element, ...element.querySelectorAll("*")].every((part) => {
+    if (visibleOutlineExtent(part, options) > 0) return false;
+    if (part.namespaceURI === SVG_NS) return true;
+    const style = getComputedStyle(part);
+    return (!style.textTransform || style.textTransform === "none") &&
+      (!style.letterSpacing || ["normal", "0px"].includes(style.letterSpacing)) &&
+      (!style.wordSpacing || ["normal", "0px"].includes(style.wordSpacing));
+  });
+}
+
+function basicItemLabel(element, sourcePath, z, deck, options, kind) {
+  if (!hasRenderedVisualDescendant(element)) return null;
+  const labels = [...element.querySelectorAll("span.nodeLabel, text")];
+  if (!element.textContent.trim()) {
+    const decoration = edgeLabelDecorationInfo(element, options);
+    if (!decoration.visible && !decoration.complex &&
+        !unsupportedVisualEffect(element) && !hasBasicItemGeneratedContent(element)) return null;
+  }
+  if (labels.length !== 1 || !safeBasicItemLabel(element, options)) {
+    return fallbackNode(element, z, deck, `unsupported-mermaid-${kind}-label`, sourcePath);
+  }
+  const label = labels[0];
+  if (!sceneTextHasVisiblePaint(structuredLabelText(label, options))) return null;
+  const node = measuredText(label, sourcePath, z, deck, options, {
+    mermaid: { kind: `${kind}-label` },
+  });
+  if (node.kind === "text") {
+    node.textLayout.alignment = normalizeAlignment(getComputedStyle(label).textAlign);
+  }
+  return node;
+}
+
+function basicItemContainerReason(element, kind) {
+  return hasMixedRenderedVisibility(element)
+    ? `unsupported-mermaid-${kind}-visibility`
+    : unsupportedVisualEffect(element, false)
+      ? `unsupported-mermaid-${kind}-style`
+      : !hasUniformAxisAlignedScale(element)
+        ? `unsupported-mermaid-${kind}-transform`
+        : "";
+}
+
+function basicItemParts(group, sourcePath, z, deck, options, kind) {
+  const nodes = [];
+  const reason = basicItemContainerReason(group, kind);
+  if (!hasRenderedVisualDescendant(group)) return nodes;
+  if (reason) {
+    options.sourceElements.set(sourcePath, group);
+    return [fallbackNode(group, z, deck, reason, sourcePath)];
+  }
+  for (const [index, child] of directChildren(group).entries()) {
+    if (IGNORED_TAGS.has(localName(child)) || !hasRenderedVisualDescendant(child)) continue;
+    const path = `${sourcePath}.parts[${index}]`;
+    const meta = { mermaid: { kind } };
+    options.sourceElements.set(path, child);
+    const reasons = {
+      geometry: `unsupported-mermaid-${kind}-geometry`,
+      style: `unsupported-mermaid-${kind}-style`,
+      transform: `unsupported-mermaid-${kind}-transform`,
+    };
+    const node = hasClass(child, "label") || hasClass(child, "cluster-label")
+      ? basicItemLabel(child, path, z + nodes.length, deck, options, kind)
+      : localName(child) === "line" && kind === "kanban-card"
+        ? simpleDiagramLine(child, path, z + nodes.length, deck, options,
+            { mermaid: { kind: "kanban-priority" } }, reasons)
+        : simpleDiagramShape(child, path, z + nodes.length, deck, options, meta, reasons);
+    if (node) nodes.push(node);
+  }
+  return nodes;
+}
+
+function kanbanScene(svg, deck, size, options) {
+  const sections = directChildren(svg, "g.sections");
+  const items = directChildren(svg, "g.items");
+  if (sections.length !== 1 || items.length !== 1) {
+    return specialDiagramStructureFallback(svg, deck, size, options,
+      "unsupported-mermaid-kanban-structure");
+  }
+  const nodes = [];
+  const consumed = new Set();
+  for (const [container, selector, kind] of [
+    [sections[0], "g.cluster", "kanban-column"],
+    [items[0], "g.node", "kanban-card"],
+  ]) {
+    const reason = basicItemContainerReason(container, "kanban-container");
+    if (reason) {
+      const path = `kanban.${kind}.container`;
+      options.sourceElements.set(path, container);
+      nodes.push(fallbackNode(container, nodes.length, deck, reason, path));
+      consumed.add(container);
+      continue;
+    }
+    for (const [index, group] of directChildren(container, selector).entries()) {
+      consumed.add(group);
+      nodes.push(...basicItemParts(group, `kanban.${kind}[${index}]`,
+        nodes.length, deck, options, kind));
+    }
+  }
+  nodes.push(...collectUnexpectedVisuals(svg, deck, nodes.length, "kanban", consumed, options,
+    { depthLimit: MAX_GROUP_DEPTH }));
+  return diagramScene(svg, size, options, nodes);
+}
+
+function blockNodeParts(group, index, z, deck, options) {
+  if (!hasRenderedVisualDescendant(group)) return [];
+  const sourcePath = `block.nodes[${index}]`;
+  const children = directChildren(group).filter((child) => !IGNORED_TAGS.has(localName(child)));
+  const shapes = children.filter((child) => !hasClass(child, "label"));
+  const labels = children.filter((child) => hasClass(child, "label"));
+  const shape = shapes[0];
+  // Block uses the older renderer: circles/cylinders have no label-container class.
+  // Restrict the classless double-circle adaptation to its two concentric outlines.
+  const circles = directChildren(shape, "circle");
+  const blockDoubleCircle = localName(shape) === "g" &&
+    directChildren(shape).length === 2 && circles.length === 2 &&
+    circles.every((circle) => !circle.hasAttribute("transform") &&
+      ["cx", "cy"].every((name) => Number(circle.getAttribute(name) || 0) === 0)) &&
+    Number(circles[0].getAttribute("r")) > Number(circles[1].getAttribute("r")) &&
+    Number(circles[1].getAttribute("r")) > 0;
+  const safe = !basicItemContainerReason(group, "block-node") &&
+    shapes.length === 1 && labels.length <= 1 &&
+    shapes.every((outline) => [outline, ...outline.querySelectorAll([...VISUAL_TAGS].join(","))]
+      .every(isRenderedElement)) &&
+    labels.every((label) => !hasRenderedVisualDescendant(label) ||
+      (safeBasicItemLabel(label, options) &&
+        label.querySelectorAll("span.nodeLabel, text").length === 1));
+  if (safe && !hasClass(shape, "composite")) {
+    const node = nodeShape(group, index, z, deck, options, {
+      sourcePath, kind: "block-node", labelKind: "block-label", shape, blockDoubleCircle,
+    });
+    if (node.kind !== "fallback") {
+      options.sourceElements.set(sourcePath, group);
+      return [node];
+    }
+  }
+  return basicItemParts(group, sourcePath, z, deck, options, "block-node");
+}
+
+function blockScene(svg, deck, size, options) {
+  const roots = directChildren(svg, "g.block");
+  if (roots.length !== 1) {
+    return specialDiagramStructureFallback(svg, deck, size, options,
+      "unsupported-mermaid-block-structure");
+  }
+  const root = roots[0];
+  const reason = basicItemContainerReason(root, "block-container");
+  if (reason) {
+    options.sourceElements.set("block", root);
+    return diagramScene(svg, size, options, [fallbackNode(root, 0, deck, reason, "block")]);
+  }
+  const nodes = [];
+  const consumed = new Set();
+  appendEdgeLabels(nodes, readEdgeLabels(root, deck, options, consumed, {
+    selector: ":scope > g.edgeLabel",
+    sourcePathPrefix: "block",
+  }));
+  for (const [index, group] of directChildren(root, "g.node").entries()) {
+    consumed.add(group);
+    nodes.push(...blockNodeParts(group, index, nodes.length, deck, options));
+  }
+  for (const [index, path] of directChildren(root, "path.flowchart-link").entries()) {
+    const sourcePath = `block.edges[${index}]`;
+    consumed.add(path);
+    if (!isRenderedElement(path)) continue;
+    options.sourceElements.set(sourcePath, path);
+    nodes.push(connectorPath(path, sourcePath, nodes.length, deck, options));
+  }
+  nodes.push(...collectUnexpectedVisuals(root, deck, nodes.length, "block", consumed, options,
+    { depthLimit: MAX_GROUP_DEPTH }));
+  nodes.push(...collectUnexpectedVisuals(svg, deck, nodes.length, "svg", new Set([root]), options,
+    { depthLimit: MAX_GROUP_DEPTH }));
+  return diagramScene(svg, size, options, nodes);
+}
+
 function sceneFromSvg(svg, options) {
   options.sourceElements?.set("svg", svg);
   const deck = options.deck || svg.closest(".deck") || svg.parentElement || svg;
@@ -6244,6 +6442,8 @@ function sceneFromSvg(svg, options) {
   }
   if (route === "packet") return packetScene(svg, deck, size, options);
   if (route === "treeView") return treeViewScene(svg, deck, size, options);
+  if (route === "kanban") return kanbanScene(svg, deck, size, options);
+  if (route === "block") return blockScene(svg, deck, size, options);
   if (route === "state") return stateScene(svg, root, deck, size, options);
   if (route !== "flowchart") {
     return {
