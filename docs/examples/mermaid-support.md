@@ -184,6 +184,41 @@ Packet fields and bit labels, plus tree hierarchy lines and labels, remain edita
 
 ---
 
+## Kanban: columns, cards, and labels
+
+```mermaid
+kanban
+    todo[Todo / 未着手]
+        design["設計<br/>Design"]
+        review[Review API]@{ assigned: "Alice", priority: "High", ticket: "42" }
+    done[Done / 完了]
+        ship[Ship]
+```
+
+Basic columns, cards, plain ticket/assignee labels, and priority bars stay editable.
+Use `kanban`; `kanban-beta` is not a version alias in the bundled renderer.
+
+---
+
+## Block: basic shapes and connectors
+
+```mermaid
+block-beta
+    columns 5
+    a["受付<br/>Intake"] space:3 b("Review")
+    space:5
+    c{"承認"} space:3 d[("Store")]
+    a -- "送信<br/>Send" --> b
+    b --> d
+    c --> a
+```
+
+`block` and `block-beta` share editable basic shapes, connectors, and simple HTML labels.
+Special outlines and unsafe labels stay local images; arbitrary shapes and complex nesting
+are not fully supported.
+
+---
+
 ## Hybrid PowerPoint export
 
 1. Convert supported primitives to native, editable PowerPoint objects.

@@ -664,6 +664,13 @@ function nativeShapeXml(element, path, id, relationships) {
   const adjustedGeometries = {
     stadium: '<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val 50000"/></a:avLst></a:prstGeom>',
   };
+  if (element.shape === "roundedRect" && element.cornerRadius !== undefined) {
+    const radius = nonNegativeNumber(element.cornerRadius, `${path}.cornerRadius`);
+    const adjustment = Math.round(Math.min(50000,
+      radius / Math.min(bounds.width, bounds.height) * 100000));
+    adjustedGeometries.roundedRect =
+      `<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val ${adjustment}"/></a:avLst></a:prstGeom>`;
+  }
   const shape = Object.hasOwn(element, "shape") ? element.shape : undefined;
   const preset = typeof shape === "string" && Object.hasOwn(presets, shape) ? presets[shape] : "";
   const customGeometry = typeof shape === "string" && Object.hasOwn(customGeometries, shape)

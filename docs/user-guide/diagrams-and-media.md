@@ -45,6 +45,8 @@ cannot be separated safely.
 | ER | Exact `erDiagram` syntax; entities, attributes, relations, labels, and crow's-foot cardinalities |
 | Requirement | `requirementDiagram` blocks, supported relations, labels, and markers |
 | Packet / tree view | `packet` fields and bit labels; exact `treeView-beta` hierarchy lines and labels |
+| Kanban | Basic columns and cards; plain ticket/assignee fields, priority bars, and simple HTML labels |
+| Block | `block` / `block-beta` basic existing shapes, connectors, and simple HTML node/edge labels |
 | Other Mermaid diagrams | Render normally in slides and use image fallback where editable conversion is unavailable |
 
 Coverage is intentionally approximate: editability depends on the structures
@@ -52,6 +54,23 @@ and effects in the rendered diagram, not only its Mermaid type.
 
 The exporter follows the rendered SVG rather than rebuilding layout from
 source, and does not claim that every valid syntax variant is editable.
+
+Kanban labels keep their rendered positions rather than being centered inside
+cards; Japanese text, explicit line breaks, and basic bold/italic runs remain
+editable. Use `kanban`, not `kanban-beta`: Mermaid 11.15.0 treats the latter's
+`-beta` suffix as a column label, not a version alias. Both `block` and
+`block-beta` are real aliases. Block rectangles, rounded rectangles, diamonds,
+circles, double circles, cylinders, subroutines, and other already-supported
+basic polygons reuse the common shape and connector adapters.
+
+These subsets do not promise arbitrary special shapes or complex nesting.
+Unknown block outlines retain their own local image while separable labels
+and neighboring blocks remain editable. Rich HTML, linked ticket decorations,
+embedded images/icons, unsafe effects, and transforms retain the smallest safe
+label, shape, or container image. Text clipped by its original HTML viewport
+also stays a local label image rather than overflowing the exported card.
+No label or decoration is intentionally
+discarded, and fallback diagnostics identify its source path and reason.
 
 See the presentation-ready
 [Mermaid support example deck](../examples/mermaid-support.md) for representative

@@ -56,6 +56,10 @@ test("classifies measured Mermaid polygon signatures", () => {
 test("routes only bundled Mermaid SVG roles with their actual root signals", () => {
   assert.equal(classifyMermaidDiagramRoute("packet"), "packet");
   assert.equal(classifyMermaidDiagramRoute("treeView"), "treeView");
+  assert.equal(classifyMermaidDiagramRoute("kanban"), "kanban");
+  assert.equal(classifyMermaidDiagramRoute("block"), "block");
+  assert.equal(classifyMermaidDiagramRoute("block-beta"), null);
+  assert.equal(classifyMermaidDiagramRoute("kanban-beta"), null);
   assert.equal(classifyMermaidDiagramRoute("sequence"), "sequence");
   assert.equal(classifyMermaidDiagramRoute("class", "", true), "class");
   assert.equal(classifyMermaidDiagramRoute("er", "erDiagram", true), "er");
