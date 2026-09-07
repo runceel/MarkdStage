@@ -838,31 +838,36 @@ function structuredLabelText(element, options) {
   return { paragraphs: paragraphs.length ? paragraphs : textToSceneText("", computedTextStyle(element, options), options).paragraphs };
 }
 
-function markerEffectExtent(element) {
-  const elements = [element, ...element.querySelectorAll("*")];
+function ownMarkerEffectExtent(element) {
+  const style = getComputedStyle(element);
   let extent = 0;
-  for (const candidate of elements) {
-    const style = getComputedStyle(candidate);
-    extent = Math.max(extent, visibleOutlineExtent(candidate));
-    for (const value of [
-      style.filter,
-      style.boxShadow,
-      style.textShadow,
-    ]) {
-      if (!value || value === "none" ||
-          cssEffectIsProvablyTransparent(value)) continue;
-      const lengths = [...String(value).matchAll(
-        /-?\d+(?:\.\d+)?px/g,
-      )].map((match) => Math.abs(Number.parseFloat(match[0])));
-      extent = Math.max(
-        extent,
-        lengths.length
-          ? Math.min(256, lengths.reduce((sum, value) => sum + value, 0) * 2)
-          : 32,
-      );
-    }
+  extent = Math.max(extent, visibleOutlineExtent(element));
+  for (const value of [
+    style.filter,
+    style.boxShadow,
+    style.textShadow,
+  ]) {
+    if (!value || value === "none" ||
+        cssEffectIsProvablyTransparent(value)) continue;
+    const lengths = [...String(value).matchAll(
+      /-?\d+(?:\.\d+)?px/g,
+    )].map((match) => Math.abs(Number.parseFloat(match[0])));
+    extent = Math.max(
+      extent,
+      lengths.length
+        ? Math.min(256, lengths.reduce((sum, value) => sum + value, 0) * 2)
+        : 32,
+    );
   }
   return extent;
+}
+
+function markerSubtreeEffectExtent(element) {
+  return Math.max(
+    0,
+    ...[element, ...element.querySelectorAll("*")]
+      .map((candidate) => ownMarkerEffectExtent(candidate)),
+  );
 }
 
 function localTransformMatrix(element) {
@@ -926,8 +931,10 @@ function markerFallbackPadding(element, style) {
       }
       const transform = parentMatrix.multiply(localMatrix);
       const tag = localName(child);
+      const ownEffect = ownMarkerEffectExtent(child);
+      const measurableContainer = tag === "g" && ownEffect > 0;
       if (child.namespaceURI === SVG_NS &&
-          tag !== "g" &&
+          (tag !== "g" || measurableContainer) &&
           !IGNORED_TAGS.has(tag) &&
           typeof child.getBBox === "function") {
         try {
@@ -936,10 +943,16 @@ function markerFallbackPadding(element, style) {
             invalid();
           } else {
             const paint = getComputedStyle(child);
-            const stroke = parseMetric(paint.strokeWidth) || 0;
+            const stroke = tag === "g"
+              ? 0
+              : parseMetric(paint.strokeWidth) || 0;
             const paintExtent =
               stroke * 4 +
-              markerEffectExtent(child) * 2;
+              (
+                tag === "foreignObject"
+                  ? markerSubtreeEffectExtent(child)
+                  : ownEffect
+              ) * 2;
             const scale = maximumMatrixScale(transform);
             for (const [x, y] of [
               [box.x, box.y],
@@ -2011,6 +2024,32 @@ function cssEffectIsProvablyTransparent(value) {
   });
 }
 
+function cssFilterIsProvablyTransparent(value) {
+  const text = String(value || "").trim();
+  if (!text || text === "none") return true;
+  let index = 0;
+  let functions = 0;
+  while (index < text.length) {
+    while (/\s/.test(text[index] || "")) index += 1;
+    const match = /^([a-z-]+)\(/i.exec(text.slice(index));
+    if (!match) return false;
+    const name = match[1].toLowerCase();
+    index += match[0].length;
+    const start = index;
+    let depth = 1;
+    while (index < text.length && depth > 0) {
+      if (text[index] === "(") depth += 1;
+      else if (text[index] === ")") depth -= 1;
+      index += 1;
+    }
+    if (depth !== 0 || name !== "drop-shadow") return false;
+    const content = text.slice(start, index - 1);
+    if (!cssEffectIsProvablyTransparent(content)) return false;
+    functions += 1;
+  }
+  return functions > 0;
+}
+
 function htmlElementHasVisibleMarkerContent(element, options) {
   const style = getComputedStyle(element);
   const opacity = effectiveOpacity(element);
@@ -2060,9 +2099,15 @@ function markerReferenceHasVisibleDecoration(value, element, options) {
   if (localName(marker) !== "marker") return true;
   if (!isRenderedElement(marker) &&
       !hasRenderedVisualDescendant(marker)) return false;
-  if (unsupportedVisualEffect(marker)) return true;
-  for (const decoration of marker.querySelectorAll("*")) {
+  for (const decoration of [marker, ...marker.querySelectorAll("*")]) {
     if (!isRenderedElement(decoration)) continue;
+    const style = getComputedStyle(decoration);
+    if (!cssFilterIsProvablyTransparent(style.filter) ||
+        !cssEffectIsProvablyTransparent(style.boxShadow) ||
+        (decoration.textContent.trim() &&
+          !cssEffectIsProvablyTransparent(style.textShadow))) {
+      return true;
+    }
     const tag = localName(decoration);
     if (decoration.namespaceURI !== SVG_NS) {
       if (htmlElementHasVisibleMarkerContent(decoration, options)) {
@@ -2071,7 +2116,10 @@ function markerReferenceHasVisibleDecoration(value, element, options) {
       continue;
     }
     if (visibleOutlineExtent(decoration, options) > 0) return true;
-    if (IGNORED_TAGS.has(tag) || tag === "g" || tag === "foreignObject") {
+    if (IGNORED_TAGS.has(tag) ||
+        tag === "marker" ||
+        tag === "g" ||
+        tag === "foreignObject") {
       continue;
     }
     if (["image", "svg", "use"].includes(tag)) return true;

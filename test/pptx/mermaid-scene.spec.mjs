@@ -2982,7 +2982,7 @@ test("distinguishes transparent and visible edge-label shadows by rendered pixel
   }
 });
 
-test("detects marker text, HTML, and polygon-only edge-label decoration", async ({ page }) => {
+test("detects rich marker content and group effects on edge labels", async ({ page }) => {
   const harness = await startHarness({ slides: ["# Requirement marker content"] });
   try {
     await page.goto(harness.url);
@@ -2995,6 +2995,9 @@ test("detects marker text, HTML, and polygon-only edge-label decoration", async 
     }, fixture);
     const installMarker = (configuration) => page.evaluate((config) => {
       const group = document.querySelectorAll("g.edgeLabel")[1];
+      if (config.state === "whitespace") {
+        group.setAttribute("transform", "translate(1000, 50)");
+      }
       for (const part of [group, ...group.querySelectorAll("*")]) {
         part.style.setProperty("color", "transparent", "important");
         part.style.setProperty(
@@ -3072,29 +3075,70 @@ test("detects marker text, HTML, and polygon-only edge-label decoration", async 
         rectangle.setAttribute("height", "16");
         rectangle.setAttribute("fill", "transparent");
         rectangle.setAttribute("stroke", "transparent");
-        if (config.state === "visible") {
-          rectangle.style.outline = "4px solid red";
-          rectangle.style.outlineOffset = "-4px";
-        } else if (config.state === "transparent") {
-          rectangle.style.outline = "4px solid rgba(0, 0, 0, 0)";
-          rectangle.style.outlineOffset = "-4px";
-        } else {
-          rectangle.style.outline = "none";
-        }
         if (config.kind === "nested-outline") {
           const outer = document.createElementNS(namespace, "g");
           outer.setAttribute(
             "transform",
             "translate(10 10) rotate(35) scale(0.5 3) translate(-10 -10)",
           );
+          if (config.state === "visible") {
+            outer.style.outline = "60px solid red";
+          } else if (config.state === "transparent") {
+            outer.style.outline = "60px solid rgba(0, 0, 0, 0)";
+          } else {
+            outer.style.outline = "none";
+          }
           const inner = document.createElementNS(namespace, "g");
           inner.setAttribute("transform", "translate(3 -2) rotate(-15)");
           inner.append(rectangle);
           outer.append(inner);
           marker.append(outer);
         } else {
+          if (config.state === "visible") {
+            rectangle.style.outline = "4px solid red";
+            rectangle.style.outlineOffset = "-4px";
+          } else if (config.state === "transparent") {
+            rectangle.style.outline = "4px solid rgba(0, 0, 0, 0)";
+            rectangle.style.outlineOffset = "-4px";
+          } else {
+            rectangle.style.outline = "none";
+          }
           marker.append(rectangle);
         }
+      } else if (["nested-filter", "nested-shadow"].includes(config.kind)) {
+        const outer = document.createElementNS(namespace, "g");
+        outer.setAttribute(
+          "transform",
+          "translate(10 10) rotate(30) scale(0.6 2.5) translate(-10 -10)",
+        );
+        const inner = document.createElementNS(namespace, "g");
+        inner.setAttribute("transform", "translate(2 -1) rotate(-12)");
+        const rectangle = document.createElementNS(namespace, "rect");
+        rectangle.setAttribute("x", "4");
+        rectangle.setAttribute("y", "4");
+        rectangle.setAttribute("width", "12");
+        rectangle.setAttribute("height", "12");
+        rectangle.setAttribute(
+          "fill",
+          config.state === "visible" ? "red" : "transparent",
+        );
+        rectangle.setAttribute("stroke", "transparent");
+        if (config.kind === "nested-filter") {
+          outer.style.filter = config.state === "visible"
+            ? "blur(20px)"
+            : config.state === "transparent"
+              ? "drop-shadow(20px 10px 6px rgba(0, 0, 0, 0))"
+              : "none";
+        } else {
+          outer.style.filter = config.state === "visible"
+            ? "drop-shadow(30px 20px 10px red)"
+            : config.state === "transparent"
+              ? "drop-shadow(30px 20px 10px rgba(0, 0, 0, 0))"
+              : "none";
+        }
+        inner.append(rectangle);
+        outer.append(inner);
+        marker.append(outer);
       } else {
         const circle = document.createElementNS(namespace, "circle");
         circle.setAttribute("cx", "15");
@@ -3115,7 +3159,12 @@ test("detects marker text, HTML, and polygon-only edge-label decoration", async 
         source.setAttribute("points", "0,0 120,0 120,20");
         source.setAttribute("marker-end", `url(#${marker.id})`);
       } else {
-        source.setAttribute("d", "M5 12 L39 12 L73 12");
+        source.setAttribute(
+          "d",
+          config.kind.startsWith("nested-")
+            ? "M35 12 L39 12 L43 12"
+            : "M5 12 L39 12 L73 12",
+        );
         source.setAttribute(
           config.kind === "nested-outline" ? "marker-start" : "marker-mid",
           `url(#${marker.id})`,
@@ -3159,9 +3208,29 @@ test("detects marker text, HTML, and polygon-only edge-label decoration", async 
       return screenshotPixelDifference(page, visible, hidden);
     };
 
-    for (const kind of ["text", "html", "outline", "nested-outline"]) {
+    for (const kind of [
+      "text",
+      "html",
+      "outline",
+      "nested-outline",
+      "nested-filter",
+      "nested-shadow",
+    ]) {
       await loadFixture();
       await installMarker({ kind, state: "visible" });
+      const sourceBounds = await page.locator(
+        `[data-marker-source="${kind}"]`,
+      ).evaluate((source) => {
+        const deck = document.querySelector("#fixture-deck")
+          .getBoundingClientRect();
+        const bounds = source.getBoundingClientRect();
+        return {
+          left: bounds.left - deck.left,
+          top: bounds.top - deck.top,
+          right: bounds.right - deck.left,
+          bottom: bounds.bottom - deck.top,
+        };
+      });
       expect(await markerPixelDifference(), kind).toBeGreaterThan(0);
       const result = await readScene(
         `requirement-${kind}-marker-visible.svg`,
@@ -3175,6 +3244,16 @@ test("detects marker text, HTML, and polygon-only edge-label decoration", async 
         node.meta?.mermaid?.kind === "edge-label"), kind).toHaveLength(6);
       expect(result.scene.nodes.some((node) =>
         node.sourcePath === "relations[1].line"), kind).toBe(true);
+      if (kind.startsWith("nested-")) {
+        const fallback = result.scene.nodes.find((node) =>
+          node.sourcePath === "edgeLabels[root_req-copy_req-0]");
+        expect(fallback.bounds.x, kind).toBeLessThan(sourceBounds.left);
+        expect(fallback.bounds.y, kind).toBeLessThan(sourceBounds.top);
+        expect(fallback.bounds.x + fallback.bounds.width, kind)
+          .toBeGreaterThan(sourceBounds.right);
+        expect(fallback.bounds.y + fallback.bounds.height, kind)
+          .toBeGreaterThan(sourceBounds.bottom);
+      }
     }
 
     for (const entry of [
@@ -3186,9 +3265,17 @@ test("detects marker text, HTML, and polygon-only edge-label decoration", async 
       { kind: "outline", state: "none" },
       { kind: "nested-outline", state: "transparent" },
       { kind: "nested-outline", state: "none" },
+      { kind: "nested-filter", state: "transparent" },
+      { kind: "nested-filter", state: "none" },
+      { kind: "nested-shadow", state: "transparent" },
+      { kind: "nested-shadow", state: "none" },
     ]) {
       await loadFixture();
       await installMarker(entry);
+      if (entry.state === "whitespace") {
+        expect(await markerPixelDifference(),
+          `${entry.kind}-${entry.state}`).toBe(0);
+      }
       const result = await readScene(
         `requirement-${entry.kind}-marker-${entry.state}.svg`,
       );
@@ -7915,7 +8002,7 @@ test("actual requirement marker-only label remains one captured local fallback",
   }
 });
 
-test("actual requirement text, HTML, outline, and polygon markers remain captured local fallbacks", async ({ page }) => {
+test("actual rich marker content and group effects remain captured local fallbacks", async ({ page }) => {
   const diagram = (await readFixture("requirement-basic.mmd")).replace(
     '{"handDrawnSeed": 42}',
     JSON.stringify({
@@ -7937,6 +8024,8 @@ test("actual requirement text, HTML, outline, and polygon markers remain capture
       const kind = title.includes("HTML marker") ? "html"
         : title.includes("Text marker") ? "text"
           : title.includes("Outline marker") ? "outline"
+            : title.includes("Filter marker") ? "filter"
+              : title.includes("Shadow marker") ? "shadow"
             : title.includes("Polygon marker") ? "polygon" : "";
       if (!kind) return;
       const group = svg.querySelectorAll("g.edgeLabel")[1];
@@ -7953,6 +8042,7 @@ test("actual requirement text, HTML, outline, and polygon markers remain capture
         refY: String(markerSize / 2),
         orient: "auto",
         markerUnits: "userSpaceOnUse",
+        overflow: "visible",
       })) {
         marker.setAttribute(name, content);
       }
@@ -7992,15 +8082,35 @@ test("actual requirement text, HTML, outline, and polygon markers remain capture
         rectangle.setAttribute("height", "16");
         rectangle.setAttribute("fill", "transparent");
         rectangle.setAttribute("stroke", "transparent");
-        rectangle.style.outline = "4px solid red";
-        rectangle.style.outlineOffset = "-4px";
         const outer = document.createElementNS(namespace, "g");
         outer.setAttribute(
           "transform",
           "translate(10 10) rotate(35) scale(0.5 3) translate(-10 -10)",
         );
+        outer.style.outline = "60px solid red";
         const inner = document.createElementNS(namespace, "g");
         inner.setAttribute("transform", "translate(3 -2) rotate(-15)");
+        inner.append(rectangle);
+        outer.append(inner);
+        marker.append(outer);
+      } else if (kind === "filter" || kind === "shadow") {
+        const outer = document.createElementNS(namespace, "g");
+        outer.setAttribute(
+          "transform",
+          "translate(10 10) rotate(30) scale(0.6 2.5) translate(-10 -10)",
+        );
+        outer.style.filter = kind === "filter"
+          ? "blur(20px)"
+          : "drop-shadow(30px 20px 10px red)";
+        const inner = document.createElementNS(namespace, "g");
+        inner.setAttribute("transform", "translate(2 -1) rotate(-12)");
+        const rectangle = document.createElementNS(namespace, "rect");
+        rectangle.setAttribute("x", "4");
+        rectangle.setAttribute("y", "4");
+        rectangle.setAttribute("width", "12");
+        rectangle.setAttribute("height", "12");
+        rectangle.setAttribute("fill", "red");
+        rectangle.setAttribute("stroke", "transparent");
         inner.append(rectangle);
         outer.append(inner);
         marker.append(outer);
@@ -8042,7 +8152,12 @@ test("actual requirement text, HTML, outline, and polygon markers remain capture
           "translate(60 10) rotate(35) scale(0.2 8) translate(-60 -10)",
         );
       } else {
-        source.setAttribute("d", "M5 12 L39 12 L73 12");
+        source.setAttribute(
+          "d",
+          ["outline", "filter", "shadow"].includes(kind)
+            ? "M35 12 L39 12 L43 12"
+            : "M5 12 L39 12 L73 12",
+        );
         source.setAttribute("marker-mid", `url(#${marker.id})`);
       }
       source.setAttribute("fill", "transparent");
@@ -8063,6 +8178,8 @@ test("actual requirement text, HTML, outline, and polygon markers remain capture
       `# Text marker requirement\n\n\`\`\`mermaid\n${diagram}\n\`\`\``,
       `# HTML marker requirement\n\n\`\`\`mermaid\n${diagram}\n\`\`\``,
       `# Outline marker requirement\n\n\`\`\`mermaid\n${diagram}\n\`\`\``,
+      `# Filter marker requirement\n\n\`\`\`mermaid\n${diagram}\n\`\`\``,
+      `# Shadow marker requirement\n\n\`\`\`mermaid\n${diagram}\n\`\`\``,
       `# Polygon marker requirement\n\n\`\`\`mermaid\n${diagram}\n\`\`\``,
     ],
   });
@@ -8084,6 +8201,8 @@ test("actual requirement text, HTML, outline, and polygon markers remain capture
       "text",
       "html",
       "outline",
+      "filter",
+      "shadow",
       "polygon",
     ].entries()) {
       const model = models[index];
@@ -8118,7 +8237,7 @@ test("actual requirement text, HTML, outline, and polygon markers remain capture
       const deck = page.locator(
         ".deck:not(.pptx-layout-template)",
       ).nth(index);
-      if (kind === "polygon") {
+      if (["outline", "filter", "shadow", "polygon"].includes(kind)) {
         const sourceBounds = await source.boundingBox();
         const deckBounds = await deck.boundingBox();
         const fallback = model.fallbacks.find((entry) =>
@@ -8146,7 +8265,7 @@ test("actual requirement text, HTML, outline, and polygon markers remain capture
         });
       } else if (kind === "outline") {
         expect(await svg.locator(
-          'marker[id$="-outline-marker"] rect',
+          'marker[id$="-outline-marker"] > g',
         ).evaluate((element) => {
           const style = getComputedStyle(element);
           return {
@@ -8156,10 +8275,10 @@ test("actual requirement text, HTML, outline, and polygon markers remain capture
             offset: style.outlineOffset,
           };
         })).toEqual({
-          width: "4px",
+          width: "60px",
           style: "solid",
           color: "rgb(255, 0, 0)",
-          offset: "-4px",
+          offset: "0px",
         });
       }
       if (kind !== "html") {
