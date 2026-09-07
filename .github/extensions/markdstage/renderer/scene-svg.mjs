@@ -8,13 +8,16 @@ const HTML_TAGS = new Set("div span p br b strong i em s u small sub sup ul ol l
 const MATH_TAGS = new Set("math mrow mi mn mo mtext mspace ms mfrac msqrt mroot mstyle merror mpadded mphantom mfenced menclose msub msup msubsup munder mover munderover mmultiscripts mprescripts none mtable mtr mtd semantics annotation".split(" "));
 const ATTRIBUTES = new Set("id class name x y x1 y1 x2 y2 dx dy width height cx cy r rx ry d points viewBox preserveAspectRatio transform fill fill-opacity fill-rule stroke stroke-width stroke-opacity stroke-dasharray stroke-dashoffset stroke-linecap stroke-linejoin stroke-miterlimit opacity color font-family font-size font-weight font-style text-anchor dominant-baseline alignment-baseline textLength lengthAdjust letter-spacing word-spacing text-decoration visibility display overflow pointer-events role tabindex focusable marker-start marker-mid marker-end markerWidth markerHeight markerUnits refX refY orient clip-path clipPathUnits mask maskUnits maskContentUnits filter filterUnits primitiveUnits in in2 result stdDeviation mode type values operator k1 k2 k3 k4 flood-color flood-opacity offset stop-color stop-opacity gradientUnits gradientTransform spreadMethod patternUnits patternContentUnits patternTransform".split(" "));
 const CSS_PROPERTIES = new Set("fill fill-opacity fill-rule stroke stroke-width stroke-opacity stroke-dasharray stroke-dashoffset stroke-linecap stroke-linejoin stroke-miterlimit opacity color font-family font-size font-weight font-style font-variant line-height text-align text-anchor dominant-baseline alignment-baseline text-decoration text-transform letter-spacing word-spacing white-space overflow-wrap word-break display visibility overflow box-sizing width height min-width min-height max-width max-height padding padding-top padding-right padding-bottom padding-left margin margin-top margin-right margin-bottom margin-left border border-radius background-color vertical-align marker-start marker-mid marker-end clip-path filter".split(" "));
-const SVG_GEOMETRY_PROPERTIES = new Set(["cx", "cy", "d", "r"]);
+const SVG_GEOMETRY_PROPERTIES = new Set(["cx", "cy", "d", "r", "x", "y", "rx", "ry"]);
 const SVG_GEOMETRY_BY_TAG = {
   circle: ["cx", "cy", "r"],
   path: ["d"],
+  rect: ["x", "y", "width", "height", "rx", "ry"],
 };
 for (const attribute of "alt colspan rowspan systemLanguage startOffset method spacing baseFrequency numOctaves seed stitchTiles scale xChannelSelector yChannelSelector radius order kernelMatrix divisor bias targetX targetY edgeMode preserveAlpha tableValues slope intercept amplitude exponent surfaceScale diffuseConstant specularConstant specularExponent azimuth elevation limitingConeAngle pointsAtX pointsAtY pointsAtZ z mathvariant mathsize mathcolor mathbackground columnalign rowalign columnspacing rowspacing stretchy fence separator accent accentunder largeop movablelimits lspace rspace encoding".split(" ")) ATTRIBUTES.add(attribute);
 for (const property of "position top right bottom left z-index transform transform-box transform-origin outline outline-width outline-style outline-color outline-offset border-top border-right border-bottom border-left border-top-width border-right-width border-bottom-width border-left-width border-top-style border-right-style border-bottom-style border-left-style border-top-color border-right-color border-bottom-color border-left-color object-fit object-position flex flex-direction flex-wrap align-items align-content justify-content gap float clear".split(" ")) CSS_PROPERTIES.add(property);
+// Local artwork must keep the effects that prevented native conversion.
+for (const property of "text-shadow mask-image mask-mode mask-type mask-size mask-position mask-repeat mask-origin mask-clip mask-composite mix-blend-mode isolation paint-order vector-effect rotate scale translate".split(" ")) CSS_PROPERTIES.add(property);
 let renderSequence = 0;
 
 function portableString(value) {
@@ -239,7 +242,7 @@ export function captureSvgTree(element, { slots = new Map(), computedStyle = glo
       }
       const geometryProperties = tag === "path"
         ? SVG_GEOMETRY_BY_TAG.path
-        : source.closest?.("marker")
+        : source.closest?.("marker") || source.closest?.("clipPath")
           ? SVG_GEOMETRY_BY_TAG[tag] || []
           : [];
       for (const property of geometryProperties) {

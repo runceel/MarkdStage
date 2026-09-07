@@ -50,6 +50,7 @@ cannot be separated safely.
 | Quadrant | `quadrantChart` quadrant rectangles, circular data points, borders/axes, titles, and axis/point labels |
 | XY chart | `xychart` / `xychart-beta` rectangular bars, straight line-plot segments, ticks, axes, titles, and axis labels; vertical and horizontal orientation |
 | Gantt | `gantt` ordinary tasks (done/active/critical included), task/section/title labels, date ticks, row backgrounds, rectangular excluded periods, and known rounded diamond milestones |
+| Treemap | `treemap` / `treemap-beta` section/header and leaf rectangles, titles, fitting cell labels and values, with independent fill/stroke alpha |
 | Other Mermaid diagrams | Render normally in slides and use image fallback where editable conversion is unavailable |
 
 Coverage is intentionally approximate: editability depends on the structures
@@ -111,6 +112,27 @@ multiline structures remain local label images. Filters, gradients, clipping, de
 text, unusual milestones, and unknown geometry preserve the smallest safe subtree;
 source ownership and native exclusion masks retain separable siblings exactly once
 in their original paint order. Existing element, node, point, and depth limits apply.
+
+Treemap uses Mermaid's rendered cell positions, sizes, hierarchy, font sizes, and
+visible strings; it does not rebuild the layout. Both aliases are supported by
+the bundled Mermaid 11.15.0. A leaf's known, untransformed, sibling rectangular
+`userSpaceOnUse` clip can be omitted from the **native text object only** when
+the measured glyph bounds fit with slack on every edge. The source clip is never
+removed. Modified, rounded, transformed, external, ambiguous, or otherwise
+unrecognized clips remain local text images, not a general editable clipPath.
+
+Overflowing text stays **only that text's local artwork**, retaining the source
+crop rather than leaking outside the cell. Mermaid's own hidden labels, reduced
+font sizes, and already-truncated visible strings are not reconstructed or
+resurrected. Plain Japanese and simple explicit SVG `tspan` lines are supported;
+each multiline text line uses its measured position, not default paragraph
+spacing. Rich/uncertain multiline text, stroked/decorated text, text shadows,
+and filters remain local images. Cell rectangles and separable sibling labels
+stay editable; shared group opacity, clipping, effects, or unsafe transforms
+retain the entire affected subtree when splitting it is unsafe. Diagnostics
+retain source paths and reasons, native exclusion masks avoid duplicate content,
+and existing scene/element/depth limits still apply. This adds no arbitrary
+clip/mask geometry, general group compositing, or data-backed PowerPoint chart.
 
 See the presentation-ready
 [Mermaid support example deck](../examples/mermaid-support.md) for representative

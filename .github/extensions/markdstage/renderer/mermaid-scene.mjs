@@ -120,6 +120,7 @@ export function classifyMermaidDiagramRoute(diagramType, svgClass = "", hasRoot 
   if (diagramType === "kanban") return "kanban";
   if (diagramType === "block") return "block";
   if (diagramType === "gantt") return "gantt";
+  if (diagramType === "treemap") return "treemap";
   if (diagramType === "quadrantChart" || diagramType === "xychart") return diagramType;
   if (diagramType === "stateDiagram") {
     return hasRoot && classes.includes("statediagram") ? "state" : null;
@@ -1060,10 +1061,11 @@ function maximumMatrixScale(matrix) {
 
 function fallbackNode(element, z, deck, reason, sourcePath) {
   let bounds = boundsOf(element, deck);
+  let padding = 0;
   if (["path", "line", "polygon", "polyline"].includes(localName(element))) {
     const style = getComputedStyle(element);
     const marked = [style.markerStart, style.markerMid, style.markerEnd].some((value) => value && value !== "none");
-    const padding = Math.min(
+    padding = Math.min(
       MAX_MARKER_FALLBACK_PADDING,
       Math.max(
         1,
@@ -1071,9 +1073,26 @@ function fallbackNode(element, z, deck, reason, sourcePath) {
         marked ? markerFallbackPadding(element, style) : 0,
       ) * maximumMatrixScale(element.getScreenCTM?.()),
     );
-    bounds = { x: bounds.x - padding, y: bounds.y - padding,
-      width: bounds.width + 2 * padding, height: bounds.height + 2 * padding };
   }
+  // getBBox/getBoundingClientRect exclude rectangle strokes, including those
+  // inside a group-opacity fallback. Preserve their transformed outer corners
+  // and one raster pixel of slack without flattening the group's compositing.
+  const rectangles = localName(element) === "rect" ? [element]
+    : localName(element) === "g" ? [...element.querySelectorAll("rect")] : [];
+  for (const rect of rectangles) {
+    if (rect.closest("defs, clipPath, mask, marker, pattern, symbol") || !isRenderedElement(rect)) continue;
+    const style = getComputedStyle(rect);
+    if (style.stroke === "none" || parseOpacity(style.strokeOpacity) <= 0 ||
+        (cssColorParts(style.stroke)?.alpha ?? 1) <= 0) continue;
+    const width = Number.parseFloat(style.strokeWidth);
+    if (!(width > 0)) continue;
+    const scale = style.vectorEffect === "non-scaling-stroke"
+      ? 1 : maximumMatrixScale(rect.getScreenCTM?.());
+    padding = Math.max(padding, Math.min(MAX_MARKER_FALLBACK_PADDING,
+      width * scale / Math.SQRT2 + 1));
+  }
+  if (padding > 0) bounds = { x: bounds.x - padding, y: bounds.y - padding,
+    width: bounds.width + 2 * padding, height: bounds.height + 2 * padding };
   return {
     kind: "fallback",
     id: element.getAttribute?.("id") || undefined,
@@ -1108,11 +1127,11 @@ function relativeFallbackNode(element, z, deck, reason, sourcePath, origin) {
   return fallback;
 }
 
-function unsupportedVisualEffect(element, descendants = true, separableGroupOpacity = false) {
+function unsupportedVisualEffect(element, descendants = true, separableGroupOpacity = false, inertClip = null) {
   return [element, ...(descendants ? element.querySelectorAll("*") : [])].some((child) => {
     const style = getComputedStyle(child);
     return (style.filter && style.filter !== "none") ||
-      (style.clipPath && style.clipPath !== "none") ||
+      (style.clipPath && style.clipPath !== "none" && child !== inertClip) ||
       (style.maskImage && style.maskImage !== "none") ||
       (style.mixBlendMode && style.mixBlendMode !== "normal") ||
       (style.paintOrder && style.paintOrder !== "normal") ||
@@ -3218,8 +3237,8 @@ const SAFE_CLASS_LABEL_TAGS = new Set([
   "tspan",
 ]);
 
-function safeClassLabel(element) {
-  if (!element || unsupportedVisualEffect(element) || element.querySelector("img, image, svg, .katex, use")) return false;
+function safeClassLabel(element, inertClip = null) {
+  if (!element || unsupportedVisualEffect(element, true, false, inertClip) || element.querySelector("img, image, svg, .katex, use")) return false;
   for (const child of [element, ...element.querySelectorAll("*")]) {
     if (!SAFE_CLASS_LABEL_TAGS.has(localName(child))) return false;
     const style = getComputedStyle(child);
@@ -6218,9 +6237,9 @@ function hasBasicItemGeneratedContent(element) {
       !["none", "normal", '""'].includes(getComputedStyle(part, pseudo).content)));
 }
 
-function safeBasicItemLabel(element, options) {
+function safeBasicItemLabel(element, options, inertClip = null) {
   const decoration = edgeLabelDecorationInfo(element, options);
-  if (!safeClassLabel(element) || decoration.complex || decoration.visible ||
+  if (!safeClassLabel(element, inertClip) || decoration.complex || decoration.visible ||
       hasRenderedTextTransform(element) || hasBasicItemGeneratedContent(element)) return false;
   for (const foreign of element.querySelectorAll("foreignObject")) {
     if (!["hidden", "clip"].includes(getComputedStyle(foreign).overflow)) continue;
@@ -6481,8 +6500,8 @@ function chartLinePath(element, sourcePath, z, deck, options, meta, reasons,
   };
 }
 
-function safeChartLabel(element, options) {
-  return safeBasicItemLabel(element, options) &&
+function safeChartLabel(element, options, inertClip = null) {
+  return safeBasicItemLabel(element, options, inertClip) &&
     [element, ...element.querySelectorAll("*")].every((part) => {
       const style = getComputedStyle(part);
       return (!style.textDecorationLine || style.textDecorationLine === "none") &&
@@ -6508,14 +6527,17 @@ function measuredDiagramScene(svg, deck, size, options, diagram, root, rootRole,
     geometry: `unsupported-mermaid-${diagram}-geometry`,
     style: `unsupported-mermaid-${diagram}-style`,
     transform: `unsupported-mermaid-${diagram}-transform`,
+    label: `unsupported-mermaid-${diagram}-label`,
   };
   const walk = (element, role, sourcePath, depth) => {
+    if (diagram === "treemap" && localName(element) === "clipPath") return;
     if (IGNORED_TAGS.has(localName(element)) || !hasRenderedVisualDescendant(element)) return;
     options.sourceElements.set(sourcePath, element);
     const reason = depth > MAX_GROUP_DEPTH ? `unsupported-mermaid-${diagram}-depth`
       : !role ? reasons.geometry
       : hasMixedRenderedVisibility(element) ? `unsupported-mermaid-${diagram}-visibility`
-      : unsupportedVisualEffect(element, false, diagram === "gantt" && role === "tick" &&
+      : !(diagram === "treemap" && role === "text") &&
+        unsupportedVisualEffect(element, false, diagram === "gantt" && role === "tick" &&
         isSeparableGanttTick(element, options)) ? reasons.style : "";
     if (reason) {
       nodes.push(fallbackNode(element, nodes.length, deck, reason, sourcePath));
@@ -6528,12 +6550,17 @@ function measuredDiagramScene(svg, deck, size, options, diagram, root, rootRole,
       }
       directChildren(element).forEach((child, index) =>
         walk(child, diagram === "gantt" ? ganttElementRole(child, role)
+          : diagram === "treemap" ? treemapElementRole(child, role)
           : chartElementRole(child, role, diagram), `${sourcePath}.parts[${index}]`, depth + 1));
       return;
     }
     if (role === "text" && !element.textContent.trim() && !element.children.length) return;
+    if (diagram === "treemap" && role === "text") {
+      nodes.push(...treemapText(element, sourcePath, nodes.length, deck, options, reasons));
+      return;
+    }
     if (diagram === "gantt" && role === "text") {
-      const lines = ganttMultilineText(element, sourcePath, nodes.length, deck, options, reasons);
+      const lines = measuredDiagramMultilineText(element, sourcePath, nodes.length, deck, options, reasons, diagram);
       if (lines) {
         nodes.push(...lines);
         return;
@@ -6607,18 +6634,18 @@ function ganttElementRole(element, parent) {
   return null;
 }
 
-function ganttMultilineText(element, sourcePath, z, deck, options, reasons) {
+function measuredDiagramMultilineText(element, sourcePath, z, deck, options, reasons, diagram, inertClip = null) {
   if (structuredLabelText(element, options).paragraphs.length <= 1) return null;
   const fallback = (reason) => [fallbackNode(element, z, deck, reason, sourcePath)];
-  if (unsupportedVisualEffect(element)) return fallback(reasons.style);
-  if (!safeChartLabel(element, options)) return fallback("unsupported-mermaid-gantt-label");
+  if (unsupportedVisualEffect(element, true, false, inertClip)) return fallback(reasons.style);
+  if (!safeChartLabel(element, options, inertClip)) return fallback(reasons.label);
   if (!measuredTextGeometry(element, deck)) return fallback("unsupported-mermaid-text-transform");
   const lines = directChildren(element);
   if (lines.length < 2 || lines.length > MAX_TEXT_PARAGRAPHS ||
       [...element.childNodes].some((node) => node.nodeType === 3 && node.textContent.trim()) ||
       lines.some((line) => localName(line) !== "tspan" || line.children.length ||
         !line.textContent.trim() || !line.hasAttribute("x"))) {
-    return fallback("unsupported-mermaid-gantt-label");
+    return fallback(reasons.label);
   }
   const parts = lines.map((line, index) => {
     const geometry = measuredTextGeometry(line, deck, line);
@@ -6628,10 +6655,10 @@ function ganttMultilineText(element, sourcePath, z, deck, options, reasons) {
       kind: "text", sourcePath: `${sourcePath}.lines[${index}]`, z: z + index,
       bounds: geometry.bounds, rotation: geometry.rotation, text,
       textLayout: { alignment: "center", verticalAlignment: "middle", textWrap: "none" },
-      meta: { mermaid: { kind: "gantt-text-line" } },
+      meta: { mermaid: { kind: `${diagram}-text-line` } },
     });
   });
-  if (parts.some((part) => !part)) return fallback("unsupported-mermaid-gantt-label");
+  if (parts.some((part) => !part)) return fallback(reasons.label);
   // Each SVG tspan owns its measured position. Default paragraph spacing loses
   // Mermaid's explicit dy advance (notably the 1em multiline section labels).
   parts.forEach((part, index) => options.sourceElements.set(part.sourcePath, lines[index]));
@@ -6707,6 +6734,105 @@ function ganttScene(svg, deck, size, options) {
   return measuredDiagramScene(svg, deck, size, options, "gantt", svg, "root", "gantt");
 }
 
+function treemapElementRole(element, parent) {
+  const tag = localName(element);
+  if (parent === "root") {
+    if (tag === "g" && hasClass(element, "treemapContainer")) return "container";
+    if (tag === "text" && hasClass(element, "treemapTitle")) return "text";
+  }
+  if (parent === "container" && tag === "g") {
+    if (hasClass(element, "treemapSection")) return "section";
+    if (hasClass(element, "treemapLeafGroup")) return "cell";
+  }
+  if (parent === "section") {
+    if (tag === "rect" && hasClass(element, "treemapSectionHeader")) return "header";
+    if (tag === "rect" && hasClass(element, "treemapSection")) return "section-box";
+    if (tag === "text" && ["treemapSectionLabel", "treemapSectionValue"].some((name) => hasClass(element, name))) return "text";
+  }
+  if (parent === "cell") {
+    if (tag === "rect" && hasClass(element, "treemapLeaf")) return "cell-box";
+    if (tag === "text" && ["treemapLabel", "treemapValue"].some((name) => hasClass(element, name))) return "text";
+  }
+  return null;
+}
+
+function hasOwnSvgTransform(element) {
+  const style = getComputedStyle(element);
+  return element.hasAttribute("transform") ||
+    ["transform", "rotate", "scale", "translate"].some((name) => style[name] && style[name] !== "none");
+}
+
+function knownTreemapTextClip(element) {
+  const group = element.parentElement;
+  const svg = element.ownerSVGElement;
+  const reference = /^url\(["']?#([^"')]+)["']?\)$/.exec(getComputedStyle(element).clipPath);
+  if (!reference || !hasClass(group, "treemapLeafGroup") || hasOwnSvgTransform(element) ||
+      !hasUniformAxisAlignedScale(element)) return null;
+  const clips = [...svg.querySelectorAll("[id]")].filter((part) => part.id === reference[1]);
+  const clip = clips[0];
+  const rect = clip?.children[0];
+  const cells = directChildren(group, "rect.treemapLeaf");
+  if (clips.length !== 1 || clip?.parentElement !== group || localName(clip) !== "clipPath" ||
+      !clip.id.startsWith(`clip-${svg.id}-`) ||
+      !/^\d+$/.test(clip.id.slice(`clip-${svg.id}-`.length)) ||
+      (clip.getAttribute("clipPathUnits") || "userSpaceOnUse") !== "userSpaceOnUse" ||
+      clip.children.length !== 1 || localName(rect) !== "rect" || rect.children.length ||
+      cells.length !== 1 || hasOwnSvgTransform(cells[0]) ||
+      [clip, rect].some((part) => hasOwnSvgTransform(part) || unsupportedVisualEffect(part) ||
+        getComputedStyle(part).display === "none" || !hasVisibleVisibility(part) ||
+        getComputedStyle(part).animationName !== "none")) return null;
+  const metrics = (part) => {
+    const style = getComputedStyle(part);
+    if (!["x", "y", "width", "height"].every((name) =>
+      /^[-+]?(?:\d*\.?\d+)(?:e[-+]?\d+)?px$/i.test(style.getPropertyValue(name))) ||
+      !["rx", "ry"].every((name) => ["auto", "0px"].includes(style.getPropertyValue(name)))) return null;
+    return computedMarkerGeometry(part, ["x", "y", "width", "height"]);
+  };
+  const cell = metrics(cells[0]);
+  const bounds = metrics(rect);
+  if (!cell || !bounds || cell[0] !== 0 || cell[1] !== 0 || bounds[0] !== 0 || bounds[1] !== 0 ||
+      !(cell[2] > 0 && cell[3] > 0) ||
+      !sameMetric(bounds[2], Math.max(0, cell[2] - 4), 0.0001) ||
+      !sameMetric(bounds[3], Math.max(0, cell[3] - 4), 0.0001)) return null;
+  return { x: 0, y: 0, width: bounds[2], height: bounds[3] };
+}
+
+function treemapText(element, sourcePath, z, deck, options, reasons) {
+  const fallback = (reason) => [fallbackNode(element, z, deck, reason, sourcePath)];
+  const clipped = getComputedStyle(element).clipPath !== "none";
+  const clip = clipped ? knownTreemapTextClip(element) : null;
+  if (clipped && !clip) return fallback("unsupported-mermaid-treemap-clip");
+  const inertClip = clip ? element : null;
+  if (unsupportedVisualEffect(element, true, false, inertClip)) return fallback(reasons.style);
+  if (!safeChartLabel(element, options, inertClip)) return fallback(reasons.label);
+  const cell = hasClass(element.parentElement, "treemapLeafGroup")
+    ? directChildren(element.parentElement, "rect.treemapLeaf")[0]
+    : hasClass(element.parentElement, "treemapSection")
+      ? directChildren(element.parentElement, "rect.treemapSectionHeader")[0] : null;
+  if (clip || cell) {
+    const box = clip ? element.getBBox() : element.getBoundingClientRect();
+    const frame = clip || cell.getBoundingClientRect();
+    // Ignore only this text's known rectangular clip, and only when the
+    // measured glyph bounds have slack on every edge. Never remove the DOM clip:
+    // a local image must retain the original cropping and source ownership.
+    if (![box.x, box.y, box.width, box.height].every(Number.isFinite) ||
+        box.x < frame.x + 0.5 || box.y < frame.y + 0.5 ||
+        box.x + box.width > frame.x + frame.width - 0.5 ||
+        box.y + box.height > frame.y + frame.height - 0.5) {
+      return fallback("mermaid-treemap-text-overflow");
+    }
+  }
+  const lines = measuredDiagramMultilineText(element, sourcePath, z, deck, options, reasons, "treemap", inertClip);
+  return lines || [measuredText(element, sourcePath, z, deck, options, { mermaid: { kind: "treemap-text" } })];
+}
+
+function treemapScene(svg, deck, size, options) {
+  if (directChildren(svg, "g.treemapContainer").length !== 1) {
+    return specialDiagramStructureFallback(svg, deck, size, options, "unsupported-mermaid-treemap-structure");
+  }
+  return measuredDiagramScene(svg, deck, size, options, "treemap", svg, "root", "treemap");
+}
+
 function sceneFromSvg(svg, options) {
   options.sourceElements?.set("svg", svg);
   const deck = options.deck || svg.closest(".deck") || svg.parentElement || svg;
@@ -6748,6 +6874,7 @@ function sceneFromSvg(svg, options) {
   if (route === "kanban") return kanbanScene(svg, deck, size, options);
   if (route === "block") return blockScene(svg, deck, size, options);
   if (route === "gantt") return ganttScene(svg, deck, size, options);
+  if (route === "treemap") return treemapScene(svg, deck, size, options);
   if (route === "quadrantChart" || route === "xychart") return chartScene(svg, deck, size, options, route);
   if (route === "state") return stateScene(svg, root, deck, size, options);
   if (route !== "flowchart") {

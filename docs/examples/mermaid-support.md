@@ -299,6 +299,34 @@ and rectangular excluded periods use Mermaid's rendered geometry, not recreated 
 
 ---
 
+## Treemap: measured cells and labels
+
+```mermaid
+treemap-beta
+"Platform"
+    "API": 40
+    "運用": 30
+"Product"
+    "Web": 20
+    "Mobile": 10
+```
+
+`treemap` and `treemap-beta` share editable section/header and leaf rectangles,
+titles, fitting labels/values, and independent fill/stroke alpha. Layout comes from Mermaid.
+
+---
+
+## Treemap: the editable boundary
+
+- Only the known, plain rectangular cell clip is eligible for native text, after checking measured glyph containment.
+- Overflowing or uncertain clipped text stays **that text's local image**, preserving its source crop; the cell and safe sibling text stay native.
+- Source-hidden small-cell labels stay hidden; source font reduction and visible truncation are retained, not rebuilt.
+- Japanese and simple explicit SVG multiline text use measured line positions, not PowerPoint paragraph spacing.
+- Text shadows, decoration, filters, changed clips, and unsafe transforms retain local artwork and diagnostic source paths/reasons.
+- Shared group opacity/effects use the safe whole subtree. Existing element/node/depth limits apply; arbitrary clipPath and general compositing are not added.
+
+---
+
 ## Hybrid PowerPoint export
 
 1. Convert supported primitives to native, editable PowerPoint objects.

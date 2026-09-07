@@ -395,6 +395,25 @@ test("SVG capture retains class terminal CSS sizing instead of using foreignObje
   assert.equal(restored.attributes.get("style:height"), "12px");
 });
 
+test("SVG capture retains local text effects and rectangular clip CSS without native geometry conversion", () => {
+  const attributes = { x: "0", y: "0", width: "200", height: "100", rx: "0", ry: "0" };
+  const styles = { x: "3px", y: "4px", width: "180px", height: "90px", rx: "5px", ry: "6px",
+    "text-shadow": "rgb(255, 0, 0) 2px 2px 3px", "mask-image": "linear-gradient(black, transparent)",
+    "mix-blend-mode": "multiply", "paint-order": "stroke", "vector-effect": "non-scaling-stroke",
+    rotate: "15deg", scale: "0.8", translate: "2px" };
+  const primitive = captureSvgTree({
+    nodeType: 1, localName: "rect", namespaceURI: "http://www.w3.org/2000/svg",
+    attributes: Object.entries(attributes).map(([name, value]) => ({ name, value })),
+    childNodes: [], getAttribute: (name) => attributes[name] ?? null,
+    closest: (selector) => selector === "clipPath" ? {} : null,
+  }, { computedStyle: () => ({ getPropertyValue: (name) => styles[name] || "" }) });
+  assert.deepEqual(primitive.style, styles);
+  const restored = all(sceneToSvg(scene([{
+    kind: "fallback", sourcePath: "clip", z: 0, bounds, reason: "unsupported", meta: { svg: primitive },
+  }]), { document })).find((element) => element.tagName === "rect");
+  for (const [name, value] of Object.entries(styles)) assert.equal(restored.attributes.get(`style:${name}`), value);
+});
+
 test("SVG capture retains computed circle and path geometry overrides", () => {
   const circleAttributes = { cx: "9", cy: "9", r: "6" };
   const circle = captureSvgTree({
