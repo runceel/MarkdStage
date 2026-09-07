@@ -219,6 +219,52 @@ are not fully supported.
 
 ---
 
+## Quadrant: points, borders, and rotated labels
+
+```mermaid
+quadrantChart
+    title Priorities / 優先度
+    x-axis Low effort --> High effort
+    y-axis Low value --> High value
+    quadrant-1 Invest
+    quadrant-2 Quick wins
+    quadrant-3 Hold
+    quadrant-4 Review
+    API: [0.25, 0.75] radius: 7, color: #2563eb
+    Worker: [0.7, 0.6] radius: 6, color: #16a34a
+    Legacy: [0.8, 0.2] radius: 8, color: #f97316
+```
+
+Quadrant rectangles, circular points, borders, titles, and simple axis/point labels stay editable.
+
+---
+
+## XY chart: bars, line vertices, and ticks
+
+```mermaid
+xychart-beta
+    title "Sales / 売上"
+    x-axis "Month / 月" [Jan, Feb, Mar, Apr]
+    y-axis "Revenue / 収益" 0 --> 100
+    bar [25, 65, 40, 85]
+    line [40, 55, 30, 95]
+```
+
+`xychart` and `xychart-beta` share editable bars, straight line segments, axes, ticks,
+and rotated labels; horizontal orientation and negative ranges also use rendered geometry.
+
+---
+
+## Charts: the editable boundary
+
+- These are shapes, text, and lines, **not data-backed PowerPoint charts**.
+- Positions, sizes, point radii, and line vertices come directly from Mermaid's SVG.
+- Japanese and explicit SVG multiline text stay editable; literal HTML markup is not reinterpreted.
+- Shadows, gradients, clipping, decorated text, unsafe transforms, and unknown geometry stay local images.
+- Closed/curved/disconnected paths and existing element, point, or depth limits retain fallback diagnostics.
+
+---
+
 ## Hybrid PowerPoint export
 
 1. Convert supported primitives to native, editable PowerPoint objects.

@@ -119,6 +119,7 @@ export function classifyMermaidDiagramRoute(diagramType, svgClass = "", hasRoot 
   if (diagramType === "treeView") return "treeView";
   if (diagramType === "kanban") return "kanban";
   if (diagramType === "block") return "block";
+  if (diagramType === "quadrantChart" || diagramType === "xychart") return diagramType;
   if (diagramType === "stateDiagram") {
     return hasRoot && classes.includes("statediagram") ? "state" : null;
   }
@@ -6404,6 +6405,144 @@ function blockScene(svg, deck, size, options) {
   return diagramScene(svg, size, options, nodes);
 }
 
+// The chart renderer emits explicit absolute M/L vertices. Retain each vertex:
+// length-based sampling can round off the actual data points at sharp corners.
+export function chartPathPoints(data) {
+  const number = "[-+]?(?:\\d*\\.\\d+|\\d+\\.?\\d*)(?:e[-+]?\\d+)?";
+  const segment = new RegExp(`^([ML])\\s*(${number})(?:\\s*,\\s*|\\s+)(${number})\\s*$`, "i");
+  const parts = String(data || "").trim().split(/(?=[ML])/);
+  if (parts.length < 2 || parts.length > MAX_CONNECTOR_POINTS) return null;
+  const points = [];
+  for (const [index, part] of parts.entries()) {
+    const match = segment.exec(part);
+    if (!match || match[1] !== (index === 0 ? "M" : "L")) return null;
+    const point = { x: Number(match[2]), y: Number(match[3]) };
+    if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return null;
+    points.push(point);
+  }
+  return points;
+}
+
+function chartElementRole(element, parent, diagram) {
+  const tag = localName(element);
+  const group = (name) => tag === "g" && hasClass(element, name);
+  if (parent === "main") {
+    if (diagram === "quadrantChart") {
+      return ["quadrants", "border", "data-points", "labels", "title"].find(group);
+    }
+    if (tag === "rect" && hasClass(element, "background")) return "background";
+    if (group("plot")) return "plot";
+    if (group("chart-title")) return "title";
+    if (["bottom-axis", "left-axis", "top-axis", "right-axis"].some(group)) return "axis";
+  }
+  if (parent === "quadrants" && group("quadrant")) return "quadrant";
+  if (parent === "data-points" && group("data-point")) return "data-point";
+  if (parent === "labels" && group("label")) return "label";
+  if (parent === "plot" && tag === "g") {
+    if (/^bar-plot-\d+$/.test(element.getAttribute("class") || "")) return "bar-plot";
+    if (/^line-plot-\d+$/.test(element.getAttribute("class") || "")) return "line-plot";
+  }
+  if (parent === "axis") {
+    // "axisl-line" is the vertical axis spelling in bundled Mermaid 11.15.0.
+    if (group("axis-line") || group("axisl-line")) return "axis-line";
+    return ["label", "ticks", "title"].find(group);
+  }
+  if (parent === "quadrant" && tag === "rect") return "quadrant-box";
+  if (parent === "data-point" && tag === "circle") return "point";
+  if (parent === "bar-plot" && tag === "rect") return "bar";
+  if (parent === "border" && tag === "line") return "border-line";
+  if (["line-plot", "axis-line", "ticks"].includes(parent) && tag === "path") return parent;
+  if (["quadrant", "data-point", "label", "title"].includes(parent) && tag === "text") return "text";
+  return null;
+}
+
+function chartLinePath(element, sourcePath, z, deck, options, meta, reasons) {
+  const style = getComputedStyle(element);
+  if (unsupportedVisualEffect(element) ||
+      [style.markerStart, style.markerMid, style.markerEnd].some((value) => value && value !== "none")) {
+    return fallbackNode(element, z, deck, reasons.style, sourcePath);
+  }
+  if (!hasUniformAxisAlignedScale(element)) {
+    return fallbackNode(element, z, deck, reasons.transform, sourcePath);
+  }
+  const vertices = chartPathPoints(renderedPathData(element));
+  if (!vertices || normalizeColor(style.fill)) {
+    return fallbackNode(element, z, deck, reasons.geometry, sourcePath);
+  }
+  const points = vertices.map((point) => screenPoint(element, point, deck));
+  if (points.every((point) => pointKey(point) === pointKey(points[0]))) {
+    return fallbackNode(element, z, deck, reasons.geometry, sourcePath);
+  }
+  return {
+    kind: "connector", sourcePath, z, points,
+    style: computedConnectorStyle(element, options),
+    arrowStart: "none", arrowEnd: "none", meta,
+  };
+}
+
+function safeChartLabel(element, options) {
+  return safeBasicItemLabel(element, options) &&
+    [element, ...element.querySelectorAll("*")].every((part) => {
+      const style = getComputedStyle(part);
+      return (!style.textDecorationLine || style.textDecorationLine === "none") &&
+        (!style.textShadow || style.textShadow === "none") &&
+        (!style.letterSpacing || ["normal", "0px"].includes(style.letterSpacing)) &&
+        (!style.wordSpacing || ["normal", "0px"].includes(style.wordSpacing)) &&
+        (!normalizeColor(style.stroke) || !(parseMetric(style.strokeWidth) > 0));
+    });
+}
+
+function chartScene(svg, deck, size, options, diagram) {
+  const roots = directChildren(svg, "g.main");
+  if (roots.length !== 1) {
+    return specialDiagramStructureFallback(svg, deck, size, options,
+      `unsupported-mermaid-${diagram}-structure`);
+  }
+  const nodes = [];
+  const reasons = {
+    geometry: `unsupported-mermaid-${diagram}-geometry`,
+    style: `unsupported-mermaid-${diagram}-style`,
+    transform: `unsupported-mermaid-${diagram}-transform`,
+  };
+  const walk = (element, role, sourcePath, depth) => {
+    if (IGNORED_TAGS.has(localName(element)) || !hasRenderedVisualDescendant(element)) return;
+    options.sourceElements.set(sourcePath, element);
+    const reason = depth > MAX_GROUP_DEPTH ? `unsupported-mermaid-${diagram}-depth`
+      : !role ? reasons.geometry
+      : hasMixedRenderedVisibility(element) ? `unsupported-mermaid-${diagram}-visibility`
+      : unsupportedVisualEffect(element, false) ? reasons.style : "";
+    if (reason) {
+      nodes.push(fallbackNode(element, nodes.length, deck, reason, sourcePath));
+      return;
+    }
+    if (localName(element) === "g") {
+      if (!hasUniformAxisAlignedScale(element)) {
+        nodes.push(fallbackNode(element, nodes.length, deck, reasons.transform, sourcePath));
+        return;
+      }
+      directChildren(element).forEach((child, index) =>
+        walk(child, chartElementRole(child, role, diagram), `${sourcePath}.parts[${index}]`, depth + 1));
+      return;
+    }
+    if (role === "text" && !element.textContent.trim() && !element.children.length) return;
+    const meta = { mermaid: { kind: `${diagram}-${role}` } };
+    const node = role === "text"
+      ? !safeChartLabel(element, options)
+        ? fallbackNode(element, nodes.length, deck, `unsupported-mermaid-${diagram}-label`, sourcePath)
+        : simpleDiagramText(element, sourcePath, nodes.length, deck, options, meta, reasons.style)
+      : localName(element) === "path"
+        ? chartLinePath(element, sourcePath, nodes.length, deck, options, meta, reasons)
+        : localName(element) === "line"
+          ? simpleDiagramLine(element, sourcePath, nodes.length, deck, options, meta, reasons)
+          : simpleDiagramShape(element, sourcePath, nodes.length, deck, options, meta, reasons);
+    if (node) nodes.push(node);
+  };
+  walk(roots[0], "main", `${diagram}.main`, 0);
+  nodes.push(...collectUnexpectedVisuals(svg, deck, nodes.length, diagram, new Set(roots), options,
+    { depthLimit: MAX_GROUP_DEPTH }));
+  return diagramScene(svg, size, options, nodes);
+}
+
 function sceneFromSvg(svg, options) {
   options.sourceElements?.set("svg", svg);
   const deck = options.deck || svg.closest(".deck") || svg.parentElement || svg;
@@ -6444,6 +6583,7 @@ function sceneFromSvg(svg, options) {
   if (route === "treeView") return treeViewScene(svg, deck, size, options);
   if (route === "kanban") return kanbanScene(svg, deck, size, options);
   if (route === "block") return blockScene(svg, deck, size, options);
+  if (route === "quadrantChart" || route === "xychart") return chartScene(svg, deck, size, options, route);
   if (route === "state") return stateScene(svg, root, deck, size, options);
   if (route !== "flowchart") {
     return {
