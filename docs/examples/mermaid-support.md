@@ -20,7 +20,7 @@ Bundled Mermaid 11.15.0 rendering with hybrid PowerPoint export.
 | Supported PowerPoint content | Keeps safe shapes, text, and connectors as editable objects |
 | Unsupported or unsafe content | Preserves the smallest safe image fallback, or the whole diagram when separation is unsafe |
 
-The detailed compatibility guide defines the exact boundaries.
+The compatibility guide summarizes editable coverage and fallback behavior.
 
 ---
 

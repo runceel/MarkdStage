@@ -28,259 +28,73 @@ If Mermaid syntax is invalid, the slide shows an error while preserving the rest
 
 ### Editable Mermaid in PowerPoint
 
-PowerPoint export is hybrid. Supported shapes, text, and connectors stay editable; unsupported
-diagram types or unsupported or unsafe elements and effects are not dropped. MarkdStage preserves
-the smallest safe local portion as an image, or the whole diagram when that portion cannot be
-separated safely.
+PowerPoint export is hybrid. Supported shapes, text, and connectors stay editable.
+
+Unsupported or unsafe content is preserved as the smallest safe image
+fallback.
+
+The whole diagram becomes an image only when native and fallback content
+cannot be separated safely.
 
 | Diagram | Approximate editable coverage |
 | --- | --- |
-| Flowchart | Common nodes, subgraphs, connectors, labels, and supported styling |
-| Sequence | Basic participants and actors, lifelines, messages, notes, activations, and `loop`/`alt`/`opt`/`par` frames |
+| Flowchart | Common nodes, subgraphs, connectors, labels, and safely representable styles |
+| Sequence | Basic participants and actors, lifelines, messages, notes, activations, and common control frames |
 | Class | Class compartments, common relations and markers, multiplicities, notes, and namespaces |
-| State | Basic states, start/end pseudo-states, labels, and simple transitions |
-| ER | Entities and attributes, solid/dashed relations, labels, and crow's-foot cardinalities |
-| Requirement | Requirement/element blocks, supported relations, labels, and markers |
-| Packet / tree view | Packet fields and bit labels; `treeView-beta` hierarchy lines and labels |
-| Other Mermaid diagrams | Render normally in slides; use image fallback where editable conversion is unavailable |
+| State | Basic `stateDiagram-v2` states, start/end pseudo-states, labels, and simple transitions |
+| ER | Exact `erDiagram` syntax; entities, attributes, relations, labels, and crow's-foot cardinalities |
+| Requirement | `requirementDiagram` blocks, supported relations, labels, and markers |
+| Packet / tree view | `packet` fields and bit labels; exact `treeView-beta` hierarchy lines and labels |
+| Other Mermaid diagrams | Render normally in slides and use image fallback where editable conversion is unavailable |
 
-See the presentation-ready [Mermaid support example deck](../examples/mermaid-support.md), then use
-the detailed sections below for exact compatibility boundaries.
+Coverage is intentionally approximate: editability depends on the structures
+and effects in the rendered diagram, not only its Mermaid type.
 
-Flowcharts preserve `style`, `classDef`, and `class` colors and text styles. Supported nodes,
-subgraphs, connectors, and labels export as editable objects; edge-label backgrounds keep lines
-from crossing the text. Stadium, cylinder, and double-circle nodes use multiple editable shapes
-when their paint can be reproduced safely. Mermaid 11.15.0 subroutine/framed-rectangle nodes
-(`[[...]]`, `subproc`, `subprocess`, `fr-rect`, and `subroutine`) export as an editable outer
-rectangle, two inner vertical strokes, and text. Base-bottom trapezoids (`trap-b`, `trapezoid`),
-base-top/inverted trapezoids (`trap-t`, `inv-trapezoid`), and reverse parallelograms (`lean-l`)
-use exact height-based editable geometry; their legacy bracket forms are supported too.
+The exporter follows the rendered SVG rather than rebuilding layout from
+source, and does not claim that every valid syntax variant is editable.
 
-Editable Mermaid paint preserves alpha embedded in supported CSS colors (`rgba()` and
-`#RRGGBBAA`), element `opacity` when it belongs to one safely representable primitive,
-`fill-opacity`, and `stroke-opacity` as independent values. PowerPoint receives
-`fill alpha = color alpha × element opacity × fill opacity` and
-`stroke alpha = color alpha × element opacity × stroke opacity`; fill transparency never
-overwrites the stroke value, or vice versa. This applies to supported flowchart nodes and edges,
-class frames, compartments, dividers, notes, namespaces and markers, and sequence actors, frames,
-backgrounds, messages, number backgrounds, and other native child paint.
+See the presentation-ready
+[Mermaid support example deck](../examples/mermaid-support.md) for representative
+syntax and current coverage.
 
-Effect-free text also stays editable when its rendered SVG transform is a translation plus a
-positive uniform scale and 2D rotation. The exporter uses the rendered CTM and local text bounds,
-so nested transforms and explicit rotation pivots retain the same center; equivalent angles are
-normalized deterministically to `[-180, 180)` before PowerPoint receives them. This covers
-supported flowchart, class, and sequence labels and the same axis, tick, or title text shape used
-by Mermaid charts. Skew, reflection, nonuniform distortion, per-glyph transforms, and text on a
-path remain local pictures of the affected label.
+#### Common export rules
 
-Basic sequence diagrams export participant boxes, their mirrored lower boxes when Mermaid emits
-them, lifelines, messages, notes, and activations. Stick-figure actors export as editable head
-circles, body lines, and labels at both the top and mirrored bottom. Simple Japanese and multiline
-participant or actor labels remain editable.
-Self messages (`A->>A`, `A-->>A`) export as editable sampled connectors when the message is a
-single unfilled open path. Asynchronous messages (`A-)B`, `B--)A`, including self messages)
-use the bundled renderer's filled, notched **stealth** head, not an open arrow. Solid/dashed
-strokes and supported start/end heads (including bidirectional self messages) are preserved;
-simple Japanese and multiline message labels remain editable. Multiple subpaths, closed or
-filled message paths, unknown heads, effects, and unsupported sequence decorations
-remain local pictures with their labels retained rather than rasterizing the supported diagram.
+- Geometry and placement come from the rendered SVG, including connector routes,
+  text bounds, and marker direction.
 
-Effect-free `rect` regions export as editable background rectangles. `autonumber` exports both its
-editable number text and the bundled circular number background. `loop`, `alt`, `opt`, and `par`
-export editable frame outlines, section dividers, condition/section labels, and Mermaid 11.15.0's
-known five-sided frame tab; these frames can be nested. A `box` title is editable text. The bundled
-box's default drop-shadow background remains one tightly bounded picture, while its title,
-participants, lifelines, frames, and messages remain independent native objects.
+- Theme colors, supported styles and alpha, and simple Japanese or multiline text
+  are preserved when they can be represented safely as native PowerPoint
+  objects.
 
-Class diagrams export class compartments, unmarked associations, composition (`A *-- B`),
-directed associations (`A --> B`), dependencies (`A ..> B`), and multiplicities
-(`A "1" -- "many" B`). Composition uses a filled diamond; directed associations and dependencies
-use the bundled renderer's filled, notched arrowhead. Markers at either end and dashed dependency
-lines are preserved. Simple relationship and multiplicity labels remain editable, including
-Japanese and multiline text. Plain class notes, including attached `note for Class "..."` and
-standalone `note "..."` forms, export as editable rectangles and localized text. Ordinary nested
-`namespace` containers export as editable frames and titles up to the shared scene depth limit.
-Relations, labels, multiplicities, markers, notes, and class nodes remain independent and are
-retained exactly once even when they cross namespace boundaries.
+- Effect-free text and shapes can retain simple 2D rotation in addition to
+  translation and uniform scaling.
 
-Entity-relationship diagrams use the exact `erDiagram` spelling. Bundled Mermaid 11.15.0 also
-accepts a line beginning with `erDiagram-beta`, but it is not an equivalent beta alias: the
-renderer treats the `-beta` suffix as an additional visible entity. MarkdStage preserves that
-actual output rather than hiding it. `ERDIAGRAM`, `erdiagram`, `er`, and alternate casing are not
-accepted, so use `erDiagram` for an ordinary ER diagram.
+- Semantic markers such as arrowheads, diamonds, inheritance triangles, crosses,
+  start/end states, and crow's-foot terminals are retained when their rendered
+  form is supported.
 
-Classic ER entities export as editable boxes and entity-name labels. Attributed entities preserve
-the renderer's outer box, alternating attribute-row backgrounds, row and column separators, and
-the visible attribute type, name, key, and comment text. `PK`, `FK`, `UK`, and renderer-accepted
-combined keys such as `PK,FK` remain editable. Quoted entity aliases, attribute comments, and
-relationship labels can contain `<br/>`; Japanese and multiline text use the rendered bounds and
-line heights. Empty key or comment cells remain empty instead of gaining synthetic text.
+- Complex transforms, effects, HTML, embedded icons or images, and unknown
+  geometry use a local image fallback when native conversion would change their
+  appearance.
 
-Identifying `--` relations and non-identifying `..` relations use Mermaid's rendered solid or
-dashed route. The supported cardinalities are exactly one (`||`), zero or one (`o|`), one or more
-(`|{`), and zero or more (`o{`) at either end. MarkdStage validates all eight bundled start/end
-marker definitions, including their viewport size, reference point, `strokeWidth` units, automatic
-orientation, clipping boundary, paint, cap, and join. Bars and crow's-foot curves become bounded
-editable line components; zero markers keep the renderer's actual editable ellipse fill and
-stroke (white fill in the bundled default theme). Relationship labels stay independent. Entity
-positions, row heights, text boxes, relation routes, terminal direction, and label positions come
-from the rendered SVG; MarkdStage never parses the ER source again to calculate a replacement
-layout.
+- A local fallback does not consume supported sibling nodes, connectors, labels,
+  or control frames. Those siblings remain editable whenever ownership can be
+  separated safely.
 
-Requirement diagrams from bundled Mermaid 11.15.0 accept `requirementDiagram` and the all-lowercase
-`requirementdiagram`; `RequirementDiagram`, `REQUIREMENTDIAGRAM`, `requirementDiagram-beta`,
-hyphenated forms, and other invented aliases are not accepted. `direction LR`, `RL`, `TB`, and
-`BT` are accepted. MarkdStage follows the resulting SVG order and positions rather than rebuilding
-the requirement graph.
+#### Fallback behavior
 
-Classic requirement and element nodes export their rendered outer box, title compartment, divider,
-and every visible label as editable objects. A requirement can display its block name plus `id`,
-`text`, `risk`, and `verifyMethod`/`verifymethod`; these field keywords are case-insensitive.
-Risk values are the unquoted, case-insensitive `low`, `medium`, or `high`. Verification values are
-the unquoted, case-insensitive `analysis`, `inspection`, `test`, or `demonstration`.
-`verificationMethod` is not an accepted synonym in this bundled parser. Elements support
-case-insensitive `type` and `docRef`/`docref`; `documentRef` and `documentReference` are not
-accepted synonyms. Empty blocks remain editable title/name-only boxes without a synthetic divider,
-while empty field values are rejected by Mermaid.
+- Export never silently drops visible Mermaid content.
 
-Plain or quoted field text, Japanese text, and `<br/>` are preserved from the rendered labels.
-`<br/>` creates an actual second rendered line. A source `\n` escape remains the visible two
-characters `\` and `n`; MarkdStage does not reinterpret it as a line break. The visible labels
-include Mermaid's `<<Requirement>>`/`<<Element>>` titles, the bold block identifier, and the
-renderer-generated `ID:`, `Text:`, `Risk:`, `Verification:`, `Type:`, and `Doc Ref:` prefixes.
-Requirement boxes, dividers, relations, terminals, and labels that the renderer fully suppresses
-with `display: none`, `visibility: hidden`/`collapse`, or zero effective opacity are omitted from
-native PowerPoint content without hiding visible siblings. Fully transparent text paint is also
-kept nonvisible rather than receiving PowerPoint's default black; transparent runs inside mixed
-text retain their layout space with no text fill. If the transparent text's label still has a
-visible background, border, icon, or other decoration, that label remains one local picture
-instead of dropping the decoration. A non-`none` CSS `text-transform` keeps only the affected node
-or relation label as local artwork, with the computed transform captured into the shared SVG so
-uppercase/lowercase rendering remains exact.
+- The smallest safe node, label, connector, marker, decoration, or control frame
+  is preferred for image fallback.
 
-The supported relation words are `contains`, `copies`, `derives`, `satisfies`, `verifies`,
-`refines`, and `traces`; relation keywords are case-insensitive and Mermaid normalizes their
-independent labels to lowercase `<<...>>`. Use `source - relation -> target`. Reversing the
-written form as `target <- relation - source` is also accepted and produces the same directed
-relation. Mixed-head forms such as `<- relation ->` and bidirectional arrows are not accepted.
-`contains` uses the rendered solid relation and its start terminal: a
-20 by 20, `strokeWidth`-scaled circle-plus marker with `refX=0`, `refY=10`, and `orient=auto`.
-The other six relations use rendered dashed routes and the end terminal: a two-stroke open marker
-with the same viewport size, `refX=20`, `refY=10`, and automatic orientation. Neither bundled
-marker declares a `viewBox`. MarkdStage validates the exact marker geometry, units, reference
-point, clipping, tangent, paint, cap, join, and alpha. Opaque terminals and the contains marker's
-independently painted source primitives become editable native objects. A translucent
-multi-segment route or two-stroke open arrow remains relation-local artwork because splitting one
-SVG path into separate PowerPoint lines would darken its bends or tip. Relation labels remain
-independent of relation artwork.
+- The whole diagram is rasterized only when shared effects, transforms,
+  compositing, or ownership make local separation unsafe.
 
-Basic state diagrams from bundled Mermaid 11.15.0 accept `stateDiagram-v2` and the legacy
-`stateDiagram` spelling. `stateDiagram-beta`, `stateDiagram-v2-beta`, lowercase variants, and
-other invented aliases are not accepted. Simple rounded state boxes and their labels export as
-editable shapes and text, including Japanese and `<br/>` multiline labels. `classDef`/`class`
-fill, stroke, width, color, fill alpha, and stroke alpha are read from the rendered SVG.
+- Mermaid types outside the editable set still render in the slide and typically
+  export as a diagram image.
 
-Simple `-->` transitions export as editable sampled connectors at Mermaid's rendered routes.
-Transition labels, reverse source-to-target routes, `direction LR`, renderer-emitted dash, color,
-and alpha are preserved. Mermaid's actual `stateDiagram-barbEnd` marker is validated as the
-known filled notched **stealth** end marker, including its end placement, paint, fixed
-`userSpaceOnUse` geometry, and direction. The state grammar does not accept flowchart-style
-`-.->`, `<--`, or `--` transition syntax; `A <--> B` is parsed as an extra state named `<`, not a
-bidirectional transition. Use two `-->` transitions for two directions.
-
-The start pseudo-state is an editable 14 by 14 circle. The end pseudo-state preserves Mermaid's
-rendered bullseye as four editable ellipse paint layers: outer fill, outer stroke, inner fill, and
-inner stroke. Their bounds, paint order, stroke widths, and independent alpha come from the SVG.
-MarkdStage does not parse the state source again or calculate replacement state positions or
-routes.
-
-Packet diagrams from bundled Mermaid 11.15.0 accept both `packet` and `packet-beta`. Each rendered
-field rectangle, field label, start/end bit label, and nonempty packet title exports as an
-independent editable object at the renderer-computed position and size. Field widths, source order,
-32-bit row wrapping, split ranges, repeated labels on wrapped fields, and visible text are taken
-from the SVG; MarkdStage does not parse the packet source again or calculate a replacement layout.
-Japanese labels are supported. Mermaid accepts escaped newlines in quoted packet labels but emits
-one SVG text line, so the editable text preserves the same visible whitespace instead of inventing
-a multiline layout.
-
-The bundled tree view grammar accepts only the exact `treeView-beta` spelling. It does not accept
-`treeView`, `treeview-beta`, or alternate casing in Mermaid 11.15.0. Every rendered hierarchy
-branch and label, including Mermaid's visible `/` root, exports as an editable native line or text
-object at its rendered CTM. Hierarchy, indentation, sibling order, leaves, Japanese text, and
-renderer-accepted quoted newlines are preserved without rebuilding the tree from source. The
-bundled renderer emits no node boxes for this diagram, so there are no synthetic boxes in the
-editable export; quoted newlines remain the single SVG text line that Mermaid displays.
-
-Hollow inheritance/realization triangles (`<|--`, `<|..`) and aggregation diamonds (`o--`) use
-editable, unfilled outline strokes, never filled arrow substitutes. Flowchart cross terminals
-(`--x`, `x--x`) and sequence cross terminals (`-x`, `--x`, including self messages) use an editable
-main connector plus two short strokes per cross. The bundled regular and `-margin` marker variants
-retain their start/end placement, endpoint tangent, reference point, units and uniform viewport
-scaling; reverse and bidirectional markers keep their original ends. Marker outlines retain their
-own solid stroke and color independently of the main line's dash and paint.
-
-The hollow interiors are transparent, so a light background can make them look white; they are
-not painted white. Supported hollow marker outlines preserve their own color, element opacity,
-and stroke opacity. A translucent cross remains a local picture because its two overlapping
-strokes cannot be decomposed without changing alpha compositing. Opaque/white marker fills,
-nonuniform marker scaling, viewports clipping the marker geometry, marker effects/transforms and
-unknown marker geometry remain local pictures of the affected connector, including its markers.
-A hollow/cross start combined with a filled preset end also stays local when the separate
-primitives cannot retain SVG marker paint order. Unsupported paint, decorated
-labels, actor variants or embedded icons/images, unknown sequence controls or tab geometry,
-decorated autonumber markers, complex clipping/transforms, effects, and unknown geometry remain
-fallback pictures of the smallest safe affected element or control frame. Supported sibling
-messages and labels stay native when source ownership permits. Subroutine paint that cannot be
-split without changing overlap semantics, non-bundled trapezoid/parallelogram outlines, decorated
-or special-geometry class notes, namespace decoration with unknown children, namespace effects or
-unsupported transforms, and namespace hierarchies beyond the scene depth limit likewise fall back
-at the smallest safe note, decoration, label, or container. Supported class relations outside that
-local fallback are not consumed or dropped.
-For ER diagrams, a malformed attributed entity stays one entity-local picture, while separable
-unsupported row paint, clipping, geometry, transform, or label decoration falls back only for that
-row, divider, or text label. Unknown relation paths, terminal geometry, marker paint/effects,
-unsafe transforms, or element opacity keep only that relation (including both terminals) as local
-artwork; its independent relationship label remains editable. Translucent crow's-foot strokes also
-stay relation-local because splitting the curved stroke into editable segments would change alpha
-compositing at their joins. Unsupported entity looks/decorations, complex HTML/icons/images,
-gradients, masks, effects, and non-bundled geometry use the smallest separable local fallback.
-For requirement diagrams, malformed node structure or composite node opacity stays node-local.
-Unsupported box geometry, a decorated field label, a divider path, or an unknown node decoration
-falls back only for that box, label, divider, or decoration. The renderer's divider is one SVG
-path containing two coincident rough strokes; translucent divider paint remains divider-local
-artwork because splitting it would change alpha compositing. Unsupported relation paths, marker
-geometry/units/paint/effects, transforms, or relation/marker compositing keep only the affected
-relation and its terminal as artwork. Its independent `<<relation>>` label and unaffected sibling
-relations remain editable. Common opacity over both a relation label's background and text keeps
-that label local instead of independently multiplying two native objects. Filter fallbacks use
-effect-aware capture padding so blur and drop-shadow output is not cropped. Malformed roots and
-shared scene/element/depth/text limits retain the existing diagram-level safety fallback.
-An unsupported transform on one node, connector, label, marker, control frame, or unknown visual
-no longer forces supported siblings into whole-diagram artwork. A transformed composite remains
-one local picture when splitting it would change descendant overlap, marker paint, or label
-ownership; transformed roots and other whole-diagram effects can still require one diagram-level
-fallback.
-Opacity on an SVG group with multiple overlapping visual descendants keeps the existing
-conservative local fallback because group compositing is not equivalent to multiplying each
-descendant independently. Translucent stadium, cylinder, and subroutine decompositions likewise
-stay local where their overlapping editable pieces would darken differently. Translucent class
-outline paths can remain editable as stacked native rectangles because their original paint order
-is preserved.
-For state diagrams, compound/nested state frames and parallel-region containers remain tightly
-bounded local pictures; their separable simple child states, pseudo-states, transition routes, and
-labels stay native. Fork/join bars, choices, notes and note connectors, multi-description states
-that require a title divider or extra compartment, and other special state geometry also remain
-local. Unsupported state-node content, label decoration, effects, transforms, transition paths,
-marker geometry, or marker paint fall back only for the affected node or transition when source
-ownership is separable; an independent transition label remains native.
-For packet diagrams, unsupported field geometry, decorated text, effects, and transforms fall back
-only for the affected field or label when ownership is separable. A packet row with composite group
-paint remains one row-local picture. For tree views, an unsupported label or branch remains local
-while sibling labels and branches stay native; an effect on the shared tree group keeps that group
-as one picture. Malformed structures, excessive element/depth/text counts, and transforms or
-effects that cannot be separated safely use the smallest safe group or whole-diagram fallback.
-Other diagram types, including pie, mindmap, and gitGraph, can still use whole-diagram artwork.
-Check the export report for the reason and source path of each fallback.
+- The export report identifies fallback use with its reason and source path.
 
 ## Use Architecture DSL for stable placement
 
