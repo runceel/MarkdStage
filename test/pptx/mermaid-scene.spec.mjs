@@ -2960,6 +2960,225 @@ test("distinguishes transparent and visible edge-label shadows by rendered pixel
       node.meta?.mermaid?.kind === "edge-label")).toHaveLength(6);
     expect(visible.scene.nodes.some((node) =>
       node.sourcePath === "relations[1].line")).toBe(true);
+
+    await loadFixture();
+    await applyShadow(
+      "0 0 4px rgba(0, 0, 0, 0), " +
+      "0 0 4px color(display-p3 1 0 0)",
+    );
+    expect(await compareHiddenPixels()).toBeGreaterThan(0);
+    const wideGamut = await readScene(
+      "requirement-wide-gamut-shadow-pixels.svg",
+    );
+    expect(wideGamut.scene.nodes.filter((node) =>
+      node.kind === "fallback")).toMatchObject([{
+      sourcePath: "edgeLabels[root_req-copy_req-0]",
+      reason: "unsupported-mermaid-requirement-relation-label",
+    }]);
+    expect(wideGamut.scene.nodes.filter((node) =>
+      node.meta?.mermaid?.kind === "edge-label")).toHaveLength(6);
+  } finally {
+    await harness.close();
+  }
+});
+
+test("detects marker text, HTML, and polygon-only edge-label decoration", async ({ page }) => {
+  const harness = await startHarness({ slides: ["# Requirement marker content"] });
+  try {
+    await page.goto(harness.url);
+    const fixture = await readFixture("requirement-basic.svg");
+    const loadFixture = () => page.evaluate((source) => {
+      document.body.innerHTML = [
+        "<style>body{margin:0}#fixture-deck{position:relative;width:651.40625px;height:237.125px}</style>",
+        `<div id="fixture-deck">${source}</div>`,
+      ].join("");
+    }, fixture);
+    const installMarker = (configuration) => page.evaluate((config) => {
+      const group = document.querySelectorAll("g.edgeLabel")[1];
+      for (const part of [group, ...group.querySelectorAll("*")]) {
+        part.style.setProperty("color", "transparent", "important");
+        part.style.setProperty(
+          "background-color",
+          "transparent",
+          "important",
+        );
+        part.style.setProperty("border-color", "transparent", "important");
+        if (part.namespaceURI === "http://www.w3.org/2000/svg") {
+          part.style.setProperty("fill", "transparent", "important");
+          part.style.setProperty("stroke", "transparent", "important");
+        }
+      }
+      const svg = document.querySelector("#fixture-deck > svg");
+      const namespace = "http://www.w3.org/2000/svg";
+      const marker = document.createElementNS(namespace, "marker");
+      marker.id = `marker-${config.kind}-${config.state}`;
+      const markerSize = config.kind === "polygon" ? 30 : 20;
+      for (const [name, content] of Object.entries({
+        markerWidth: String(markerSize),
+        markerHeight: String(markerSize),
+        refX: String(markerSize / 2),
+        refY: String(markerSize / 2),
+        orient: "auto",
+        markerUnits: "userSpaceOnUse",
+      })) {
+        marker.setAttribute(name, content);
+      }
+      if (config.kind === "text") {
+        const text = document.createElementNS(namespace, "text");
+        text.setAttribute("x", "4");
+        text.setAttribute("y", "14");
+        text.setAttribute("fill", "transparent");
+        text.setAttribute("stroke", "transparent");
+        const span = document.createElementNS(namespace, "tspan");
+        span.setAttribute(
+          "fill",
+          config.state === "visible" ? "red" : "transparent",
+        );
+        span.setAttribute("stroke", "transparent");
+        span.textContent = "!";
+        text.append(span);
+        marker.append(text);
+      } else if (config.kind === "html") {
+        const foreignObject = document.createElementNS(
+          namespace,
+          "foreignObject",
+        );
+        foreignObject.setAttribute("width", "20");
+        foreignObject.setAttribute("height", "20");
+        if (config.state === "hidden") {
+          foreignObject.style.display = "none";
+        }
+        const div = document.createElementNS(
+          "http://www.w3.org/1999/xhtml",
+          "div",
+        );
+        div.style.color =
+          config.state === "visible" ? "red" : "transparent";
+        div.style.fontSize = "16px";
+        div.textContent = "!";
+        foreignObject.append(div);
+        marker.append(foreignObject);
+      } else {
+        const circle = document.createElementNS(namespace, "circle");
+        circle.setAttribute("cx", "15");
+        circle.setAttribute("cy", "15");
+        circle.setAttribute("r", "14");
+        circle.setAttribute("fill", "red");
+        marker.append(circle);
+      }
+      const definitions = document.createElementNS(namespace, "defs");
+      definitions.append(marker);
+      svg.append(definitions);
+      const source = document.createElementNS(
+        namespace,
+        config.kind === "polygon" ? "polygon" : "path",
+      );
+      source.dataset.markerSource = config.kind;
+      if (config.kind === "polygon") {
+        source.setAttribute("points", "0,0 120,0 120,20");
+        source.setAttribute("marker-end", `url(#${marker.id})`);
+      } else {
+        source.setAttribute("d", "M5 12 L39 12 L73 12");
+        source.setAttribute("marker-mid", `url(#${marker.id})`);
+      }
+      source.setAttribute("fill", "transparent");
+      source.setAttribute("stroke", "transparent");
+      group.querySelector(":scope > g.label").append(source);
+    }, configuration);
+    const readScene = (path) => page.evaluate(async (sourcePath) => {
+      const { mermaidSvgToScene } = await import(
+        "./renderer/mermaid-scene.mjs"
+      );
+      const result = mermaidSvgToScene(
+        document.querySelector("#fixture-deck > svg"),
+        {
+          deck: document.querySelector("#fixture-deck"),
+          path: sourcePath,
+          includeSourceElements: true,
+        },
+      );
+      return {
+        scene: result.scene,
+        diagnostics: result.diagnostics,
+      };
+    }, path);
+    const markerPixelDifference = async () => {
+      const group = page.locator("g.edgeLabel").nth(1);
+      const source = group.locator("[data-marker-source]");
+      const clip = await screenshotClipAround(group, 40);
+      await waitForPaint(page);
+      const visible = await page.screenshot({ clip });
+      await source.evaluate((element) => {
+        element.style.visibility = "hidden";
+      });
+      await waitForPaint(page);
+      const hidden = await page.screenshot({ clip });
+      await source.evaluate((element) => {
+        element.style.visibility = "visible";
+      });
+      return screenshotPixelDifference(page, visible, hidden);
+    };
+
+    for (const kind of ["text", "html"]) {
+      await loadFixture();
+      await installMarker({ kind, state: "visible" });
+      expect(await markerPixelDifference(), kind).toBeGreaterThan(0);
+      const result = await readScene(
+        `requirement-${kind}-marker-visible.svg`,
+      );
+      expect(result.scene.nodes.filter((node) =>
+        node.kind === "fallback"), kind).toMatchObject([{
+        sourcePath: "edgeLabels[root_req-copy_req-0]",
+        reason: "unsupported-mermaid-requirement-relation-label",
+      }]);
+      expect(result.scene.nodes.filter((node) =>
+        node.meta?.mermaid?.kind === "edge-label"), kind).toHaveLength(6);
+      expect(result.scene.nodes.some((node) =>
+        node.sourcePath === "relations[1].line"), kind).toBe(true);
+    }
+
+    for (const entry of [
+      { kind: "text", state: "transparent" },
+      { kind: "html", state: "hidden" },
+    ]) {
+      await loadFixture();
+      await installMarker(entry);
+      const result = await readScene(
+        `requirement-${entry.kind}-marker-${entry.state}.svg`,
+      );
+      expect(result.scene.nodes.filter((node) =>
+        node.kind === "fallback"), `${entry.kind}-${entry.state}`)
+        .toEqual([]);
+      expect(result.scene.nodes.some((node) =>
+        node.sourcePath === "edgeLabels[root_req-copy_req-0]"),
+      `${entry.kind}-${entry.state}`).toBe(false);
+    }
+
+    await loadFixture();
+    await installMarker({ kind: "polygon", state: "visible" });
+    const polygonBounds = await page.locator(
+      '[data-marker-source="polygon"]',
+    ).evaluate((polygon) => {
+      const deck = document.querySelector("#fixture-deck")
+        .getBoundingClientRect();
+      const bounds = polygon.getBoundingClientRect();
+      return {
+        right: bounds.right - deck.left,
+        bottom: bounds.bottom - deck.top,
+      };
+    });
+    expect(await markerPixelDifference()).toBeGreaterThan(0);
+    const polygon = await readScene("requirement-polygon-marker.svg");
+    const fallback = polygon.scene.nodes.find((node) =>
+      node.sourcePath === "edgeLabels[root_req-copy_req-0]");
+    expect(fallback).toMatchObject({
+      kind: "fallback",
+      reason: "unsupported-mermaid-requirement-relation-label",
+    });
+    expect(fallback.bounds.x + fallback.bounds.width)
+      .toBeGreaterThan(polygonBounds.right);
+    expect(fallback.bounds.y + fallback.bounds.height)
+      .toBeGreaterThan(polygonBounds.bottom);
   } finally {
     await harness.close();
   }
@@ -7645,6 +7864,212 @@ test("actual requirement marker-only label remains one captured local fallback",
       fallbackCount: 1,
       wholeFallback: null,
     });
+  } finally {
+    await harness.close();
+  }
+});
+
+test("actual requirement text, HTML, and polygon markers remain captured local fallbacks", async ({ page }) => {
+  const diagram = (await readFixture("requirement-basic.mmd")).replace(
+    '{"handDrawnSeed": 42}',
+    JSON.stringify({
+      handDrawnSeed: 42,
+      themeCSS:
+        ".edgeLabel:nth-child(2) *{" +
+        "color:transparent!important;" +
+        "background-color:transparent!important;" +
+        "border-color:transparent!important;" +
+        "fill:transparent!important;" +
+        "stroke:transparent!important}",
+    }),
+  );
+  await page.addInitScript(() => {
+    const patch = (svg) => {
+      if (svg.dataset.richMarkerPatched ||
+          svg.getAttribute("aria-roledescription") !== "requirement") return;
+      const title = svg.closest(".deck")?.querySelector("h1")?.textContent || "";
+      const kind = title.includes("HTML marker") ? "html"
+        : title.includes("Text marker") ? "text"
+          : title.includes("Polygon marker") ? "polygon" : "";
+      if (!kind) return;
+      const group = svg.querySelectorAll("g.edgeLabel")[1];
+      if (!group) return;
+      svg.dataset.richMarkerPatched = kind;
+      const namespace = "http://www.w3.org/2000/svg";
+      const marker = document.createElementNS(namespace, "marker");
+      marker.id = `${svg.id}-${kind}-marker`;
+      const markerSize = kind === "polygon" ? 30 : 20;
+      for (const [name, content] of Object.entries({
+        markerWidth: String(markerSize),
+        markerHeight: String(markerSize),
+        refX: String(markerSize / 2),
+        refY: String(markerSize / 2),
+        orient: "auto",
+        markerUnits: "userSpaceOnUse",
+      })) {
+        marker.setAttribute(name, content);
+      }
+      if (kind === "text") {
+        const text = document.createElementNS(namespace, "text");
+        text.setAttribute("x", "4");
+        text.setAttribute("y", "14");
+        text.setAttribute("fill", "transparent");
+        text.setAttribute("stroke", "transparent");
+        const span = document.createElementNS(namespace, "tspan");
+        span.setAttribute("fill", "red");
+        span.setAttribute("stroke", "transparent");
+        span.textContent = "!";
+        text.append(span);
+        marker.append(text);
+      } else if (kind === "html") {
+        const foreignObject = document.createElementNS(
+          namespace,
+          "foreignObject",
+        );
+        foreignObject.setAttribute("width", "20");
+        foreignObject.setAttribute("height", "20");
+        const div = document.createElementNS(
+          "http://www.w3.org/1999/xhtml",
+          "div",
+        );
+        div.style.color = "red";
+        div.style.fontSize = "16px";
+        div.textContent = "!";
+        foreignObject.append(div);
+        marker.append(foreignObject);
+      } else {
+        const circle = document.createElementNS(namespace, "circle");
+        circle.setAttribute("cx", "15");
+        circle.setAttribute("cy", "15");
+        circle.setAttribute("r", "14");
+        circle.setAttribute("fill", "red");
+        marker.append(circle);
+      }
+      const definitions = document.createElementNS(namespace, "defs");
+      definitions.append(marker);
+      svg.append(definitions);
+      const source = document.createElementNS(
+        namespace,
+        kind === "polygon" ? "polygon" : "path",
+      );
+      source.dataset.markerSource = kind;
+      if (kind === "polygon") {
+        source.setAttribute("points", "0,0 120,0 120,20");
+        source.setAttribute("marker-end", `url(#${marker.id})`);
+      } else {
+        source.setAttribute("d", "M5 12 L39 12 L73 12");
+        source.setAttribute("marker-mid", `url(#${marker.id})`);
+      }
+      source.setAttribute("fill", "transparent");
+      source.setAttribute("stroke", "transparent");
+      group.querySelector(":scope > g.label").append(source);
+    };
+    const observer = new MutationObserver(() => {
+      document.querySelectorAll(
+        "pre.mermaid svg:not([data-scene-backend])",
+      ).forEach(patch);
+    });
+    document.addEventListener("DOMContentLoaded", () => {
+      observer.observe(document.body, { childList: true, subtree: true });
+    });
+  });
+  const harness = await startHarness({
+    slides: [
+      `# Text marker requirement\n\n\`\`\`mermaid\n${diagram}\n\`\`\``,
+      `# HTML marker requirement\n\n\`\`\`mermaid\n${diagram}\n\`\`\``,
+      `# Polygon marker requirement\n\n\`\`\`mermaid\n${diagram}\n\`\`\``,
+    ],
+  });
+  try {
+    await page.goto(
+      `${harness.url}/?pptx=1&token=${encodeURIComponent(
+        harness.printToken,
+      )}`,
+    );
+    await page.waitForFunction(() =>
+      document.documentElement.hasAttribute("data-pptx-ready") ||
+      document.documentElement.hasAttribute("data-pptx-error"),
+    undefined, { timeout: 120_000 });
+    await expect(page.locator("html"))
+      .toHaveAttribute("data-pptx-ready", "true");
+    const models = await page.evaluate(() =>
+      window.__presentationPptxModel.slides);
+    for (const [index, kind] of ["text", "html", "polygon"].entries()) {
+      const model = models[index];
+      expect(model.fallbacks.filter((entry) =>
+        entry.type === "mermaid").map((entry) => ({
+        sourcePath: entry.sourcePath,
+        reason: entry.reason,
+        captureId: entry.captureId,
+      })), kind).toEqual([{
+        sourcePath: "edgeLabels[root_req-copy_req-0]",
+        reason: "unsupported-mermaid-requirement-relation-label",
+        captureId: expect.any(String),
+      }]);
+      expect(model.elements.filter((element) =>
+        element.mermaid?.kind === "requirement-relation"),
+      kind).toHaveLength(7);
+      expect(model.elements.filter((element) =>
+        element.mermaid?.kind === "edge-label"),
+      kind).toHaveLength(6);
+      const svg = page.locator("pre.mermaid > svg").nth(index);
+      const group = svg.locator(
+        'g.edgeLabel:has([data-id="root_req-copy_req-0"])',
+      );
+      const source = group.locator(`[data-marker-source="${kind}"]`);
+      await expect(group).toHaveAttribute(
+        "data-pptx-fallback-ids",
+        /pptx-fallback-/,
+      );
+      await expect(svg.locator(
+        'path.relationshipLine[data-id="root_req-copy_req-0"]',
+      )).toHaveAttribute("data-pptx-native", "connector");
+      if (kind === "polygon") {
+        const sourceBounds = await source.boundingBox();
+        const fallback = model.fallbacks.find((entry) =>
+          entry.sourcePath === "edgeLabels[root_req-copy_req-0]");
+        expect(fallback.width).toBeGreaterThan(sourceBounds.width);
+        expect(fallback.height).toBeGreaterThan(sourceBounds.height);
+      }
+      if (kind === "html") {
+        expect(await svg.locator(
+          'marker[id$="-html-marker"] foreignObject div',
+        ).evaluate((element) => ({
+          text: element.textContent,
+          color: getComputedStyle(element).color,
+        }))).toEqual({
+          text: "!",
+          color: "rgb(255, 0, 0)",
+        });
+      } else {
+        const deck = page.locator(
+          ".deck:not(.pptx-layout-template)",
+        ).nth(index);
+        await waitForPaint(page);
+        const visible = await deck.screenshot();
+        await source.evaluate((element) => {
+          element.style.visibility = "hidden";
+        });
+        await waitForPaint(page);
+        const hidden = await deck.screenshot();
+        expect(await screenshotPixelDifference(page, visible, hidden), kind)
+          .toBeGreaterThan(0);
+      }
+      expect(await svg.evaluate((element) => {
+        const paths = element.__presentationScene.nodes.map((node) =>
+          node.sourcePath);
+        return {
+          unique: new Set(paths).size === paths.length,
+          fallbackCount: paths.filter((path) =>
+            path === "edgeLabels[root_req-copy_req-0]").length,
+          wholeFallback: element.getAttribute("data-pptx-fallback-ids"),
+        };
+      }), kind).toEqual({
+        unique: true,
+        fallbackCount: 1,
+        wholeFallback: null,
+      });
+    }
   } finally {
     await harness.close();
   }

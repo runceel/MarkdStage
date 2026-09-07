@@ -853,7 +853,7 @@ function markerFallbackPadding(element, style) {
 
 function fallbackNode(element, z, deck, reason, sourcePath) {
   let bounds = boundsOf(element, deck);
-  if (["path", "line", "polyline"].includes(localName(element))) {
+  if (["path", "line", "polygon", "polyline"].includes(localName(element))) {
     const style = getComputedStyle(element);
     const marked = [style.markerStart, style.markerMid, style.markerEnd].some((value) => value && value !== "none");
     const padding = Math.max(1, Number.parseFloat(getComputedStyle(element).strokeWidth) || 0,
@@ -1822,15 +1822,82 @@ const EDGE_LABEL_SVG_DECORATIONS = new Set([
 function cssEffectIsProvablyTransparent(value) {
   const text = String(value || "").trim();
   if (!text || text === "none") return true;
-  const colors = text.match(
-    /rgba?\([^)]*\)|#[0-9a-f]{3,8}\b|\btransparent\b/gi,
-  ) || [];
-  if (!colors.length) return false;
-  return colors.every((color) => {
+  const layers = [];
+  let depth = 0;
+  let start = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    if (text[index] === "(") depth += 1;
+    else if (text[index] === ")") {
+      depth -= 1;
+      if (depth < 0) return false;
+    } else if (text[index] === "," && depth === 0) {
+      layers.push(text.slice(start, index).trim());
+      start = index + 1;
+    }
+  }
+  if (depth !== 0) return false;
+  layers.push(text.slice(start).trim());
+  return layers.length > 0 && layers.every((layer) => {
+    if (!layer ||
+        /\b(?:currentColor|var)\b|(?:color|lab|lch|oklab|oklch)\s*\(/i
+          .test(layer)) return false;
+    const colors = layer.match(
+      /rgba?\([^)]*\)|#[0-9a-f]{3,8}\b|\btransparent\b/gi,
+    ) || [];
+    if (colors.length !== 1) return false;
+    const remainder = layer
+      .replace(colors[0], " ")
+      .replace(/\binset\b/gi, " ")
+      .trim();
+    const lengths = remainder ? remainder.split(/\s+/) : [];
+    if (lengths.length < 2 || lengths.length > 4 ||
+        lengths.some((length) =>
+          !/^[-+]?(?:\d*\.?\d+)(?:e[-+]?\d+)?(?:px)?$/i.test(length))) {
+      return false;
+    }
+    const color = colors[0];
     const normalized = normalizeColor(color);
     if (!normalized) return true;
     const parts = cssColorParts(normalized);
     return Boolean(parts && parts.alpha <= 0.000001);
+  });
+}
+
+function htmlElementHasVisibleMarkerContent(element, options) {
+  const style = getComputedStyle(element);
+  const opacity = effectiveOpacity(element);
+  const color = normalizeColor(style.color, options.resolveColor);
+  if ([...element.childNodes].some((node) =>
+    node.nodeType === 3 && node.textContent) &&
+    color &&
+    (cssColorParts(color)?.alpha ?? 1) * opacity > 0.000001) {
+    return true;
+  }
+  const background = normalizeColor(
+    style.backgroundColor,
+    options.resolveColor,
+  );
+  if (background &&
+      (cssColorParts(background)?.alpha ?? 1) * opacity > 0.000001) {
+    return true;
+  }
+  if ((style.backgroundImage && style.backgroundImage !== "none") ||
+      !cssEffectIsProvablyTransparent(style.boxShadow) ||
+      !cssEffectIsProvablyTransparent(style.textShadow) ||
+      localName(element) === "img") {
+    return true;
+  }
+  return ["Top", "Right", "Bottom", "Left"].some((side) => {
+    const width = parseMetric(style[`border${side}Width`]);
+    const borderStyle = style[`border${side}Style`];
+    const border = normalizeColor(
+      style[`border${side}Color`],
+      options.resolveColor,
+    );
+    return width > 0 &&
+      !["none", "hidden"].includes(borderStyle) &&
+      border &&
+      (cssColorParts(border)?.alpha ?? 1) * opacity > 0.000001;
   });
 }
 
@@ -1844,16 +1911,31 @@ function markerReferenceHasVisibleDecoration(value, element, options) {
   if (!isRenderedElement(marker) &&
       !hasRenderedVisualDescendant(marker)) return false;
   if (unsupportedVisualEffect(marker)) return true;
-  const decorations = marker.querySelectorAll(
-    "circle, ellipse, image, line, path, polygon, polyline, rect, svg, use",
-  );
-  for (const decoration of decorations) {
+  for (const decoration of marker.querySelectorAll("*")) {
     if (!isRenderedElement(decoration)) continue;
     const tag = localName(decoration);
+    if (decoration.namespaceURI !== SVG_NS) {
+      if (htmlElementHasVisibleMarkerContent(decoration, options)) {
+        return true;
+      }
+      continue;
+    }
+    if (IGNORED_TAGS.has(tag) || tag === "g" || tag === "foreignObject") {
+      continue;
+    }
     if (["image", "svg", "use"].includes(tag)) return true;
-    if (sceneStyleHasVisiblePaint(computedSvgStyle(decoration, options))) {
+    if (tag === "text" || tag === "tspan") {
+      if (decoration.textContent &&
+          sceneStyleHasVisiblePaint(computedSvgStyle(decoration, options))) {
+        return true;
+      }
+      continue;
+    }
+    if (EDGE_LABEL_SVG_DECORATIONS.has(tag) &&
+        sceneStyleHasVisiblePaint(computedSvgStyle(decoration, options))) {
       return true;
     }
+    if (!EDGE_LABEL_SVG_DECORATIONS.has(tag)) return true;
   }
   return false;
 }
