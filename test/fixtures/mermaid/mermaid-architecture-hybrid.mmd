@@ -1,0 +1,9 @@
+architecture-beta
+    group cloud(cloud)[Cloud]
+    service api(server)[API] in cloud
+    service db(database)[Database] in cloud
+    service disk(disk)[Storage] in cloud
+    service internet(internet)[Internet]
+    internet:R --> L:api
+    api:R --> L:db
+    api:B --> T:disk

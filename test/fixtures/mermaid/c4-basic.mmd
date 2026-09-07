@@ -1,0 +1,9 @@
+C4Context
+    title サービス / Context
+    Person(user, "利用者", "Web<br/>Mobile")
+    Enterprise_Boundary(org, "組織") {
+        System(web, "注文システム", "注文<br/>Order")
+        System_Ext(partner, "配送", "Partner")
+    }
+    Rel(user, web, "注文する", "HTTPS")
+    BiRel(web, partner, "配送情報", "API")

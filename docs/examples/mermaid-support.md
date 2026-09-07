@@ -408,6 +408,54 @@ cause-label rectangles, and exact filled arrow triangles. Layout is measured, no
 
 ---
 
+## C4: editable structure, local Person artwork
+
+```mermaid
+C4Context
+    Person(user, "利用者", "Web user")
+    System(service, "注文サービス", "Order service")
+    System_Ext(partner, "配送", "Partner")
+    Rel(user, service, "注文", "HTTPS")
+    Rel(service, partner, "配送情報", "API")
+```
+
+Basic frames, labels, and known relation arrows are editable across the C4 family.
+Person PNGs and complex DB/Queue outlines remain local artwork, not discarded or approximated.
+
+---
+
+## Mermaid architecture: basic hybrid
+
+```mermaid
+architecture-beta
+    group platform[Platform]
+    service api[API] in platform
+    service db(database)[Database] in platform
+    api:R --> L:db
+```
+
+Frames, default top-rounded service boxes, labels, lines, and known arrow triangles are
+editable. Nested SVG icons stay local images. Mermaid 11.15.0 requires `architecture-beta`;
+this is separate from MarkdStage's Architecture DSL.
+
+---
+
+## Event Modeling: boxes and HTML labels
+
+```mermaid
+eventmodeling
+    tf 01 ui CartUI
+    tf 02 cmd AddItem
+    tf 03 evt ItemAdded
+    tf 04 rmo CartView ->> 03
+```
+
+Swimlanes, boxes, relations, and simple HTML labels use Mermaid's measured layout.
+Rich labels, unsupported effects, and unknown geometry retain local artwork with diagnostics.
+Use lowercase `eventmodeling`, without a beta suffix.
+
+---
+
 ## Hybrid PowerPoint export
 
 1. Convert supported primitives to native, editable PowerPoint objects.

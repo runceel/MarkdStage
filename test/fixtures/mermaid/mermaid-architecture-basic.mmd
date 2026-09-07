@@ -1,0 +1,7 @@
+architecture-beta
+    group platform[Platform]
+    service api[API] in platform
+    service worker[Worker] in platform
+    service client[Client]
+    client:R --> L:api
+    api:R <--> L:worker

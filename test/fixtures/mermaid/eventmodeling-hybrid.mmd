@@ -1,0 +1,13 @@
+eventmodeling
+    tf 01 ui CartUI { 画面: カート }
+    tf 02 cmd AddItem [[JaData]]
+    tf 03 evt ItemAdded
+    rf 04 evt External.InventoryChanged
+    tf 05 pcr StockProcessor
+    tf 06 cmd UpdateAvailability
+    tf 07 evt Shop.AvailabilityUpdated
+
+data JaData {
+  説明: 商品追加
+  数量: number
+}

@@ -1,0 +1,10 @@
+C4Container
+    Person(user, "利用者")
+    System_Boundary(system, "注文サービス") {
+        Container(api, "API", "HTTP", "注文<br/>Order")
+        ContainerDb(db, "データ", "SQL", "永続化")
+        ContainerQueue(queue, "通知", "Queue", "非同期")
+    }
+    Rel(user, api, "利用", "HTTPS")
+    Rel(api, db, "保存", "SQL")
+    Rel(api, queue, "通知")

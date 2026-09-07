@@ -43,6 +43,9 @@ PowerPoint 書き出しはハイブリッドです。対応する図形、文字
 | ER 図 | 正確な `erDiagram` 構文、entity、属性、relation、ラベル、crow's-foot cardinality |
 | requirement 図 | `requirementDiagram` の block、対応する relation、ラベル、marker |
 | packet／tree view | `packet` の field と bit label、正確な `treeView-beta` の階層線とラベル |
+| C4 | 基本的な Context／Container／Component／Dynamic／Deployment の矩形、境界枠、SVG ラベル、既知の矢印付き関係線 |
+| Mermaid architecture | `architecture-beta` のグループ枠、既定の上側角丸サービス箱、ラベル、関係線、既知の方向別三角矢印 |
+| Event Modeling | `eventmodeling` の swimlane、矩形の箱、関係線、単純な構造化 HTML ラベル |
 | その他の Mermaid 図 | スライドでは通常どおり描画し、編集可能変換の対象外は画像として保持 |
 
 対応範囲は目安です。編集できるかどうかは Mermaid の図の種類だけでなく、
@@ -50,6 +53,21 @@ PowerPoint 書き出しはハイブリッドです。対応する図形、文字
 
 書き出しではソースから配置を作り直さず、描画済み SVG を使います。
 有効な構文のすべてが編集可能になるわけではありません。
+
+C4 の Person PNG、DB／Queue の複雑な輪郭、architecture の入れ子 SVG アイコンは
+局所画像として保持し、分離できる文字・枠・関係線は編集可能にします。
+同梱 Mermaid 11.15.0 では **`architecture-beta`** の接尾辞が必須です。
+MarkdStage 独自の `architecture` フェンス（Architecture DSL）とは別形式です。
+Event Modeling は接尾辞なしの小文字 **`eventmodeling`** を使います。
+architecture のラベルや Event Modeling の識別子には Mermaid 自体の構文制約があり、
+日本語は C4 ラベルや Event Modeling のインラインデータなどで利用できます。
+
+単純な HTML ラベルは描画位置と対応する太字・斜体を保持します。
+複雑な HTML、クリッピング、装飾文字、画像、未知の形状・矢印、共有 opacity、
+未対応の変換・効果は最小の安全な要素／部分木の画像に残します。
+診断の理由・source path、元の描画順、ネイティブ要素の画像除外マスクを維持し、
+二重描画や欠落を防ぎます。既存の上限・guard は変更しません。
+配置やデータ計算の再実装、任意のアイコン・closed path の全面対応は対象外です。
 
 代表的な構文と現在の対応範囲は、
 プレゼンテーション向けの

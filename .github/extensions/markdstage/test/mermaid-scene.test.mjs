@@ -7,6 +7,9 @@ import {
   ganttAxisPoints,
   isKnownGanttMilestone,
   isKnownIshikawaArrow,
+  isKnownArchitectureCard,
+  architectureArrowRotation,
+  knownHybridMarker,
   knownNarrativeCard,
   classifyPolygonPreset,
   cssStyleToSceneStyle,
@@ -68,6 +71,14 @@ test("routes only bundled Mermaid SVG roles with their actual root signals", () 
   assert.equal(classifyMermaidDiagramRoute("gantt"), "gantt");
   assert.equal(classifyMermaidDiagramRoute("treemap"), "treemap");
   assert.equal(classifyMermaidDiagramRoute("ishikawa"), "ishikawa");
+  for (const name of ["c4", "architecture", "eventmodeling"]) {
+    assert.equal(classifyMermaidDiagramRoute(name), name);
+    assert.equal(classifyMermaidDiagramRoute(`${name}-beta`), null);
+    assert.equal(classifyMermaidDiagramRoute(name.toUpperCase()), null);
+  }
+  assert.equal(classifyMermaidDiagramRoute("C4Context"), null);
+  assert.equal(classifyMermaidDiagramRoute("C4Container"), null);
+  assert.equal(classifyMermaidDiagramRoute("eventModeling"), null);
   for (const name of ["mindmap", "timeline", "journey"]) {
     assert.equal(classifyMermaidDiagramRoute(name), name);
     assert.equal(classifyMermaidDiagramRoute(`${name}-beta`), null);
@@ -128,6 +139,59 @@ test("recognizes only the pinned Ishikawa filled start triangle", () => {
     "m10,0l0,5l10,10z", "M10,0L0,5L10,10L0,0Z", "M10,0Q0,5,10,10Z", "M10,,0L0,5L10,10Z"]) {
     assert.equal(isKnownIshikawaArrow(data), false, data);
   }
+});
+
+test("recognizes the measured architecture service card, not general closed paths", () => {
+  for (const size of [10, 80, 120.5]) {
+    assert.equal(isKnownArchitectureCard(
+      `M0,${size} V5 Q0,0 5,0 H${size - 5} Q${size},0 ${size},5 V${size} Z`), true);
+  }
+  for (const data of ["", "M0,80 V5 Q0,0 5,0 H75 Q80,0 80,5 V80",
+    "M0,80 V5 Q0,0 5,0 H75 Q80,0 80,5 V80 Z M0,0",
+    "M0,80 V5 Q0,0 5,0 H75 Q80,0 80,5 V90 Z",
+    "M0,80 V5 Q0,0 5,0 H75 Q90,0 80,5 V80 Z",
+    "M0,80 V5 Q0,0 6,0 H75 Q80,0 80,5 V80 Z",
+    "M0,9 V5 Q0,0 5,0 H4 Q9,0 9,5 V9 Z",
+    "m0,80 v5 q0,0 5,0 h75 q80,0 80,5 v80 z",
+    "M0,,80 V5 Q0,0 5,0 H75 Q80,0 80,5 V80 Z",
+    "M0,Infinity V5 Q0,0 5,0 H75 Q80,0 80,5 V80 Z"]) {
+    assert.equal(isKnownArchitectureCard(data), false, data);
+  }
+});
+
+test("architecture arrows use measured pinned polygon orientation, never names", () => {
+  for (const [points, rotation] of [
+    ["13.333333333333334,6.666666666666667 0,13.333333333333334 0,0", 90],
+    ["0,5 10,0 10,10", 270], ["0,0 10,0 5,10", 180], ["5,0 10,10 0,10", 0],
+  ]) assert.equal(architectureArrowRotation(points), rotation);
+  for (const points of ["", "0,0 0,0 0,0", "10,5 0,10 0,1", "20,5 0,10 0,0",
+    "10,5 0,10 0,0 10,5", "10,5 0,10 0,0Z", "10,,5 0,10 0,0",
+    "1e999,5 0,10 0,0", "NaN,5 0,10 0,0", "-10,-5 0,-10 0,0"]) {
+    assert.equal(architectureArrowRotation(points), null, points);
+  }
+});
+
+test("C4 and Event Modeling marker geometry is pinned independently of marker names", () => {
+  const forward = { width: 10, height: 10, refX: 9, refY: 5,
+    markerWidth: 12, markerHeight: 12, units: "userSpaceOnUse" };
+  assert.deepEqual(knownHybridMarker("c4", "end", "path", "M 0 0 L 10 5 L 0 10 z"), forward);
+  assert.deepEqual(knownHybridMarker("c4", "end", "path", "M0,0L10,5L0,10Z"), forward);
+  assert.deepEqual(knownHybridMarker("c4", "start", "path", "M10,0L0,5L10,10Z"),
+    { ...forward, refX: 1 });
+  assert.deepEqual(knownHybridMarker("eventmodeling", "end", "polygon", "0 0, 10 3.5, 0 7"),
+    { width: 10, height: 7, refX: 10, refY: 3.5, markerWidth: 10, markerHeight: 7, units: "strokeWidth" });
+  for (const [diagram, placement, tag, data] of [
+    ["c4", "start", "path", "M0,0L10,5L0,10Z"],
+    ["c4", "end", "path", "M0,0L11,5L0,10Z"],
+    ["c4", "end", "path", "M0,0L10,5L0,10"],
+    ["c4", "end", "path", "M0,0L10,5L0,10Z M0,0"],
+    ["c4", "end", "polygon", "0,0 10,5 0,10"],
+    ["c4", "middle", "path", "M0,0L10,5L0,10Z"],
+    ["eventmodeling", "start", "polygon", "0 0, 10 3.5, 0 7"],
+    ["eventmodeling", "end", "polygon", "0 0, 10 4, 0 7"],
+    ["eventmodeling", "end", "polygon", "0 0, 10 3.5, 0 7, 0 0"],
+    ["architecture", "end", "polygon", "0 0, 10 3.5, 0 7"],
+  ]) assert.equal(knownHybridMarker(diagram, placement, tag, data), null, `${diagram}: ${data}`);
 });
 
 test("recognizes only the bounded timeline and default mindmap card profiles", () => {

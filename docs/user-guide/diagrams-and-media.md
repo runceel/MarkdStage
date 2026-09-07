@@ -55,6 +55,9 @@ cannot be separated safely.
 | Mindmap | `mindmap` basic rectangular, rounded, circular, default underlined, and known hexagonal nodes; measured branches and simple HTML labels |
 | Timeline | `timeline` known square-bottom/top-rounded cards, underlines, titles, measured SVG text lines, and exact line-end triangles when effects are absent |
 | Journey | `journey` task/section rectangles, person/legend circles, face circles/eyes and neutral mouths, visible labels, and exact line-end triangles |
+| C4 | Basic `C4Context` / `C4Container` / `C4Component` / `C4Dynamic` / `C4Deployment` rectangles, boundaries, SVG labels, and relations with known arrowheads |
+| Mermaid architecture | `architecture-beta` group frames, default top-rounded service boxes, labels, relation paths, and known directional arrow triangles |
+| Event Modeling | `eventmodeling` swimlanes, rectangular boxes, relations, and simple structured HTML labels |
 | Other Mermaid diagrams | Render normally in slides and use image fallback where editable conversion is unavailable |
 
 Coverage is intentionally approximate: editability depends on the structures
@@ -193,6 +196,31 @@ retain diagnostic reasons, source paths, local bounds, paint order, and native
 exclusion masks. They do not add general closed curves, arbitrary icons, or
 new Architecture DSL shapes; the bounded card/hexagon presets are internal to
 the common scene and SVG/PowerPoint backends.
+
+C4, Mermaid architecture, and Event Modeling use the bundled renderer's layout,
+sizes, and paint order. C4 Person PNGs stay local images; DB/Queue outlines and
+other complex geometry remain local artwork while separable labels and relations
+stay editable. Architecture's nested SVG icons (including built-in cloud, server,
+database, disk, and internet artwork) each remain an image, not automatically
+vectorized icon primitives. Default service boxes and group frames remain editable.
+
+Use **`architecture-beta`**, not `architecture`: the bundled Mermaid 11.15.0
+parser requires the suffix despite its broader detector. This is Mermaid syntax,
+not MarkdStage's separate `architecture` fence/Architecture DSL. Use lowercase
+**`eventmodeling`** without a beta suffix. Only syntax accepted by the bundled
+renderer is covered; architecture labels and Event Modeling entity identifiers
+have grammar restrictions. C4 labels and Event Modeling inline data can contain
+Japanese text.
+
+Simple Event Modeling HTML labels retain their rendered positions and supported
+bold/italic runs. Rich or uncertain HTML, clipping, images, decorated text, and
+unsafe effects stay local label artwork. No data-block parser, event layout, or
+implicit relation logic is reimplemented by the exporter. Unknown geometry,
+changed markers, shared opacity, and unsafe transforms retain the smallest safe
+image with diagnostic reasons and source paths. Native exclusion masks and paint
+order keep separable content exactly once; existing limits and fallback guards
+remain in force. This subset does not add arbitrary paths, icons, or C4 DB/Queue
+shape support.
 
 See the presentation-ready
 [Mermaid support example deck](../examples/mermaid-support.md) for representative
