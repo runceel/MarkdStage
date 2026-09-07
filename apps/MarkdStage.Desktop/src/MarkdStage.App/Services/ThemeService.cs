@@ -176,7 +176,28 @@ internal sealed partial class ThemeService
             throw new DeckLoadException("Custom theme metadata version must be 1.");
         }
 
-        ValidateOnlyKeys(metadata, "$schema", "version", "cover", "backcover");
+        ValidateOnlyKeys(metadata, "$schema", "version", "background", "layouts", "cover", "backcover");
+        if (metadata.ContainsKey("background"))
+        {
+            ValidateImage(metadata["background"], themeDirectory, requireAlt: false);
+        }
+        if (metadata.ContainsKey("layouts"))
+        {
+            if (metadata["layouts"] is not JsonObject layouts)
+            {
+                throw new DeckLoadException("Custom theme layouts must be an object.");
+            }
+
+            ValidateOnlyKeys(layouts, "default", "center");
+            foreach (var layout in layouts)
+            {
+                if (layout.Value is not JsonObject)
+                {
+                    throw new DeckLoadException("Custom theme layouts must contain objects.");
+                }
+                ValidateSection(layout.Value, themeDirectory, "background");
+            }
+        }
         ValidateSection(metadata["cover"], themeDirectory, "background", "logo");
         ValidateSection(metadata["backcover"], themeDirectory, "logo", "copyright");
 
@@ -224,44 +245,64 @@ internal sealed partial class ThemeService
                 continue;
             }
 
-            if (pair.Value is not JsonObject image)
-            {
-                throw new DeckLoadException("Theme image entries must be objects.");
-            }
+            ValidateImage(pair.Value, themeDirectory, requireAlt: pair.Key == "logo");
+        }
+    }
 
-            ValidateOnlyKeys(image, "image", "alt");
-            if (image["image"] is not JsonValue imagePath ||
-                !imagePath.TryGetValue<string>(out var relative))
-            {
-                throw new DeckLoadException("Theme image path must be a string.");
-            }
+    private static void ValidateImage(JsonNode? node, string themeDirectory, bool requireAlt)
+    {
+        if (node is not JsonObject image)
+        {
+            throw new DeckLoadException("Theme image entries must be objects.");
+        }
 
-            if (!ThemeAssetRegex().IsMatch(relative))
-            {
-                throw new DeckLoadException($"Invalid custom theme asset path: {relative}");
-            }
+        ValidateOnlyKeys(image, "image", "alt");
+        if (image["image"] is not JsonValue imagePath ||
+            !imagePath.TryGetValue<string>(out var relative))
+        {
+            throw new DeckLoadException("Theme image path must be a string.");
+        }
 
+        _ = ResolveAsset(themeDirectory, relative);
+
+        if (requireAlt)
+        {
+            if (image["alt"] is not JsonValue altValue ||
+                !altValue.TryGetValue<string>(out var alt) ||
+                string.IsNullOrWhiteSpace(alt))
+            {
+                throw new DeckLoadException("Theme logos require non-empty alt text.");
+            }
+        }
+        else if (image.ContainsKey("alt") &&
+                 (image["alt"] is not JsonValue optionalAlt || !optionalAlt.TryGetValue<string>(out _)))
+        {
+            throw new DeckLoadException("Theme image alt text must be a string.");
+        }
+    }
+
+    internal static string ResolveAsset(string themeDirectory, string relative)
+    {
+        if (!ThemeAssetRegex().IsMatch(relative))
+        {
+            throw new DeckLoadException($"Invalid custom theme asset path: {relative}");
+        }
+
+        try
+        {
             var asset = PathSecurity.ResolveFileInside(themeDirectory, relative)
                 ?? throw new DeckLoadException($"Custom theme asset was not found: {relative}");
-            if (new FileInfo(asset).Length > ThemeAssetMaxBytes)
+            if (!SlideBackgrounds.IsSupportedImage(asset) || new FileInfo(asset).Length > ThemeAssetMaxBytes)
             {
-                throw new DeckLoadException($"Custom theme asset must be 2 MiB or smaller: {relative}");
+                throw new DeckLoadException(
+                    $"Custom theme asset must use a supported image format and be 2 MiB or smaller: {relative}");
             }
 
-            if (pair.Key == "logo")
-            {
-                if (image["alt"] is not JsonValue altValue ||
-                    !altValue.TryGetValue<string>(out var alt) ||
-                    string.IsNullOrWhiteSpace(alt))
-                {
-                    throw new DeckLoadException("Theme logos require non-empty alt text.");
-                }
-            }
-            else if (image["alt"] is JsonValue optionalAlt &&
-                     !optionalAlt.TryGetValue<string>(out _))
-            {
-                throw new DeckLoadException("Theme image alt text must be a string.");
-            }
+            return asset;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            throw new DeckLoadException($"Custom theme asset could not be read: {relative}", error);
         }
     }
 

@@ -50,11 +50,21 @@ Each slide can also have its own front matter. Slide values override deck values
 | `size` | `auto`, `normal`, `large`, or `xlarge` |
 | `theme` | `dark`, `light`, `microsoft`, or `custom` |
 | `theme-file` | Workspace-relative custom theme CSS |
+| `background-image` | Per-slide image such as `/assets/background.png`, overriding all themes/layouts; never inherited |
 | `logo` / `copyright` | Back-cover metadata |
 
 MarkdStage generates page information when it is omitted. Title, section, and back-cover slides do
 not show page numbers. The interface counter includes the back cover, while generated slide-footer
 totals exclude it.
+
+The `assets/background.png` alias without a leading slash is also accepted.
+Background images use Markdown-adjacent `assets/` before workspace-root
+`assets/` (workspace root only without a source name). Only `.svg`, `.png`,
+`.webp`, `.jpg`, and `.jpeg` files up to 2 MiB are accepted; remote and `data:`
+URLs are forbidden. Images are centered cover behind content, with the existing
+background beneath. Only an absent setting falls back; invalid or missing
+images cause an error. See [background precedence](themes-and-layouts.md#background-images)
+for common and layout-specific custom-theme defaults.
 
 ## Use layouts intentionally
 

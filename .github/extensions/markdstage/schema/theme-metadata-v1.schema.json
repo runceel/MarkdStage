@@ -12,6 +12,22 @@
     "version": {
       "const": 1
     },
+    "background": {
+      "description": "Common decorative background for default and center layouts only.",
+      "$ref": "#/$defs/decorativeImage"
+    },
+    "layouts": {
+      "type": "object",
+      "properties": {
+        "default": {
+          "$ref": "#/$defs/layoutBackground"
+        },
+        "center": {
+          "$ref": "#/$defs/layoutBackground"
+        }
+      },
+      "additionalProperties": false
+    },
     "cover": {
       "type": "object",
       "properties": {
@@ -39,6 +55,15 @@
   },
   "additionalProperties": false,
   "$defs": {
+    "layoutBackground": {
+      "type": "object",
+      "properties": {
+        "background": {
+          "$ref": "#/$defs/decorativeImage"
+        }
+      },
+      "additionalProperties": false
+    },
     "assetPath": {
       "type": "string",
       "maxLength": 200,

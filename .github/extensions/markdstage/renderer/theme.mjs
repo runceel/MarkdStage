@@ -170,6 +170,9 @@ function parseImage(value, path, { altRequired = false } = {}) {
       `${path}.image must be a safe path under the theme assets/ folder using svg, png, webp, jpg, or jpeg`,
     );
   }
+  if (image.alt !== undefined && typeof image.alt !== "string") {
+    throw new Error(`${path}.alt must be a string`);
+  }
   const alt = typeof image.alt === "string" ? image.alt.trim() : "";
   if (altRequired && !alt) throw new Error(`${path}.alt must be a non-empty string`);
   return { image: image.image, ...(alt ? { alt } : {}) };
@@ -178,12 +181,35 @@ function parseImage(value, path, { altRequired = false } = {}) {
 export function parseThemeMetadata(value) {
   const metadata = typeof value === "string" ? JSON.parse(value) : value;
   const root = assertPlainObject(metadata, "theme metadata");
-  assertOnlyKeys(root, new Set(["$schema", "version", "cover", "backcover"]), "theme metadata");
+  assertOnlyKeys(
+    root,
+    new Set(["$schema", "version", "background", "layouts", "cover", "backcover"]),
+    "theme metadata",
+  );
   if (root.version !== THEME_METADATA_VERSION) {
     throw new Error(`theme metadata version must be ${THEME_METADATA_VERSION}`);
   }
 
   const result = { version: THEME_METADATA_VERSION };
+  if (root.background !== undefined) {
+    result.background = parseImage(root.background, "background");
+  }
+  if (root.layouts !== undefined) {
+    const layouts = assertPlainObject(root.layouts, "layouts");
+    assertOnlyKeys(layouts, new Set(["default", "center"]), "layouts");
+    result.layouts = {};
+    for (const layout of ["default", "center"]) {
+      if (layouts[layout] === undefined) continue;
+      const entry = assertPlainObject(layouts[layout], `layouts.${layout}`);
+      assertOnlyKeys(entry, new Set(["background"]), `layouts.${layout}`);
+      if (entry.background !== undefined) {
+        result.layouts[layout] = {
+          background: parseImage(entry.background, `layouts.${layout}.background`),
+        };
+      }
+    }
+    if (Object.keys(result.layouts).length === 0) delete result.layouts;
+  }
   if (root.cover !== undefined) {
     const cover = assertPlainObject(root.cover, "cover");
     assertOnlyKeys(cover, new Set(["background", "logo"]), "cover");
@@ -217,6 +243,14 @@ export function parseThemeMetadata(value) {
   return result;
 }
 
+export function resolveThemeBackground(metadata, layout) {
+  const normalized = typeof layout === "string" ? layout.trim().toLowerCase() : "";
+  if (normalized === "title") return metadata?.cover?.background;
+  if (normalized === "section" || normalized === "backcover") return undefined;
+  const key = normalized === "center" ? "center" : "default";
+  return metadata?.layouts?.[key]?.background ?? metadata?.background;
+}
+
 export function themeMetadataAssetPaths(metadata) {
   const paths = [];
   const add = (entry) => {
@@ -225,14 +259,36 @@ export function themeMetadataAssetPaths(metadata) {
   add(metadata?.cover?.background);
   add(metadata?.cover?.logo);
   add(metadata?.backcover?.logo);
+  add(metadata?.background);
+  add(metadata?.layouts?.default?.background);
+  add(metadata?.layouts?.center?.background);
   return paths;
 }
 
 export function mapThemeMetadataAssets(metadata, mapAsset) {
-  const mapImage = (entry) =>
-    entry ? { ...entry, image: mapAsset(entry.image) } : undefined;
+  const mapped = new Map();
+  const mapImage = (entry) => {
+    if (!entry) return undefined;
+    if (!mapped.has(entry.image)) mapped.set(entry.image, mapAsset(entry.image));
+    return { ...entry, image: mapped.get(entry.image) };
+  };
   return {
     version: metadata.version,
+    ...(metadata.background ? { background: mapImage(metadata.background) } : {}),
+    ...(metadata.layouts
+      ? {
+          layouts: Object.fromEntries(
+            ["default", "center"]
+              .filter((layout) => metadata.layouts[layout])
+              .map((layout) => [
+                layout,
+                metadata.layouts[layout].background
+                  ? { background: mapImage(metadata.layouts[layout].background) }
+                  : {},
+              ]),
+          ),
+        }
+      : {}),
     ...(metadata.cover
       ? {
           cover: {

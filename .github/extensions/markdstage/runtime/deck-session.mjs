@@ -14,6 +14,7 @@ import { resolveWorkspaceRoot } from "../scripts/workspace-root.mjs";
 import { DEFAULT_THEME, normalizeTheme, resolveFrontMatterTheme } from "../renderer/theme.mjs";
 import { MarkdStageError } from "./errors.mjs";
 import { loadCustomTheme } from "./custom-theme.mjs";
+import { loadSlideBackgrounds } from "./slide-backgrounds.mjs";
 import { isPathInside } from "./output-paths.mjs";
 
 export function clampIndex(value, total) {
@@ -155,11 +156,12 @@ export async function createDeckSession({
     log,
   };
 
-  session.load = async ({ preserveIndex = false } = {}) => {
-    if (!session.file) {
+  const loadFile = async (file, sourceName, preserveIndex) => {
+    if (!file) {
       throw new MarkdStageError("no_deck", "Open a Markdown file first.");
     }
-    const { markdown, slides } = await readDeckSlides(session.file);
+    const { markdown, slides } = await readDeckSlides(file);
+    await loadSlideBackgrounds(session.workspaceRoot, sourceName, slides);
     const selection = resolveDeckTheme({
       slides,
       explicitTheme: session.requestedTheme,
@@ -169,11 +171,13 @@ export async function createDeckSession({
       selection.theme === "custom"
         ? await loadCustomTheme(
             session.workspaceRoot,
-            session.sourceName,
+            sourceName,
             selection.themeFile,
             { assetUrlPrefix: session.assetUrlPrefix },
           )
         : { file: "", css: "", dir: "", metadata: null, assets: [] };
+    session.file = file;
+    session.sourceName = sourceName;
     session.theme = selection.theme;
     session.themeLocked = selection.themeLocked;
     session.customThemeFile = custom.file;
@@ -190,21 +194,12 @@ export async function createDeckSession({
     return session.slides.length;
   };
 
+  session.load = async ({ preserveIndex = false } = {}) =>
+    loadFile(session.file, session.sourceName, preserveIndex);
+
   session.openFile = async (nextFile, { preserveIndex = false } = {}) => {
     const next = await resolveDeckFile(nextFile, session.workspaceRoot);
-    const previous = {
-      file: session.file,
-      sourceName: session.sourceName,
-    };
-    session.file = next.path;
-    session.sourceName = workspaceRelative(next.workspaceRoot, next.path);
-    try {
-      return await session.load({ preserveIndex });
-    } catch (error) {
-      session.file = previous.file;
-      session.sourceName = previous.sourceName;
-      throw error;
-    }
+    return loadFile(next.path, workspaceRelative(next.workspaceRoot, next.path), preserveIndex);
   };
 
   session.navigate = (target) => {

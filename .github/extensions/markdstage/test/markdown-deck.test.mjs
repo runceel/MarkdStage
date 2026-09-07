@@ -131,6 +131,53 @@ test("assigns page/total automatically and keeps handwritten values", () => {
   assert.equal(frontMatterOf(slides[2]).total, "3");
 });
 
+test("background images apply only to the slide declaring them, including leading file front matter", () => {
+  const source = [
+    "---",
+    "theme: light",
+    "layout: title",
+    'background-image: "/assets/cover image.PNG"',
+    "---",
+    "# Cover",
+    "",
+    "---",
+    "",
+    "## No background",
+    "",
+    "---",
+    "layout: center",
+    "background-image: assets/third.svg",
+    "---",
+    "## Explicit background",
+    "",
+    "---",
+    "",
+    "## No inherited override",
+  ].join("\r\n");
+  const slides = buildDeckSlides(source);
+  assert.equal(slides.length, 4);
+  assert.deepEqual(slides.map((slide) => frontMatterOf(slide)["background-image"]), [
+    '"/assets/cover image.PNG"',
+    undefined,
+    "assets/third.svg",
+    undefined,
+  ]);
+  assert.deepEqual(slides.map((slide) => frontMatterOf(slide).theme), [
+    "light", "light", "light", "light",
+  ]);
+  assert.equal(splitMarkdownDeck(source).deckMeta.get("background-image").value, '"/assets/cover image.PNG"');
+});
+
+test("keeps explicit empty and invalid backgrounds on their own slides for runtime validation", () => {
+  for (const value of ["", "https://example.com/image.png"]) {
+    const slides = buildDeckSlides(
+      `---\nbackground-image: ${value}\n---\n# First\n\n---\n\n## Second`,
+    );
+    assert.equal(frontMatterOf(slides[0])["background-image"], value);
+    assert.equal(frontMatterOf(slides[1])["background-image"], undefined);
+  }
+});
+
 test("excludes an explicit backcover from the page count", () => {
   const slides = buildDeckSlides(
     ["# Cover", "", "---", "", "## Main content", "", "---", "layout: backcover", "---"].join("\n"),

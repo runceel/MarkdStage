@@ -87,6 +87,15 @@ window built into the app, so a separate Edge, Chrome, or Chromium installation 
   nearest Git root.
 - For Markdown files outside Git, treat the file's directory as the workspace root.
 - Resolve `theme-file` from the Markdown directory first, then the Git root.
+- Custom theme metadata supports decorative `background` images at the root and under
+  `layouts.default.background` and `layouts.center.background`, using `{ "image": "assets/image.png" }`
+  with optional `alt` text.
+- Set `background-image: /assets/image.png` (or `assets/image.png`) on any slide to override its
+  background. This does not inherit from the first slide. Filenames may contain spaces, Unicode,
+  parentheses, dotfiles, and literal percent signs; do not URL-encode them in Markdown.
+- Background images must be local SVG, PNG, WebP, JPG, or JPEG files no larger than 2 MiB.
+  Invalid declarations fail before loading or reloading the deck, retaining the last valid state;
+  background requests also recheck confinement, format, and size.
 - Write speaker notes in top-level HTML comments on each slide. Comments inside code fences and
   `slide-size` directives are excluded from speaker notes.
 - Reject paths outside the workspace, junction or symlink escapes, and oversized files.

@@ -94,6 +94,7 @@ import {
   inspectLayout as runtimeInspectLayout,
 } from "./runtime/output.mjs";
 import { loadCustomTheme as runtimeLoadCustomTheme } from "./runtime/custom-theme.mjs";
+import { loadSlideBackgrounds, resolveSlideBackgroundFile } from "./runtime/slide-backgrounds.mjs";
 import { clampIndex, resolveDeckTheme } from "./runtime/deck-session.mjs";
 import {
   safeJoin,
@@ -678,6 +679,11 @@ async function applyDeckNow(
     }
     nextSourceName = relative(inst.workspaceRoot, candidate);
   }
+  try {
+    await loadSlideBackgrounds(inst.workspaceRoot, nextSourceName, slides);
+  } catch (error) {
+    throw toCanvasError(error);
+  }
   const selection = resolveDeckTheme({
     slides,
     explicitTheme: theme,
@@ -946,6 +952,13 @@ async function applyArchitectureEdit(inst, { index, block, source, deckVersion }
     }
     const next = replaceArchitectureBlock(inst.slides[index], block, source);
     if (next === null) return { status: 404, body: { ok: false, error: "block_not_found" } };
+    try {
+      const slides = inst.slides.slice();
+      slides[index] = next;
+      await loadSlideBackgrounds(inst.workspaceRoot, inst.sourceName, slides);
+    } catch (error) {
+      return { status: 400, body: { ok: false, error: error.code, message: error.message } };
+    }
 
     if (inst.sourceWriteback) {
       let canonicalRoot;
@@ -1083,6 +1096,7 @@ async function synchronizeImportedPresentations({ workspaceRoot, sourcePath, mar
           }
           return;
         }
+        await loadSlideBackgrounds(inst.workspaceRoot, inst.sourceName, slides);
         inst.sourceWritebackSnapshot = markdown;
         inst.slides = ensureBackCover(slides);
         inst.index = clampIndex(inst.index, inst.slides.length);
@@ -1892,6 +1906,21 @@ async function startServer(inst) {
       }
       return;
     }
+    if (pathname.startsWith("/background-assets/")) {
+      try {
+        const file = await resolveSlideBackgroundFile(
+          inst.workspaceRoot,
+          inst.sourceName,
+          `/assets/${pathname.slice("/background-assets/".length)}`,
+        );
+        await sendFile(res, file, { cache: false });
+      } catch (error) {
+        res.statusCode = error?.code === "slide_background_too_large" ? 413
+          : error?.code === "invalid_slide_background" ? 403 : 404;
+        res.end(error.message);
+      }
+      return;
+    }
     if (pathname.startsWith("/assets/")) {
       try {
         const abs = await resolveAssetFile(
@@ -1981,6 +2010,10 @@ async function ensureInstance(ctx) {
     // Rehydrate the last deck (e.g. after extensions_reload) if present.
     try {
       const saved = JSON.parse(await readFile(inst.dataFile, "utf8"));
+      await loadSlideBackgrounds(inst.workspaceRoot, saved.sourceName || "", [
+        ...(Array.isArray(saved.slides) ? saved.slides : []),
+        ...(typeof saved.markdown === "string" ? [saved.markdown] : []),
+      ]);
       if (typeof saved.markdown === "string") inst.markdown = saved.markdown;
       if (typeof saved.version === "number") inst.version = saved.version;
       if (typeof saved.deckVersion === "number") inst.deckVersion = saved.deckVersion;
@@ -2018,7 +2051,8 @@ async function ensureInstance(ctx) {
       if (isPresenterProfilePath(saved.presenterProfileDir)) {
         inst.presenterProfileDir = saved.presenterProfileDir;
       }
-    } catch (_) {
+    } catch (error) {
+      if (error instanceof MarkdStageError) throw toCanvasError(error);
       /* no saved state — start blank */
     }
     if (inst.presenterProfileDir) {
@@ -2284,6 +2318,11 @@ const session = await joinSession({
             }
             activateInstance(inst);
             await serializeArchitectureEdit(inst, async () => {
+              try {
+                await loadSlideBackgrounds(inst.workspaceRoot, inst.sourceName, [markdown]);
+              } catch (error) {
+                throw toCanvasError(error);
+              }
               inst.markdown = markdown;
               inst.mode = "adhoc";
               stopSourceWatcher(inst);

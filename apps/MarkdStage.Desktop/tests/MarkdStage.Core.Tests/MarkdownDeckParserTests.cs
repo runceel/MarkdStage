@@ -7,6 +7,19 @@ public sealed class MarkdownDeckParserTests
 {
     private readonly MarkdownDeckParser _parser = new();
 
+    [Theory]
+    [InlineData("/assets/cover image.png")]
+    [InlineData("")]
+    public void Parse_DoesNotInheritFirstSlideBackground(string background)
+    {
+        var document = _parser.Parse(
+            $"---\nlayout: title\nbackground-image: {background}\n---\n# Title\n\n---\n\n# Body");
+
+        Assert.Equal(background, MarkdownDeckParser.GetFragmentMetadata(document.Slides[0])["background-image"]);
+        Assert.All(document.Slides.Skip(1), slide =>
+            Assert.False(MarkdownDeckParser.GetFragmentMetadata(slide).ContainsKey("background-image")));
+    }
+
     [Fact]
     public void Parse_InheritsDeckMetadataAndAddsPageNumbersAndBackCover()
     {

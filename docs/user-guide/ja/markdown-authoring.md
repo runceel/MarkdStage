@@ -50,11 +50,20 @@ layout: title
 | `size` | `auto`、`normal`、`large`、`xlarge` |
 | `theme` | `dark`、`light`、`microsoft`、`custom` |
 | `theme-file` | ワークスペースからの相対パスで指定するカスタムテーマ CSS |
+| `background-image` | `/assets/background.png` などの個別背景。全テーマ・レイアウトで最優先、後続には継承しない |
 | `logo` / `copyright` | 裏表紙に載せる情報 |
 
 ページ情報を省くと MarkdStage が自動で補います。タイトル、セクション、裏表紙には
 ページ番号を出しません。画面のページカウンターは裏表紙も数えますが、
 自動生成されるスライドフッターの総ページ数には裏表紙を含めません。
+
+先頭のスラッシュを省いた `assets/background.png` 形式も使えます。
+背景画像は Markdown と同じ階層の `assets/`、ワークスペース直下の `assets/` の順に
+探します（ソース名がない場合は直下のみ）。拡張子は `.svg`、`.png`、`.webp`、
+`.jpg`、`.jpeg` のみ、最大 2 MiB です。リモート URL と `data:` URL は禁止です。
+画像は中央配置で全体を覆い、既存背景を下地にして本文の背面に表示されます。
+未指定のときだけフォールバックし、不正な値や不存在はエラーになります。
+共通背景・レイアウト別背景の優先順位は[テーマとレイアウト](themes-and-layouts.md)を参照してください。
 
 ## レイアウトを使い分ける
 

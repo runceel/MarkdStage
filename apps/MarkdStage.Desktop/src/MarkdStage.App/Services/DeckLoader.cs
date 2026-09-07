@@ -46,6 +46,7 @@ internal sealed class DeckLoader(
         }
 
         var workspaceRoot = FindWorkspaceRoot(fullPath);
+        SlideBackgrounds.Validate(document, fullPath, workspaceRoot);
         var theme = await themeService.LoadAsync(
             document,
             fullPath,

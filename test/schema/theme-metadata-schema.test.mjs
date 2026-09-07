@@ -42,3 +42,52 @@ test("theme metadata schema and parser reject unsafe assets and unknown fields",
     assert.throws(() => parseThemeMetadata(candidate));
   }
 });
+
+test("theme metadata schema and parser accept common and layout backgrounds", () => {
+  for (const candidate of [
+    { version: 1 },
+    { version: 1, layouts: {} },
+    { version: 1, layouts: { default: {}, center: {} } },
+    ...["svg", "png", "webp", "jpg", "jpeg"].map((extension) => ({
+      ...valid,
+      background: { image: `assets/brand/common.${extension}`, alt: "Common" },
+      layouts: {
+        default: { background: { image: "assets/default.png" } },
+        center: { background: { image: "assets/center.png", alt: "" } },
+      },
+    })),
+  ]) {
+    assert.equal(validate(candidate), true, JSON.stringify(validate.errors));
+    assert.doesNotThrow(() => parseThemeMetadata(candidate));
+  }
+});
+
+test("theme metadata schema and parser reject malformed new background fields", () => {
+  for (const background of [
+    null, [], "", {}, { image: null }, { image: "/assets/image.png" },
+    { image: "assets/../image.png" }, { image: "https://example.test/image.png" },
+    { image: "data:image/png;base64,AA==" }, { image: "assets/image.gif" },
+    { image: `assets/${"a".repeat(200)}.png` },
+    { image: "assets/image.png", alt: false },
+    { image: "assets/image.png", extra: "unsupported" },
+  ]) {
+    for (const fields of [
+      { background },
+      { layouts: { default: { background } } },
+      { layouts: { center: { background } } },
+    ]) {
+      const candidate = { version: 1, ...fields };
+      assert.equal(validate(candidate), false, JSON.stringify(candidate));
+      assert.throws(() => parseThemeMetadata(candidate));
+    }
+  }
+  for (const layouts of [
+    null, [], "default", { title: {} }, { section: {} }, { backcover: {} },
+    { default: null }, { center: [] }, { default: { color: "#fff" } },
+    { center: { image: "assets/center.png" } },
+  ]) {
+    const candidate = { version: 1, layouts };
+    assert.equal(validate(candidate), false, JSON.stringify(candidate));
+    assert.throws(() => parseThemeMetadata(candidate));
+  }
+});

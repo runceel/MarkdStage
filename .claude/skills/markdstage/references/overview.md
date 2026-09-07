@@ -56,8 +56,9 @@ The themed slide is displayed and updates automatically
   Theme-file lookup tries the source Markdown folder before the repository
   root, allowing a deck-local file to override a shared file with the same
   path. Files outside the workspace and arbitrary selectors are rejected.
-  A sibling `theme.json` may define cover background, cover/back-cover logos,
-  and copyright. **Every theme automatically receives a final
+  A sibling `theme.json` may define common and default/center backgrounds, cover
+  background, cover/back-cover logos, and copyright. Per-slide `background-image`
+  overrides all themes and layouts. **Every theme automatically receives a final
   `layout: backcover` slide** unless one already exists. Logo and copyright
   appear only when supplied by metadata or front matter.
 - See [`docs/custom-theme-authoring.md`](docs/custom-theme-authoring.md) for

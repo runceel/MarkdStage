@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/runceel/markdstage/schema/theme-v1.json",
   "title": "MarkdStage custom theme v1",
-  "description": "Machine-readable catalog for CSS custom properties supported by the MarkdStage canvas custom theme. Optional cover/backcover assets live in a sibling theme.json manifest.",
+  "description": "Machine-readable catalog for CSS custom properties supported by the MarkdStage canvas custom theme. Optional common and default/center background images and cover/backcover assets live in a sibling theme.json manifest; background-image front matter overrides images per slide without CSS url().",
   "type": "object",
   "required": [
     "version",
@@ -16,7 +16,7 @@
       "type": "object",
       "description": "CSS custom property declarations. The runtime accepts any name matching the pattern.",
       "properties": {
-        "--bg": { "type": "string", "description": "Standard slide background" },
+        "--bg": { "type": "string", "description": "Standard slide background beneath optional decorative images" },
         "--fg": { "type": "string", "description": "Headings and primary text" },
         "--muted": { "type": "string", "description": "Secondary text" },
         "--body": { "type": "string", "description": "Body text" },
@@ -80,5 +80,5 @@
   "additionalProperties": false,
   "x-theme-file-format": "CSS custom property declarations, optionally wrapped in one :root block.",
   "x-value-syntax": "Any non-empty CSS value except selectors, @import, url(), javascript:, expression(), and style tags.",
-  "x-theme-metadata": "When present, theme.json beside the CSS file must conform to theme-metadata-v1.schema.json."
+  "x-theme-metadata": "When present, theme.json beside the CSS file must conform to theme-metadata-v1.schema.json. Decorative { image, alt? } entries in background and layouts.default.background/layouts.center.background use theme-local assets/ paths. Layout images override the common background for default/center only; title retains cover.background. Per-slide background-image overrides every layout and theme. Images are centered cover over existing colors; missing settings, not invalid images, trigger fallback."
 }
