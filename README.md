@@ -246,6 +246,23 @@ and downloadable Markdown.
   </tr>
 </table>
 
+### Network architecture in editable Markdown
+
+The [Azure hub-spoke example](./site/examples/azure-hub-spoke.md) uses Architecture DSL v1 to
+combine a shared hub, four spoke VNets, nested subnets and VMs, and distinct connection types.
+Network positions are fixed, while VM rows are laid out automatically. A separate traffic view
+explains internet egress through Azure Firewall without mixing packet flow with VNet connectivity.
+
+[![Azure hub-spoke topology rendered from Architecture DSL, with four spokes and shared hub services](./assets/readme/azure-hub-spoke/slide-002.png)](./site/examples/azure-hub-spoke.md)
+
+This is an original conceptual diagram based on
+[Microsoft Learn's hub-spoke architecture](https://learn.microsoft.com/azure/architecture/networking/architecture/hub-spoke),
+using generic built-in icons rather than official Azure artwork. No renderer changes or external
+image assets are needed to render the deck. GitHub shows `architecture` fences as code, so the
+preview links to the editable Markdown source.
+See the [worked example](./docs/user-guide/diagrams-and-media.md#example-azure-hub-spoke-network)
+for the layout techniques and simplifications.
+
 ### Choose the diagram format
 
 Use **Mermaid** for automatic, relationship-driven layout; its colors can follow the deck theme.

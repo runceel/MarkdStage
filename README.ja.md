@@ -257,6 +257,22 @@ Windows x64 / ARM64 向けのポータブルビルドと SHA-256 チェックサ
   </tr>
 </table>
 
+### ネットワーク構成図も編集可能な Markdown で
+
+[Azure ハブスポークのサンプル](./site/examples/azure-hub-spoke.md)では、Architecture DSL v1 で
+共有ハブ、4 つのスポーク VNet、入れ子のサブネットと VM、種類の異なる接続を表現しています。
+ネットワークの位置は固定し、VM は自動で横並びに配置します。Azure Firewall 経由の
+インターネット送信は別の経路図に分け、VNet の接続関係と通信の流れを区別しています。
+
+[![Architecture DSL で描画した、4 つのスポークと共有ハブサービスを持つ Azure ハブスポーク構成図](./assets/readme/azure-hub-spoke/slide-002.png)](./site/examples/azure-hub-spoke.md)
+
+[Microsoft Learn のハブスポーク構成](https://learn.microsoft.com/ja-jp/azure/architecture/networking/architecture/hub-spoke)
+の概念を独自の配置で図示したもので、Azure 公式画像ではなく組み込みの汎用アイコンを使用しています。
+デッキの描画にレンダラーの変更や外部画像素材は不要です。GitHub では `architecture` フェンスが
+コードとして表示されるため、プレビュー画像から編集可能な Markdown ソースにリンクしています。
+配置の工夫と省略した構成要素は、[ガイドの実例](./docs/user-guide/ja/diagrams-and-media.md#azure-hub-spoke-example)
+を参照してください。
+
 ### 図の記法を使い分ける
 
 図の関係から自動配置したいときは **Mermaid** を使い、色味をテーマに合わせることもできます。

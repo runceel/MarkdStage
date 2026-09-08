@@ -313,6 +313,53 @@ Connector line patterns use the existing `style.dash` value. Omit it for a solid
 `"dash": "1 5"` for a dotted line, or use another numeric pattern such as `"10 6"` for a dashed
 line.
 
+### Example: Azure hub-spoke network
+
+Open the [complete example deck](../../site/examples/azure-hub-spoke.md) in MarkdStage.
+Page 2 shows the topology; page 3 separates the outbound traffic path. In Canvas, use
+**More controls > Open Markdown** to load the file with a source association before editing it.
+The example uses the existing Architecture DSL v1 grammar and built-in icons, with no external
+image dependencies.
+
+![Four spoke VNets with nested resource subnets and VMs, a shared hub, on-premises connectivity, and diagnostics](../../assets/readme/azure-hub-spoke/slide-002.png)
+
+| Technique | How the example uses it |
+| --- | --- |
+| Nested `group` elements | The management scope contains VNets; each spoke contains a resource subnet with three VM nodes. |
+| Fixed placement | VNet `x`, `y`, `width`, and `height` preserve the overall composition. Child coordinates are relative to the parent group's top-left corner. |
+| Local automatic layout | Each resource subnet uses `layout: { "type": "row", "gap": 12, "padding": 16 }`. Its VM children omit coordinates and dimensions. |
+| Connection ports and routing | Peering uses `fromPort`, `toPort`, and `orthogonal` routing. Selected connections use `polyline` with explicit `points` to follow chosen corridors. |
+| Line styles and direction | `style.stroke` and `style.dash` distinguish connection types. Unarrowed peering links represent bidirectional connectivity; arrows in the traffic view show the outbound direction. |
+| Accessible descriptions | Diagram `description` and connector `ariaLabel` explain the scope and connection meaning beyond short visible labels. |
+
+Keep connectivity and packet flow separate:
+
+![Production subnet default routes leading through VNet peering to Azure Firewall and the internet](../../assets/readme/azure-hub-spoke/slide-003.png)
+
+The traffic view illustrates a subnet UDR for `0.0.0.0/0` with the firewall private IP as the
+next hop. Peering is non-transitive: drawing connections does not configure routes, forwarded
+traffic, gateway transit, return paths, NSGs, or firewall policies. This is centralized internet
+egress, not Azure Firewall forced tunneling to on-premises, and the DSL is not a deployment
+template or network simulator.
+
+**Scope and authoring trade-offs.** The topology is an original schematic based on
+[Microsoft Learn's hub-spoke architecture](https://learn.microsoft.com/azure/architecture/networking/architecture/hub-spoke),
+not a reproduction of its artwork. The outer boundary represents optional Azure Virtual Network
+Manager management scope, not another VNet or traffic hop. Hub service subnets, DNS, public IPs,
+and detailed routing are omitted. Product symbols use generic built-in icons; official Azure
+icons can be supplied through local `icon` assets after checking their usage terms.
+
+Use automatic routing as a starting point, then choose explicit waypoints where a line must
+avoid a container or follow a particular corridor. Revisit those waypoints after moving groups;
+child positions are group-relative, but the example's root-level connector points use diagram
+coordinates. Keep group headings short and leave enough space for node and connector labels:
+dense diagrams can shrink text, and connector labels may be omitted when they cannot fit.
+
+For README and other GitHub Markdown pages, publish a rendered image linked to the source,
+as above: GitHub does not render `architecture` fences. Keep the Markdown as the source of
+truth and regenerate the page 2 and 3 captures after changing the diagrams. See the
+[CLI guide](cli.md) for `inspect` and targeted `capture --pages` commands.
+
 ## Adjust placement in the Canvas Extension
 
 For a deck created directly in the canvas without a Markdown source association, select
