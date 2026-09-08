@@ -57,6 +57,29 @@ cannot be separated safely.
 | Journey | `journey` task/section rectangles, person/legend circles, face circles/eyes and neutral mouths, visible labels, and exact line-end triangles |
 | Other Mermaid diagrams | Render normally in slides and use image fallback where editable conversion is unavailable |
 
+<details>
+<summary>Mermaid elements that are not fully editable in PowerPoint</summary>
+
+The list below is intentionally representative rather than exhaustive. These
+features still render in the slide, but the affected part may remain an image
+in the exported PowerPoint.
+
+| Category | Examples that may stay as image fallback |
+| --- | --- |
+| Diagram families | Mermaid diagram types outside the editable coverage table, or advanced variants whose SVG structure is not recognized |
+| Geometry | Arbitrary closed or curved paths, compound freeform shapes, holes, unknown block outlines, and shapes that exceed scene limits |
+| Transforms and clipping | Skew, reflection, nested or non-uniform transforms, arbitrary `clipPath`, masks, and clipping that cannot be separated safely |
+| Paint and effects | Gradients, filters, drop shadows, blend modes, group opacity, decorated/stroked text, and effects shared by multiple elements |
+| Labels and media | Rich HTML, embedded images/icons, unsupported `foreignObject` content, conditional labels, and text whose source crop must be preserved |
+| Chart-like output | Mermaid positions bars, points, and lines as editable shapes where supported; it does not create data-backed PowerPoint charts |
+| Special decorations | Cloud/bang nodes, unknown markers, curved satisfaction-face mouths, arbitrary icons, and uncommon milestones or commit decorations |
+
+Fallback is applied to the smallest safe element or subtree whenever possible.
+If native and image content cannot be separated without changing the appearance,
+the whole diagram may become one image. This is not a promise of full Mermaid
+syntax compatibility or general SVG/CSS effect conversion.
+</details>
+
 Coverage is intentionally approximate: editability depends on the structures
 and effects in the rendered diagram, not only its Mermaid type.
 
