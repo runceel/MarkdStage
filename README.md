@@ -246,6 +246,23 @@ and downloadable Markdown.
   </tr>
 </table>
 
+### Network architecture in editable Markdown
+
+The [Azure hub-spoke example](./site/examples/azure-hub-spoke.md) uses Architecture DSL v1 to
+combine a shared hub, four spoke VNets, nested subnets and VMs, and distinct connection types.
+Network positions are fixed, while VM rows are laid out automatically. A separate traffic view
+explains internet egress through Azure Firewall without mixing packet flow with VNet connectivity.
+
+[![Azure hub-spoke topology rendered from Architecture DSL, with four spokes and shared hub services](./assets/readme/azure-hub-spoke/slide-002.png)](./site/examples/azure-hub-spoke.md)
+
+This is an original conceptual diagram based on
+[Microsoft Learn's hub-spoke architecture](https://learn.microsoft.com/azure/architecture/networking/architecture/hub-spoke),
+using generic built-in icons rather than official Azure artwork. No renderer changes or external
+image assets are needed to render the deck. GitHub shows `architecture` fences as code, so the
+preview links to the editable Markdown source.
+See the [worked example](./docs/user-guide/diagrams-and-media.md#example-azure-hub-spoke-network)
+for the layout techniques and simplifications.
+
 ### Choose the diagram format
 
 Use **Mermaid** for automatic, relationship-driven layout; its colors can follow the deck theme.
@@ -259,7 +276,7 @@ Changes remain a draft until **Save** writes them back to Markdown. The CLI's `p
 also provides visual Architecture editing.
 
 <p align="center">
-  <img src="./assets/readme/architecture-editor.png" alt="The MarkdStage Architecture Editor with an API node selected" width="100%">
+  <img src="./assets/readme/architecture-editor.png" alt="The Azure hub-spoke diagram in Architecture Editor, with Hub VNet selected and its properties visible" width="100%">
 </p>
 
 See the [diagrams and media guide](./docs/user-guide/diagrams-and-media.md) for both formats.
