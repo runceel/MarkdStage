@@ -83,6 +83,7 @@ import {
 } from "./runtime/browser.mjs";
 import {
   isPathInside,
+  outputPathForSource,
   pdfNameForSource,
   pptxNameForSource,
 } from "./runtime/output-paths.mjs";
@@ -1278,7 +1279,11 @@ async function startServer(inst) {
       }
       try {
         activateInstance(inst);
-        const result = await exportPdf(inst, pdfNameForSource(inst.sourceName), inst.theme);
+        const result = await exportPdf(
+          inst,
+          outputPathForSource(inst.sourceName, pdfNameForSource(inst.sourceName)),
+          inst.theme,
+        );
         res.statusCode = 200;
         res.setHeader("Content-Type", "application/json; charset=utf-8");
         res.setHeader("Cache-Control", "no-store");
@@ -1329,7 +1334,7 @@ async function startServer(inst) {
         }
         const result = await exportPptx(
           inst,
-          pptxNameForSource(inst.sourceName),
+          outputPathForSource(inst.sourceName, pptxNameForSource(inst.sourceName)),
           inst.theme,
           { mermaidImageFallback: body.mermaidImageFallback === true },
         );

@@ -6,9 +6,16 @@ import { tmpdir } from "node:os";
 
 import {
   pptxNameForSource,
+  outputPathForSource,
   preparePptxOutputDirectory,
   resolvePptxOutputPath,
 } from "../runtime/output-paths.mjs";
+
+test("places screen export names beside their Markdown source", () => {
+  assert.equal(outputPathForSource("nested/deck.md", "deck.pdf"), join("nested", "deck.pdf"));
+  assert.equal(outputPathForSource("nested/deck.markdown", "deck.pptx"), join("nested", "deck.pptx"));
+  assert.equal(outputPathForSource("", "markdstage.pdf"), "markdstage.pdf");
+});
 
 test("derives safe PowerPoint names from Markdown sources", () => {
   assert.equal(pptxNameForSource("slides.md"), "slides.pptx");

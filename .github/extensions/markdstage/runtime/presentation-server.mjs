@@ -27,6 +27,7 @@ import { saveArchitectureSource } from "./architecture-source.mjs";
 import { exportPdf, exportPptx } from "./output.mjs";
 import {
   isPathInside,
+  outputPathForSource,
   pdfNameForSource,
   pptxNameForSource,
 } from "./output-paths.mjs";
@@ -879,14 +880,14 @@ export async function startPresentationServer(
         const result = pptx
           ? await exportPptxImpl(
               session,
-              pptxNameForSource(session.sourceName),
+              outputPathForSource(session.sourceName, pptxNameForSource(session.sourceName)),
               session.theme,
               undefined,
               { mermaidImageFallback: body.mermaidImageFallback === true },
             )
           : await exportPdfImpl(
               session,
-              pdfNameForSource(session.sourceName),
+              outputPathForSource(session.sourceName, pdfNameForSource(session.sourceName)),
               session.theme,
             );
         json(res, 200, result);

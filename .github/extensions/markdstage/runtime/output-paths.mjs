@@ -38,6 +38,13 @@ export function pptxNameForSource(sourceName) {
   return `${safeBaseName(sourceName) || basename(DEFAULT_PPTX_NAME, ".pptx")}.pptx`;
 }
 
+export function outputPathForSource(sourceName, outputName) {
+  const sourceDirectory = typeof sourceName === "string" && sourceName.trim()
+    ? dirname(sourceName.trim())
+    : "";
+  return join(sourceDirectory, outputName);
+}
+
 export function captureDirectoryName(sourceName) {
   const safeBase = safeBaseName(sourceName);
   return safeBase ? `${safeBase}-previews` : DEFAULT_CAPTURE_DIR;

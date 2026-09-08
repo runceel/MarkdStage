@@ -65,7 +65,8 @@ You can also ask Copilot to inspect the deck's PDF layout and identify pages tha
 4. Open the generated PDF from the workspace and review every page.
 
 When the deck was loaded from Markdown, Canvas and the CLI application derive the PDF name from
-the source filename. The exported file contains one 16:9 page per slide, including the back cover, with
+the source filename and save it beside the source Markdown file. The exported file contains one 16:9
+page per slide, including the back cover, with
 backgrounds, images, highlighted code, Mermaid, and Architecture diagrams.
 
 Speaker notes and Architecture editing controls are excluded.
@@ -83,6 +84,9 @@ Images keep each diagram together but its text and lines cannot be edited indivi
 **Cancel** or **Esc** closes the dialog without exporting. Each opening resets to
 editable shapes; the choice is not saved. Decks without Mermaid export immediately.
 4. Open the generated presentation and review every slide.
+
+When the deck was loaded from Markdown, Canvas and the CLI application save the PowerPoint beside
+the source Markdown file using a name derived from the source filename.
 
 Native PowerPoint objects stay editable; anything the converter cannot express natively becomes a
 fallback picture that is positioned individually rather than flattened into a full-slide image.
