@@ -111,13 +111,27 @@ export function mermaidThemeVariables(style) {
   const read = (name) => style.getPropertyValue(name).trim();
   const background = read("--bg");
   const surface = read("--surface");
+  const code = read("--code");
   const border = read("--border");
   const foreground = read("--fg");
   const muted = read("--muted");
+  const body = read("--body");
   const accent = read("--accent");
   const accentStrong = read("--accent-strong");
   const accentSoft = read("--accent-soft");
   const accentLine = read("--accent-line");
+  const lightBackground = isLightColor(background);
+
+  // C4 text is white unless the source explicitly supplies a font color. Keep
+  // its themed fills dark enough for that renderer default on light themes,
+  // while retaining several distinct roles for people, systems, containers,
+  // and components.
+  const c4Colors = lightBackground
+    ? [foreground, accentStrong, accent, body]
+    : [surface, code, border, background];
+  const [c4Person, c4System, c4Container, c4Component] = c4Colors;
+  const c4External = lightBackground ? foreground : code;
+  const c4ExternalAlt = lightBackground ? body : background;
 
   return {
     background,
@@ -142,7 +156,111 @@ export function mermaidThemeVariables(style) {
     noteBorderColor: accentLine,
     noteTextColor: accentStrong,
     pie1: accent,
+
+    // C4's documented shape variables are read by its renderer, unlike the
+    // generic primary/secondary roles above. The database and queue variants
+    // intentionally follow their containing shape's semantic color.
+    person_bg_color: c4Person,
+    person_border_color: foreground,
+    external_person_bg_color: c4External,
+    external_person_border_color: foreground,
+    system_bg_color: c4System,
+    system_border_color: foreground,
+    system_db_bg_color: c4System,
+    system_db_border_color: foreground,
+    system_queue_bg_color: c4System,
+    system_queue_border_color: foreground,
+    external_system_bg_color: c4External,
+    external_system_border_color: foreground,
+    external_system_db_bg_color: c4External,
+    external_system_db_border_color: foreground,
+    external_system_queue_bg_color: c4External,
+    external_system_queue_border_color: foreground,
+    container_bg_color: c4Container,
+    container_border_color: foreground,
+    container_db_bg_color: c4Container,
+    container_db_border_color: foreground,
+    container_queue_bg_color: c4Container,
+    container_queue_border_color: foreground,
+    external_container_bg_color: c4ExternalAlt,
+    external_container_border_color: foreground,
+    external_container_db_bg_color: c4ExternalAlt,
+    external_container_db_border_color: foreground,
+    external_container_queue_bg_color: c4ExternalAlt,
+    external_container_queue_border_color: foreground,
+    component_bg_color: c4Component,
+    component_border_color: foreground,
+    component_db_bg_color: c4Component,
+    component_db_border_color: foreground,
+    component_queue_bg_color: c4Component,
+    component_queue_border_color: foreground,
+    external_component_bg_color: c4ExternalAlt,
+    external_component_border_color: foreground,
+    external_component_db_bg_color: c4ExternalAlt,
+    external_component_db_border_color: foreground,
+    external_component_queue_bg_color: c4ExternalAlt,
+    external_component_queue_border_color: foreground,
+
+    // Architecture-beta exposes these roles directly in its SVG CSS.
+    archEdgeColor: accent,
+    archEdgeArrowColor: accent,
+    archGroupBorderColor: accent,
+    archGroupBorderWidth: "1",
+
+    // Event Modeling exposes a fill/stroke pair for each entity kind and
+    // separate roles for lanes and relations.
+    emUiFill: surface,
+    emUiStroke: accent,
+    emProcessorFill: accentSoft,
+    emProcessorStroke: accent,
+    emReadModelFill: code,
+    emReadModelStroke: accentStrong,
+    emCommandFill: background,
+    emCommandStroke: accent,
+    emEventFill: accentLine,
+    emEventStroke: accentStrong,
+    emSwimlaneBackgroundOdd: accentSoft,
+    emSwimlaneBackgroundStroke: accent,
+    emArrowhead: accent,
+    emRelationStroke: accent,
+    attributeBackgroundColorOdd: surface,
+    attributeBackgroundColorEven: code,
   };
+}
+
+const C4_THEME_VARIABLE = /^(?:external_)?(?:person|system|container|component)(?:_(?:db|queue))?_(?:bg|border)_color$/;
+
+export function mermaidC4ThemeVariables(themeVariables) {
+  return Object.fromEntries(
+    Object.entries(themeVariables).filter(([name]) => C4_THEME_VARIABLE.test(name)),
+  );
+}
+
+function isLightColor(value) {
+  const match = String(value || "").match(
+    /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$|^rgba?\(\s*([0-9.]+%?)\s*,\s*([0-9.]+%?)\s*,\s*([0-9.]+%?)/i,
+  );
+  if (!match) return false;
+  const channels = match[1]
+    ? (match[1].length <= 4
+        ? [...match[1].slice(0, 3)].map((channel) => Number.parseInt(channel + channel, 16))
+        : [0, 2, 4].map((index) => Number.parseInt(match[1].slice(index, index + 2), 16)))
+    : match.slice(2, 5).map((channel) => {
+        const numeric = Number.parseFloat(channel);
+        return channel.endsWith("%") ? numeric * 2.55 : numeric;
+      });
+  const luminance = channels.reduce(
+    (sum, channel, index) => sum + [0.2126, 0.7152, 0.0722][index] * relativeLuminance(channel),
+    0,
+  );
+  return luminance > 0.5;
+}
+
+function relativeLuminance(channel) {
+  const normalized = Math.max(0, Math.min(255, channel)) / 255;
+  return normalized <= 0.03928
+    ? normalized / 12.92
+    : ((normalized + 0.055) / 1.055) ** 2.4;
 }
 
 function assertPlainObject(value, path) {

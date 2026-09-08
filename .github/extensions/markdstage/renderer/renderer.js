@@ -6,6 +6,7 @@ import { sceneToPptxElements } from "./scene-pptx.mjs";
 import { attachArchitectureEditor } from "./architecture-editor.mjs";
 import {
   DEFAULT_THEME,
+  mermaidC4ThemeVariables,
   mermaidThemeVariables,
   normalizeTheme,
   parseFrontMatter,
@@ -585,13 +586,16 @@ function runMermaid(scope, deckEl, token, revealWhenDone = true) {
     return Promise.resolve();
   }
   try {
+    const sources = [...nodes].map((node) => node.textContent || "");
     const themeVariables = mermaidThemeVariables(getComputedStyle(deckEl));
+    const c4ThemeVariables = mermaidC4ThemeVariables(themeVariables);
     const serializedThemeVariables = JSON.stringify(themeVariables);
     if (serializedThemeVariables !== lastMermaidThemeVariables) {
       window.mermaid.initialize({
         startOnLoad: false,
         theme: "base",
         themeVariables,
+        c4: c4ThemeVariables,
         securityLevel: "strict",
       });
       lastMermaidThemeVariables = serializedThemeVariables;
@@ -603,9 +607,56 @@ function runMermaid(scope, deckEl, token, revealWhenDone = true) {
           const source = host.querySelector("svg");
           if (!source || source.hasAttribute("data-scene-backend")) continue;
           try {
+            repairC4ThemeDefaults(source, sources[index], themeVariables);
             renderMermaidScene(source, deckEl, index);
           } catch (e) {
             console.error("Mermaid scene render failed", e);
+          }
+        }
+
+        // Mermaid 11.15.0 does not expose theme variables for C4 boundary/relation
+        // paint or its arrow markers. Repair only those known renderer defaults, and
+        // leave diagrams with explicit C4 style updates untouched so source colors
+        // remain authoritative.
+        function repairC4ThemeDefaults(svg, source, themeVariables) {
+          if (!/^\s*c4[a-z]*\b/i.test(source)) return;
+          const hasElementStyles = /\bUpdateElementStyle\s*\(/i.test(source);
+          const hasRelationStyles = /\bUpdateRelStyle\s*\(/i.test(source);
+          const boundaryGroups = new Set(
+            [...svg.querySelectorAll('rect[stroke-dasharray*="7"]')].map((element) => element.parentElement),
+          );
+          const relationGroups = new Set(
+            [...svg.querySelectorAll("[marker-end], [marker-start]")].map((element) => element.parentElement),
+          );
+          const boundaryPaint = new Set(["#444", "#444444", "rgb(68, 68, 68)"]);
+          const relationPaint = new Set(["#444", "#444444", "rgb(68, 68, 68)"]);
+          const setDefaultPaint = (element, property, defaults, value) => {
+            const current = element.getAttribute(property)?.trim().toLowerCase();
+            if (!defaults.has(current)) return;
+            element.setAttribute(property, value);
+            if (element.style?.getPropertyValue(property)) {
+              element.style.setProperty(property, value);
+            }
+          };
+
+          for (const element of svg.querySelectorAll("rect, line, path, text")) {
+            const parent = element.parentElement;
+            if (!hasElementStyles && boundaryGroups.has(parent)) {
+              setDefaultPaint(element, "stroke", boundaryPaint, themeVariables.lineColor);
+              setDefaultPaint(element, "fill", boundaryPaint, themeVariables.textColor);
+            }
+            if (!hasRelationStyles && relationGroups.has(parent)) {
+              setDefaultPaint(element, "stroke", relationPaint, themeVariables.lineColor);
+              setDefaultPaint(element, "fill", relationPaint, themeVariables.textColor);
+            }
+          }
+          if (!hasRelationStyles) {
+            for (const marker of svg.querySelectorAll("marker")) {
+              for (const element of marker.querySelectorAll("path, polygon, line")) {
+                setDefaultPaint(element, "stroke", new Set(["black", "#000", "#000000", "rgb(0, 0, 0)"]), themeVariables.lineColor);
+                setDefaultPaint(element, "fill", new Set(["black", "#000", "#000000", "rgb(0, 0, 0)"]), themeVariables.lineColor);
+              }
+            }
           }
         }
       })
