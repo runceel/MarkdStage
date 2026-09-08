@@ -1,0 +1,63 @@
+name: Bug report
+description: Report a reproducible problem with MarkdStage.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug.
+        Please search existing issues before submitting a new report.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the problem and include the expected behavior if relevant.
+      placeholder: Tell us what went wrong.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Provide the smallest set of steps or Markdown needed to reproduce the issue.
+      placeholder: |
+        1. Open ...
+        2. Select ...
+        3. See ...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: MarkdStage version
+      description: Include the release version, commit SHA, or branch used.
+      placeholder: v3.4.0
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Include your OS, architecture, host surface, and relevant runtime versions.
+      placeholder: Windows 11 x64, GitHub Copilot Canvas, Node.js 24
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Paste relevant logs or drag in screenshots. Remove secrets and personal data.
+      render: text
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Add any other information that may help us investigate.
