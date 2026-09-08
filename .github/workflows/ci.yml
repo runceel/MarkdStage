@@ -264,7 +264,6 @@ jobs:
 
       - name: Validate changed sample decks
         shell: bash
-        working-directory: ${{ github.workspace }}
         env:
           EVENT_NAME: ${{ github.event_name }}
           BEFORE_SHA: ${{ github.event.before }}
@@ -272,6 +271,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             node scripts/ci-samples.mjs <<< "slides.md"
             exit 0
