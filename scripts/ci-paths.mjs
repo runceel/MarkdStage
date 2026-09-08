@@ -1,6 +1,8 @@
 import { appendFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
+import { isSampleDeckPath } from "./ci-sample-path.mjs";
+
 export const CI_AREAS = Object.freeze(["docs", "test", "cli", "desktop", "samples"]);
 
 function emptySelection() {
@@ -43,14 +45,7 @@ function isSiteContent(path) {
 }
 
 function isSampleDeck(path) {
-  return (
-    path === "slides.md" ||
-    path.startsWith("site/examples/") ||
-    path === "docs/user-guide/diagrams-and-media.md" ||
-    path === "docs/user-guide/ja/diagrams-and-media.md" ||
-    path.startsWith("docs/user-guide/examples/") ||
-    path === ".github/extensions/markdstage/README.md"
-  );
+  return isSampleDeckPath(path);
 }
 
 function isFullSuiteInfrastructure(path) {
