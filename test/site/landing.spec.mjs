@@ -11,7 +11,7 @@ const viewports = [
   { name: "narrow", width: 320, height: 844 },
 ];
 
-for (const basePath of ["/", "/markdstage/"]) {
+for (const basePath of ["/", "/MarkdStage/"]) {
   for (const lang of ["ja", "en"]) {
     for (const viewport of viewports) {
       test(`${lang} ${viewport.name}: layout, images, language, and anchors at ${basePath}`, async ({ page, site }) => {
@@ -151,7 +151,7 @@ for (const basePath of ["/", "/markdstage/"]) {
 
 test.describe("progressive enhancement without JavaScript", () => {
   test.use({ javaScriptEnabled: false });
-  for (const basePath of ["/", "/markdstage/"]) {
+  for (const basePath of ["/", "/MarkdStage/"]) {
     for (const lang of ["ja", "en"]) {
       test(`${lang}: content, both examples, and native controls survive at ${basePath}`, async ({ page, site }) => {
         await page.setViewportSize({ width: 390, height: 844 });
@@ -224,7 +224,7 @@ for (const lang of ["ja", "en"]) {
           },
         });
       }, outcome);
-      await page.goto(localeUrl(site, "/markdstage/", lang));
+      await page.goto(localeUrl(site, "/MarkdStage/", lang));
       await page.locator(".canvas-install summary").click();
       await page.locator(".cli-output summary").click();
       const status = page.getByRole("status", { includeHidden: true });
@@ -263,7 +263,7 @@ for (const lang of ["ja", "en"]) {
 
   test(`${lang}: reduced motion disables reveal, transitions, and smooth scrolling`, async ({ page, site }) => {
     await page.emulateMedia({ reducedMotion: "no-preference" });
-    await page.goto(localeUrl(site, "/markdstage/", lang));
+    await page.goto(localeUrl(site, "/MarkdStage/", lang));
     await expect(page.locator(".hero-slide")).toHaveCSS("animation-name", "stage-arrival");
     await page.emulateMedia({ reducedMotion: "reduce" });
     expect(await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches)).toBe(true);
@@ -299,12 +299,12 @@ for (const lang of ["ja", "en"]) {
     test(`${lang} ${viewport.name}: WCAG AA with focused gallery, source, and onboarding`, async ({ page, site }) => {
       test.setTimeout(90_000);
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
-      await page.goto(localeUrl(site, "/markdstage/", lang));
+      await page.goto(localeUrl(site, "/MarkdStage/", lang));
       await page.keyboard.press("Tab");
       await expect(page.locator(".skip-link")).toBeFocused();
       await expect(page.locator(".skip-link")).toBeInViewport();
       await page.keyboard.press("Enter");
-      await expect(page).toHaveURL(`${localeUrl(site, "/markdstage/", lang)}#main`);
+      await expect(page).toHaveURL(`${localeUrl(site, "/MarkdStage/", lang)}#main`);
       await audit(page);
 
       const selector = page.locator("[data-example='architecture']");

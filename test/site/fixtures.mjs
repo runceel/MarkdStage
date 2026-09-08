@@ -14,9 +14,9 @@ export const test = base.extend({
     const servers = [];
     try {
       const outputDir = join(workspace.directory, "output");
-      await buildSite({ outputDir, siteUrl: "https://example.test/markdstage/" });
+      await buildSite({ outputDir, siteUrl: "https://example.test/MarkdStage/" });
       const urls = {};
-      for (const basePath of ["/", "/markdstage/"]) {
+      for (const basePath of ["/", "/MarkdStage/"]) {
         const server = await startSiteServer({ root: outputDir, basePath, port: 0 });
         servers.push(server);
         urls[basePath] = server.url;

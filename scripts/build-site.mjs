@@ -6,7 +6,7 @@ import { renderPage } from "../site/template.mjs";
 
 export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 export const OUTPUT_DIR = join(REPO_ROOT, "_site");
-export const DEFAULT_SITE_URL = "http://localhost:4173/markdstage/";
+export const DEFAULT_SITE_URL = "http://localhost:4173/MarkdStage/";
 
 const ASSETS = [
   ["site/site.css", "assets/site.css"],

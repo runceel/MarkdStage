@@ -67,7 +67,7 @@ jobs:
 
       - name: Build static site
         env:
-          SITE_URL: ${{ steps.pages.outputs.base_url || 'http://localhost:4173/markdstage/' }}
+          SITE_URL: ${{ steps.pages.outputs.base_url || 'http://localhost:4173/MarkdStage/' }}
         run: npm run build:site
 
       - name: Site regression and accessibility

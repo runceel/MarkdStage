@@ -15,7 +15,7 @@ const MIME = {
   ".xml": "application/xml; charset=utf-8",
 };
 
-export async function startSiteServer({ root = OUTPUT_DIR, basePath = "/markdstage/", port = 4173 } = {}) {
+export async function startSiteServer({ root = OUTPUT_DIR, basePath = "/MarkdStage/", port = 4173 } = {}) {
   if (!basePath.startsWith("/") || !basePath.endsWith("/") || basePath.includes("..")) {
     throw new Error("The preview base path must start and end with / and contain no traversal.");
   }
