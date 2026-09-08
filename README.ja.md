@@ -270,7 +270,7 @@ Windows x64 / ARM64 向けのポータブルビルドと SHA-256 チェックサ
 の概念を独自の配置で図示したもので、Azure 公式画像ではなく組み込みの汎用アイコンを使用しています。
 デッキの描画にレンダラーの変更や外部画像素材は不要です。GitHub では `architecture` フェンスが
 コードとして表示されるため、プレビュー画像から編集可能な Markdown ソースにリンクしています。
-配置の工夫と省略した構成要素は、[ガイドの実例](./docs/user-guide/ja/diagrams-and-media.md#azure-hub-spoke-example)
+MarkdStage で図を開いて編集する手順は、[ガイドの実例](./docs/user-guide/ja/diagrams-and-media.md#azure-hub-spoke-example)
 を参照してください。
 
 ### 図の記法を使い分ける

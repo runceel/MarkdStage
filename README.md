@@ -261,7 +261,7 @@ using generic built-in icons rather than official Azure artwork. No renderer cha
 image assets are needed to render the deck. GitHub shows `architecture` fences as code, so the
 preview links to the editable Markdown source.
 See the [worked example](./docs/user-guide/diagrams-and-media.md#example-azure-hub-spoke-network)
-for the layout techniques and simplifications.
+for how to open and edit the diagram in MarkdStage.
 
 ### Choose the diagram format
 
