@@ -95,9 +95,9 @@ export function serializeThemeVariables(variables) {
 // its built-in named themes (dark/default/neutral/forest). Deriving that
 // palette from the rendered deck's custom properties makes Mermaid diagrams
 // share the slide's background, border, and text colors instead of only
-// approximating the deck theme, and it reuses the same primary/secondary
-// roles as the Architecture DSL (nodes: surface+border+fg, groups:
-// accent-soft+accent-line+accent-strong) so both diagram types match.
+// approximating the deck theme. Thin diagram outlines use the muted text
+// role instead of the decorative slide border so compartments, shapes, and
+// sequence lifelines remain distinguishable on either background.
 //
 // `secondaryColor`/`tertiaryColor` also back many categorical fills across
 // Mermaid's diagram types (pie slices, git graph nodes, venn/quadrant charts,
@@ -107,42 +107,302 @@ export function serializeThemeVariables(variables) {
 // `noteBorderColor`/`noteTextColor` are hardcoded by Mermaid's base theme
 // (always a pale yellow) unless set explicitly, so sequence-diagram notes
 // need their own override to follow the deck theme too.
-export function mermaidThemeVariables(style) {
+export function mermaidThemeVariables(style, resolveColor = (value) => value) {
   const read = (name) => style.getPropertyValue(name).trim();
   const background = read("--bg");
   const surface = read("--surface");
+  const code = read("--code");
   const border = read("--border");
   const foreground = read("--fg");
   const muted = read("--muted");
+  const body = read("--body");
   const accent = read("--accent");
   const accentStrong = read("--accent-strong");
   const accentSoft = read("--accent-soft");
   const accentLine = read("--accent-line");
+  // C4 hardcodes white entity text. Evaluate each fill, not just the slide
+  // background: a readable custom theme may still have a bright accent or
+  // surface. Select existing palette values without inventing brand colors.
+  const c4Fill = (...colors) =>
+    colors.find((color) => supportsWhiteText(resolveColor(color))) ?? colors[0];
+  const c4Person = c4Fill(surface, foreground, body);
+  const c4System = c4Fill(code, accentStrong, body, foreground);
+  const c4Container = c4Fill(border, accent, body, foreground);
+  const c4Component = c4Fill(background, body, foreground);
+  const c4External = c4Fill(code, foreground, body);
+  const c4ExternalAlt = c4Fill(background, body, foreground);
 
   return {
     background,
     primaryColor: surface,
     primaryTextColor: foreground,
-    primaryBorderColor: border,
+    primaryBorderColor: muted,
     secondaryColor: accentStrong,
     secondaryTextColor: background,
-    secondaryBorderColor: accentLine,
+    secondaryBorderColor: accent,
     tertiaryColor: muted,
     tertiaryTextColor: background,
-    tertiaryBorderColor: border,
+    tertiaryBorderColor: muted,
     lineColor: accent,
     textColor: foreground,
     mainBkg: surface,
-    nodeBorder: border,
+    nodeBorder: muted,
     clusterBkg: accentSoft,
-    clusterBorder: accentLine,
+    clusterBorder: accent,
     titleColor: foreground,
     edgeLabelBackground: background,
     noteBkgColor: accentSoft,
     noteBorderColor: accentLine,
     noteTextColor: accentStrong,
     pie1: accent,
+    ...mermaidCategoricalTheme({ background, foreground, accent, surface, code, muted }, resolveColor),
+
+    // The unified ER renderer reads rowOdd/rowEven, not the legacy
+    // attributeBackgroundColor roles. Its base theme otherwise lightens
+    // alternate rows even when the slide has light text on a dark surface.
+    rowOdd: surface,
+    rowEven: code,
+    packet: {
+      startByteColor: foreground,
+      endByteColor: foreground,
+      labelColor: foreground,
+      titleColor: foreground,
+      blockStrokeColor: muted,
+      blockFillColor: surface,
+    },
+    treeView: {
+      labelColor: foreground,
+      lineColor: muted,
+    },
+
+    // C4's documented shape variables are read by its renderer, unlike the
+    // generic primary/secondary roles above. The database and queue variants
+    // intentionally follow their containing shape's semantic color.
+    person_bg_color: c4Person,
+    person_border_color: foreground,
+    external_person_bg_color: c4External,
+    external_person_border_color: foreground,
+    system_bg_color: c4System,
+    system_border_color: foreground,
+    system_db_bg_color: c4System,
+    system_db_border_color: foreground,
+    system_queue_bg_color: c4System,
+    system_queue_border_color: foreground,
+    external_system_bg_color: c4External,
+    external_system_border_color: foreground,
+    external_system_db_bg_color: c4External,
+    external_system_db_border_color: foreground,
+    external_system_queue_bg_color: c4External,
+    external_system_queue_border_color: foreground,
+    container_bg_color: c4Container,
+    container_border_color: foreground,
+    container_db_bg_color: c4Container,
+    container_db_border_color: foreground,
+    container_queue_bg_color: c4Container,
+    container_queue_border_color: foreground,
+    external_container_bg_color: c4ExternalAlt,
+    external_container_border_color: foreground,
+    external_container_db_bg_color: c4ExternalAlt,
+    external_container_db_border_color: foreground,
+    external_container_queue_bg_color: c4ExternalAlt,
+    external_container_queue_border_color: foreground,
+    component_bg_color: c4Component,
+    component_border_color: foreground,
+    component_db_bg_color: c4Component,
+    component_db_border_color: foreground,
+    component_queue_bg_color: c4Component,
+    component_queue_border_color: foreground,
+    external_component_bg_color: c4ExternalAlt,
+    external_component_border_color: foreground,
+    external_component_db_bg_color: c4ExternalAlt,
+    external_component_db_border_color: foreground,
+    external_component_queue_bg_color: c4ExternalAlt,
+    external_component_queue_border_color: foreground,
+
+    // Architecture-beta exposes these roles directly in its SVG CSS.
+    archEdgeColor: accent,
+    archEdgeArrowColor: accent,
+    archGroupBorderColor: accent,
+    archGroupBorderWidth: "1",
+
+    // Event Modeling exposes a fill/stroke pair for each entity kind and
+    // separate roles for lanes and relations.
+    emUiFill: surface,
+    emUiStroke: accent,
+    emProcessorFill: accentSoft,
+    emProcessorStroke: accent,
+    emReadModelFill: code,
+    emReadModelStroke: accentStrong,
+    emCommandFill: background,
+    emCommandStroke: accent,
+    emEventFill: accentLine,
+    emEventStroke: accentStrong,
+    emSwimlaneBackgroundOdd: accentSoft,
+    emSwimlaneBackgroundStroke: accent,
+    emArrowhead: accent,
+    emRelationStroke: accent,
+    attributeBackgroundColorOdd: surface,
+    attributeBackgroundColorEven: code,
   };
+}
+
+const C4_THEME_VARIABLE = /^(?:external_)?(?:person|system|container|component)(?:_(?:db|queue))?_(?:bg|border)_color$/;
+
+export function mermaidC4ThemeVariables(themeVariables) {
+  return Object.fromEntries(
+    Object.entries(themeVariables).filter(([name]) => C4_THEME_VARIABLE.test(name)),
+  );
+}
+
+function supportsWhiteText(value) {
+  const channels = opaqueColorChannels(value);
+  return channels !== null && 1.05 / (colorLuminance(channels) + 0.05) >= 4.5;
+}
+
+function opaqueColorChannels(value) {
+  const match = String(value || "").match(
+    /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$|^rgba?\(\s*([0-9.]+%?)[,\s]+([0-9.]+%?)[,\s]+([0-9.]+%?)(?:\s*[,/]\s*([0-9.]+%?))?\s*\)$/i,
+  );
+  if (!match) return null;
+  const alpha = match[1]?.length === 4
+    ? Number.parseInt(match[1][3].repeat(2), 16) / 255
+    : match[1]?.length === 8
+      ? Number.parseInt(match[1].slice(6), 16) / 255
+      : match[5]
+        ? Number.parseFloat(match[5]) / (match[5].endsWith("%") ? 100 : 1)
+        : 1;
+  // Translucent fills depend on their backdrop; prefer a solid palette role.
+  if (alpha < 1) return null;
+  return match[1]
+    ? (match[1].length <= 4
+        ? [...match[1].slice(0, 3)].map((channel) => Number.parseInt(channel + channel, 16))
+        : [0, 2, 4].map((index) => Number.parseInt(match[1].slice(index, index + 2), 16)))
+    : match.slice(2, 5).map((channel) => {
+        const numeric = Number.parseFloat(channel);
+        return channel.endsWith("%") ? numeric * 2.55 : numeric;
+      });
+}
+
+function colorLuminance(channels) {
+  return channels.reduce(
+    (sum, channel, index) => sum + [0.2126, 0.7152, 0.0722][index] * relativeLuminance(channel),
+    0,
+  );
+}
+
+function mermaidCategoricalTheme(palette, resolveColor) {
+  const colors = Object.fromEntries(
+    ["background", "foreground", "accent", "surface"].map((key) => [
+      key, opaqueColorChannels(resolveColor(palette[key])),
+    ]),
+  );
+  // An incomplete/translucent custom palette has no reliable contrast
+  // backdrop. Keep its existing Mermaid derivation instead of guessing one.
+  if (Object.values(colors).some((color) => color === null)) return {};
+  const background = colorLuminance(colors.background);
+  const foreground = colorLuminance(colors.foreground);
+  const darkMode = background < foreground;
+  const lower = darkMode
+    ? (background + 0.05) * 3 - 0.05
+    : (foreground + 0.05) * 4.5 - 0.05;
+  const upper = darkMode
+    ? (foreground + 0.05) / 4.5 - 0.05
+    : (background + 0.05) / 3.2 - 0.05;
+  // Prefer legible labels when a custom palette cannot satisfy both text and
+  // shape contrast. Do not alter the author's foreground/background values.
+  const target = Math.max(0, Math.min(1,
+    darkMode ? (lower <= upper ? (lower + upper) / 2 : upper) : Math.max(lower, upper),
+  ));
+  const hue = colorHue(colors.accent);
+  const categories = Array.from({ length: 12 }, (_, index) =>
+    colorAtLuminance((hue + index * 137.5) % 360, 0.48, target),
+  );
+  const critical = colorAtLuminance(0, 0.7, target);
+  const theme = {
+    darkMode,
+    git0: categories[0],
+    gitBranchLabel0: palette.foreground,
+    // Mermaid restores this nested object as a whole after deriving colors;
+    // setting only plotColorPalette loses the derived dark background/axes.
+    xyChart: {
+      backgroundColor: palette.background,
+      titleColor: palette.foreground,
+      xAxisTitleColor: palette.foreground,
+      xAxisLabelColor: palette.foreground,
+      xAxisTickColor: palette.muted,
+      xAxisLineColor: palette.muted,
+      yAxisTitleColor: palette.foreground,
+      yAxisLabelColor: palette.foreground,
+      yAxisTickColor: palette.muted,
+      yAxisLineColor: palette.muted,
+      plotColorPalette: [categories[0], palette.foreground, ...categories.slice(1)].join(","),
+    },
+    taskBkgColor: palette.surface,
+    taskBorderColor: palette.muted,
+    activeTaskBkgColor: mixColors(colors.surface, colors.accent, 0.18),
+    activeTaskBorderColor: palette.accent,
+    doneTaskBkgColor: palette.code,
+    doneTaskBorderColor: palette.muted,
+    critBkgColor: mixColors(colors.surface, opaqueColorChannels(critical), 0.18),
+    critBorderColor: critical,
+    taskTextColor: palette.foreground,
+    taskTextDarkColor: palette.foreground,
+    taskTextOutsideColor: palette.foreground,
+  };
+  for (const [index, color] of categories.entries()) {
+    theme[`cScale${index}`] = color;
+    // Treemap leaf-label indexes differ from their parent-fill indexes, and
+    // Journey/Kanban HTML labels use textColor. All fills need the same text.
+    theme[`cScaleLabel${index}`] = palette.foreground;
+    theme[`cScalePeer${index}`] = color;
+    theme[`cScaleInv${index}`] = palette.muted;
+    if (index < 8) theme[`fillType${index}`] = color;
+  }
+  return theme;
+}
+
+function colorHue(channels) {
+  const [red, green, blue] = channels.map((channel) => channel / 255);
+  const max = Math.max(red, green, blue);
+  const delta = max - Math.min(red, green, blue);
+  if (delta === 0) return 0;
+  const hue = max === red ? (green - blue) / delta
+    : max === green ? (blue - red) / delta + 2 : (red - green) / delta + 4;
+  return (hue * 60 + 360) % 360;
+}
+
+function colorAtLuminance(hue, saturation, target) {
+  const channelsAt = (lightness) => {
+    const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation;
+    const x = chroma * (1 - Math.abs((hue / 60) % 2 - 1));
+    const sector = Math.floor(hue / 60);
+    const rgb = [[chroma, x, 0], [x, chroma, 0], [0, chroma, x],
+      [0, x, chroma], [x, 0, chroma], [chroma, 0, x]][sector];
+    return rgb.map((channel) => (channel + lightness - chroma / 2) * 255);
+  };
+  let low = 0;
+  let high = 1;
+  for (let iteration = 0; iteration < 20; iteration++) {
+    const mid = (low + high) / 2;
+    if (colorLuminance(channelsAt(mid)) < target) low = mid;
+    else high = mid;
+  }
+  return colorHex(channelsAt((low + high) / 2));
+}
+
+function mixColors(left, right, amount) {
+  return colorHex(left.map((channel, index) => channel * (1 - amount) + right[index] * amount));
+}
+
+function colorHex(channels) {
+  return `#${channels.map((channel) => Math.round(Math.max(0, Math.min(255, channel))).toString(16).padStart(2, "0")).join("")}`;
+}
+
+function relativeLuminance(channel) {
+  const normalized = Math.max(0, Math.min(255, channel)) / 255;
+  return normalized <= 0.04045
+    ? normalized / 12.92
+    : ((normalized + 0.055) / 1.055) ** 2.4;
 }
 
 function assertPlainObject(value, path) {

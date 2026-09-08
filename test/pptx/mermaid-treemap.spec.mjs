@@ -438,6 +438,11 @@ test("actual treemap PPTX embeds each local image once with native exclusions an
         expect(image.height).toBeGreaterThan(0);
         expect(image.width).toBeLessThan(1280);
         expect(image.height).toBeLessThan(720);
+        for (const coordinate of ["x", "y", "width", "height"]) {
+          expect(Number.isInteger(image[coordinate]), `Mermaid artwork ${coordinate} is pixel-aligned`).toBe(true);
+        }
+        expect(image.data.readUInt32BE(16)).toBe(image.width);
+        expect(image.data.readUInt32BE(20)).toBe(image.height);
         expect(model.elements.some((element) => element.path === fallback.path)).toBe(false);
         if (index === 3 && image.fallbackIndex === 1) {
           // This padded cell-shadow capture overlaps the adjacent group fallback.
@@ -497,7 +502,9 @@ test("actual treemap PPTX embeds each local image once with native exclusions an
             bounds: image, frame: groupBounds });
           for (const pixel of pixels) {
             expect(pixel.source[0], JSON.stringify(pixel)).toBeLessThan(pixel.background[0] - 5);
-            expect(Math.abs(pixel.actual[0] - pixel.source[0]), JSON.stringify(pixel)).toBeLessThanOrEqual(5);
+            for (const channel of [0, 1, 2]) {
+              expect(Math.abs(pixel.actual[channel] - pixel.source[channel]), JSON.stringify(pixel)).toBeLessThanOrEqual(5);
+            }
           }
           await writeFile(join(directory, "group-outer-stroke-pixels.json"), JSON.stringify(pixels, null, 2));
         }
