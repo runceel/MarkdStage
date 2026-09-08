@@ -3,8 +3,8 @@ import test from "node:test";
 
 import { classifyCiPaths } from "../../scripts/ci-paths.mjs";
 
-const none = { docs: false, test: false, cli: false, desktop: false };
-const all = { docs: true, test: true, cli: true, desktop: true };
+const none = { docs: false, test: false, cli: false, desktop: false, samples: false };
+const all = { docs: true, test: true, cli: true, desktop: true, samples: true };
 
 function expected(overrides) {
   return { ...none, ...overrides };
@@ -54,7 +54,7 @@ test("canonical shared files select their real consumers", () => {
 test("canonical documentation can also be executable package input", () => {
   assert.deepEqual(
     classifyCiPaths([".github/extensions/markdstage/README.md"]),
-    expected({ docs: true, test: true, cli: true }),
+    expected({ docs: true, test: true, cli: true, samples: true }),
   );
 });
 
@@ -65,7 +65,33 @@ test("shared corpus and sample deck keep their executable checks", () => {
   );
   assert.deepEqual(
     classifyCiPaths(["slides.md"]),
-    expected({ test: true, cli: true }),
+    expected({ test: true, cli: true, samples: true }),
+  );
+});
+
+test("site content and sample decks select only their relevant checks", () => {
+  assert.deepEqual(
+    classifyCiPaths(["site/content/ja/index.md", "assets/readme/simple-slide.png"]),
+    expected({}),
+  );
+  assert.deepEqual(
+    classifyCiPaths(["site/examples/architecture.md"]),
+    expected({ samples: true }),
+  );
+  assert.deepEqual(
+    classifyCiPaths(["docs/user-guide/diagrams-and-media.md"]),
+    expected({ docs: true, samples: true }),
+  );
+});
+
+test("deleted, renamed, and shared paths retain safe classifications", () => {
+  assert.deepEqual(
+    classifyCiPaths(["site/examples/removed.md", "site/examples/renamed.md"]),
+    expected({ samples: true }),
+  );
+  assert.deepEqual(
+    classifyCiPaths(["assets/shared/theme.css"]),
+    { docs: true, test: true, cli: true, desktop: true, samples: true },
   );
 });
 

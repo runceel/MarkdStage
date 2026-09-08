@@ -1,7 +1,7 @@
 import { appendFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
-export const CI_AREAS = Object.freeze(["docs", "test", "cli", "desktop"]);
+export const CI_AREAS = Object.freeze(["docs", "test", "cli", "desktop", "samples"]);
 
 function emptySelection() {
   return Object.fromEntries(CI_AREAS.map((area) => [area, false]));
@@ -31,6 +31,25 @@ function isPublishedDocumentation(path) {
     path === ".github/extensions/markdstage/THIRD-PARTY-NOTICES.md" ||
     path === ".github/extensions/markdstage/schema/README.md" ||
     path.startsWith(".github/extensions/markdstage/docs/")
+  );
+}
+
+function isSiteContent(path) {
+  return (
+    path.startsWith("site/") ||
+    path.startsWith("assets/brand/") ||
+    path.startsWith("assets/readme/")
+  );
+}
+
+function isSampleDeck(path) {
+  return (
+    path === "slides.md" ||
+    path.startsWith("site/examples/") ||
+    path === "docs/user-guide/diagrams-and-media.md" ||
+    path === "docs/user-guide/ja/diagrams-and-media.md" ||
+    path.startsWith("docs/user-guide/examples/") ||
+    path === ".github/extensions/markdstage/README.md"
   );
 }
 
@@ -95,6 +114,15 @@ export function classifyCiPaths(paths, { forceAll = false } = {}) {
 
     if (isPublishedDocumentation(path)) {
       selection.docs = true;
+      recognized = true;
+    }
+
+    if (isSiteContent(path)) {
+      recognized = true;
+    }
+
+    if (isSampleDeck(path)) {
+      selection.samples = true;
       recognized = true;
     }
 

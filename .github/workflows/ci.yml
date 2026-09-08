@@ -22,6 +22,7 @@ jobs:
       test: ${{ steps.classify.outputs.test }}
       cli: ${{ steps.classify.outputs.cli }}
       desktop: ${{ steps.classify.outputs.desktop }}
+      samples: ${{ steps.classify.outputs.samples }}
 
     steps:
       - name: Checkout
@@ -226,6 +227,53 @@ jobs:
           ./node_modules/.bin/markdstage validate "$GITHUB_WORKSPACE/slides.md" --json > /dev/null
           echo "OK: the packed CLI runs from a clean install."
 
+  samples:
+    name: Sample decks
+    needs: changes
+    if: needs.changes.outputs.samples == 'true'
+    runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      options: --init --ipc=host
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate changed sample decks
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            node scripts/ci-samples.mjs <<< "slides.md"
+            exit 0
+          fi
+
+          changed="$RUNNER_TEMP/changed-files.txt"
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            git diff --name-only --no-renames --diff-filter=ACDMRTUXB \
+              "$BASE_SHA" "$HEAD_SHA" > "$changed"
+          elif [ -n "$BEFORE_SHA" ] &&
+               [ "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ] &&
+               git cat-file -e "${BEFORE_SHA}^{commit}" 2>/dev/null; then
+            git diff --name-only --no-renames --diff-filter=ACDMRTUXB \
+              "$BEFORE_SHA" "$GITHUB_SHA" > "$changed"
+          else
+            git diff-tree --no-commit-id --name-only --no-renames -r \
+              "$GITHUB_SHA" > "$changed"
+          fi
+          node scripts/ci-samples.mjs < "$changed"
+
   desktop:
     name: MarkdStage Desktop
     needs: changes
@@ -275,6 +323,7 @@ jobs:
       - test
       - cli
       - desktop
+      - samples
     runs-on: ubuntu-24.04
 
     steps:
@@ -290,6 +339,8 @@ jobs:
           CLI_RESULT: ${{ needs.cli.result }}
           DESKTOP_SELECTED: ${{ needs.changes.outputs.desktop }}
           DESKTOP_RESULT: ${{ needs.desktop.result }}
+          SAMPLES_SELECTED: ${{ needs.changes.outputs.samples }}
+          SAMPLES_RESULT: ${{ needs.samples.result }}
         run: |
           set -euo pipefail
           if [ "$CHANGES_RESULT" != "success" ]; then
@@ -316,4 +367,5 @@ jobs:
           check_job "Test" "$TEST_SELECTED" "$TEST_RESULT"
           check_job "MarkdStage CLI" "$CLI_SELECTED" "$CLI_RESULT"
           check_job "MarkdStage Desktop" "$DESKTOP_SELECTED" "$DESKTOP_RESULT"
+          check_job "Sample decks" "$SAMPLES_SELECTED" "$SAMPLES_RESULT"
           echo "All selected CI jobs passed."
