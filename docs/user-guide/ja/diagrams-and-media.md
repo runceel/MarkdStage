@@ -45,6 +45,29 @@ PowerPoint 書き出しはハイブリッドです。対応する図形、文字
 | packet／tree view | `packet` の field と bit label、正確な `treeView-beta` の階層線とラベル |
 | その他の Mermaid 図 | スライドでは通常どおり描画し、編集可能変換の対象外は画像として保持 |
 
+<details>
+<summary>PowerPoint で完全には編集できない Mermaid 要素</summary>
+
+以下は代表例であり、すべてを網羅するものではありません。スライドには
+通常どおり描画されますが、PowerPoint へ書き出すと該当部分が画像として
+保持されることがあります。
+
+| カテゴリ | 画像フォールバックになりやすい例 |
+| --- | --- |
+| 図の種類 | 上の対応表にない Mermaid の図、または SVG の構造を認識できない高度な variant |
+| 図形 | 任意の閉じた曲線・曲線 path、複合 freeform、穴を含む図形、未知の block 外形、上限を超える複雑な図形 |
+| transform と clipping | skew、反転、入れ子・非等方の transform、任意の `clipPath`、mask、安全に分離できない clipping |
+| 塗りとエフェクト | gradient、filter、drop shadow、blend mode、group opacity、装飾付き・輪郭付きテキスト、複数要素で共有するエフェクト |
+| ラベルと画像 | 複雑な HTML、埋め込み画像・icon、未対応の `foreignObject`、条件分岐するラベル、元の crop を保つ必要がある文字 |
+| チャート風の出力 | 対応範囲では Mermaid の座標を図形・点・線として編集可能にしますが、データ付き PowerPoint chart は作成しません |
+| 特殊な装飾 | cloud／bang node、未知の marker、曲線の満足度 face、任意の icon、特殊な milestone や commit 装飾 |
+
+可能な場合は、未対応部分を最小の要素または subtree だけ画像にします。
+ネイティブ要素と画像を安全に分離できず、見た目が変わるおそれがある場合は、
+図全体が 1 枚の画像になることがあります。Mermaid の全構文や SVG／CSS
+エフェクト全般が編集可能になることを保証するものではありません。
+</details>
+
 対応範囲は目安です。編集できるかどうかは Mermaid の図の種類だけでなく、
 描画された構造やエフェクトにも左右されます。
 
