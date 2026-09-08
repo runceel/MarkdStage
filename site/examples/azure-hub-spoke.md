@@ -175,7 +175,7 @@ An original schematic based on the concepts in Microsoft Learn, not a deployment
     {
       "type": "connector", "from": "siteGateway", "to": "gateway",
       "fromPort": "right", "toPort": "left", "routing": "polyline",
-      "points": [{ "x": 260, "y": 392.5 }, { "x": 745, "y": 392.5 }, { "x": 745, "y": 472.5 }],
+      "points": [{ "x": 745, "y": 392.5 }, { "x": 745, "y": 472.5 }],
       "label": "VPN / ExpressRoute", "arrow": false,
       "style": { "stroke": "#fbbf24", "strokeWidth": 3, "fontSize": 23 }
     },
