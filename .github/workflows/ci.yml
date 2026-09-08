@@ -48,12 +48,13 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
+          changed="$RUNNER_TEMP/changed-files.txt"
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            printf 'slides.md\n' > "$changed"
             node scripts/ci-paths.mjs --all
             exit 0
           fi
 
-          changed="$RUNNER_TEMP/changed-files.txt"
           if [ "$EVENT_NAME" = "pull_request" ]; then
             git diff --name-only --no-renames --diff-filter=ACDMRTUXB \
               "$BASE_SHA" "$HEAD_SHA" > "$changed"
@@ -70,6 +71,14 @@ jobs:
           echo "Changed paths:"
           sed 's/^/  /' "$changed"
           node scripts/ci-paths.mjs < "$changed"
+
+      - name: Save changed paths
+        uses: actions/upload-artifact@v5
+        with:
+          name: ci-changed-paths
+          path: ${{ runner.temp }}/changed-files.txt
+          retention-days: 1
+          if-no-files-found: error
 
   docs:
     name: Documentation
@@ -239,8 +248,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+
+      - name: Restore changed paths
+        uses: actions/download-artifact@v5
         with:
-          fetch-depth: 0
+          name: ci-changed-paths
+          path: ${{ runner.temp }}/ci-changed-paths
 
       - name: Install dependencies
         run: npm ci
@@ -264,33 +277,10 @@ jobs:
 
       - name: Validate changed sample decks
         shell: bash
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          BEFORE_SHA: ${{ github.event.before }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          cd "$GITHUB_WORKSPACE"
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            node scripts/ci-samples.mjs <<< "slides.md"
-            exit 0
-          fi
-
-          changed="$RUNNER_TEMP/changed-files.txt"
-          if [ "$EVENT_NAME" = "pull_request" ]; then
-            git diff --name-only --no-renames --diff-filter=ACDMRTUXB \
-              "$BASE_SHA" "$HEAD_SHA" > "$changed"
-          elif [ -n "$BEFORE_SHA" ] &&
-               [ "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ] &&
-               git cat-file -e "${BEFORE_SHA}^{commit}" 2>/dev/null; then
-            git diff --name-only --no-renames --diff-filter=ACDMRTUXB \
-              "$BEFORE_SHA" "$GITHUB_SHA" > "$changed"
-          else
-            git diff-tree --no-commit-id --name-only --no-renames -r \
-              "$GITHUB_SHA" > "$changed"
-          fi
-          node scripts/ci-samples.mjs < "$changed"
+          node "$GITHUB_WORKSPACE/scripts/ci-samples.mjs" \
+            < "$RUNNER_TEMP/ci-changed-paths/changed-files.txt"
 
   desktop:
     name: MarkdStage Desktop
