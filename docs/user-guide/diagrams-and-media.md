@@ -173,12 +173,42 @@ The editor can:
 - Change text, shape, icon, position, size, style, ports, routing, and parent group
 - Apply or release group layouts
 - Select or import assets
-- Pan in both directions by dragging blank canvas space
+- Select multiple shapes by dragging a rectangle on blank canvas space
+- Pan with Space + drag or the middle mouse button, including over shapes
 - Collapse Elements and Properties; medium windows keep them as nonmodal docks,
   while narrow windows use nonblocking overlays
 - Keep secondary commands in **More** so the canvas remains the primary surface
 - Start an empty diagram with **Add first shape**
 - Undo and redo draft changes
+
+### Select and edit multiple elements
+
+| Action | Control |
+| --- | --- |
+| Select one element | Click it in the diagram or Elements list. |
+| Add to the selection | Ctrl + click (Command + click on macOS). Clicking an already selected element keeps it selected. |
+| Select a range in Elements | Shift + click selects from the anchor to the clicked row in list order; Ctrl/Command + Shift adds the range. |
+| Select a rectangle | Drag blank canvas space to fully enclose nodes, images, or groups. Hold Ctrl/Command to add to the selection. Select connectors directly or from Elements. |
+| Move the selection | Drag an already selected shape, or use arrow keys while a selected shape has focus. Shift + arrow moves by one unit. |
+| Delete or duplicate | Use Delete, Ctrl/Command + D, or the corresponding toolbar/context-menu command. |
+| Cancel a gesture | Press Escape before releasing the pointer. |
+
+**More > Snap to grid** aligns the selection's top-left corner to the visible 10-unit DSL grid.
+It preserves the spacing between shapes, including when they started off-grid. The grid and drag
+preview follow zoom and scrolling; turn snapping off for free movement. Layout-managed children
+cannot move independently until their group's layout is released. Selecting a group with its
+children moves, deletes, or duplicates the group only once.
+
+**Properties** shows only fields editable for every selected element. Matching values are shown
+normally; differing values display **Multiple values** (or an indeterminate checkbox). Editing a
+field applies only that property to every selected element. Geometry X/Y values remain relative
+to each element's parent, not to the selection bounds. IDs, reparenting, layout changes, resizing
+handles, and ordering remain single-selection operations.
+
+Each batch edit, move, deletion, or duplication is one undo step. Deleting shapes also removes
+connectors that reference them. Duplication copies selected elements and selected groups' contents;
+copied connectors use copied endpoints when available and otherwise keep their original endpoints.
+Unselected connectors outside those groups are not duplicated.
 
 Changes remain a draft until you select **Save**. If the Markdown changes externally, the editor
 does not overwrite it; reload the source and reapply the intended change.

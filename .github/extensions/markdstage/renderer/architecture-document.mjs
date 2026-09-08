@@ -9,6 +9,7 @@ import {
   resolveRawElement,
   serializeArchitecture,
 } from "./architecture-edit.mjs";
+import { architectureContract } from "./architecture-contract.mjs";
 
 const HISTORY_LIMIT = 200;
 const COORDINATE_MIN = -4000;
@@ -143,8 +144,50 @@ function setNested(target, path, value) {
   }
 }
 
-function remapCloneIds(raw, element) {
-  const copy = clone(element);
+function operationRoots(entries) {
+  return entries.filter((entry) => !entries.some(
+    (ancestor) => ancestor.element.type === "group" &&
+      entry.sourcePath.startsWith(`${ancestor.sourcePath}.children[`),
+  ));
+}
+
+function updateProperty(element, path, value) {
+  setNested(element, path, value);
+  if (element.type === "connector" && path === "routing" && value !== "polyline") {
+    delete element.points;
+  }
+}
+
+function supportsBatchProperty(element, path) {
+  if (typeof path !== "string") return false;
+  const [field, nested, ...rest] = path.split(".");
+  if (["id", "type", "children", "parent", "layout"].includes(field)) return false;
+  const properties = architectureContract.elements[element.type]?.properties;
+  if (!properties || !Object.hasOwn(properties, field)) return false;
+  if (nested === undefined) return true;
+  return field === "style" && rest.length === 0 &&
+    Object.hasOwn(architectureContract.definitions.style.properties, nested);
+}
+
+function finiteValues(value) {
+  if (typeof value === "number") return Number.isFinite(value);
+  if (value && typeof value === "object") return Object.values(value).every(finiteValues);
+  return true;
+}
+
+function sharedDisplacement(boxes, dx, dy) {
+  return {
+    dx: round(clamp(dx,
+      Math.max(...boxes.map((box) => COORDINATE_MIN - box.x)),
+      Math.min(...boxes.map((box) => COORDINATE_MAX - box.x)))),
+    dy: round(clamp(dy,
+      Math.max(...boxes.map((box) => COORDINATE_MIN - box.y)),
+      Math.min(...boxes.map((box) => COORDINATE_MAX - box.y)))),
+  };
+}
+
+function remapCloneIds(raw, elements) {
+  const copies = clone(elements);
   const mapping = new Map();
   const reserved = new Set(rawEntries(raw).map((entry) => entry.element.id).filter(Boolean));
   const reserveId = (base) => {
@@ -170,7 +213,7 @@ function remapCloneIds(raw, element) {
     }
     if (Array.isArray(item.children)) item.children.forEach(reserve);
   };
-  reserve(copy);
+  copies.forEach(reserve);
   const updateConnectors = (item) => {
     if (!item || typeof item !== "object") return;
     if (item.type === "connector") {
@@ -179,8 +222,8 @@ function remapCloneIds(raw, element) {
     }
     if (Array.isArray(item.children)) item.children.forEach(updateConnectors);
   };
-  updateConnectors(copy);
-  return copy;
+  copies.forEach(updateConnectors);
+  return copies;
 }
 
 export function createArchitectureDocument(source, options = {}) {
@@ -207,6 +250,9 @@ export function createArchitectureDocument(source, options = {}) {
   }
 
   function commit(raw, reason, details = {}) {
+    if (JSON.stringify(raw) === JSON.stringify(current().raw)) {
+      return reject("unchanged", details);
+    }
     const sourceText = serializeArchitecture(raw);
     let next;
     try {
@@ -231,6 +277,30 @@ export function createArchitectureDocument(source, options = {}) {
     }
     if (details?.ok === false) return details;
     return commit(raw, reason, details);
+  }
+
+  function selection(raw, refs) {
+    if (!Array.isArray(refs)) return reject("invalid-selection", { refs: [] });
+    if (!refs.length) return reject("empty-selection", { refs: [] });
+    const entries = [];
+    const seen = new Set();
+    for (const ref of refs) {
+      const entry = typeof ref === "string" ? rawEntry(raw, ref) : null;
+      if (!entry) return reject("unknown", { refs, invalidRef: ref });
+      if (seen.has(entry.element)) continue;
+      seen.add(entry.element);
+      entries.push(entry);
+    }
+    return { entries, refs: entries.map((entry) => entry.ref) };
+  }
+
+  function mutateMany(reason, refs, mutator) {
+    const edited = mutate(reason, (raw) => {
+      const selected = selection(raw, refs);
+      if (selected.ok === false) return selected;
+      return mutator(raw, selected);
+    });
+    return { refs: Array.isArray(refs) ? refs : [], ...edited };
   }
 
   function describe(ref) {
@@ -266,11 +336,25 @@ export function createArchitectureDocument(source, options = {}) {
     return mutate("element-updated", (raw) => {
       const entry = rawEntry(raw, ref);
       if (!entry) return reject("unknown", { ref });
-      setNested(entry.element, path, value);
-      if (entry.element.type === "connector" && path === "routing" && value !== "polyline") {
-        delete entry.element.points;
-      }
+      updateProperty(entry.element, path, value);
       return { ref: entry.element.id || entry.sourcePath, path, value };
+    });
+  }
+
+  function setElements(refs, path, value) {
+    return mutateMany("elements-updated", refs, (_raw, selected) => {
+      if (!finiteValues(value)) return reject("invalid-value", { refs: selected.refs, path });
+      for (const entry of selected.entries) {
+        if (!supportsBatchProperty(entry.element, path)) {
+          return reject("unsupported-property", { refs: selected.refs, path });
+        }
+        if (["x", "y", "width", "height"].includes(path)) {
+          const placement = describePlacement(current().model, entry.element.id);
+          if (!placement.movable) return { ...placement, ok: false, refs: selected.refs };
+        }
+      }
+      for (const entry of selected.entries) updateProperty(entry.element, path, value);
+      return { refs: selected.refs, path, value };
     });
   }
 
@@ -308,6 +392,34 @@ export function createArchitectureDocument(source, options = {}) {
       ref: element.id,
       x: moved.x,
       y: moved.y,
+    });
+  }
+
+  function moveMany(refs, dx, dy) {
+    return mutateMany("moved", refs, (_raw, selected) => {
+      if (!Number.isFinite(dx) || !Number.isFinite(dy)) {
+        return reject("invalid-displacement", { refs: selected.refs });
+      }
+      const roots = operationRoots(selected.entries)
+        .filter((entry) => entry.element.type !== "connector");
+      if (!roots.length) return reject("connector-only", { refs: selected.refs });
+      const boxes = [];
+      for (const entry of roots) {
+        const placement = describePlacement(current().model, entry.element.id);
+        if (!placement.movable) return { ...placement, ok: false, refs: selected.refs };
+        const element = modelElement(current().model, entry.ref);
+        boxes.push({
+          x: round(element.x - placement.origin.x),
+          y: round(element.y - placement.origin.y),
+        });
+      }
+      const delta = sharedDisplacement(boxes, dx, dy);
+      if (!delta.dx && !delta.dy) return reject("unchanged", { refs: selected.refs, ...delta });
+      roots.forEach((entry, index) => {
+        entry.element.x = round(boxes[index].x + delta.dx);
+        entry.element.y = round(boxes[index].y + delta.dy);
+      });
+      return { refs: selected.refs, ...delta };
     });
   }
 
@@ -452,6 +564,19 @@ export function createArchitectureDocument(source, options = {}) {
     });
   }
 
+  function removeMany(refs) {
+    return mutateMany("elements-deleted", refs, (raw, selected) => {
+      const roots = operationRoots(selected.entries);
+      const ids = new Set();
+      roots.forEach((entry) => collectIds(entry.element, ids));
+      for (const entry of roots) {
+        entry.items.splice(entry.items.indexOf(entry.element), 1);
+      }
+      if (ids.size) removeReferencingConnectors(raw.elements, ids);
+      return { refs: [], removedIds: [...ids] };
+    });
+  }
+
   function duplicate(ref) {
     return mutate("element-duplicated", (raw) => {
       const entry = rawEntry(raw, ref);
@@ -459,12 +584,42 @@ export function createArchitectureDocument(source, options = {}) {
       const copy =
         entry.element.type === "connector"
           ? clone(entry.element)
-          : remapCloneIds(raw, entry.element);
+          : remapCloneIds(raw, [entry.element])[0];
       if (typeof copy.x === "number") copy.x = clamp(copy.x + 24, COORDINATE_MIN, COORDINATE_MAX);
       if (typeof copy.y === "number") copy.y = clamp(copy.y + 24, COORDINATE_MIN, COORDINATE_MAX);
       entry.items.splice(entry.index + 1, 0, copy);
       const copyPath = entry.sourcePath.replace(/\[\d+\]$/, `[${entry.index + 1}]`);
       return { ref: copy.id || copyPath, id: copy.id };
+    });
+  }
+
+  function duplicateMany(refs) {
+    return mutateMany("elements-duplicated", refs, (raw, selected) => {
+      const roots = operationRoots(selected.entries);
+      const copies = remapCloneIds(raw, roots.map((entry) => entry.element));
+      const boxes = roots.map((entry) => {
+        if (entry.element.type === "connector") return null;
+        const placement = describePlacement(current().model, entry.element.id);
+        if (!placement.movable) return null;
+        const element = modelElement(current().model, entry.ref);
+        return {
+          x: round(element.x - placement.origin.x),
+          y: round(element.y - placement.origin.y),
+        };
+      });
+      const movableBoxes = boxes.filter(Boolean);
+      const delta = movableBoxes.length ? sharedDisplacement(movableBoxes, 24, 24) : { dx: 0, dy: 0 };
+      roots.forEach((entry, index) => {
+        const copy = copies[index];
+        if (boxes[index]) {
+          copy.x = round(boxes[index].x + delta.dx);
+          copy.y = round(boxes[index].y + delta.dy);
+        }
+        entry.items.splice(entry.items.indexOf(entry.element) + 1, 0, copy);
+      });
+      // Source paths belong to the final arrays, not the insertion-time indexes.
+      const inserted = new Map(rawEntries(raw).map((entry) => [entry.element, entry.ref]));
+      return { refs: copies.map((copy) => inserted.get(copy)), ...delta };
     });
   }
 
@@ -569,15 +724,19 @@ export function createArchitectureDocument(source, options = {}) {
     describe,
     setRoot,
     setElement,
+    setElements,
     renameElement,
     move,
+    moveMany,
     resize,
     addNode,
     addGroup,
     addImage,
     addConnector,
     remove,
+    removeMany,
     duplicate,
+    duplicateMany,
     reorder,
     reparent,
     releaseLayout,
