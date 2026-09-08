@@ -225,6 +225,29 @@ test("multiselection marquee transfers keyboard focus before arrows edit the new
   }
 });
 
+test("multiselection marquee has a translucent fill and solid outline across themes", async ({ page }) => {
+  const harness = await openMultiEditor(page);
+  try {
+    for (const theme of ["dark", "light", "microsoft"]) {
+      await page.evaluate((value) => { document.documentElement.dataset.theme = value; }, theme);
+      await dragBetween(page, [90, 90], [500, 270], { release: false });
+      const marquee = page.locator(".editor-marquee");
+      await expect(marquee).toBeVisible();
+      await expect(marquee).toHaveCSS("fill-opacity", "0.18");
+      await expect(marquee).toHaveCSS("stroke-opacity", "1");
+      await expect(marquee).toHaveCSS("opacity", "1");
+      await expect(marquee).toHaveCSS("pointer-events", "none");
+      await expectSelected(page, ["alpha", "beta"]);
+      await page.mouse.up();
+      await expect(marquee).toHaveCount(0);
+      await expectSelected(page, ["alpha", "beta"]);
+    }
+    expect(harness.draftSource).toBe(MULTI_SOURCE);
+  } finally {
+    await harness.close();
+  }
+});
+
 test("multiselection Space-left and middle drags pan even when starting on a shape", async ({ page }) => {
   const harness = await openMultiEditor(page);
   try {

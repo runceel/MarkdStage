@@ -130,7 +130,7 @@ body[data-inspector-open="false"] .inspector-panel{display:none;}
 .editor-viewport.is-panning [data-editor-ref]{cursor:grabbing;}
 .editor-viewport.is-selecting{cursor:crosshair;user-select:none;}
 .editor-grid,.editor-marquee{pointer-events:none;}
-.editor-marquee{fill:var(--editor-accent-soft);stroke:var(--editor-accent);stroke-width:1;
+.editor-marquee{fill:var(--editor-accent);fill-opacity:.18;stroke:var(--editor-accent);stroke-width:1;
   vector-effect:non-scaling-stroke;}
 .visually-hidden{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;
   clip-path:inset(50%);white-space:nowrap;}
