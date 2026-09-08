@@ -23,6 +23,22 @@ Mermaid は同梱しているのでオフラインでも動きます。フロー
 Mermaid の図は背景色、枠線、テキスト、アクセントカラーをスライドのテーマから自動的に取り込むため、
 Mermaid 既定の配色ではなく、カスタムテーマを含むデッキのテーマに自然に溶け込みます。
 
+### Mermaid のテーマ対応範囲
+
+MarkdStage は、描画前にスライドのテーマ配色を同梱の Mermaid 11.15.0 に渡します。
+通常表示、presenter、fixed preview、PNG、PDF、PowerPoint は同じ描画済み SVG を使うため、
+PowerPoint だけで色を補正しているわけではありません。
+
+| 図 | テーマで制御する役割 | 残る制約 |
+| --- | --- | --- |
+| C4 | 図形の塗りと枠線は Mermaid が定義する `c4` 設定を使います。境界・関係の線、ラベル、矢印 marker はテーマの線・テキスト役割を使います。light 系テーマでは、Mermaid の既定の白い図形文字に対して十分暗い塗りを選びます。 | 同梱 Mermaid の C4 renderer には境界・関係・marker の既定色をハードコードしている箇所があります。MarkdStage が補正するのはその既定値だけです。ソースに `UpdateElementStyle` または `UpdateRelStyle` がある場合は、明示色を上書きしないよう補正を行いません。 |
+| `architecture-beta` | `archEdgeColor`、`archEdgeArrowColor`、`archGroupBorderColor`、`archGroupBorderWidth` をテーマに合わせます。 | Mermaid の service／group icon の artwork と固定された icon テキスト色のすべてがテーマ変数として公開されているわけではありません。 |
+| `eventmodeling` | entity の塗り・枠線、lane の背景・枠線、関係線、矢印、attribute の背景を Mermaid が定義する変数でテーマに合わせます。 | カスタムテーマでは `--bg`、`--fg`、アクセント値自体を読みやすく設定してください。未対応の装飾や複雑なラベルは Mermaid の描画済み artwork を保持します。 |
+
+図形の種類ごとの意味を保つため、すべてを一色には平坦化しません。Mermaid が公開している
+明示色は自動 fallback より優先されます。テーマを変更すると配色を再計算しますが、
+ユーザーが指定したカスタムテーマの値を自動で変更したり、コントラスト補正したりはしません。
+
 Mermaid の構文に誤りがある場合は、スライドの他の内容はそのままにエラーを表示します。
 
 ### PowerPoint で編集できる Mermaid

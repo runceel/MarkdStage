@@ -24,6 +24,23 @@ Mermaid diagrams pick up the slide's background, border, text, and accent colors
 they blend into the deck's theme (including custom themes) instead of using one of Mermaid's own
 fixed color schemes.
 
+### Mermaid theme coverage
+
+MarkdStage passes the rendered theme palette to the bundled Mermaid 11.15.0 renderer before drawing
+the diagram. The same rendered SVG is used by normal view, presenter, fixed preview, PNG, PDF, and
+PowerPoint output, so this is not a PowerPoint-only color adjustment.
+
+| Diagram | Theme-controlled roles | Remaining limitation |
+| --- | --- | --- |
+| C4 | Entity fills and borders use Mermaid's documented `c4` settings. Boundary and relationship strokes, labels, and arrow markers use the theme's line/text roles. Light themes use dark enough entity fills for Mermaid's default white entity text. | Mermaid's bundled C4 renderer hardcodes some boundary, relationship, and marker defaults; MarkdStage repairs only those defaults. If the source contains explicit `UpdateElementStyle` or `UpdateRelStyle`, the fallback is skipped so source-authored colors are not overwritten. |
+| `architecture-beta` | `archEdgeColor`, `archEdgeArrowColor`, `archGroupBorderColor`, and `archGroupBorderWidth` follow the theme. | Mermaid service/group icon artwork and its fixed icon-text styling are not all exposed as theme variables. |
+| `eventmodeling` | Entity fills/strokes, swimlane backgrounds/strokes, relationship strokes, arrowheads, and attribute backgrounds use Mermaid's documented variables. | Custom themes still need readable `--bg`, `--fg`, and accent values; unsupported decorations and rich labels keep Mermaid's rendered artwork. |
+
+These mappings preserve the distinction between node types instead of flattening every shape to one
+color. Explicit colors in Mermaid source take precedence over automatic fallback where Mermaid
+exposes them. Theme changes re-render the palette; custom theme values are not modified or
+contrast-corrected on the user's behalf.
+
 If Mermaid syntax is invalid, the slide shows an error while preserving the rest of the content.
 
 ### Editable Mermaid in PowerPoint
