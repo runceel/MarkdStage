@@ -571,8 +571,9 @@ export async function runPptxOutputBrowser(browser, pageUrl, profileDir, job, to
         }
         const trimMermaid = fallback.type === "mermaid" &&
           fallback.reason === "mermaid-rendered-as-artwork";
-        // Integer capture coordinates keep cropped pixels at their original slide positions.
-        const bounds = trimMermaid ? {
+        // Align local Mermaid artwork too: fractional PNG placement resamples
+        // translucent strokes and changes their composited theme colors.
+        const bounds = fallback.type === "mermaid" ? {
           x: Math.floor(left),
           y: Math.floor(top),
           width: Math.ceil(right) - Math.floor(left),

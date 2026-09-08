@@ -749,14 +749,14 @@ runtimeTest("systems fallback isolation observes all nine real capture states an
   for (const { slideIndex, fallbackIndex } of manifest) {
     const fallback = rendered.model.slides[slideIndex].fallbacks[fallbackIndex];
     const image = captured[slideIndex].find((image) => image.fallbackIndex === fallbackIndex);
-    const x = Math.max(0, fallback.x), y = Math.max(0, fallback.y);
+    const x = Math.floor(Math.max(0, fallback.x)), y = Math.floor(Math.max(0, fallback.y));
     expect({ x: image.x, y: image.y, width: image.width, height: image.height }).toEqual({
-      x, y, width: Math.min(1280, fallback.x + fallback.width) - x,
-      height: Math.min(720, fallback.y + fallback.height) - y,
+      x, y, width: Math.ceil(Math.min(1280, fallback.x + fallback.width)) - x,
+      height: Math.ceil(Math.min(720, fallback.y + fallback.height)) - y,
     });
   }
-  expect(captured[2].find((image) => image.fallbackIndex === manifest[4].fallbackIndex).width,
-    "original thin C4 queue tail is still captured").toBeLessThan(3);
+  expect(rendered.model.slides[2].fallbacks[manifest[4].fallbackIndex].width,
+    "the thin source C4 queue tail remains a separate fallback before pixel alignment").toBeLessThan(3);
 
   // Negative controls use a separate renderer, never the page being captured.
   const harness = await startHarness({ slides: ["# Systems", ...sources.map((source) =>
@@ -847,8 +847,8 @@ runtimeTest("actual systems PPTX preserves captured media bytes, picture associa
         painted: context.getImageData(0, 0, image.width, image.height).data.some((value, index) => index % 4 === 3 && value > 0) };
     }, files.get(media).toString("base64"));
     expect(png.painted, "Embedded image is not blank").toBe(true);
-    expect(png.width).toBe(Math.floor(image.width));
-    expect(png.height).toBe(Math.floor(image.height));
+    expect(png.width).toBe(image.width);
+    expect(png.height).toBe(image.height);
     const corrupt = new Map(files);
     const changed = Buffer.from(files.get(media)); changed[changed.length - 1] ^= 1;
     corrupt.set(media, changed);
