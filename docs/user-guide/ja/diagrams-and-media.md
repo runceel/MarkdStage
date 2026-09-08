@@ -43,6 +43,9 @@ PowerPoint 書き出しはハイブリッドです。対応する図形、文字
 | ER 図 | 正確な `erDiagram` 構文、entity、属性、relation、ラベル、crow's-foot cardinality |
 | requirement 図 | `requirementDiagram` の block、対応する relation、ラベル、marker |
 | packet／tree view | `packet` の field と bit label、正確な `treeView-beta` の階層線とラベル |
+| C4 | 基本的な境界枠、対応する entity の箱、描画位置を保持したラベル、関係線。Person の画像や複雑な輪郭は局所画像として保持 |
+| Architecture（Mermaid） | `architecture-beta` の group 枠、単純な service の箱、ラベル、関係線。未対応の service／group アイコンは局所画像として保持 |
+| Event Modeling | `eventmodeling` の基本的な箱、関係線、単純な HTML ラベル。未対応の装飾、複雑なラベル、エフェクトは局所画像として保持 |
 | その他の Mermaid 図 | スライドでは通常どおり描画し、編集可能変換の対象外は画像として保持 |
 
 <details>
@@ -73,6 +76,28 @@ PowerPoint 書き出しはハイブリッドです。対応する図形、文字
 
 書き出しではソースから配置を作り直さず、描画済み SVG を使います。
 有効な構文のすべてが編集可能になるわけではありません。
+
+C4／Mermaid Architecture／Event Modeling も、同梱 Mermaid の描画済みの位置や大きさを使います。
+図の一部が画像でも、安全に分離できる枠、基本図形、関係線、文字はそれぞれ編集できます。
+C4 Person の画像、database／queue の複雑な輪郭、未対応の Architecture アイコンは、
+近似した記号へ置き換えず、元の見た目を局所画像で残します。
+既知の矩形の枠・カードや直線の関係線の破線は、線と間隔の 2 値から、
+描画位置を保持した個別に編集可能な線分へ分解します。
+PowerPoint の線幅に依存する破線の間隔を使わず、縮小時も位置と長さを保ちます。
+破線が鋭い角をまたぐ場合は接合部分もネイティブ図形で補い、既知の角丸は
+上限付きのサンプリングで保持します。未対応の接合・端点、太い角丸の輪郭、
+破線オフセット・エフェクトや線分数の上限を超える場合は局所画像にします。
+
+日本語や単純な複数行ラベルは、安全な場合に描画位置を保持して編集可能にします。
+複雑な HTML、切り抜かれたラベル、未知の矢印、未対応の変形、共有エフェクトは、
+安全に分離できる最小のラベル・線・部分木の画像として残します。
+診断の理由とソースパス、描画順、ネイティブ要素の除外マスクを保持し、二重描画や欠落を防ぎます。
+既存の要素数、ノード数、点数、階層の上限は変えません。
+すべての C4 図形・アイコンや任意の SVG パスを編集可能にする機能ではありません。
+
+Mermaid の `architecture-beta` は、MarkdStage の JSON を記述する
+`architecture` フェンス（Architecture DSL）とは別の形式です。
+Architecture DSL の仕様やエディター、対応図形は変更しません。
 
 代表的な構文と現在の対応範囲は、
 プレゼンテーション向けの

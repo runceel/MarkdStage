@@ -1,0 +1,7 @@
+architecture-beta
+group orders(cloud)[Orders]
+service db(database)[Database] in orders
+service api(server)[API] in orders
+service web[Web] in orders
+db:R <--> L:api
+api:R --> L:web

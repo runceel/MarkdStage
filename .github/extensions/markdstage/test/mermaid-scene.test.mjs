@@ -8,6 +8,9 @@ import {
   isKnownGanttMilestone,
   isKnownIshikawaArrow,
   knownNarrativeCard,
+  knownArchitectureCard,
+  knownArchitectureArrow,
+  boundedSystemDashSegments,
   classifyPolygonPreset,
   cssStyleToSceneStyle,
   decomposeSimpleSvgTransform,
@@ -27,8 +30,11 @@ import {
   MAX_CONNECTOR_POINTS,
   MAX_SCENE_NODES,
   createScene,
+  normalizeScene,
   validateScene,
 } from "../renderer/scene-graph.mjs";
+import { sceneToPptxElements } from "../renderer/scene-pptx.mjs";
+import { buildPptxPackage } from "../runtime/pptx-package.mjs";
 
 test("classifies measured Mermaid polygon signatures", () => {
   assert.equal(
@@ -71,6 +77,13 @@ test("routes only bundled Mermaid SVG roles with their actual root signals", () 
   for (const name of ["mindmap", "timeline", "journey"]) {
     assert.equal(classifyMermaidDiagramRoute(name), name);
     assert.equal(classifyMermaidDiagramRoute(`${name}-beta`), null);
+  }
+  for (const name of ["c4", "architecture", "eventmodeling"]) {
+    assert.equal(classifyMermaidDiagramRoute(name), name);
+    assert.equal(classifyMermaidDiagramRoute(`${name}-beta`), null);
+  }
+  for (const sourceKeyword of ["C4Context", "C4Container", "C4Component", "C4Dynamic", "C4Deployment", "eventModeling"]) {
+    assert.equal(classifyMermaidDiagramRoute(sourceKeyword), null);
   }
   assert.equal(classifyMermaidDiagramRoute("ishikawa-beta"), null);
   assert.equal(classifyMermaidDiagramRoute("treemap-beta"), null);
@@ -144,6 +157,76 @@ test("recognizes only the bounded timeline and default mindmap card profiles", (
     }
     assert.equal(knownNarrativeCard(data, "journey"), null);
   }
+});
+
+test("recognizes only bundled architecture service cards and four arrow profiles", () => {
+  assert.deepEqual(knownArchitectureCard("M0,80 V5 Q0,0 5,0 H75 Q80,0 80,5 V80 Z"),
+    { preset: "topRoundedRect", cornerRadius: 5 });
+  assert.deepEqual(knownArchitectureCard("M0,40 V5 Q0,0 5,0 H35 Q40,0 40,5 V40 Z"),
+    { preset: "topRoundedRect", cornerRadius: 5 });
+  for (const data of ["", "M0,80 V5 Q0,1 5,0 H75 Q80,0 80,5 V80 Z",
+    "M0,80 V5 Q0,0 5,0 H75 Q80,0 80,5 V80", "M0,80 V5 Q0,0 5,0 H75 Q80,0 80,5 V80 Z M0,0"]) {
+    assert.equal(knownArchitectureCard(data), null);
+  }
+  for (const [points, rotation] of [
+    ["10,5 0,10 0,0", 90], ["0,5 10,0 10,10", -90],
+    ["0,0 10,0 5,10", 180], ["0,10 10,10 5,0", 0],
+  ]) assert.deepEqual(knownArchitectureArrow(points), { size: 10, rotation });
+  for (const points of ["", "10,5 0,10 0,1", "10,5 0,10 0,0 0,5", "0,0 0,0 0,0",
+    "10,5 0,10 Infinity,0", "20,5 0,10 0,0"]) assert.equal(knownArchitectureArrow(points), null);
+});
+
+test("architecture arrows consume every numeric coordinate and reject extra vertices or malformed lists", () => {
+  for (const points of ["10 5 0 10 0 0", "10,5,0,10,0,0", "1e1,5 .0,+10 0,0"]) {
+    assert.deepEqual(knownArchitectureArrow(points), { size: 10, rotation: 90 });
+  }
+  for (const points of ["10,5,100,100 0,10 0,0", "10,5 0,10 0,0,20", "10,,5 0,10 0,0",
+    "10,5 0,10 0,0,", "10,5 0,10 0,0 junk", "10,5 0,10 0,0 1e400,0"]) {
+    assert.equal(knownArchitectureArrow(points), null, points);
+  }
+});
+
+test("bounded system dashes retain physical intervals and package coordinates independently of stroke width", () => {
+  const segments = boundedSystemDashSegments(30, [2.8, 2.8], (distance) => ({ x: distance, y: 10 }));
+  assert.equal(segments.length, 6);
+  assert.deepEqual(segments[0], { start: 0, end: 2.8, points: [{ x: 0, y: 10 }, { x: 2.8, y: 10 }] });
+  assert.equal(segments.at(-1).end, 30);
+  for (const strokeWidth of [.4, 1.4, 2]) {
+    const scene = normalizeScene(createScene({ width: 100, height: 100, source: { kind: "mermaid", path: "systems.svg" },
+      nodes: segments.map((segment, index) => ({ kind: "connector", sourcePath: `dash[${index}]`, z: index,
+        points: segment.points, style: { stroke: "#444444", strokeWidth, dash: "solid", lineCap: "butt" } })) })).scene;
+    const { elements } = sceneToPptxElements(scene);
+    const xml = buildPptxPackage({ slides: [{ elements }] }).toString("utf8");
+    assert.match(xml, /<a:ext cx="26670" cy="0"\/>/);
+    assert.match(xml, /cap="flat"/);
+    assert.doesNotMatch(xml, /<a:(?:custDash|prstDash)/);
+    assert.equal((xml.match(/<p:sp>/g) || []).length, segments.length);
+  }
+});
+
+test("bounded system dash sampling preserves rectangle turns and enforces density, geometry and point budgets", () => {
+  const rectangle = (s) => s <= 100 ? { x: s, y: 0 } : s <= 150 ? { x: 100, y: s - 100 }
+    : s <= 250 ? { x: 250 - s, y: 50 } : { x: 0, y: 300 - s };
+  const segments = boundedSystemDashSegments(300, [14, 10], rectangle);
+  assert.ok(segments && segments.some((segment) => segment.points.length > 2));
+  assert.deepEqual(boundedSystemDashSegments(300, [50000, 50000], rectangle, [0, 100, 150, 250])[0].points,
+    [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 50 }, { x: 0, y: 50 }, { x: 0, y: 0 }]);
+  for (const segment of segments) {
+    assert.deepEqual(segment.points[0], rectangle(segment.start));
+    assert.deepEqual(segment.points.at(-1), rectangle(segment.end));
+    assert.ok(segment.points.length <= MAX_CONNECTOR_POINTS);
+    const length = segment.points.slice(1).reduce((sum, point, index) =>
+      sum + Math.hypot(point.x - segment.points[index].x, point.y - segment.points[index].y), 0);
+    assert.ok(Math.abs(length - (segment.end - segment.start)) < .1);
+  }
+  for (const pattern of [[.0001, .0001], [0, 1], [-1, 1], [1, Infinity], [1, 2, 3]]) {
+    assert.equal(boundedSystemDashSegments(300, pattern, rectangle), null);
+  }
+  assert.equal(boundedSystemDashSegments(Infinity, [7, 7], rectangle), null);
+  assert.equal(boundedSystemDashSegments(30, [7, 7], () => ({ x: NaN, y: 0 })), null);
+  assert.equal(boundedSystemDashSegments(300, [300, 1], (s) => ({ x: s, y: Math.sin(s * 1000) * 10 })), null);
+  assert.equal(boundedSystemDashSegments(300, [7, 7], rectangle, [0, 100, 150, 250, 300]), null);
+  assert.equal(boundedSystemDashSegments(300, [7, 7], rectangle, [301]), null);
 });
 
 test("recognizes only the bundled Gantt milestone transform and square geometry", () => {

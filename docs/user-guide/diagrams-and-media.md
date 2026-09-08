@@ -55,6 +55,9 @@ cannot be separated safely.
 | Mindmap | `mindmap` basic rectangular, rounded, circular, default underlined, and known hexagonal nodes; measured branches and simple HTML labels |
 | Timeline | `timeline` known square-bottom/top-rounded cards, underlines, titles, measured SVG text lines, and exact line-end triangles when effects are absent |
 | Journey | `journey` task/section rectangles, person/legend circles, face circles/eyes and neutral mouths, visible labels, and exact line-end triangles |
+| C4 | Basic boundaries, supported entity boxes, measured labels, and relationship lines; unsupported person artwork and complex entity outlines stay local images |
+| Architecture (Mermaid) | `architecture-beta` group frames, simple service boxes, labels, and relationship lines; unsupported service/group icons stay local images |
+| Event Modeling | `eventmodeling` basic boxes, relationship lines, and simple HTML labels; unsupported decorations, rich labels, and effects stay local images |
 | Other Mermaid diagrams | Render normally in slides and use image fallback where editable conversion is unavailable |
 
 <details>
@@ -216,6 +219,31 @@ retain diagnostic reasons, source paths, local bounds, paint order, and native
 exclusion masks. They do not add general closed curves, arbitrary icons, or
 new Architecture DSL shapes; the bounded card/hexagon presets are internal to
 the common scene and SVG/PowerPoint backends.
+
+C4, Mermaid architecture, and Event Modeling use the bundled renderer's measured
+geometry, not a new layout engine. Safe frames, basic shapes, relationship lines,
+and text remain independently editable even when the diagram contains local
+artwork. C4 Person images and complex database/queue outlines, unsupported
+architecture icons, and unknown decorations retain their original appearance
+rather than being replaced by approximate symbols.
+Safe two-length stroke dash/gap patterns on known rectangular frames/cards and
+straight relations become individually editable line segments with measured
+endpoints. This avoids PowerPoint's stroke-width-dependent dash spacing at small
+scales. Active sharp miter corners retain their native corner pieces; known
+rounded corners use bounded sampling. Unsupported joins/caps, widened rounded
+outlines, dash offsets, effects, or excessive segment counts stay local artwork.
+
+Simple Japanese and multiline labels retain their measured positions where safe.
+Rich HTML, clipped labels, unknown markers, unsafe transforms, and shared effects
+retain the smallest safe label, line, or subtree image. Fallback diagnostics
+include the source path and reason; native exclusion masks and paint order keep
+the supported and image portions from being duplicated or dropped. Existing
+element, node, point, and depth limits still apply. This is a basic hybrid subset,
+not full C4 shape/icon coverage or general SVG path conversion.
+
+Mermaid's `architecture-beta` syntax is separate from MarkdStage's JSON
+`architecture` fence (Architecture DSL). This addition does not change the
+Architecture DSL, its editor, or its supported shape contract.
 
 See the presentation-ready
 [Mermaid support example deck](../examples/mermaid-support.md) for representative

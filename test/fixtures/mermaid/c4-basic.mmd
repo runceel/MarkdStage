@@ -1,0 +1,9 @@
+C4Container
+title 注文システム
+System_Boundary(system, "注文 / Orders") {
+  Container(web, "画面<br/>Web", "Browser", "注文を入力")
+  Container(api, "API", "Service", "検証<br/>Validate")
+  Container(worker, "処理", "Worker", "注文を処理")
+}
+Rel(web, api, "送信<br/>Submit", "HTTPS")
+BiRel(api, worker, "要求 / 応答")
