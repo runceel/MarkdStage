@@ -8,7 +8,8 @@ import { sceneToPptxElements } from "../../.github/extensions/markdstage/rendere
 import { buildPptxPackage, inspectPptxPackage } from "../../.github/extensions/markdstage/runtime/pptx-package.mjs";
 import { withDeckServer } from "../../packages/markdstage-cli/src/deck.mjs";
 import { exportPptx } from "../../.github/extensions/markdstage/runtime/output.mjs";
-import { connectCdp, runPptxOutputBrowser } from "../../.github/extensions/markdstage/runtime/browser.mjs";
+import { runPptxOutputBrowser } from "../../.github/extensions/markdstage/runtime/browser.mjs";
+import { systemsIsolationContract, readSystemsPackage, assertSystemsPackage } from "../utils/systems-fallback-contract.mjs";
 
 const names = ["c4-basic", "c4-hybrid", "architecture-basic", "architecture-hybrid", "eventmodeling-basic", "eventmodeling-hybrid"];
 const counts = [0, 5, 0, 3, 0, 1];
@@ -646,29 +647,33 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
   });
 }
 
-runtimeTest("actual systems PPTX embeds each local image once with native neighbors excluded and paint order intact", async ({ page }) => {
-  test.setTimeout(120_000);
+async function exportSystems(observe = false) {
   const directory = test.info().outputPath();
   const file = join(directory, "slides.md");
   const sources = await Promise.all(names.map((name) => fixture(name, "mmd")));
   await writeFile(file, ["# Systems", ...sources.map((source) => `## Systems\n\n\`\`\`mermaid\n${source}\n\`\`\``)].join("\n\n---\n\n"));
-  await withDeckServer({ file, workspace: directory, theme: "light" }, async (session) => {
-    let rendered;
-    const references = new Map();
+  return withDeckServer({ file, workspace: directory, theme: "light" }, async (session) => {
+    let rendered, captured, manifest;
+    const observations = [];
     const output = join(directory, "editable-hybrid.pptx");
     await exportPptx(session, output, "light", {
       findChromiumBrowser: () => chromium.executablePath(),
       runPptxOutputBrowser: async (...args) => {
-        // Pause only the output job handshake. Independently isolate the source
-        // in that same Chromium process, then let the real exporter capture it.
-        // C4's module-global layout makes a second render an unreliable oracle.
+        if (!observe) {
+          rendered = await runPptxOutputBrowser(...args);
+          captured = rendered.slideFallbackImages.map((images) => images.map((image) => ({ ...image, data: Buffer.from(image.data) })));
+          return rendered;
+        }
+        // Hold only the ready handshake while attaching a read-only observer.
+        // It records the real exporter's synchronous mask mutations before its
+        // double-RAF/capture, without extra screenshots or a production hook.
         let hold = true;
         const job = args[3];
         args[3] = new Proxy(job, { get: (target, key) => key === "status" && hold && target.status === "ready"
           ? "pending" : Reflect.get(target, key) });
         const operation = runPptxOutputBrowser(...args);
         operation.catch(() => {});
-        let cdp;
+        let browser;
         try {
           let port;
           await expect.poll(async () => {
@@ -676,117 +681,187 @@ runtimeTest("actual systems PPTX embeds each local image once with native neighb
             catch (_) { return false; }
             return Boolean(port);
           }, { timeout: 15_000 }).toBe(true);
-          const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
-          cdp = await connectCdp(targets.find((target) => target.type === "page").webSocketDebuggerUrl);
-          await expect.poll(async () => (await cdp.send("Runtime.evaluate", {
-            expression: "document.documentElement.hasAttribute('data-pptx-ready')", returnByValue: true,
-          })).result?.value, { timeout: 30_000 }).toBe(true);
-          const liveModel = (await cdp.send("Runtime.evaluate", {
-            expression: "window.__presentationPptxModel", returnByValue: true,
-          })).result.value;
-          await cdp.send("Runtime.evaluate", { expression: `
-            document.body.classList.remove("pptx-layout-artwork-mode");
-            document.body.classList.add("pptx-slide-artwork-mode");` });
-          await cdp.send("Emulation.setDefaultBackgroundColorOverride", { color: { r: 0, g: 0, b: 0, a: 0 } });
-          for (let index = 1; index <= names.length; index++) {
-            let localIndex = 0;
-            for (const [fallbackIndex, fallback] of liveModel.slides[index].fallbacks.entries()) {
-              if (fallback.type !== "mermaid") continue;
-              const selector = index === 2 ? "g.person-man > image, g.person-man > path"
-                : index === 4 ? "g.architecture-services svg, g.architecture-groups svg" : "foreignObject";
-              await cdp.send("Runtime.evaluate", { expression: `(() => {
-                const root = document.querySelectorAll(".deck")[${index}].querySelector("pre.mermaid > svg");
-                const attributes = ["style", "class", "data-pptx-native", "data-pptx-fallback-ids"];
-                window.__systemsReferenceAttributes = [root, ...root.querySelectorAll("*")]
-                  .map(part => [part, attributes.map(name => [name, part.getAttribute(name)])]);
-                [root, ...root.querySelectorAll("*")].forEach(part => {
-                  part.removeAttribute("data-pptx-native");
-                  part.removeAttribute("data-pptx-fallback-ids");
-                  part.classList.remove("pptx-fallback-hidden");
-                });
-                root.querySelectorAll("path,line,rect,circle,ellipse,polygon,polyline,text,tspan,foreignObject,foreignObject *,image,svg")
-                  .forEach(part => part.style.setProperty("visibility", "hidden", "important"));
-                const target = root.querySelectorAll(${JSON.stringify(selector)})[${localIndex}];
-                [target, ...target.querySelectorAll("*")].forEach(part => part.style.setProperty("visibility", "visible", "important"));
-                window.__systemsReferenceTarget = target;
-              })()` });
-              const x = Math.max(0, fallback.x);
-              const y = Math.max(0, fallback.y);
-              const clip = { x, y: index * 720 + y, width: Math.min(1280, fallback.x + fallback.width) - x,
-                height: Math.min(720, fallback.y + fallback.height) - y, scale: 1 };
-              const capture = async () => Buffer.from((await cdp.send("Page.captureScreenshot", {
-                format: "png", fromSurface: true, captureBeyondViewport: true, clip,
-              })).data, "base64");
-              const reference = await capture();
-              if (index === 2 && localIndex === 1) {
-                await cdp.send("Runtime.evaluate", { expression: `
-                  window.__systemsReferenceTarget.parentElement.querySelectorAll("text,tspan")
-                    .forEach(part => part.style.setProperty("visibility", "visible", "important"));` });
-                expect(reference.equals(await capture()), "Native DB labels must be excluded from its artwork").toBe(false);
-                await cdp.send("Runtime.evaluate", { expression: `
-                  window.__systemsReferenceTarget.parentElement.querySelectorAll("text,tspan")
-                    .forEach(part => part.style.setProperty("visibility", "hidden", "important"));` });
+          browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
+          const context = browser.contexts()[0];
+          const outputPage = context.pages()[0] || await context.waitForEvent("page");
+          await outputPage.waitForFunction(() => document.documentElement.hasAttribute("data-pptx-ready"));
+          const cdp = await outputPage.context().newCDPSession(outputPage);
+          cdp.on("Runtime.bindingCalled", ({ name, payload }) => {
+            if (name === "__reportSystemsIsolation") observations.push(JSON.parse(payload));
+          });
+          await cdp.send("Runtime.enable");
+          await cdp.send("Runtime.addBinding", { name: "__reportSystemsIsolation" });
+          await outputPage.evaluate(`window.__systemsContract = (${systemsIsolationContract.toString()})()`);
+          manifest = await outputPage.evaluate(() => window.__systemsContract.manifest);
+          await outputPage.evaluate(() => {
+            const contract = window.__systemsContract;
+            const schedule = window.__presentationPptxModel.slides.flatMap((slide, slideIndex) =>
+              slide.fallbacks.map((fallback, fallbackIndex) => ({ ...fallback, slideIndex, fallbackIndex }))
+                .filter((fallback) => fallback.artwork !== false));
+            let index = 0;
+            const observer = new MutationObserver((mutations) => {
+              if (!mutations.some(({ target }) => target.hasAttribute("data-pptx-fallback-ids"))) return;
+              try {
+                if (index < schedule.length) {
+                  const capture = schedule[index++];
+                  const entry = contract.entries.findIndex(({ slideIndex, fallbackIndex }) =>
+                    slideIndex === capture.slideIndex && fallbackIndex === capture.fallbackIndex);
+                  if (entry >= 0) window.__reportSystemsIsolation(JSON.stringify(contract.inspect(entry)));
+                } else {
+                  window.__reportSystemsIsolation(JSON.stringify({
+                    cleanup: document.querySelectorAll(".pptx-fallback-hidden").length === 0,
+                  }));
+                  observer.disconnect();
+                  delete window.__systemsContract;
+                }
+              } catch (error) {
+                window.__reportSystemsIsolation(JSON.stringify({ observerError: error.stack }));
+                observer.disconnect();
               }
-              await cdp.send("Runtime.evaluate", { expression: `
-                [window.__systemsReferenceTarget, ...window.__systemsReferenceTarget.querySelectorAll("*")]
-                  .forEach(part => part.style.setProperty("visibility", "hidden", "important"));` });
-              expect(reference.equals(await capture()), `${names[index - 1]} missing-artwork control`).toBe(false);
-              references.set(`${index}:${fallbackIndex}`, reference);
-              await cdp.send("Runtime.evaluate", { expression: `
-                window.__systemsReferenceAttributes.forEach(([part, attributes]) =>
-                  attributes.forEach(([name, value]) => value === null ? part.removeAttribute(name) : part.setAttribute(name, value)));` });
-              localIndex++;
-            }
-          }
-          await cdp.send("Runtime.evaluate", { expression: `
-            document.body.classList.remove("pptx-slide-artwork-mode");
-            document.body.classList.add("pptx-layout-artwork-mode");` });
-          await cdp.send("Emulation.setDefaultBackgroundColorOverride", {});
+            });
+            observer.observe(document.body, { subtree: true, attributes: true, attributeFilter: ["class"] });
+          });
         } finally {
-          cdp?.close();
           hold = false;
-          rendered = await operation;
+          try { rendered = await operation; }
+          finally { await browser?.close(); }
         }
+        captured = rendered.slideFallbackImages.map((images) => images.map((image) => ({ ...image, data: Buffer.from(image.data) })));
         return rendered;
       },
     });
     const bytes = await readFile(output);
     expect(inspectPptxPackage(bytes).valid).toBe(true);
-    const slides = [...bytes.toString("utf8").matchAll(/<p:sld\b[\s\S]*?<\/p:sld>/g)].map((match) => match[0]);
-    let mermaidImageCount = 0;
-    for (let index = 1; index <= names.length; index++) {
-      const model = rendered.model.slides[index];
-      expect(model.fallbacks.filter((fallback) => fallback.type === "mermaid")).toHaveLength(counts[index - 1]);
-      const objects = [...slides[index].matchAll(/<p:(sp|pic|cxnSp)>[\s\S]*?<\/p:\1>/g)];
-      const expected = [...model.elements, ...model.fallbacks.filter((fallback) => fallback.artwork !== false)].sort((a, b) => a.zOrder - b.zOrder);
-      expect(objects.map((object) => object[1]), names[index - 1]).toEqual(expected.flatMap((element) =>
-        model.fallbacks.includes(element) ? ["pic"] : Array(element.points ? element.points.length - 1 : 1).fill("sp")));
-      for (const image of rendered.slideFallbackImages[index]) {
-        const fallback = model.fallbacks[image.fallbackIndex];
-        if (fallback.type !== "mermaid") continue;
-        mermaidImageCount++;
-        expect(bytes.indexOf(image.data)).toBeGreaterThan(0);
-        expect(bytes.indexOf(image.data, bytes.indexOf(image.data) + 1)).toBe(-1);
-        expect(image.width).toBeGreaterThan(0);
-        expect(image.height).toBeGreaterThan(0);
-        expect(image.width).toBeLessThan(1280);
-        expect(image.height).toBeLessThan(720);
-        expect(model.elements.some((element) => element.path === fallback.path)).toBe(false);
-        expect(await page.evaluate(async (data) => {
-          const image = new Image(); image.src = `data:image/png;base64,${data}`;
-          await image.decode();
-          const canvas = document.createElement("canvas"); canvas.width = image.width; canvas.height = image.height;
-          const context = canvas.getContext("2d"); context.drawImage(image, 0, 0);
-          return context.getImageData(0, 0, image.width, image.height).data.some((value, index) => index % 4 === 3 && value > 0);
-        }, image.data.toString("base64")), "Embedded image is not blank").toBe(true);
-        const reference = references.get(`${index}:${image.fallbackIndex}`);
-        if (!reference.equals(image.data)) {
-          await writeFile(test.info().outputPath(`${names[index - 1]}-${image.fallbackIndex}-source.png`), reference);
-          await writeFile(test.info().outputPath(`${names[index - 1]}-${image.fallbackIndex}-artwork.png`), image.data);
-        }
-        expect(reference.equals(image.data), `${names[index - 1]} ${image.fallbackIndex} must match independently isolated source pixels`).toBe(true);
-      }
-    }
-    expect(mermaidImageCount).toBe(9);
+    expect(rendered.model.slides.slice(1, 7).map((slide) => slide.fallbacks.filter((fallback) => fallback.type === "mermaid").length)).toEqual(counts);
+    expect(captured.slice(1, 7).map((images, index) => images.filter((image) =>
+      rendered.model.slides[index + 1].fallbacks[image.fallbackIndex].type === "mermaid").length)).toEqual(counts);
+    return { rendered, captured, files: readSystemsPackage(bytes), observations, manifest, sources };
   });
+}
+
+runtimeTest("systems fallback isolation observes all nine real capture states and rejects malformed source DOM", async ({ page }) => {
+  test.setTimeout(120_000);
+  const { rendered, captured, observations, manifest, sources } = await exportSystems(true);
+  expect(manifest.map(({ id }) => id)).toEqual(["c4-person", "c4-database-body", "c4-database-rim",
+    "c4-queue-body", "c4-queue-tail", "architecture-database", "architecture-server", "architecture-cloud", "eventmodeling-html"]);
+  expect(observations).toEqual([...manifest.map(({ id, slideIndex, fallbackIndex }) =>
+    ({ id, slideIndex, fallbackIndex, errors: [] })), { cleanup: true }]);
+  for (const { slideIndex, fallbackIndex } of manifest) {
+    const fallback = rendered.model.slides[slideIndex].fallbacks[fallbackIndex];
+    const image = captured[slideIndex].find((image) => image.fallbackIndex === fallbackIndex);
+    const x = Math.max(0, fallback.x), y = Math.max(0, fallback.y);
+    expect({ x: image.x, y: image.y, width: image.width, height: image.height }).toEqual({
+      x, y, width: Math.min(1280, fallback.x + fallback.width) - x,
+      height: Math.min(720, fallback.y + fallback.height) - y,
+    });
+  }
+  expect(captured[2].find((image) => image.fallbackIndex === manifest[4].fallbackIndex).width,
+    "original thin C4 queue tail is still captured").toBeLessThan(3);
+
+  // Negative controls use a separate renderer, never the page being captured.
+  const harness = await startHarness({ slides: ["# Systems", ...sources.map((source) =>
+    `## Systems\n\n\`\`\`mermaid\n${source}\n\`\`\``)], theme: "light" });
+  try {
+    await page.goto(`${harness.url}/?pptx=1&token=${harness.printToken}`);
+    await page.waitForFunction(() => document.documentElement.hasAttribute("data-pptx-ready"));
+    await page.evaluate(`window.__systemsContract = (${systemsIsolationContract.toString()})()`);
+    const controls = await page.evaluate(() => {
+      const { entries, inspect } = window.__systemsContract;
+      const records = [];
+      const select = (index) => {
+        const entry = entries[index];
+        const id = window.__presentationPptxModel.slides[entry.slideIndex].fallbacks[entry.fallbackIndex].captureId;
+        document.querySelectorAll("[data-pptx-fallback-ids]").forEach((part) =>
+          part.classList.toggle("pptx-fallback-hidden", !part.getAttribute("data-pptx-fallback-ids").split(/\s+/).includes(id)));
+      };
+      const change = (name, index, element, attribute, value) => {
+        select(index);
+        const before = inspect(index);
+        const original = element.getAttribute(attribute);
+        let broken;
+        try { element.setAttribute(attribute, value); broken = inspect(index); }
+        finally {
+          if (original === null) element.removeAttribute(attribute);
+          else element.setAttribute(attribute, original);
+        }
+        records.push({ name, before, broken, restored: inspect(index) });
+      };
+      for (const [index, { id, target }] of entries.entries()) {
+        change(`missing-artwork ${id}`, index, target, "style",
+          `${target.getAttribute("style") || ""};display:none!important`);
+      }
+      const label = entries[1].target.parentElement.querySelector("text");
+      change("native-paint DB label", 1, label, "style",
+        `${label.getAttribute("style") || ""};fill:red!important;-webkit-text-fill-color:red!important`);
+      const connector = entries[1].deck.querySelector('[data-pptx-native="connector"]');
+      change("native-paint connector", 1, connector, "style", "stroke:red!important;marker-end:url(#wrong)!important");
+      change("other-artwork exposed", 1, entries[2].target, "class", "");
+      change("other-artwork descendant override", 1, entries[5].target.querySelector("path"), "style", "visibility:visible!important;stroke:red");
+      const wrongId = entries[2].target.getAttribute("data-pptx-fallback-ids");
+      change("ownership wrong source", 1, entries[1].target, "data-pptx-fallback-ids", wrongId);
+      select(1);
+      const beforeSelection = inspect(1);
+      select(2);
+      const wrongSelection = inspect(1);
+      select(1);
+      records.push({ name: "missing-artwork wrong selection", before: beforeSelection,
+        broken: wrongSelection, restored: inspect(1) });
+      change("content path", 4, entries[4].target, "d", `${entries[4].target.getAttribute("d")} l1,0`);
+      change("geometry shifted target", 4, entries[4].target, "style",
+        `${entries[4].target.getAttribute("style") || ""};transform:translateX(2px)!important`);
+      select(4);
+      const entry = entries[4], fallback = window.__presentationPptxModel.slides[2].fallbacks[entry.fallbackIndex];
+      const originalX = fallback.x, before = inspect(4);
+      let broken;
+      try { fallback.x += 2; broken = inspect(4); } finally { fallback.x = originalX; }
+      records.push({ name: "crop shifted", before, broken, restored: inspect(4) });
+      document.querySelectorAll(".pptx-fallback-hidden").forEach((part) => part.classList.remove("pptx-fallback-hidden"));
+      delete window.__systemsContract;
+      return records;
+    });
+    expect(controls).toHaveLength(18);
+    for (const { name, before, broken, restored } of controls) {
+      expect(before.errors, `${name} baseline`).toEqual([]);
+      expect(broken.errors.some((error) => error.startsWith(`${name.split(" ")[0]}:`)), `${name}: ${JSON.stringify(broken)}`).toBe(true);
+      expect(restored.errors, `${name} restored`).toEqual([]);
+    }
+  } finally { await harness.close(); }
+});
+
+runtimeTest("actual systems PPTX preserves captured media bytes, picture associations, placement and paint order", async ({ page }) => {
+  test.setTimeout(120_000);
+  const { rendered, captured, files } = await exportSystems();
+  const associations = assertSystemsPackage(files, rendered.model, captured);
+  for (const { slideIndex, fallbackIndex, media } of associations) {
+    const image = captured[slideIndex].find((image) => image.fallbackIndex === fallbackIndex);
+    expect(image.width).toBeGreaterThan(0);
+    expect(image.height).toBeGreaterThan(0);
+    expect(image.width).toBeLessThan(1280);
+    expect(image.height).toBeLessThan(720);
+    const png = await page.evaluate(async (data) => {
+      const image = new Image(); image.src = `data:image/png;base64,${data}`;
+      await image.decode();
+      const canvas = document.createElement("canvas"); canvas.width = image.width; canvas.height = image.height;
+      const context = canvas.getContext("2d"); context.drawImage(image, 0, 0);
+      return { width: image.width, height: image.height,
+        painted: context.getImageData(0, 0, image.width, image.height).data.some((value, index) => index % 4 === 3 && value > 0) };
+    }, files.get(media).toString("base64"));
+    expect(png.painted, "Embedded image is not blank").toBe(true);
+    expect(png.width).toBe(Math.floor(image.width));
+    expect(png.height).toBe(Math.floor(image.height));
+    const corrupt = new Map(files);
+    const changed = Buffer.from(files.get(media)); changed[changed.length - 1] ^= 1;
+    corrupt.set(media, changed);
+    expect(() => assertSystemsPackage(corrupt, rendered.model, captured), `corrupted ${media}`).toThrow(/captured media integrity/);
+  }
+  for (const [index, association] of associations.entries()) {
+    const wrong = new Map(files), other = associations[(index + 1) % associations.length];
+    const rels = files.get(association.relsName).toString("utf8").replace(
+      new RegExp(`<Relationship\\b(?=[^>]*Id="${association.relationship}")[^>]*\\/>`),
+      (relation) => relation.replace(`Target="${association.target}"`, `Target="${other.target}"`));
+    wrong.set(association.relsName, Buffer.from(rels));
+    expect(() => assertSystemsPackage(wrong, rendered.model, captured), `wrong media for ${association.media}`)
+      .toThrow(/captured media integrity/);
+  }
+  expect(() => assertSystemsPackage(files, rendered.model, captured), "negative controls leave original package intact").not.toThrow();
 });
