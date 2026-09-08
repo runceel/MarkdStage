@@ -95,25 +95,39 @@ test("Mermaid colors are derived from the rendered slide theme", () => {
     background: "#101820",
     primaryColor: "#17232d",
     primaryTextColor: "#ffffff",
-    primaryBorderColor: "#31536b",
+    primaryBorderColor: "#8ba2b4",
     secondaryColor: "#a6f36b",
     secondaryTextColor: "#101820",
-    secondaryBorderColor: "rgba(66, 211, 255, .46)",
+    secondaryBorderColor: "#42d3ff",
     tertiaryColor: "#8ba2b4",
     tertiaryTextColor: "#101820",
-    tertiaryBorderColor: "#31536b",
+    tertiaryBorderColor: "#8ba2b4",
     lineColor: "#42d3ff",
     textColor: "#ffffff",
     mainBkg: "#17232d",
-    nodeBorder: "#31536b",
+    nodeBorder: "#8ba2b4",
     clusterBkg: "rgba(66, 211, 255, .14)",
-    clusterBorder: "rgba(66, 211, 255, .46)",
+    clusterBorder: "#42d3ff",
     titleColor: "#ffffff",
     edgeLabelBackground: "#101820",
     noteBkgColor: "rgba(66, 211, 255, .14)",
     noteBorderColor: "rgba(66, 211, 255, .46)",
     noteTextColor: "#a6f36b",
     pie1: "#42d3ff",
+  });
+  assert.equal(variables.rowOdd, colors["--surface"]);
+  assert.equal(variables.rowEven, colors["--code"]);
+  assert.deepEqual(variables.packet, {
+    startByteColor: colors["--fg"],
+    endByteColor: colors["--fg"],
+    labelColor: colors["--fg"],
+    titleColor: colors["--fg"],
+    blockStrokeColor: colors["--muted"],
+    blockFillColor: colors["--surface"],
+  });
+  assert.deepEqual(variables.treeView, {
+    labelColor: colors["--fg"],
+    lineColor: colors["--muted"],
   });
 
   assert.deepEqual(
@@ -267,6 +281,81 @@ test("C4 prefers solid fills and enforces the white-text contrast threshold", ()
     const colors = { "--surface": fill, "--fg": "#15181f" };
     const variables = mermaidThemeVariables({ getPropertyValue: (name) => colors[name] || "" });
     assert.equal(variables.person_bg_color, fill);
+  }
+});
+
+test("categorical fills stay distinct and support one foreground across diagram families", () => {
+  const luminance = (hex) => [1, 3, 5].reduce((sum, offset, index) => {
+    const channel = Number.parseInt(hex.slice(offset, offset + 2), 16) / 255;
+    return sum + [0.2126, 0.7152, 0.0722][index] *
+      (channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
+  }, 0);
+  const contrast = (left, right) =>
+    (Math.max(luminance(left), luminance(right)) + 0.05) /
+    (Math.min(luminance(left), luminance(right)) + 0.05);
+  for (const [background, foreground, accent, surface, code] of [
+    ["#0e1117", "#f0f4fa", "#4ea8ff", "#161b22", "#1b2330"],
+    ["#ffffff", "#15181f", "#4f46e5", "#ffffff", "#f3f4f6"],
+    ["#ffffff", "#201f1e", "#0078d4", "#ffffff", "#f3f2f1"],
+    ["#102030", "#fefefe", "#ff9900", "#203040", "#25394d"],
+    ["#ffffff", "#15181f", "#008aaa", "#ffffff", "#f3f4f6"],
+  ]) {
+    const colors = {
+      "--bg": background, "--fg": foreground, "--accent": accent,
+      "--surface": surface, "--code": code, "--muted": "#888888",
+    };
+    const theme = mermaidThemeVariables({ getPropertyValue: (name) => colors[name] || "" });
+    assert.equal(theme.darkMode, background !== "#ffffff");
+    const scales = Array.from({ length: 12 }, (_, index) => theme[`cScale${index}`]);
+    assert.equal(new Set(scales).size, 12);
+    for (const [index, fill] of scales.entries()) {
+      assert.ok(contrast(foreground, fill) >= 4.5, `${foreground} on ${fill}`);
+      assert.ok(contrast(background, fill) >= 3, `${fill} against ${background}`);
+      assert.equal(theme[`cScaleLabel${index}`], foreground);
+      assert.equal(theme[`cScalePeer${index}`], fill);
+      assert.equal(theme[`cScaleInv${index}`], colors["--muted"]);
+      if (index < 8) assert.equal(theme[`fillType${index}`], fill);
+    }
+    assert.equal(theme.git0, scales[0]);
+    assert.equal(theme.gitBranchLabel0, foreground);
+    assert.deepEqual(theme.xyChart.plotColorPalette.split(",").slice(0, 2), [scales[0], foreground]);
+    assert.equal(theme.xyChart.backgroundColor, background);
+    for (const key of ["titleColor", "xAxisTitleColor", "xAxisLabelColor", "yAxisTitleColor", "yAxisLabelColor"]) {
+      assert.equal(theme.xyChart[key], foreground);
+    }
+    for (const key of ["xAxisTickColor", "xAxisLineColor", "yAxisTickColor", "yAxisLineColor"]) {
+      assert.equal(theme.xyChart[key], colors["--muted"]);
+    }
+    for (const fill of [theme.taskBkgColor, theme.activeTaskBkgColor, theme.doneTaskBkgColor, theme.critBkgColor]) {
+      assert.ok(contrast(foreground, fill) >= 4.5, `Gantt ${foreground} on ${fill}`);
+    }
+    assert.equal(theme.doneTaskBkgColor, code);
+    assert.equal(theme.taskTextColor, foreground);
+    assert.equal(theme.taskTextDarkColor, foreground);
+    assert.equal(theme.taskTextOutsideColor, foreground);
+    assert.notEqual(theme.critBkgColor, theme.activeTaskBkgColor);
+    assert.notEqual(theme.critBorderColor, theme.activeTaskBorderColor);
+  }
+});
+
+test("categorical adaptation resolves CSS colors without changing the source palette", () => {
+  const colors = { "--bg": "white", "--fg": "midnightblue", "--accent": "teal", "--surface": "white" };
+  const resolved = { white: "#ffffff", midnightblue: "#191970", teal: "#008080" };
+  const theme = mermaidThemeVariables(
+    { getPropertyValue: (name) => colors[name] || "" },
+    (value) => resolved[value] || value,
+  );
+  assert.equal(theme.darkMode, false);
+  assert.match(theme.cScale0, /^#[0-9a-f]{6}$/);
+  assert.equal(theme.cScaleLabel0, "midnightblue");
+  assert.equal(theme.background, "white");
+  assert.equal(theme.lineColor, "teal");
+  for (const background of ["", "rgba(0,0,0,.5)", "unresolved"]) {
+    const fallback = mermaidThemeVariables({
+      getPropertyValue: (name) => name === "--bg" ? background : colors[name] || "",
+    });
+    assert.equal(fallback.cScale0, undefined);
+    assert.equal(fallback.background, background);
   }
 });
 

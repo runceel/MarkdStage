@@ -31,6 +31,11 @@ PowerPoint だけで色を補正しているわけではありません。
 
 | 図 | テーマで制御する役割 | 残る制約 |
 | --- | --- | --- |
+| flowchart、class、state、requirement、block、sequence | ノードの輪郭、区画線、lifeline には薄い装飾用の枠線色ではなく、テーマの補助テキスト色を使います。グループの境界にはアクセント色を使います。 | ソースで指定したスタイルが優先されます。情報量の多い図では、スライド上で文字を読みやすくするためにラベルや要素数を減らす必要があります。 |
+| ER | entity の見出しと属性の交互行には surface／code の背景色と foreground の文字色を使います。同梱 renderer が参照する `rowOdd` と `rowEven` を明示します。 | 旧来の `attributeBackgroundColorOdd/Even` 変数は unified ER renderer の行背景には使われません。 |
+| packet／tree view | packet の field、bit 番号、タイトル、tree のラベルと階層線には専用の入れ子になったテーマ変数を使います。 | カスタムテーマでは surface／foreground と background／muted の組を読みやすく設定してください。 |
+| mindmap、timeline、journey、kanban、treemap | テーマのアクセントからカテゴリごとに異なる色相を作り、文字と塗りが見える明るさに調整します。scale のラベル・peer・反転色、root の色、Journey の塗りを明示し、解決済みの背景色と文字色から dark mode を決めます。 | Treemap は leaf ラベルと親の塗りのインデックスが異なるため、カテゴリごとに白黒を切り替えず、共通の読みやすい文字色を使います。低コントラストや半透明のカスタム配色では文字と図形の両方のコントラストを保証できません。 |
+| XY／Gantt | XY の棒には背景上で見えるカテゴリ色、最初の線には foreground を使います。Gantt の通常・進行中・完了・critical の塗りと文字を対応付け、critical は赤系の背景と枠線で区別します。 | 明示した plot の色はソースを優先します。情報量の多いチャートの細かい文字には十分な表示領域が必要です。 |
 | C4 | 図形の塗りと枠線は Mermaid が定義する `c4` 設定を使います。既存の配色に適切な不透明色がある場合、図形ごとに既定の白い文字とのコントラスト比が 4.5:1 以上になる塗りを選びます。境界・関係の線、ラベル、矢印 marker はテーマの線・テキスト役割を使います。Mermaid のコメント、directive、front matter がある図や、実線の deployment 境界にも適用します。 | 同梱 Mermaid の C4 renderer には境界・関係・marker の既定色をハードコードしている箇所があります。MarkdStage が補正するのはその既定値だけです。明示色を上書きしないよう、`UpdateElementStyle` がある場合は境界の補正を、`UpdateRelStyle` がある場合は関係・marker の補正を行いません。 |
 | `architecture-beta` | `archEdgeColor`、`archEdgeArrowColor`、`archGroupBorderColor`、`archGroupBorderWidth` をテーマに合わせます。 | Mermaid の service／group icon の artwork と固定された icon テキスト色のすべてがテーマ変数として公開されているわけではありません。 |
 | `eventmodeling` | entity の塗り・枠線、lane の背景・枠線、関係線、矢印、attribute の背景を Mermaid が定義する変数でテーマに合わせます。 | カスタムテーマでは `--bg`、`--fg`、アクセント値自体を読みやすく設定してください。未対応の装飾や複雑なラベルは Mermaid の描画済み artwork を保持します。 |

@@ -95,9 +95,9 @@ export function serializeThemeVariables(variables) {
 // its built-in named themes (dark/default/neutral/forest). Deriving that
 // palette from the rendered deck's custom properties makes Mermaid diagrams
 // share the slide's background, border, and text colors instead of only
-// approximating the deck theme, and it reuses the same primary/secondary
-// roles as the Architecture DSL (nodes: surface+border+fg, groups:
-// accent-soft+accent-line+accent-strong) so both diagram types match.
+// approximating the deck theme. Thin diagram outlines use the muted text
+// role instead of the decorative slide border so compartments, shapes, and
+// sequence lifelines remain distinguishable on either background.
 //
 // `secondaryColor`/`tertiaryColor` also back many categorical fills across
 // Mermaid's diagram types (pie slices, git graph nodes, venn/quadrant charts,
@@ -136,25 +136,44 @@ export function mermaidThemeVariables(style, resolveColor = (value) => value) {
     background,
     primaryColor: surface,
     primaryTextColor: foreground,
-    primaryBorderColor: border,
+    primaryBorderColor: muted,
     secondaryColor: accentStrong,
     secondaryTextColor: background,
-    secondaryBorderColor: accentLine,
+    secondaryBorderColor: accent,
     tertiaryColor: muted,
     tertiaryTextColor: background,
-    tertiaryBorderColor: border,
+    tertiaryBorderColor: muted,
     lineColor: accent,
     textColor: foreground,
     mainBkg: surface,
-    nodeBorder: border,
+    nodeBorder: muted,
     clusterBkg: accentSoft,
-    clusterBorder: accentLine,
+    clusterBorder: accent,
     titleColor: foreground,
     edgeLabelBackground: background,
     noteBkgColor: accentSoft,
     noteBorderColor: accentLine,
     noteTextColor: accentStrong,
     pie1: accent,
+    ...mermaidCategoricalTheme({ background, foreground, accent, surface, code, muted }, resolveColor),
+
+    // The unified ER renderer reads rowOdd/rowEven, not the legacy
+    // attributeBackgroundColor roles. Its base theme otherwise lightens
+    // alternate rows even when the slide has light text on a dark surface.
+    rowOdd: surface,
+    rowEven: code,
+    packet: {
+      startByteColor: foreground,
+      endByteColor: foreground,
+      labelColor: foreground,
+      titleColor: foreground,
+      blockStrokeColor: muted,
+      blockFillColor: surface,
+    },
+    treeView: {
+      labelColor: foreground,
+      lineColor: muted,
+    },
 
     // C4's documented shape variables are read by its renderer, unlike the
     // generic primary/secondary roles above. The database and queue variants
@@ -236,10 +255,15 @@ export function mermaidC4ThemeVariables(themeVariables) {
 }
 
 function supportsWhiteText(value) {
+  const channels = opaqueColorChannels(value);
+  return channels !== null && 1.05 / (colorLuminance(channels) + 0.05) >= 4.5;
+}
+
+function opaqueColorChannels(value) {
   const match = String(value || "").match(
     /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$|^rgba?\(\s*([0-9.]+%?)[,\s]+([0-9.]+%?)[,\s]+([0-9.]+%?)(?:\s*[,/]\s*([0-9.]+%?))?\s*\)$/i,
   );
-  if (!match) return false;
+  if (!match) return null;
   const alpha = match[1]?.length === 4
     ? Number.parseInt(match[1][3].repeat(2), 16) / 255
     : match[1]?.length === 8
@@ -248,8 +272,8 @@ function supportsWhiteText(value) {
         ? Number.parseFloat(match[5]) / (match[5].endsWith("%") ? 100 : 1)
         : 1;
   // Translucent fills depend on their backdrop; prefer a solid palette role.
-  if (alpha < 1) return false;
-  const channels = match[1]
+  if (alpha < 1) return null;
+  return match[1]
     ? (match[1].length <= 4
         ? [...match[1].slice(0, 3)].map((channel) => Number.parseInt(channel + channel, 16))
         : [0, 2, 4].map((index) => Number.parseInt(match[1].slice(index, index + 2), 16)))
@@ -257,11 +281,121 @@ function supportsWhiteText(value) {
         const numeric = Number.parseFloat(channel);
         return channel.endsWith("%") ? numeric * 2.55 : numeric;
       });
-  const luminance = channels.reduce(
+}
+
+function colorLuminance(channels) {
+  return channels.reduce(
     (sum, channel, index) => sum + [0.2126, 0.7152, 0.0722][index] * relativeLuminance(channel),
     0,
   );
-  return 1.05 / (luminance + 0.05) >= 4.5;
+}
+
+function mermaidCategoricalTheme(palette, resolveColor) {
+  const colors = Object.fromEntries(
+    ["background", "foreground", "accent", "surface"].map((key) => [
+      key, opaqueColorChannels(resolveColor(palette[key])),
+    ]),
+  );
+  // An incomplete/translucent custom palette has no reliable contrast
+  // backdrop. Keep its existing Mermaid derivation instead of guessing one.
+  if (Object.values(colors).some((color) => color === null)) return {};
+  const background = colorLuminance(colors.background);
+  const foreground = colorLuminance(colors.foreground);
+  const darkMode = background < foreground;
+  const lower = darkMode
+    ? (background + 0.05) * 3 - 0.05
+    : (foreground + 0.05) * 4.5 - 0.05;
+  const upper = darkMode
+    ? (foreground + 0.05) / 4.5 - 0.05
+    : (background + 0.05) / 3.2 - 0.05;
+  // Prefer legible labels when a custom palette cannot satisfy both text and
+  // shape contrast. Do not alter the author's foreground/background values.
+  const target = Math.max(0, Math.min(1,
+    darkMode ? (lower <= upper ? (lower + upper) / 2 : upper) : Math.max(lower, upper),
+  ));
+  const hue = colorHue(colors.accent);
+  const categories = Array.from({ length: 12 }, (_, index) =>
+    colorAtLuminance((hue + index * 137.5) % 360, 0.48, target),
+  );
+  const critical = colorAtLuminance(0, 0.7, target);
+  const theme = {
+    darkMode,
+    git0: categories[0],
+    gitBranchLabel0: palette.foreground,
+    // Mermaid restores this nested object as a whole after deriving colors;
+    // setting only plotColorPalette loses the derived dark background/axes.
+    xyChart: {
+      backgroundColor: palette.background,
+      titleColor: palette.foreground,
+      xAxisTitleColor: palette.foreground,
+      xAxisLabelColor: palette.foreground,
+      xAxisTickColor: palette.muted,
+      xAxisLineColor: palette.muted,
+      yAxisTitleColor: palette.foreground,
+      yAxisLabelColor: palette.foreground,
+      yAxisTickColor: palette.muted,
+      yAxisLineColor: palette.muted,
+      plotColorPalette: [categories[0], palette.foreground, ...categories.slice(1)].join(","),
+    },
+    taskBkgColor: palette.surface,
+    taskBorderColor: palette.muted,
+    activeTaskBkgColor: mixColors(colors.surface, colors.accent, 0.18),
+    activeTaskBorderColor: palette.accent,
+    doneTaskBkgColor: palette.code,
+    doneTaskBorderColor: palette.muted,
+    critBkgColor: mixColors(colors.surface, opaqueColorChannels(critical), 0.18),
+    critBorderColor: critical,
+    taskTextColor: palette.foreground,
+    taskTextDarkColor: palette.foreground,
+    taskTextOutsideColor: palette.foreground,
+  };
+  for (const [index, color] of categories.entries()) {
+    theme[`cScale${index}`] = color;
+    // Treemap leaf-label indexes differ from their parent-fill indexes, and
+    // Journey/Kanban HTML labels use textColor. All fills need the same text.
+    theme[`cScaleLabel${index}`] = palette.foreground;
+    theme[`cScalePeer${index}`] = color;
+    theme[`cScaleInv${index}`] = palette.muted;
+    if (index < 8) theme[`fillType${index}`] = color;
+  }
+  return theme;
+}
+
+function colorHue(channels) {
+  const [red, green, blue] = channels.map((channel) => channel / 255);
+  const max = Math.max(red, green, blue);
+  const delta = max - Math.min(red, green, blue);
+  if (delta === 0) return 0;
+  const hue = max === red ? (green - blue) / delta
+    : max === green ? (blue - red) / delta + 2 : (red - green) / delta + 4;
+  return (hue * 60 + 360) % 360;
+}
+
+function colorAtLuminance(hue, saturation, target) {
+  const channelsAt = (lightness) => {
+    const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation;
+    const x = chroma * (1 - Math.abs((hue / 60) % 2 - 1));
+    const sector = Math.floor(hue / 60);
+    const rgb = [[chroma, x, 0], [x, chroma, 0], [0, chroma, x],
+      [0, x, chroma], [x, 0, chroma], [chroma, 0, x]][sector];
+    return rgb.map((channel) => (channel + lightness - chroma / 2) * 255);
+  };
+  let low = 0;
+  let high = 1;
+  for (let iteration = 0; iteration < 20; iteration++) {
+    const mid = (low + high) / 2;
+    if (colorLuminance(channelsAt(mid)) < target) low = mid;
+    else high = mid;
+  }
+  return colorHex(channelsAt((low + high) / 2));
+}
+
+function mixColors(left, right, amount) {
+  return colorHex(left.map((channel, index) => channel * (1 - amount) + right[index] * amount));
+}
+
+function colorHex(channels) {
+  return `#${channels.map((channel) => Math.round(Math.max(0, Math.min(255, channel))).toString(16).padStart(2, "0")).join("")}`;
 }
 
 function relativeLuminance(channel) {
