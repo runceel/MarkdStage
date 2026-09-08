@@ -123,6 +123,7 @@ export function classifyMermaidDiagramRoute(diagramType, svgClass = "", hasRoot 
   if (diagramType === "treemap") return "treemap";
   if (diagramType === "ishikawa") return "ishikawa";
   if (["mindmap", "timeline", "journey"].includes(diagramType)) return diagramType;
+  if (["c4", "architecture", "eventmodeling"].includes(diagramType)) return diagramType;
   if (diagramType === "quadrantChart" || diagramType === "xychart") return diagramType;
   if (diagramType === "stateDiagram") {
     return hasRoot && classes.includes("statediagram") ? "state" : null;
@@ -6714,8 +6715,456 @@ function basicNarrativeScene(svg, deck, size, options, diagram) {
   return measuredDiagramScene(svg, deck, size, options, diagram, roots[0], "root", diagram);
 }
 
+function systemElementRole(element, parent, diagram) {
+  const tag = localName(element);
+  if (diagram === "c4") {
+    if (parent === "root" && tag === "g") return hasClass(element, "person-man") ? "node" : "container";
+    if (["root", "container", "node"].includes(parent)) {
+      if (tag === "text") return element.hasAttribute("textLength") ? "stereotype" : "text";
+      if (SHAPE_TAGS.has(tag)) return "shape";
+      if (tag === "image") return "image";
+      if (parent === "container" && (tag === "line" || tag === "path")) return "relation";
+      if (parent === "node" && tag === "path") return "complex-shape";
+    }
+  } else if (diagram === "architecture") {
+    if (parent === "root" && tag === "g") {
+      if (hasClass(element, "architecture-edges")) return "edges";
+      if (hasClass(element, "architecture-services")) return "services";
+      if (hasClass(element, "architecture-groups")) return "groups";
+    }
+    if (parent === "edges" && tag === "g") return "edge";
+    if (parent === "edge") {
+      if (tag === "path" && hasClass(element, "edge")) return "relation";
+      if (tag === "polygon" && hasClass(element, "arrow")) return "arrow";
+    }
+    if (parent === "services" && tag === "g" &&
+        (hasClass(element, "architecture-service") || hasClass(element, "architecture-junction"))) return "service";
+    if (["service", "groups", "parts"].includes(parent)) {
+      if (tag === "g" && !element.getAttribute("class")) return "parts";
+      if (tag === "svg") return "icon";
+      if (tag === "rect") return "shape";
+      if (tag === "path" && hasClass(element, "node-bkg")) return "card";
+      if (tag === "text") return "text";
+    }
+  } else if (diagram === "eventmodeling") {
+    if (parent === "root") {
+      if (tag === "g" && hasClass(element, "em-swimlane")) return "swimlane";
+      if (tag === "g" && hasClass(element, "em-box")) return "box";
+      if (tag === "path" && hasClass(element, "em-relation")) return "relation";
+    }
+    if (["swimlane", "box"].includes(parent)) {
+      if (tag === "rect") return "shape";
+      if (tag === "text") return "text";
+      if (tag === "foreignObject" && parent === "box") return "html-label";
+    }
+  }
+  return null;
+}
+
+export function knownArchitectureCard(data) {
+  const values = String(data).match(/[-+]?(?:\d*\.?\d+)(?:e[-+]?\d+)?/gi)?.map(Number) || [];
+  const height = values[1];
+  const width = values[7] + 5;
+  return width >= 10 && height >= 10 &&
+    exactPathGeometry(data, "MVQHQVZ", [0, height, 5, 0, 0, 5, 0, width - 5, width, 0, width, 5, height])
+    ? { preset: "topRoundedRect", cornerRadius: 5 } : null;
+}
+
+export function knownArchitectureArrow(points) {
+  const number = "[-+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][-+]?\\d+)?";
+  const value = String(points).trim();
+  if (!new RegExp(`^${number}(?:(?:\\s*,\\s*|\\s+)${number}){5}$`).test(value)) return null;
+  const coordinates = value.split(/[,\s]+/).map(Number);
+  const vertices = [0, 2, 4].map((index) => ({ x: coordinates[index], y: coordinates[index + 1] }));
+  const width = Math.max(...vertices.map((point) => point.x));
+  if (!(width > 0) || !vertices.every((point) => Number.isFinite(point.x) && Number.isFinite(point.y))) return null;
+  const profiles = [
+    [[1, .5], [0, 1], [0, 0]],
+    [[0, .5], [1, 0], [1, 1]],
+    [[0, 0], [1, 0], [.5, 1]],
+    [[0, 1], [1, 1], [.5, 0]],
+  ];
+  const index = profiles.findIndex((profile) => vertices.every((point, vertex) =>
+    closeToPoint(point, profile[vertex][0] * width, profile[vertex][1] * width, .00001)));
+  return index < 0 ? null : { size: width, rotation: [90, -90, 180, 0][index] };
+}
+
+function architecturePrimitive(element, role, sourcePath, z, deck, options, reasons) {
+  const fallback = (reason) => fallbackNode(element, z, deck, reason, sourcePath, true);
+  const paint = getComputedStyle(element);
+  if (unsupportedVisualEffect(element) ||
+      [paint.markerStart, paint.markerMid, paint.markerEnd].some((value) => value && value !== "none")) return fallback(reasons.style);
+  if (!hasUniformAxisAlignedScale(element)) return fallback(reasons.transform);
+  const style = computedSvgStyle(element, options);
+  const meta = { mermaid: { kind: `architecture-${role}` } };
+  if (role === "card") {
+    const known = knownArchitectureCard(renderedPathData(element));
+    const node = known ? {
+      kind: "shape", sourcePath, z, bounds: boundsOf(element, deck), preset: known.preset,
+      style: { ...style, cornerRadius: known.cornerRadius * elementScale(element) }, meta,
+    } : fallback(reasons.geometry);
+    return node.kind === "shape" ? systemDashedPrimitive(element, node, deck, options, reasons, "architecture") : node;
+  }
+  if (style.dash !== "solid") return fallback(reasons.style);
+  const known = knownArchitectureArrow(element.getAttribute("points"));
+  return known ? {
+    kind: "shape", sourcePath, z, bounds: boundsOf(element, deck), preset: "triangle",
+    rotation: known.rotation, style, meta,
+  } : fallback(reasons.geometry);
+}
+
+function systemDashPattern(element) {
+  const css = getComputedStyle(element);
+  const values = css.strokeDasharray.split(/[,\s]+/).filter(Boolean);
+  if (element.hasAttribute("pathLength") || values.length < 1 || values.length > 2 ||
+      parseMetric(css.strokeDashoffset) !== 0 ||
+      values.some((value) => !/^(?:\d*\.?\d+)(?:px)?$/.test(value) || !(Number.parseFloat(value) > 0))) return null;
+  const lengths = values.map((value) => Number.parseFloat(value) * elementScale(element));
+  return lengths.length === 1 ? [lengths[0], lengths[0]] : lengths;
+}
+
+export function boundedSystemDashSegments(total, pattern, pointAtLength, corners = []) {
+  if (!(Number.isFinite(total) && total > 0) || !Array.isArray(pattern) || pattern.length !== 2 ||
+      !pattern.every((value) => Number.isFinite(value) && value > 0) ||
+      !Array.isArray(corners) || corners.length > 4 ||
+      !corners.every((value) => Number.isFinite(value) && value >= 0 && value <= total)) return null;
+  const period = pattern[0] + pattern[1];
+  const count = Math.ceil(total / period);
+  if (!Number.isFinite(period) || count > 512) return null;
+  const segments = [];
+  let samples = 0;
+  let vertices = 0;
+  const point = (distance) => {
+    if (++samples > MAX_SCENE_NODES * 4) throw new Error("dash sampling limit");
+    const value = pointAtLength(distance);
+    if (![value?.x, value?.y].every(Number.isFinite)) throw new Error("invalid dash point");
+    return value;
+  };
+  try {
+    for (let index = 0; index < count; index++) {
+      const start = index * period;
+      const end = Math.min(start + pattern[0], total);
+      const points = [point(start)];
+      const sample = (from, to, first, last, depth) => {
+        const middle = (from + to) / 2;
+        const mid = point(middle);
+        const probes = [point((from + middle) / 2), mid, point((middle + to) / 2)];
+        if (probes.every((probe) => distanceToSegment(probe, first, last) <= .025) &&
+            to - from - Math.hypot(last.x - first.x, last.y - first.y) <= .025) {
+          if (++vertices > MAX_SCENE_NODES || points.length >= MAX_CONNECTOR_POINTS) throw new Error("dash point limit");
+          points.push(last);
+        } else {
+          if (depth >= MAX_GROUP_DEPTH) throw new Error("dash subdivision limit");
+          sample(from, middle, first, mid, depth + 1);
+          sample(middle, to, mid, last, depth + 1);
+        }
+      };
+      const stops = [...new Set(corners.filter((value) => value > start && value < end)), end].sort((a, b) => a - b);
+      let from = start;
+      for (const to of stops) {
+        const first = points.length - 1;
+        sample(from, to, points[first], point(to), 0);
+        points.push(...simplifyPolyline(points.splice(first), .025));
+        from = to;
+      }
+      segments.push({ start, end, points });
+    }
+    return segments;
+  } catch (_) {
+    return null;
+  }
+}
+
+function systemDashedPrimitive(element, node, deck, options, reasons, diagram) {
+  if (node.style.dash === "solid") return node;
+  const fallback = () => fallbackNode(element, node.z, deck, reasons.style, node.sourcePath, true);
+  const pattern = systemDashPattern(element);
+  if (!pattern || effectiveOpacity(element) !== 1 ||
+      (node.kind === "shape" && effectiveStrokeAlpha(node.style) < .999999) ||
+      (node.kind === "shape" && !["rect", "roundedRect", "topRoundedRect"].includes(node.preset))) return fallback();
+  if (localName(element) === "rect") {
+    const css = getComputedStyle(element);
+    const radius = (value, other) => value === "auto" ? other === "auto" ? 0 : parseMetric(other) : parseMetric(value);
+    const box = element.getBBox();
+    const rx = Math.min(radius(css.rx, css.ry), box.width / 2);
+    const ry = Math.min(radius(css.ry, css.rx), box.height / 2);
+    if (Math.abs(rx - ry) > .00001 ||
+        Math.abs(rx * elementScale(element) - Math.min(node.style.cornerRadius || 0,
+          node.bounds.width / 2, node.bounds.height / 2)) > .01) return fallback();
+  }
+  const matrix = element.getScreenCTM();
+  const origin = deck.getBoundingClientRect();
+  const scale = elementScale(element);
+  const total = element.getTotalLength() * scale;
+  const box = element.getBBox();
+  const screen = (x, y) => ({ x: matrix.a * x + matrix.c * y + matrix.e - origin.left,
+    y: matrix.b * x + matrix.d * y + matrix.f - origin.top });
+  const corner = (x, y, distance, dx, dy) => ({ ...screen(x, y), distance, dx, dy });
+  const sharpCorners = node.kind !== "shape" ? []
+    : node.preset === "topRoundedRect" ? [
+      corner(box.x, box.y + box.height, 0, -1, 1),
+      corner(box.x + box.width, box.y + box.height, total - box.width * scale, 1, 1),
+    ] : !(node.style.cornerRadius > 0) ? [
+      corner(box.x, box.y, 0, -1, -1),
+      corner(box.x + box.width, box.y, box.width * scale, 1, -1),
+      corner(box.x + box.width, box.y + box.height, (box.width + box.height) * scale, 1, 1),
+      corner(box.x, box.y + box.height, (2 * box.width + box.height) * scale, -1, 1),
+    ] : [];
+  // Rounded basic profiles use at most two source units of stroke. Wider
+  // offsets require joined curve geometry, not independently capped samples.
+  if (node.kind === "shape" && node.style.cornerRadius > 0 &&
+      (node.style.strokeWidth / scale > 2 || node.style.strokeWidth > node.style.cornerRadius)) return fallback();
+  // Only recognized rectangles, fixed top-rounded cards and straight relations
+  // reach this sampler. Dash positions use source geometry, never stroke-width units.
+  const segments = boundedSystemDashSegments(total, pattern, (distance) => {
+    const vertex = sharpCorners.find((value) => value.distance === distance || (distance === total && value.distance === 0));
+    if (vertex) return { x: vertex.x, y: vertex.y };
+    const point = element.getPointAtLength(distance / scale);
+    return screen(point.x, point.y);
+  }, sharpCorners.map((value) => value.distance));
+  if (!segments) return fallback();
+  const boundaryEpsilon = Number.EPSILON * Math.max(1, total, ...pattern) * 8;
+  const joins = sharpCorners.filter((value) => value.distance === 0
+    ? segments.at(-1).end === total
+    : segments.some((segment) => segment.start < value.distance - boundaryEpsilon &&
+      segment.end > value.distance + boundaryEpsilon));
+  const css = getComputedStyle(element);
+  if ((node.kind === "shape" && css.strokeLinecap !== "butt") ||
+      (joins.length && (css.strokeLinejoin !== "miter" || parseMetric(css.strokeMiterlimit) < Math.SQRT2))) return fallback();
+  const bounds = boundsOf(element, deck);
+  const children = [];
+  if (node.kind === "shape") {
+    children.push({ ...node, sourcePath: `${node.sourcePath}.fill`, bounds: relativeBounds(node.bounds, bounds),
+      style: { ...node.style, stroke: null, strokeWidth: 0, dash: "solid" } });
+  }
+  for (const [index, segment] of segments.entries()) {
+    const points = segment.points.map((point) => ({ x: roundedMetric(point.x - bounds.x), y: roundedMetric(point.y - bounds.y) }))
+      .filter((point, index, values) => index === 0 || pointKey(point) !== pointKey(values[index - 1]));
+    if (points.length < 2) return fallback();
+    children.push({ kind: "connector", sourcePath: `${node.sourcePath}.dash[${index}]`, points,
+      style: { ...computedConnectorStyle(element, options), dash: "solid" }, arrowStart: "none", arrowEnd: "none",
+      meta: { mermaid: { kind: `${diagram}-dash`, start: segment.start, end: segment.end } } });
+  }
+  // The writer emits flat-capped segments separately. Fill only the missing
+  // outer quadrant at a painted right-angle miter; gaps and dash ends get no join.
+  const half = node.style.strokeWidth / 2;
+  for (const [index, join] of joins.entries()) {
+    children.push({ kind: "shape", sourcePath: `${node.sourcePath}.join[${index}]`, preset: "rect",
+      bounds: { x: join.x - bounds.x + (join.dx < 0 ? -half : 0),
+        y: join.y - bounds.y + (join.dy < 0 ? -half : 0), width: half, height: half },
+      style: { fill: node.style.stroke, fillOpacity: node.style.strokeOpacity, opacity: node.style.opacity,
+        stroke: null, strokeWidth: 0, dash: "solid" },
+      meta: { mermaid: { kind: `${diagram}-dash-join` } } });
+  }
+  for (const child of children) options.sourceElements.set(child.sourcePath, element);
+  return compositeGroup(node.sourcePath, node.z, bounds, children, node.preset || "line", `${diagram}-dashed-primitive`);
+}
+
+function ownedSystemTextGroup(element, sourcePath, z, deck, options, parts, kind) {
+  const bounds = boundsOf(element, deck);
+  const children = parts.map((part, index) => {
+    const path = `${sourcePath}.text[${index}]`;
+    options.sourceElements.set(path, element);
+    return {
+      kind: "text", sourcePath: path, bounds: relativeBounds(part.bounds, bounds),
+      text: part.text, textLayout: { alignment: "center", verticalAlignment: "middle", textWrap: "none" },
+      meta: { mermaid: { kind } },
+    };
+  });
+  return compositeGroup(sourcePath, z, bounds, children, "text", kind);
+}
+
+function architectureMultilineText(element, sourcePath, z, deck, options, reasons) {
+  const fallback = () => fallbackNode(element, z, deck, reasons.label, sourcePath, true);
+  const rows = directChildren(element);
+  if (!safeChartLabel(element, options) || !hasUniformAxisAlignedScale(element) || effectiveOpacity(element) !== 1 ||
+      hasUnsupportedTextSemantics(element) ||
+      rows.length < 2 || rows.length > MAX_TEXT_PARAGRAPHS ||
+      [...element.childNodes].some((node) => node.nodeType === 3 && node.textContent.trim()) ||
+      rows.some((row) => localName(row) !== "tspan" || !hasClass(row, "text-outer-tspan") || !row.hasAttribute("x"))) return fallback();
+  const parts = rows.map((row) => {
+    const geometry = measuredTextGeometry(row, deck, row);
+    const text = structuredLabelText(row, options);
+    return geometry && text.paragraphs.length === 1 ? { bounds: geometry.bounds, text } : null;
+  });
+  return parts.some((part) => !part) ? fallback()
+    : ownedSystemTextGroup(element, sourcePath, z, deck, options, parts, "architecture-text-line");
+}
+
+function c4StereotypeText(element, sourcePath, z, deck, options, reasons) {
+  const fallback = () => fallbackNode(element, z, deck, reasons.label, sourcePath, true);
+  // C4 alone emits short ASCII stereotypes with lengthAdjust=spacing. Measure
+  // each glyph rather than discarding that spacing or enabling general textLength.
+  const content = element.textContent;
+  if (element.children.length || !/^<<(?:external_)?(?:person|system|container|component)(?:_db|_queue)?>>$/.test(content) ||
+      element.getAttribute("lengthAdjust") !== "spacing" || !safeChartLabel(element, options) ||
+      !hasUniformAxisAlignedScale(element) || effectiveOpacity(element) !== 1 || !Number.isFinite(element.textLength?.baseVal?.value) ||
+      !(element.textLength.baseVal.value > 0) || element.hasAttribute("rotate") ||
+      ["x", "y", "dx", "dy"].some((name) => hasUnsupportedCoordinateList(element, name)) ||
+      element.getNumberOfChars() !== content.length) return fallback();
+  const parts = [...content].map((character, index) => {
+    const box = element.getExtentOfChar(index);
+    const origin = screenPoint(element, box, deck);
+    const scale = elementScale(element);
+    return {
+      bounds: { x: origin.x, y: origin.y, width: box.width * scale, height: box.height * scale },
+      text: textToSceneText(character, computedTextStyle(element, options), options),
+    };
+  });
+  return ownedSystemTextGroup(element, sourcePath, z, deck, options, parts, "c4-stereotype");
+}
+
+function eventModelingLabel(element, sourcePath, z, deck, options, reasons) {
+  const fallback = () => fallbackNode(element, z, deck, reasons.label, sourcePath, true);
+  const allowed = new Set(["foreignObject", "div", "span", "b", "strong", "i", "em", "br", "code"]);
+  const decoration = edgeLabelDecorationInfo(element, options);
+  if (!hasUniformAxisAlignedScale(element) ||
+      unsupportedVisualEffect(element) || hasBasicItemGeneratedContent(element) ||
+      decoration.visible || decoration.complex ||
+      [element, ...element.querySelectorAll("*")].some((part) => {
+        const style = getComputedStyle(part);
+        return !allowed.has(localName(part)) || hasMixedRenderedVisibility(part) ||
+          visibleOutlineExtent(part, options) > 0 ||
+          style.textTransform !== "none" || style.textDecorationLine !== "none" ||
+          !["normal", "0px"].includes(style.letterSpacing) || !["normal", "0px"].includes(style.wordSpacing) ||
+          (part.namespaceURI !== SVG_NS && [style.transform, style.rotate, style.scale, style.translate]
+            .some((value) => value && value !== "none")) ||
+          // HTML compositing groups are not SVG <g>, but have the same risk.
+          (part.children.length && localOpacity(part) !== 1);
+      })) return fallback();
+  const iterator = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+  const parts = [];
+  let textNode;
+  while ((textNode = iterator.nextNode())) {
+    if (!textNode.textContent.trim() || !isRenderedElement(textNode.parentElement)) continue;
+    if (parts.length >= MAX_TEXT_RUNS) return fallback();
+    const range = document.createRange();
+    range.selectNodeContents(textNode);
+    const rects = [...range.getClientRects()].filter((box) => box.width > 0 && box.height > 0);
+    // Keep measured explicit lines/formatting; implicit wrapping and clipped
+    // overflow remain a local label image rather than being reflowed by PPTX.
+    if (rects.length !== 1) return fallback();
+    const bounds = boundsOf(range, deck);
+    for (let ancestor = textNode.parentElement; ancestor; ancestor = ancestor.parentElement) {
+      const style = getComputedStyle(ancestor);
+      const frame = boundsOf(ancestor, deck);
+      if ((style.overflowX !== "visible" &&
+          (bounds.x < frame.x - .75 || bounds.x + bounds.width > frame.x + frame.width + .75)) ||
+          (style.overflowY !== "visible" &&
+          (bounds.y < frame.y - .75 || bounds.y + bounds.height > frame.y + frame.height + .75))) return fallback();
+      if (ancestor === element) break;
+    }
+    parts.push({ bounds, text: textToSceneText(textNode.textContent, computedTextStyle(textNode.parentElement, options), options) });
+  }
+  return parts.length ? ownedSystemTextGroup(element, sourcePath, z, deck, options, parts, "eventmodeling-html-label") : null;
+}
+
+function systemRelation(element, sourcePath, z, deck, options, reasons, diagram) {
+  const fallback = (reason) => fallbackNode(element, z, deck, reason, sourcePath, true);
+  const style = getComputedStyle(element);
+  if (unsupportedVisualEffect(element) || normalizeColor(style.fill) && localName(element) === "path") return fallback(reasons.style);
+  if (!hasUniformAxisAlignedScale(element)) return fallback(reasons.transform);
+  const paint = computedSvgStyle(element, options);
+  const coordinates = numericAttributes(element, ["x1", "y1", "x2", "y2"]);
+  const commands = localName(element) === "path" ? renderedPathData(element).match(/[a-df-z]/gi) || [] : [];
+  if (localName(element) === "path" && (commands.filter((command) => command === "M").length !== 1 ||
+      commands.some((command) => !(diagram === "c4" ? ["M", "L", "Q"] : ["M", "L"]).includes(command)))) {
+    return fallback(reasons.geometry);
+  }
+  let sampled;
+  try {
+    if (localName(element) === "path") {
+      const vertices = chartPathPoints(renderedPathData(element));
+      sampled = vertices ? vertices.map((point) => screenPoint(element, point, deck))
+        : sampledPathPoints(element, deck, options).simplified;
+    }
+  } catch (_) { return fallback(reasons.geometry); }
+  let points = localName(element) === "line"
+    ? coordinates?.length === 4 ? [screenPoint(element, { x: coordinates[0], y: coordinates[1] }, deck),
+      screenPoint(element, { x: coordinates[2], y: coordinates[3] }, deck)] : null
+    : sampled;
+  if (!points || points.length < 2 || points.length > MAX_CONNECTOR_POINTS ||
+      pointKey(points[0]) === pointKey(points.at(-1))) return fallback(reasons.geometry);
+  if (paint.dash !== "solid") {
+    points = simplifyPolyline(points, .001);
+    if (points.length > 2 || commands.includes("Q")) return fallback(reasons.style);
+  }
+  const connector = { kind: "connector", sourcePath, z, points, style: computedConnectorStyle(element, options),
+    arrowStart: "none", arrowEnd: "none", meta: { mermaid: { kind: `${diagram}-relation` } } };
+  if (style.markerMid && style.markerMid !== "none") return fallback(`unsupported-mermaid-${diagram}-marker-geometry`);
+  const terminals = [];
+  for (const [placement, value] of [["start", style.markerStart], ["end", style.markerEnd]]) {
+    if (!value || value === "none") continue;
+    const svg = element.ownerSVGElement;
+    const id = markerReferenceId(value);
+    const start = placement === "start";
+    const c4 = diagram === "c4";
+    const markers = [...svg.querySelectorAll("[id]")].filter((part) => part.id === id);
+    const marker = markers[0];
+    const primitive = marker?.firstElementChild;
+    if ((!c4 && (diagram !== "eventmodeling" || start)) ||
+        id !== (c4 ? `${svg.id}-${start ? "arrowend" : "arrowhead"}` : `em-arrowhead-${svg.id}`) ||
+        markers.length !== 1 || localName(marker) !== "marker" || marker.children.length !== 1 ||
+        localName(primitive) !== (c4 ? "path" : "polygon") || primitive.children.length ||
+        !(c4 ? exactPathGeometry(renderedPathData(primitive).replace(/z$/, "Z"), "MLLZ",
+          start ? [10, 0, 0, 5, 10, 10] : [0, 0, 10, 5, 0, 10])
+          : exactPathGeometry(primitive.getAttribute("points"), "", [0, 0, 10, 3.5, 0, 7])) ||
+        (marker.getAttribute("markerUnits") || "strokeWidth") !== (c4 ? "userSpaceOnUse" : "strokeWidth") ||
+        marker.getAttribute("orient") !== "auto" || marker.hasAttribute("viewBox") ||
+        (marker.getAttribute("preserveAspectRatio") || "xMidYMid meet") !== "xMidYMid meet" ||
+        !numericAttributes(marker, ["markerWidth", "markerHeight", "refX", "refY"])
+          ?.every((number, index) => number === (c4 ? [12, 12, start ? 1 : 9, 5] : [10, 7, 10, 3.5])[index])) {
+      return fallback(`unsupported-mermaid-${diagram}-marker-geometry`);
+    }
+    const paint = getComputedStyle(primitive);
+    if (unsupportedVisualEffect(marker) || !visibleSvgPart(marker) || !visibleSvgPart(primitive) ||
+        effectiveOpacity(element) !== 1 || !(parseMetric(style.strokeWidth) > 0) ||
+        !normalizeColor(paint.fill) || !cssColorParts(paint.fill) ||
+        (normalizeColor(paint.stroke) && parseMetric(paint.strokeWidth) > 0) ||
+        [marker, primitive].some((part) => {
+          const computed = getComputedStyle(part);
+          return part.hasAttribute("transform") || computed.animationName !== "none" ||
+            [computed.transform, computed.rotate, computed.scale, computed.translate, computed.markerStart, computed.markerMid, computed.markerEnd]
+              .some((entry) => entry && entry !== "none");
+        })) return fallback(`unsupported-mermaid-${diagram}-marker-style`);
+    const tangents = localName(element) === "path" ? markerEndpointTangents(renderedPathData(element)) : null;
+    const tangent = tangents?.[placement]?.direction || { x: points.at(-1).x - points[0].x, y: points.at(-1).y - points[0].y };
+    if (!Math.hypot(tangent.x, tangent.y)) return fallback(reasons.geometry);
+    const angle = Math.atan2(tangent.y, tangent.x);
+    const unit = elementScale(element) * (c4 ? 1 : parseMetric(style.strokeWidth));
+    const anchor = points[start ? 0 : points.length - 1];
+    const advance = (c4 ? start ? 4 : -4 : -5) * unit;
+    const center = { x: anchor.x + Math.cos(angle) * advance, y: anchor.y + Math.sin(angle) * advance };
+    const width = (c4 ? 10 : 7) * unit;
+    const height = 10 * unit;
+    terminals.push({ nodes: [{
+      kind: "shape", sourcePath: `${sourcePath}.${placement}`, preset: "triangle",
+      bounds: { x: center.x - width / 2, y: center.y - height / 2, width, height },
+      rotation: angle * 180 / Math.PI + (start ? -90 : 90),
+      style: cssStyleToSceneStyle({ fill: paint.fill, fillOpacity: paint.fillOpacity, stroke: "none", strokeWidth: 0,
+        opacity: localOpacity(marker) * localOpacity(primitive) }, options),
+      meta: { mermaid: { kind: `${diagram}-arrow`, placement } },
+    }] });
+  }
+  const painted = systemDashedPrimitive(element, connector, deck, options, reasons, diagram);
+  if (painted.kind === "fallback") return painted;
+  return terminals.length ? markedRelation(painted, terminals, element, options, `${diagram}-marked-relation`) : painted;
+}
+
+function systemScene(svg, deck, size, options, diagram) {
+  if (localOpacity(svg) !== 1) {
+    return specialDiagramStructureFallback(svg, deck, size, options, `unsupported-mermaid-${diagram}-style`);
+  }
+  const selector = diagram === "c4" ? "g.person-man" : diagram === "architecture" ? "g.architecture-services" : "g.em-box";
+  if (!directChildren(svg, selector).length) {
+    return specialDiagramStructureFallback(svg, deck, size, options, `unsupported-mermaid-${diagram}-structure`);
+  }
+  return measuredDiagramScene(svg, deck, size, options, diagram, svg, "root", diagram);
+}
+
 function measuredDiagramScene(svg, deck, size, options, diagram, root, rootRole, rootPath) {
   const nodes = [];
+  const system = ["c4", "architecture", "eventmodeling"].includes(diagram);
   const reasons = {
     geometry: `unsupported-mermaid-${diagram}-geometry`,
     style: `unsupported-mermaid-${diagram}-style`,
@@ -6734,7 +7183,32 @@ function measuredDiagramScene(svg, deck, size, options, diagram, root, rootRole,
         isSeparableGanttTick(element, options)) ? reasons.style : "";
     if (reason) {
       nodes.push(fallbackNode(element, nodes.length, deck, reason, sourcePath,
-        ["ishikawa", "mindmap", "timeline", "journey"].includes(diagram)));
+        system || ["ishikawa", "mindmap", "timeline", "journey"].includes(diagram)));
+      return;
+    }
+    if (system && ["image", "icon", "complex-shape"].includes(role)) {
+      nodes.push(fallbackNode(element, nodes.length, deck, `unsupported-mermaid-${diagram}-${role}`, sourcePath, true));
+      return;
+    }
+    if (system && ["stereotype", "html-label", "relation", "card", "arrow"].includes(role)) {
+      const node = role === "stereotype" ? c4StereotypeText(element, sourcePath, nodes.length, deck, options, reasons)
+        : role === "html-label" ? eventModelingLabel(element, sourcePath, nodes.length, deck, options, reasons)
+        : role === "relation" ? systemRelation(element, sourcePath, nodes.length, deck, options, reasons, diagram)
+        : architecturePrimitive(element, role, sourcePath, nodes.length, deck, options, reasons);
+      if (node) nodes.push(node);
+      return;
+    }
+    if (system && role === "shape") {
+      const bounds = boundsOf(element, deck);
+      if (!sceneStyleHasVisiblePaint(computedSvgStyle(element, options)) ||
+          (["rect", "circle", "ellipse"].includes(localName(element)) && !(bounds.width > 0 && bounds.height > 0))) return;
+      const node = simpleDiagramShape(element, sourcePath, nodes.length, deck, options,
+        { mermaid: { kind: `${diagram}-shape` } }, reasons);
+      nodes.push(node.kind === "shape" ? systemDashedPrimitive(element, node, deck, options, reasons, diagram) : node);
+      return;
+    }
+    if (diagram === "architecture" && role === "text" && structuredLabelText(element, options).paragraphs.length > 1) {
+      nodes.push(architectureMultilineText(element, sourcePath, nodes.length, deck, options, reasons));
       return;
     }
     if (diagram === "journey" && role === "switch") {
@@ -6749,13 +7223,14 @@ function measuredDiagramScene(svg, deck, size, options, diagram, root, rootRole,
     if (element === svg || localName(element) === "g") {
       if (!hasUniformAxisAlignedScale(element)) {
         nodes.push(fallbackNode(element, nodes.length, deck, reasons.transform, sourcePath,
-          ["ishikawa", "mindmap", "timeline", "journey"].includes(diagram)));
+          system || ["ishikawa", "mindmap", "timeline", "journey"].includes(diagram)));
         return;
       }
       directChildren(element).forEach((child, index) =>
         walk(child, diagram === "gantt" ? ganttElementRole(child, role)
           : diagram === "treemap" ? treemapElementRole(child, role)
           : diagram === "ishikawa" ? ishikawaElementRole(child, role)
+          : system ? systemElementRole(child, role, diagram)
           : ["mindmap", "timeline", "journey"].includes(diagram) ? basicNarrativeElementRole(child, role, diagram)
           : chartElementRole(child, role, diagram), `${sourcePath}.parts[${index}]`, depth + 1));
       return;
@@ -7198,6 +7673,7 @@ function sceneFromSvg(svg, options) {
   if (route === "treemap") return treemapScene(svg, deck, size, options);
   if (route === "ishikawa") return ishikawaScene(svg, deck, size, options);
   if (["mindmap", "timeline", "journey"].includes(route)) return basicNarrativeScene(svg, deck, size, options, route);
+  if (["c4", "architecture", "eventmodeling"].includes(route)) return systemScene(svg, deck, size, options, route);
   if (route === "quadrantChart" || route === "xychart") return chartScene(svg, deck, size, options, route);
   if (route === "state") return stateScene(svg, root, deck, size, options);
   if (route !== "flowchart") {

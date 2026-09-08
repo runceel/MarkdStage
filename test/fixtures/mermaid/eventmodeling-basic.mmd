@@ -1,0 +1,9 @@
+eventmodeling
+entity Order.Form
+entity Order.Submit
+entity Order.Accepted
+entity Order.List
+tf 1 ui Order.Form
+tf 2 command Order.Submit ->> 1
+tf 3 event Order.Accepted ->> 2
+tf 4 readmodel Order.List ->> 3

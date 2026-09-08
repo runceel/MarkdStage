@@ -1,0 +1,10 @@
+C4Context
+Person(user, "利用者<br/>Customer", "注文する")
+System_Boundary(system, "注文 / Orders") {
+  System(api, "API", "注文を処理")
+  SystemDb(db, "保存<br/>Database", "注文データ")
+  SystemQueue(queue, "Queue", "非同期処理")
+}
+Rel(user, api, "利用")
+BiRel(api, db, "読み書き")
+Rel(api, queue, "発行")

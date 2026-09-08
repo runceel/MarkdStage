@@ -408,6 +408,71 @@ cause-label rectangles, and exact filled arrow triangles. Layout is measured, no
 
 ---
 
+## C4: editable frames, boxes, and relationships
+
+```mermaid
+C4Container
+title 注文システム
+System_Boundary(system, "注文 / Orders") {
+  Container(web, "画面<br/>Web", "Browser", "注文を入力")
+  Container(api, "API", "Service", "検証<br/>Validate")
+  Container(worker, "処理", "Worker", "注文を処理")
+}
+Rel(web, api, "送信<br/>Submit", "HTTPS")
+BiRel(api, worker, "要求 / 応答")
+```
+
+Basic frames, supported boxes, measured labels, and relationship arrows stay editable.
+Person PNGs and complex database/queue outlines stay local artwork with safe labels native.
+
+---
+
+## Mermaid architecture: native layout, local icons
+
+```mermaid
+architecture-beta
+group orders(cloud)[Orders]
+service db(database)[Database] in orders
+service api(server)[API] in orders
+service web[Web] in orders
+db:R <--> L:api
+api:R --> L:web
+```
+
+Group frames, simple service boxes, labels, and relations stay editable.
+Unsupported icons retain their own local images. This is not MarkdStage's JSON Architecture DSL.
+
+---
+
+## Event Modeling: boxes, relations, and HTML labels
+
+```mermaid
+eventmodeling
+entity Order.Form
+entity Order.Submit
+entity Order.Accepted
+entity Order.List
+tf 1 ui Order.Form
+tf 2 command Order.Submit ->> 1
+tf 3 event Order.Accepted ->> 2
+tf 4 readmodel Order.List ->> 3
+```
+
+Basic boxes, relation lines, arrowheads, and safe HTML labels stay editable.
+Decorated or rich labels retain their own local artwork, without consuming neighboring boxes.
+
+---
+
+## Systems diagrams: the editable boundary
+
+- Geometry, label positions, and arrow placement come from bundled Mermaid, not a recreated layout.
+- Safe text, boxes, frames, and relations remain separate editable PowerPoint objects.
+- Person images, complex C4 outlines, unsupported icons, and rich labels retain local artwork.
+- Effects, unknown markers, unsafe transforms, and existing limits preserve the smallest safe subtree.
+- Diagnostics, native exclusion masks, and paint order prevent missing or duplicate content.
+
+---
+
 ## Hybrid PowerPoint export
 
 1. Convert supported primitives to native, editable PowerPoint objects.

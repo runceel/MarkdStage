@@ -1,0 +1,11 @@
+eventmodeling
+entity Order.Form
+entity Order.Submit
+entity Order.Accepted
+entity Order.List
+entity Order.Notify
+tf 1 ui Order.Form `text` {<u>入力 / Input</u> }
+tf 2 cmd Order.Submit ->> 1
+tf 3 evt Order.Accepted ->> 2
+tf 4 rmo Order.List ->> 3
+tf 5 processor Order.Notify ->> 4

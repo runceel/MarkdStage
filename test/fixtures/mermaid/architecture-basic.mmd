@@ -1,0 +1,9 @@
+architecture-beta
+group orders[Orders]
+service web[Web] in orders
+service api[API] in orders
+service worker[Request processing] in orders
+junction hub in orders
+web:R <--> L:api
+api:B --> T:hub
+hub:R -- L:worker
