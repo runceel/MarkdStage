@@ -22,7 +22,7 @@
 </p>
 
 <p align="center">
-  <a href="https://runceel.github.io/markdstage/en/">Website</a> |
+  <a href="https://runceel.github.io/MarkdStage/en/">Website</a> |
   <a href="#use-the-canvas-extension">Canvas Extension</a> |
   <a href="#use-markdstage-desktop">Desktop</a> |
   <a href="#use-the-cli">CLI</a> |
@@ -182,7 +182,7 @@ distribution.
 ## Present without AI
 
 Write Markdown yourself, use the [minimal format below](#markdown-format), or download a
-[source-backed example](https://runceel.github.io/markdstage/en/#examples) and save it as `slides.md`.
+[source-backed example](https://runceel.github.io/MarkdStage/en/#examples) and save it as `slides.md`.
 No Skill registration is needed. Without a global install, you can run:
 
 ```console
@@ -220,7 +220,7 @@ MarkdStage community. It is developed, released, and supported outside this repo
 ## See Markdown on stage
 
 The same source and renderer connect editing, preview, presentation, and export.
-The [website examples](https://runceel.github.io/markdstage/en/#examples) include rendered slides
+The [website examples](https://runceel.github.io/MarkdStage/en/#examples) include rendered slides
 and downloadable Markdown.
 
 <table>
@@ -327,14 +327,14 @@ PowerPoint notes pane. They remain absent from regular slides, the audience wind
 
 ## Website development
 
-The [website](https://runceel.github.io/markdstage/en/) is generated from `site/` using
+The [website](https://runceel.github.io/MarkdStage/en/) is generated from `site/` using
 Node.js 24 or later, with no build dependencies:
 
 ```console
 npm run preview:site
 ```
 
-Open `http://127.0.0.1:4173/markdstage/` for Japanese or append `en/` for English.
+Open `http://127.0.0.1:4173/MarkdStage/` for Japanese or append `en/` for English.
 Restart the command after editing the source. `npm run build:site` produces only
 the public files in `_site/`; set `SITE_URL` to the full deployment base URL when
 building for another host. `PORT` changes the local preview port.

@@ -53,7 +53,7 @@ async function serveFixture(t, basePath) {
   return { ...preview, root, outside, files };
 }
 
-for (const basePath of ["/", "/markdstage/"]) {
+for (const basePath of ["/", "/MarkdStage/"]) {
   test(`preview serves locale indexes, MIME types, and bodyless HEAD under ${basePath}`, async (t) => {
     const preview = await serveFixture(t, basePath);
     assert.match(preview.url, /^http:\/\/127\.0\.0\.1:\d+\//);
@@ -117,20 +117,20 @@ for (const basePath of ["/", "/markdstage/"]) {
 }
 
 test("project preview redirects the bare project path and never serves neighboring prefixes", async (t) => {
-  const preview = await serveFixture(t, "/markdstage/");
+  const preview = await serveFixture(t, "/MarkdStage/");
   for (const method of ["GET", "HEAD"]) {
-    const redirect = await getRaw(preview.url, "/markdstage", method);
+    const redirect = await getRaw(preview.url, "/MarkdStage", method);
     assert.equal(redirect.status, 308);
-    assert.equal(redirect.headers.location, "/markdstage/");
+    assert.equal(redirect.headers.location, "/MarkdStage/");
     assert.equal(redirect.body, "");
   }
-  for (const path of ["/", "/en/", "/site.css", "/markdstage-other/", "/markdstages/index.html"]) {
+  for (const path of ["/", "/en/", "/site.css", "/MarkdStage-other/", "/MarkdStages/index.html"]) {
     assert.equal((await getRaw(preview.url, path)).status, 404, path);
   }
 });
 
 test("preview rejects malformed base paths before listening", async () => {
-  for (const basePath of ["markdstage/", "/markdstage", "/../", "/markdstage/../", ""]) {
+  for (const basePath of ["MarkdStage/", "/MarkdStage", "/../", "/MarkdStage/../", ""]) {
     await assert.rejects(startSiteServer({ basePath, port: 0 }), /preview base path/);
   }
 });

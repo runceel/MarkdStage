@@ -25,9 +25,9 @@ test("build publishes exactly the explicit allowlist, copies assets, and rebuild
   const workspace = await createWorkspace();
   t.after(workspace.dispose);
   const outputDir = join(workspace.directory, "output");
-  const result = await buildSite({ outputDir, siteUrl: "https://example.test/markdstage" });
+  const result = await buildSite({ outputDir, siteUrl: "https://example.test/MarkdStage" });
   assert.equal(result.outputDir, outputDir);
-  assert.equal(result.siteUrl, "https://example.test/markdstage/");
+  assert.equal(result.siteUrl, "https://example.test/MarkdStage/");
   assert.deepEqual([...SITE_FILES].sort(), expectedFiles);
   assert.deepEqual(result.files.sort(), expectedFiles);
   assert.deepEqual(await listFiles(outputDir), expectedFiles);
@@ -55,7 +55,7 @@ test("build publishes exactly the explicit allowlist, copies assets, and rebuild
   assert.deepEqual(await Promise.all(expectedFiles.map((file) => readFile(join(outputDir, file)))), before);
 });
 
-for (const basePath of ["/", "/markdstage/"]) {
+for (const basePath of ["/", "/MarkdStage/"]) {
   test(`both locales have canonical, alternate, and share URLs under ${basePath}`, async (t) => {
     const workspace = await createWorkspace();
     t.after(workspace.dispose);
@@ -120,7 +120,7 @@ test("translation validation accepts complete localized content and reordered ke
 test("both pages connect needs and workflow to examples, sharing, and actionable onboarding", async () => {
   const { ja, en, product, sources } = await readContent();
   for (const copy of [ja, en]) {
-    const html = renderPage({ copy, product, sources, siteUrl: "https://example.test/markdstage/" });
+    const html = renderPage({ copy, product, sources, siteUrl: "https://example.test/MarkdStage/" });
     const sections = ["needs-title", "workflow-title", "examples-title", "editor-title", "share-title", "start-title"];
     const positions = sections.map((id) => html.indexOf(`id="${id}"`));
     assert.ok(positions.every((position) => position >= 0), `${copy.lang}: every section exists`);
@@ -191,15 +191,15 @@ test("translation validation also rejects empty reference text and unsupported l
 test("site URLs are normalized for root, project, and nested hosting", () => {
   for (const [input, expected] of [
     ["https://example.test", "https://example.test/"],
-    ["https://example.test/markdstage", "https://example.test/markdstage/"],
-    ["https://example.test/markdstage///", "https://example.test/markdstage/"],
-    ["https://example.test/team/markdstage/", "https://example.test/team/markdstage/"],
-    ["http://localhost:4173/markdstage", "http://localhost:4173/markdstage/"],
+    ["https://example.test/MarkdStage", "https://example.test/MarkdStage/"],
+    ["https://example.test/MarkdStage///", "https://example.test/MarkdStage/"],
+    ["https://example.test/team/MarkdStage/", "https://example.test/team/MarkdStage/"],
+    ["http://localhost:4173/MarkdStage", "http://localhost:4173/MarkdStage/"],
   ]) assert.equal(normalizeSiteUrl(input), expected);
 });
 
 for (const value of [
-  "", "not a URL", "/markdstage/", "ftp://example.test/", "file:///etc/passwd",
+  "", "not a URL", "/MarkdStage/", "ftp://example.test/", "file:///etc/passwd",
   "javascript:alert(1)", "data:text/html,hello", "https://user:password@example.test/",
   "https://user@example.test/", "https://example.test/?token=secret", "https://example.test/#fragment",
 ]) {
@@ -227,7 +227,7 @@ test("rendered headings, metadata, sources, links, and copy messages escape HTML
       cliSetupCommand: hostile, cliAlternativeCommand: hostile, cliPreviewCommand: hostile,
       cliCheckCommand: hostile, cliExportCommand: hostile },
     sources: { ...sources, markdown: hostile },
-    siteUrl: "https://example.test/markdstage/",
+    siteUrl: "https://example.test/MarkdStage/",
   });
   assert.ok(html.includes(`<title>${escaped}</title>`));
   assert.ok(html.includes(`<meta name="description" content="${escaped}">`));

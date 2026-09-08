@@ -22,7 +22,7 @@
 </p>
 
 <p align="center">
-  <a href="https://runceel.github.io/markdstage/">紹介サイト</a> |
+  <a href="https://runceel.github.io/MarkdStage/">紹介サイト</a> |
   <a href="#canvas-extension">Canvas Extension</a> |
   <a href="#desktop">Desktop</a> |
   <a href="#cli">CLI</a> |
@@ -187,7 +187,7 @@ markdstage export slides.md --output slides.pptx
 ## AI を使わずに発表する
 
 Markdown を自分で書くか、[最小の記述例](#markdown-format)や
-[ソース付きの作例](https://runceel.github.io/markdstage/#examples)から始めて、
+[ソース付きの作例](https://runceel.github.io/MarkdStage/#examples)から始めて、
 `slides.md` として保存します。スキル登録は不要です。グローバルインストールせずに使う場合は、
 次のように実行できます。
 
@@ -231,7 +231,7 @@ Windows x64 / ARM64 向けのポータブルビルドと SHA-256 チェックサ
 ## Markdown をステージへ
 
 同じソースとレンダラーで、編集・プレビュー・発表・出力をつなげられます。
-[紹介サイトの作例](https://runceel.github.io/markdstage/#examples)では、表示結果と
+[紹介サイトの作例](https://runceel.github.io/MarkdStage/#examples)では、表示結果と
 ダウンロードできる Markdown を確認できます。
 
 <table>
@@ -343,14 +343,14 @@ layout: title
 
 ## 紹介サイトの開発
 
-[紹介サイト](https://runceel.github.io/markdstage/) は `site/` から静的に生成します。
+[紹介サイト](https://runceel.github.io/MarkdStage/) は `site/` から静的に生成します。
 ビルドに追加パッケージは不要です。Node.js 24 以降で次を実行します。
 
 ```console
 npm run preview:site
 ```
 
-日本語は `http://127.0.0.1:4173/markdstage/`、英語は末尾に `en/` を付けて開きます。
+日本語は `http://127.0.0.1:4173/MarkdStage/`、英語は末尾に `en/` を付けて開きます。
 ソースの編集後はコマンドを再実行してください。`npm run build:site` は公開に必要な
 ファイルだけを `_site/` に生成します。別の公開先でビルドする場合は、環境変数
 `SITE_URL` にサイトの完全なベース URL を指定します。ローカルのポートは `PORT` で変更できます。
