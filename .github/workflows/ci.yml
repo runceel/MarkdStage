@@ -249,15 +249,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          browser=$(find "$PLAYWRIGHT_BROWSERS_PATH" \
-            -type f -path '*/chrome-linux/headless_shell' -print -quit)
-          if [ -z "$browser" ]; then
+          browser=("$PLAYWRIGHT_BROWSERS_PATH"/chromium_headless_shell-*/chrome-linux/headless_shell)
+          if [ "${#browser[@]}" -ne 1 ] || [ ! -x "${browser[0]}" ]; then
             echo "Playwright Chromium headless shell was not found in $PLAYWRIGHT_BROWSERS_PATH."
             exit 1
           fi
           browser_bin="$RUNNER_TEMP/markdstage-browser"
           mkdir -p "$browser_bin"
-          ln -s "$browser" "$browser_bin/chrome"
+          ln -s "${browser[0]}" "$browser_bin/chrome"
           echo "$browser_bin" >> "$GITHUB_PATH"
 
       - name: Validate changed sample decks
