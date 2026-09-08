@@ -276,7 +276,7 @@ Changes remain a draft until **Save** writes them back to Markdown. The CLI's `p
 also provides visual Architecture editing.
 
 <p align="center">
-  <img src="./assets/readme/architecture-editor.png" alt="The MarkdStage Architecture Editor with an API node selected" width="100%">
+  <img src="./assets/readme/architecture-editor.png" alt="The Azure hub-spoke diagram in Architecture Editor, with Hub VNet selected and its properties visible" width="100%">
 </p>
 
 See the [diagrams and media guide](./docs/user-guide/diagrams-and-media.md) for both formats.

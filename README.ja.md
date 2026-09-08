@@ -286,7 +286,7 @@ Architecture Editor を開きます。ノード、グループ、画像、コネ
 CLI の `preview --watch` でも Architecture 図のビジュアル編集に対応しています。
 
 <p align="center">
-  <img src="./assets/readme/architecture-editor.png" alt="API ノードを選択した MarkdStage Architecture Editor" width="100%">
+  <img src="./assets/readme/architecture-editor.png" alt="Azure ハブスポーク構成図を開いた Architecture Editor。Hub VNet を選択し、プロパティを表示している" width="100%">
 </p>
 
 記法の詳細は[図とメディアのガイド](./docs/user-guide/ja/diagrams-and-media.md)を参照してください。

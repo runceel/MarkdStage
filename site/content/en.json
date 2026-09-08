@@ -46,7 +46,7 @@
   "architectureDescription": "Create architecture diagrams with JSON-based Architecture DSL inside Markdown. Specify positions, sizes, groups, icons, and connectors when you want to compose a diagram for the slide.",
   "editorTitle": "Visual architecture diagram editing",
   "editorDescription": "Refine nodes and connectors directly, including in Architecture DSL diagrams drafted by AI. Saving in the Architecture Editor writes the draft changes back to Markdown. Visual editing is available in Canvas and through the CLI's preview --watch.",
-  "editorAlt": "The MarkdStage Architecture Editor, with an API node selected and its position and style available for editing.",
+  "editorAlt": "The Azure hub-spoke diagram in Architecture Editor, with Hub VNet selected and its position, size, and style available for editing.",
   "editorLink": "Diagrams & media guide",
   "workflowTitle": "From draft to presentation and sharing",
   "steps": [

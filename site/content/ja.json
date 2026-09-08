@@ -46,7 +46,7 @@
   "architectureDescription": "Markdown 内に JSON 形式の Architecture DSL を記述して、構成図を作成できます。位置・サイズ・グループ・アイコン・接続線を指定し、スライドに合わせて構成を調整したいときに使えます。",
   "editorTitle": "構成図のビジュアル編集",
   "editorDescription": "AI が作成した Architecture DSL の図も、ノードや接続線を画面上で直接調整できます。Architecture Editor で保存すると、下書きの変更が Markdown に反映されます。Canvas のほか、CLI の preview --watch でもビジュアル編集に対応しています。",
-  "editorAlt": "MarkdStage の Architecture Editor。構成図の API ノードが選択され、位置やスタイルを編集できる。",
+  "editorAlt": "Azure ハブスポーク構成図を開いた Architecture Editor。Hub VNet が選択され、位置、サイズ、スタイルを編集できる。",
   "editorLink": "図とメディアのガイド",
   "workflowTitle": "作成から発表・共有まで",
   "steps": [
