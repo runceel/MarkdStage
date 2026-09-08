@@ -32,14 +32,16 @@ PowerPoint output, so this is not a PowerPoint-only color adjustment.
 
 | Diagram | Theme-controlled roles | Remaining limitation |
 | --- | --- | --- |
-| C4 | Entity fills and borders use Mermaid's documented `c4` settings. Boundary and relationship strokes, labels, and arrow markers use the theme's line/text roles. Light themes use dark enough entity fills for Mermaid's default white entity text. | Mermaid's bundled C4 renderer hardcodes some boundary, relationship, and marker defaults; MarkdStage repairs only those defaults. If the source contains explicit `UpdateElementStyle` or `UpdateRelStyle`, the fallback is skipped so source-authored colors are not overwritten. |
+| C4 | Entity fills and borders use Mermaid's documented `c4` settings. Each entity fill is selected from existing palette roles for at least 4.5:1 contrast with Mermaid's default white text, when the palette provides a suitable solid color. Boundary and relationship strokes, labels, and arrow markers use the theme's line/text roles, including diagrams with Mermaid comments, directives, or front matter, and solid deployment boundaries. | Mermaid's bundled C4 renderer hardcodes some boundary, relationship, and marker defaults; MarkdStage repairs only those defaults. Explicit `UpdateElementStyle` disables the boundary fallback, and `UpdateRelStyle` disables the relationship/marker fallback, so source-authored colors are not overwritten. |
 | `architecture-beta` | `archEdgeColor`, `archEdgeArrowColor`, `archGroupBorderColor`, and `archGroupBorderWidth` follow the theme. | Mermaid service/group icon artwork and its fixed icon-text styling are not all exposed as theme variables. |
 | `eventmodeling` | Entity fills/strokes, swimlane backgrounds/strokes, relationship strokes, arrowheads, and attribute backgrounds use Mermaid's documented variables. | Custom themes still need readable `--bg`, `--fg`, and accent values; unsupported decorations and rich labels keep Mermaid's rendered artwork. |
 
 These mappings preserve the distinction between node types instead of flattening every shape to one
 color. Explicit colors in Mermaid source take precedence over automatic fallback where Mermaid
-exposes them. Theme changes re-render the palette; custom theme values are not modified or
-contrast-corrected on the user's behalf.
+exposes them. Theme changes re-render the palette. C4 resolves CSS color syntax (including named,
+HSL, and RGB colors) before choosing readable fills; custom theme values themselves are not changed.
+If none of an entity's candidate palette roles provides a suitable solid fill, its preferred role
+is retained. Custom palettes and explicit source colors remain the author's responsibility.
 
 If Mermaid syntax is invalid, the slide shows an error while preserving the rest of the content.
 

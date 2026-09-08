@@ -221,6 +221,55 @@ test("Mermaid C4 fills switch to dark text-safe colors on light themes", () => {
   );
 });
 
+test("C4 selects text-safe roles per fill even with bright accents or a dark backdrop", () => {
+  const colors = {
+    "--bg": "#101820", "--surface": "#fff", "--code": "#f3f4f6",
+    "--border": "#888", "--fg": "#15181f", "--body": "#333a44",
+    "--accent": "#00bfff", "--accent-strong": "#0af",
+  };
+  const variables = mermaidThemeVariables({ getPropertyValue: (name) => colors[name] || "" });
+  assert.equal(variables.person_bg_color, colors["--fg"]);
+  assert.equal(variables.system_bg_color, colors["--body"]);
+  assert.equal(variables.container_bg_color, colors["--body"]);
+  assert.equal(variables.component_bg_color, colors["--bg"]);
+  assert.equal(variables.primaryColor, colors["--surface"]);
+  assert.equal(variables.lineColor, colors["--accent"]);
+});
+
+test("C4 resolves CSS color syntax for contrast without rewriting palette values", () => {
+  const colors = {
+    "--bg": "white", "--surface": "hsl(0, 0%, 100%)", "--code": "rgb(95% 95% 95%)",
+    "--border": "#888", "--fg": "midnightblue", "--body": "#333a44",
+    "--accent": "deepskyblue", "--accent-strong": "#0af",
+  };
+  const resolved = {
+    white: "#ffffff", "hsl(0, 0%, 100%)": "#ffffff", "rgb(95% 95% 95%)": "#f2f2f2",
+    midnightblue: "#191970", deepskyblue: "#00bfff",
+  };
+  const variables = mermaidThemeVariables(
+    { getPropertyValue: (name) => colors[name] || "" },
+    (value) => resolved[value] || value,
+  );
+  assert.equal(variables.person_bg_color, "midnightblue");
+  assert.equal(variables.system_bg_color, "#333a44");
+  assert.equal(variables.container_bg_color, "#333a44");
+  assert.equal(variables.background, "white");
+  assert.equal(variables.primaryColor, "hsl(0, 0%, 100%)");
+});
+
+test("C4 prefers solid fills and enforces the white-text contrast threshold", () => {
+  for (const fill of ["#0000", "#00000000", "rgba(0,0,0,.1)", "rgb(0 0 0 / 10%)", "#777"]) {
+    const colors = { "--surface": fill, "--fg": "#15181f", "--body": "#333a44" };
+    const variables = mermaidThemeVariables({ getPropertyValue: (name) => colors[name] || "" });
+    assert.equal(variables.person_bg_color, "#15181f", fill);
+  }
+  for (const fill of ["#000f", "#000000ff", "rgb(0% 0% 0% / 100%)", "#767676"]) {
+    const colors = { "--surface": fill, "--fg": "#15181f" };
+    const variables = mermaidThemeVariables({ getPropertyValue: (name) => colors[name] || "" });
+    assert.equal(variables.person_bg_color, fill);
+  }
+});
+
 test("section backgrounds accept layered gradients and a print override", () => {
   const variables = parseThemeVariables(`
     --section-bg:

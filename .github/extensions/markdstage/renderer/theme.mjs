@@ -107,7 +107,7 @@ export function serializeThemeVariables(variables) {
 // `noteBorderColor`/`noteTextColor` are hardcoded by Mermaid's base theme
 // (always a pale yellow) unless set explicitly, so sequence-diagram notes
 // need their own override to follow the deck theme too.
-export function mermaidThemeVariables(style) {
+export function mermaidThemeVariables(style, resolveColor = (value) => value) {
   const read = (name) => style.getPropertyValue(name).trim();
   const background = read("--bg");
   const surface = read("--surface");
@@ -120,18 +120,17 @@ export function mermaidThemeVariables(style) {
   const accentStrong = read("--accent-strong");
   const accentSoft = read("--accent-soft");
   const accentLine = read("--accent-line");
-  const lightBackground = isLightColor(background);
-
-  // C4 text is white unless the source explicitly supplies a font color. Keep
-  // its themed fills dark enough for that renderer default on light themes,
-  // while retaining several distinct roles for people, systems, containers,
-  // and components.
-  const c4Colors = lightBackground
-    ? [foreground, accentStrong, accent, body]
-    : [surface, code, border, background];
-  const [c4Person, c4System, c4Container, c4Component] = c4Colors;
-  const c4External = lightBackground ? foreground : code;
-  const c4ExternalAlt = lightBackground ? body : background;
+  // C4 hardcodes white entity text. Evaluate each fill, not just the slide
+  // background: a readable custom theme may still have a bright accent or
+  // surface. Select existing palette values without inventing brand colors.
+  const c4Fill = (...colors) =>
+    colors.find((color) => supportsWhiteText(resolveColor(color))) ?? colors[0];
+  const c4Person = c4Fill(surface, foreground, body);
+  const c4System = c4Fill(code, accentStrong, body, foreground);
+  const c4Container = c4Fill(border, accent, body, foreground);
+  const c4Component = c4Fill(background, body, foreground);
+  const c4External = c4Fill(code, foreground, body);
+  const c4ExternalAlt = c4Fill(background, body, foreground);
 
   return {
     background,
@@ -236,11 +235,20 @@ export function mermaidC4ThemeVariables(themeVariables) {
   );
 }
 
-function isLightColor(value) {
+function supportsWhiteText(value) {
   const match = String(value || "").match(
-    /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$|^rgba?\(\s*([0-9.]+%?)\s*,\s*([0-9.]+%?)\s*,\s*([0-9.]+%?)/i,
+    /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$|^rgba?\(\s*([0-9.]+%?)[,\s]+([0-9.]+%?)[,\s]+([0-9.]+%?)(?:\s*[,/]\s*([0-9.]+%?))?\s*\)$/i,
   );
   if (!match) return false;
+  const alpha = match[1]?.length === 4
+    ? Number.parseInt(match[1][3].repeat(2), 16) / 255
+    : match[1]?.length === 8
+      ? Number.parseInt(match[1].slice(6), 16) / 255
+      : match[5]
+        ? Number.parseFloat(match[5]) / (match[5].endsWith("%") ? 100 : 1)
+        : 1;
+  // Translucent fills depend on their backdrop; prefer a solid palette role.
+  if (alpha < 1) return false;
   const channels = match[1]
     ? (match[1].length <= 4
         ? [...match[1].slice(0, 3)].map((channel) => Number.parseInt(channel + channel, 16))
@@ -253,12 +261,12 @@ function isLightColor(value) {
     (sum, channel, index) => sum + [0.2126, 0.7152, 0.0722][index] * relativeLuminance(channel),
     0,
   );
-  return luminance > 0.5;
+  return 1.05 / (luminance + 0.05) >= 4.5;
 }
 
 function relativeLuminance(channel) {
   const normalized = Math.max(0, Math.min(255, channel)) / 255;
-  return normalized <= 0.03928
+  return normalized <= 0.04045
     ? normalized / 12.92
     : ((normalized + 0.055) / 1.055) ** 2.4;
 }

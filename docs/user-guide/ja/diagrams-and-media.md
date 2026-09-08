@@ -31,13 +31,15 @@ PowerPoint だけで色を補正しているわけではありません。
 
 | 図 | テーマで制御する役割 | 残る制約 |
 | --- | --- | --- |
-| C4 | 図形の塗りと枠線は Mermaid が定義する `c4` 設定を使います。境界・関係の線、ラベル、矢印 marker はテーマの線・テキスト役割を使います。light 系テーマでは、Mermaid の既定の白い図形文字に対して十分暗い塗りを選びます。 | 同梱 Mermaid の C4 renderer には境界・関係・marker の既定色をハードコードしている箇所があります。MarkdStage が補正するのはその既定値だけです。ソースに `UpdateElementStyle` または `UpdateRelStyle` がある場合は、明示色を上書きしないよう補正を行いません。 |
+| C4 | 図形の塗りと枠線は Mermaid が定義する `c4` 設定を使います。既存の配色に適切な不透明色がある場合、図形ごとに既定の白い文字とのコントラスト比が 4.5:1 以上になる塗りを選びます。境界・関係の線、ラベル、矢印 marker はテーマの線・テキスト役割を使います。Mermaid のコメント、directive、front matter がある図や、実線の deployment 境界にも適用します。 | 同梱 Mermaid の C4 renderer には境界・関係・marker の既定色をハードコードしている箇所があります。MarkdStage が補正するのはその既定値だけです。明示色を上書きしないよう、`UpdateElementStyle` がある場合は境界の補正を、`UpdateRelStyle` がある場合は関係・marker の補正を行いません。 |
 | `architecture-beta` | `archEdgeColor`、`archEdgeArrowColor`、`archGroupBorderColor`、`archGroupBorderWidth` をテーマに合わせます。 | Mermaid の service／group icon の artwork と固定された icon テキスト色のすべてがテーマ変数として公開されているわけではありません。 |
 | `eventmodeling` | entity の塗り・枠線、lane の背景・枠線、関係線、矢印、attribute の背景を Mermaid が定義する変数でテーマに合わせます。 | カスタムテーマでは `--bg`、`--fg`、アクセント値自体を読みやすく設定してください。未対応の装飾や複雑なラベルは Mermaid の描画済み artwork を保持します。 |
 
 図形の種類ごとの意味を保つため、すべてを一色には平坦化しません。Mermaid が公開している
-明示色は自動 fallback より優先されます。テーマを変更すると配色を再計算しますが、
-ユーザーが指定したカスタムテーマの値を自動で変更したり、コントラスト補正したりはしません。
+明示色は自動 fallback より優先されます。テーマを変更すると配色を再計算します。
+C4 は色名、HSL、RGB などの CSS 色指定を解決してから読みやすい塗りを選びますが、
+カスタムテーマの値自体は変更しません。図形の候補となる配色に適切な不透明色がない場合は、
+優先する配色を保持します。カスタム配色やソースの明示色は作成者が調整してください。
 
 Mermaid の構文に誤りがある場合は、スライドの他の内容はそのままにエラーを表示します。
 

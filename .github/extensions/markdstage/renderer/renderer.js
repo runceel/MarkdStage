@@ -587,7 +587,10 @@ function runMermaid(scope, deckEl, token, revealWhenDone = true) {
   }
   try {
     const sources = [...nodes].map((node) => node.textContent || "");
-    const themeVariables = mermaidThemeVariables(getComputedStyle(deckEl));
+    const themeVariables = mermaidThemeVariables(
+      getComputedStyle(deckEl),
+      (value) => resolveModelColor(value, deckEl),
+    );
     const c4ThemeVariables = mermaidC4ThemeVariables(themeVariables);
     const serializedThemeVariables = JSON.stringify(themeVariables);
     if (serializedThemeVariables !== lastMermaidThemeVariables) {
@@ -619,11 +622,13 @@ function runMermaid(scope, deckEl, token, revealWhenDone = true) {
         // leave diagrams with explicit C4 style updates untouched so source colors
         // remain authoritative.
         function repairC4ThemeDefaults(svg, source, themeVariables) {
-          if (!/^\s*c4[a-z]*\b/i.test(source)) return;
-          const hasElementStyles = /\bUpdateElementStyle\s*\(/i.test(source);
-          const hasRelationStyles = /\bUpdateRelStyle\s*\(/i.test(source);
+          if (svg.getAttribute("aria-roledescription") !== "c4") return;
+          const commands = source.replace(/^\s*%%.*$/gm, "");
+          const hasElementStyles = /\bUpdateElementStyle\s*\(/i.test(commands);
+          const hasRelationStyles = /\bUpdateRelStyle\s*\(/i.test(commands);
           const boundaryGroups = new Set(
-            [...svg.querySelectorAll('rect[stroke-dasharray*="7"]')].map((element) => element.parentElement),
+            [...svg.querySelectorAll('rect[stroke-dasharray="7.0,7.0"], rect[fill="none"]')]
+              .map((element) => element.parentElement),
           );
           const relationGroups = new Set(
             [...svg.querySelectorAll("[marker-end], [marker-start]")].map((element) => element.parentElement),
@@ -654,7 +659,7 @@ function runMermaid(scope, deckEl, token, revealWhenDone = true) {
             for (const marker of svg.querySelectorAll("marker")) {
               for (const element of marker.querySelectorAll("path, polygon, line")) {
                 setDefaultPaint(element, "stroke", new Set(["black", "#000", "#000000", "rgb(0, 0, 0)"]), themeVariables.lineColor);
-                setDefaultPaint(element, "fill", new Set(["black", "#000", "#000000", "rgb(0, 0, 0)"]), themeVariables.lineColor);
+                setDefaultPaint(element, "fill", new Set([undefined, "black", "#000", "#000000", "rgb(0, 0, 0)"]), themeVariables.lineColor);
               }
             }
           }
