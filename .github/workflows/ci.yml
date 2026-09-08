@@ -22,6 +22,7 @@ jobs:
       test: ${{ steps.classify.outputs.test }}
       cli: ${{ steps.classify.outputs.cli }}
       desktop: ${{ steps.classify.outputs.desktop }}
+      samples: ${{ steps.classify.outputs.samples }}
 
     steps:
       - name: Checkout
@@ -47,12 +48,13 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
+          changed="$RUNNER_TEMP/changed-files.txt"
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            printf 'slides.md\n' > "$changed"
             node scripts/ci-paths.mjs --all
             exit 0
           fi
 
-          changed="$RUNNER_TEMP/changed-files.txt"
           if [ "$EVENT_NAME" = "pull_request" ]; then
             git diff --name-only --no-renames --diff-filter=ACDMRTUXB \
               "$BASE_SHA" "$HEAD_SHA" > "$changed"
@@ -69,6 +71,14 @@ jobs:
           echo "Changed paths:"
           sed 's/^/  /' "$changed"
           node scripts/ci-paths.mjs < "$changed"
+
+      - name: Save changed paths
+        uses: actions/upload-artifact@v5
+        with:
+          name: ci-changed-paths
+          path: ${{ runner.temp }}/changed-files.txt
+          retention-days: 1
+          if-no-files-found: error
 
   docs:
     name: Documentation
@@ -226,6 +236,52 @@ jobs:
           ./node_modules/.bin/markdstage validate "$GITHUB_WORKSPACE/slides.md" --json > /dev/null
           echo "OK: the packed CLI runs from a clean install."
 
+  samples:
+    name: Sample decks
+    needs: changes
+    if: needs.changes.outputs.samples == 'true'
+    runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      options: --init --ipc=host
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Restore changed paths
+        uses: actions/download-artifact@v5
+        with:
+          name: ci-changed-paths
+          path: ${{ runner.temp }}/ci-changed-paths
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Add Playwright Chromium to PATH
+        shell: bash
+        run: |
+          set -euo pipefail
+          browser=$(find "$PLAYWRIGHT_BROWSERS_PATH" \
+            -type f -path '*/chromium_headless_shell-*/*' \
+            \( -name headless_shell -o -name chrome-headless-shell \) \
+            -print -quit)
+          if [ -z "$browser" ] || [ ! -x "$browser" ]; then
+            echo "Playwright Chromium headless shell was not found in $PLAYWRIGHT_BROWSERS_PATH."
+            exit 1
+          fi
+          browser_bin="$RUNNER_TEMP/markdstage-browser"
+          mkdir -p "$browser_bin"
+          ln -s "$browser" "$browser_bin/chrome"
+          echo "$browser_bin" >> "$GITHUB_PATH"
+
+      - name: Validate changed sample decks
+        shell: bash
+        run: |
+          set -euo pipefail
+          node "$GITHUB_WORKSPACE/scripts/ci-samples.mjs" \
+            < "$RUNNER_TEMP/ci-changed-paths/changed-files.txt"
+
   desktop:
     name: MarkdStage Desktop
     needs: changes
@@ -275,6 +331,7 @@ jobs:
       - test
       - cli
       - desktop
+      - samples
     runs-on: ubuntu-24.04
 
     steps:
@@ -290,6 +347,8 @@ jobs:
           CLI_RESULT: ${{ needs.cli.result }}
           DESKTOP_SELECTED: ${{ needs.changes.outputs.desktop }}
           DESKTOP_RESULT: ${{ needs.desktop.result }}
+          SAMPLES_SELECTED: ${{ needs.changes.outputs.samples }}
+          SAMPLES_RESULT: ${{ needs.samples.result }}
         run: |
           set -euo pipefail
           if [ "$CHANGES_RESULT" != "success" ]; then
@@ -316,4 +375,5 @@ jobs:
           check_job "Test" "$TEST_SELECTED" "$TEST_RESULT"
           check_job "MarkdStage CLI" "$CLI_SELECTED" "$CLI_RESULT"
           check_job "MarkdStage Desktop" "$DESKTOP_SELECTED" "$DESKTOP_RESULT"
+          check_job "Sample decks" "$SAMPLES_SELECTED" "$SAMPLES_RESULT"
           echo "All selected CI jobs passed."

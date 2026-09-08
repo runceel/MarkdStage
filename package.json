@@ -9,6 +9,7 @@
     "preview:site": "npm run build:site && node scripts/serve-site.mjs",
     "test:site": "node --test test/site/*.test.mjs && playwright test --project=site",
     "test:ci": "node --test test/ci/*.test.mjs",
+    "test:samples": "node scripts/ci-samples.mjs",
     "test:docs": "node scripts/check-markdown-links.mjs",
     "test:vendor": "cd .github/extensions/markdstage && node scripts/vendor-assets.mjs verify vendor vendor/vendor-assets.lock.json",
     "generate:architecture": "node .github/extensions/markdstage/scripts/generate-architecture-contract.mjs",
