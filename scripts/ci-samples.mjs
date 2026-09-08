@@ -3,6 +3,8 @@ import { join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { isSampleDeckPath } from "./ci-sample-path.mjs";
+
 const REPO_ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const CLI = join(REPO_ROOT, "packages", "markdstage-cli", "bin", "markdstage.mjs");
 const KNOWN_SAMPLES = [
@@ -17,14 +19,7 @@ function normalizePath(path) {
 }
 
 function isSamplePath(path) {
-  return (
-    path === "slides.md" ||
-    path.startsWith("site/examples/") ||
-    path === "docs/user-guide/diagrams-and-media.md" ||
-    path === "docs/user-guide/ja/diagrams-and-media.md" ||
-    path.startsWith("docs/user-guide/examples/") ||
-    path === ".github/extensions/markdstage/README.md"
-  );
+  return isSampleDeckPath(path);
 }
 
 async function exists(path) {

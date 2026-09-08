@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { isSampleDeckPath } from "../../scripts/ci-sample-path.mjs";
 import { classifyCiPaths } from "../../scripts/ci-paths.mjs";
 
 const none = { docs: false, test: false, cli: false, desktop: false, samples: false };
@@ -51,10 +52,10 @@ test("canonical shared files select their real consumers", () => {
   );
 });
 
-test("canonical documentation can also be executable package input", () => {
+test("canonical documentation is not treated as a sample deck", () => {
   assert.deepEqual(
     classifyCiPaths([".github/extensions/markdstage/README.md"]),
-    expected({ docs: true, test: true, cli: true, samples: true }),
+    expected({ docs: true, test: true, cli: true }),
   );
 });
 
@@ -80,8 +81,29 @@ test("site content and sample decks select only their relevant checks", () => {
   );
   assert.deepEqual(
     classifyCiPaths(["docs/user-guide/diagrams-and-media.md"]),
-    expected({ docs: true, samples: true }),
+    expected({ docs: true }),
   );
+  assert.deepEqual(
+    classifyCiPaths(["docs/user-guide/ja/diagrams-and-media.md"]),
+    expected({ docs: true }),
+  );
+});
+
+test("sample path predicate distinguishes decks from explanatory documents", () => {
+  for (const path of [
+    "docs/user-guide/diagrams-and-media.md",
+    "docs/user-guide/ja/diagrams-and-media.md",
+    ".github/extensions/markdstage/README.md",
+  ]) {
+    assert.equal(isSampleDeckPath(path), false, path);
+  }
+  for (const path of [
+    "slides.md",
+    "site/examples/architecture.md",
+    "docs/user-guide/examples/quick-start.md",
+  ]) {
+    assert.equal(isSampleDeckPath(path), true, path);
+  }
 });
 
 test("deleted, renamed, and shared paths retain safe classifications", () => {
