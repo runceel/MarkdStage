@@ -71,12 +71,12 @@ PowerPoint 側の変更は Markdown には逆反映されません。対応範�
 
 このリポジトリをプロジェクトとして開くと、`.github/extensions/markdstage/` がプロジェクトスコープで
 読み込まれます。別のリポジトリへユーザースコープでインストールする場合は、現在の
-**[v3.6.0 リリース](https://github.com/runceel/markdstage/releases/tag/v3.6.0)** を指定して
+**[v3.7.0 リリース](https://github.com/runceel/markdstage/releases/tag/v3.7.0)** を指定して
 GitHub Copilot に依頼します。
 
 > 次の GitHub リポジトリフォルダーから MarkdStage をユーザースコープへインストールしてください。
 >
-> `https://github.com/runceel/markdstage/tree/v3.6.0/.github/extensions/markdstage`
+> `https://github.com/runceel/markdstage/tree/v3.7.0/.github/extensions/markdstage`
 
 Extension は利用者の環境でローカルのコードを実行します。インストールする前に中身を確認し、
 同じ状態を再現できるよう、信頼できるリリースタグかコミット SHA を指定してください。
@@ -211,11 +211,11 @@ WinUI 3 アプリです。現在のスライドと次のスライド、スピー
 GitHub Copilot を開かずに、操作が同期するネイティブの投影用ウィンドウで発表できます。
 
 Windows と Microsoft Edge WebView2 Runtime が必要です。
-現在の **[v3.6.0 リリース](https://github.com/runceel/markdstage/releases/tag/v3.6.0)** には、
+現在の **[v3.7.0 リリース](https://github.com/runceel/markdstage/releases/tag/v3.7.0)** には、
 Windows x64 / ARM64 向けのポータブルビルドと SHA-256 チェックサムファイルが含まれます。
 
-- [MarkdStage-win-x64.zip](https://github.com/runceel/markdstage/releases/download/v3.6.0/MarkdStage-win-x64.zip)
-- [MarkdStage-win-arm64.zip](https://github.com/runceel/markdstage/releases/download/v3.6.0/MarkdStage-win-arm64.zip)
+- [MarkdStage-win-x64.zip](https://github.com/runceel/markdstage/releases/download/v3.7.0/MarkdStage-win-x64.zip)
+- [MarkdStage-win-arm64.zip](https://github.com/runceel/markdstage/releases/download/v3.7.0/MarkdStage-win-arm64.zip)
 
 フォルダーごと展開し、`MarkdStageApp.exe` を実行して Markdown ファイルを開きます。
 
