@@ -318,14 +318,17 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
         // change Chromium's subpixel paint cache even with identical markup.
         for (const operation of ["original", "serialized"]) {
           await page.goto(`${harness.url}?present=1`);
-          await waitForSlideReady(page);
-          const before = await page.locator(".deck").screenshot();
-          await page.locator("svg[data-scene-source=mermaid]").evaluate(async (element, operation) => {
+          const slide = await waitForSlideReady(page);
+          // Isolate SVG compositing so reinsertion inside the scaled iframe does
+          // not change Chromium's curve-edge paint cache. Keep exact pixel equality.
+          await slide.addStyleTag({ content: ".mermaid > svg { will-change: transform; }" });
+          const before = await slide.locator(".deck").screenshot();
+          await slide.locator("svg[data-scene-source=mermaid]").evaluate(async (element, operation) => {
             const { sceneToSvg } = await import("./renderer/scene-svg.mjs");
             element.replaceWith(operation === "original" ? element.__originalMermaidSvg
               : sceneToSvg(JSON.parse(JSON.stringify(element.__presentationScene))));
           }, operation);
-          const after = await page.locator(".deck").screenshot();
+          const after = await slide.locator(".deck").screenshot();
           if (!after.equals(before)) {
             await writeFile(test.info().outputPath(`${names[index]}-${operation}-before.png`), before);
             await writeFile(test.info().outputPath(`${names[index]}-${operation}-after.png`), after);

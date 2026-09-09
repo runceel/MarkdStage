@@ -33,13 +33,29 @@ async function settleLayout(page) {
 
 /** In normal mode, wait for one slide to finish rendering. */
 export async function waitForSlideReady(page, { timeout = 60_000 } = {}) {
-  await page.waitForSelector("#stage .deck", { state: "attached", timeout });
+  await page.waitForFunction(() =>
+    document.querySelector("#stage .deck, #outputFrame, #presenterCurrent"),
+    undefined, { timeout });
+  const frame = await getSlideFrame(page);
+  await frame.waitForSelector("#stage .deck", { state: "attached", timeout });
+  await frame.waitForFunction(
+    () => !document.body.classList.contains("mermaid-loading"),
+    undefined,
+    { timeout },
+  );
   await page.waitForFunction(
     () => !document.body.classList.contains("mermaid-loading"),
     undefined,
     { timeout },
   );
-  await settleLayout(page);
+  await settleLayout(frame);
+  return frame;
+}
+
+/** Resolve the slide document without confusing control UI with slide content. */
+export async function getSlideFrame(page) {
+  const element = await page.$("#outputFrame, #presenterCurrent");
+  return element ? await element.contentFrame() : page;
 }
 
 /**

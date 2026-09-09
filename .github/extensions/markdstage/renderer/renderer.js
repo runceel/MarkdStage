@@ -20,6 +20,7 @@ import {
   stripSpeakerNotes,
 } from "./speaker-notes.mjs";
 import { splitImportPath } from "./import-path.mjs";
+import { createSlideViewport, OUTPUT_WIDTH, OUTPUT_HEIGHT } from "./slide-viewport.mjs";
 
 // Client-side slide renderer for the MarkdStage canvas.
 //
@@ -105,6 +106,11 @@ let previewMode = false;
 let previewOffset = 0;
 let navigationEnabled = true;
 let fixedPreviewMode = false;
+let surfaceMode = false;
+let outputViewport = null;
+let currentViewport = null;
+let nextViewport = null;
+let surfaceDiagnostic = null;
 let moreControlsOpen = false;
 // Markdown for the most recently rendered slide, retained for editing-mode rerenders.
 let lastMarkdown = "";
@@ -122,8 +128,6 @@ let layoutFrame = 0;
 // past clientHeight, which is invisible but still enough for `overflow:auto` to
 // draw a scrollbar.
 const SCROLL_EPSILON = 2;
-const OUTPUT_WIDTH = 1280;
-const OUTPUT_HEIGHT = 720;
 const PPTX_LAYOUT_NAMES = ["title", "default", "center", "section", "backcover"];
 const LAYOUT_HINT_LIMIT = 5;
 
@@ -268,11 +272,8 @@ function elementPath(element, root) {
   return parts.join(" > ");
 }
 
-// The live 16:9 preview scales #stage with a CSS transform, so getBoundingClientRect()
-// reports scaled pixels while scrollWidth/clientWidth stay in the untransformed 1280x720
-// layout space. Every rect-derived delta is divided by this factor before the two kinds of
-// measurement are combined, keeping the preview, PDF, and PNG diagnostics in one coordinate
-// system.
+// Normalize any content-authored transform before combining rect and scroll metrics.
+// Display scaling happens outside the fixed browsing context and is not measured here.
 function layoutScale(deck) {
   const width = deck.offsetWidth;
   if (!width) return 1;
@@ -430,7 +431,9 @@ function updateFixedPreviewWarning() {
   const warning = document.getElementById("layoutWarning");
   const button = document.getElementById("navFixedPreview");
   const empty = document.body.classList.contains("markdstage-empty");
-  if (!fixedPreviewMode || !layoutTarget || empty) {
+  const diagnostic = fixedPreviewMode && !presenterMode &&
+    (surfaceDiagnostic || (layoutTarget && collectSlideLayout(layoutTarget, navIndex)));
+  if (!fixedPreviewMode || !diagnostic || empty || presenterMode) {
     document.body.classList.remove("fixed-preview-overflow");
     if (warning) {
       warning.hidden = true;
@@ -441,7 +444,6 @@ function updateFixedPreviewWarning() {
     return;
   }
 
-  const diagnostic = collectSlideLayout(layoutTarget, navIndex);
   document.body.classList.toggle("fixed-preview-overflow", diagnostic.pdfClipped);
   if (button) button.dataset.state = diagnostic.pdfClipped ? "error" : "active";
   syncMoreControls();
@@ -462,20 +464,17 @@ function updateFixedPreviewWarning() {
   warning.hidden = false;
 }
 
-function updateFixedPreviewScale() {
-  if (!fixedPreviewMode) return;
-  const availableWidth = Math.max(1, window.innerWidth - 24);
-  const availableHeight = Math.max(1, window.innerHeight - 88);
-  const scale = Math.min(availableWidth / OUTPUT_WIDTH, availableHeight / OUTPUT_HEIGHT, 1);
-  document.body.style.setProperty("--fixed-preview-scale", String(scale));
-}
-
 function refreshLayout() {
   const target = layoutTarget;
   if (!target || !target.deck.isConnected) return;
   if (target.autoSize) applyAutoSize(target.deck, target.bodyEl);
   updateBodyScroll(target.bodyEl);
   updateFixedPreviewWarning();
+  if (surfaceMode && !document.body.classList.contains("mermaid-loading")) {
+    window.frameElement?.dispatchEvent(new CustomEvent("slide-layout", {
+      detail: collectSlideLayout(target, navIndex),
+    }));
+  }
 }
 
 // Coalesce the (re)layout into one frame: several triggers — render, resize,
@@ -965,6 +964,19 @@ function renderSlide(markdown) {
   architectureEditors = [];
   applyCustomThemeCss(customThemeCss);
   const token = ++renderToken;
+  if (!surfaceMode && (fixedPreviewMode || presenterViewOpen)) {
+    const { meta } = splitFrontMatter(lastMarkdown);
+    document.title = meta.title || meta.deck || "Slide";
+    document.documentElement.setAttribute("data-theme",
+      deckThemeLocked ? deckTheme : normalizeTheme(meta.theme || deckTheme));
+    layoutTarget = null;
+    surfaceDiagnostic = null;
+    if (layoutFrame) cancelAnimationFrame(layoutFrame);
+    layoutFrame = 0;
+    if (!presenterViewRequested || !presenterViewAvailable || navTotal <= 0) updateSlideViewports();
+    updateFixedPreviewWarning();
+    return;
+  }
   const slide = createSlide(markdown, deckTheme);
   document.title = slide.title;
   document.documentElement.setAttribute("data-theme", slide.theme);
@@ -1000,13 +1012,23 @@ function renderSlide(markdown) {
     .catch((error) => {
       if (token !== renderToken) return;
       console.error(error.message);
-      showExportNotification("error", error.message);
+      if (surfaceMode) {
+        window.frameElement?.dispatchEvent(new CustomEvent("slide-error", { detail: error.message }));
+      } else {
+        showExportNotification("error", error.message);
+      }
     });
-  const mermaid = runMermaid(slide.bodyEl, slide.deck, token, false).finally(() => {
+  const mermaid = Promise.resolve(document.fonts?.ready).then(() => {
+    if (token === renderToken) return runMermaid(slide.bodyEl, slide.deck, token, false);
+  }).finally(() => {
     if (token === renderToken) scheduleLayoutRefresh();
   });
-  Promise.all([mermaid, images]).finally(() => {
-    if (token === renderToken) document.body.classList.remove("mermaid-loading");
+  Promise.all([mermaid, images]).finally(async () => {
+    await afterLayout();
+    if (token === renderToken) {
+      document.body.classList.remove("mermaid-loading");
+      refreshLayout();
+    }
   });
 }
 
@@ -3149,7 +3171,7 @@ async function fetchDeck() {
 function setArchitectureEditMode(enabled) {
   const next = Boolean(enabled) && architectureEditAvailable && !presenterMode;
   if (next === architectureEditMode) return false;
-  if (next && fixedPreviewMode) setFixedPreviewMode(false);
+  if (next && fixedPreviewMode) setFixedPreviewMode(false, { rerender: false });
   architectureEditMode = next;
   document.body.classList.toggle("architecture-edit-mode", next);
   updateArchitectureEditButton(next);
@@ -3255,7 +3277,8 @@ async function requestArchitectureEditMode(enabled) {
 }
 
 function architectureDiagramOptions() {
-  return [...document.querySelectorAll(".architecture-diagram[data-architecture-block]")].map(
+  const slideDocument = document.getElementById("outputFrame")?.contentDocument || document;
+  return [...slideDocument.querySelectorAll(".architecture-diagram[data-architecture-block]")].map(
     (wrapper, index) => ({
       block: Number(wrapper.dataset.architectureBlock),
       title: wrapper.dataset.architectureTitle || `Diagram ${index + 1}`,
@@ -3581,6 +3604,10 @@ async function fetchState() {
 // re-fetches /state for an instant update (without waiting for the SSE nudge).
 async function navigate(payload) {
   if (!navigationEnabled) return;
+  if (surfaceMode) {
+    window.frameElement?.dispatchEvent(new CustomEvent("slide-navigate", { detail: payload }));
+    return;
+  }
   try {
     const res = await fetch("./navigate", {
       method: "POST",
@@ -3900,31 +3927,131 @@ async function exportFromCanvas(format, { mermaidImageFallback = false } = {}) {
   }
 }
 
-function setFixedPreviewMode(enabled) {
-  fixedPreviewMode = Boolean(enabled);
+function setFixedPreviewMode(enabled, { rerender = true } = {}) {
+  fixedPreviewMode = presenterMode || Boolean(enabled);
   document.body.classList.toggle("fixed-preview-mode", fixedPreviewMode);
-  document.body.classList.toggle("fixed-output-mode", fixedPreviewMode);
+  document.body.classList.toggle("responsive-preview-mode", !fixedPreviewMode);
   const button = document.getElementById("navFixedPreview");
   if (button) {
     button.setAttribute("aria-pressed", fixedPreviewMode ? "true" : "false");
     button.dataset.state = fixedPreviewMode ? "active" : "";
     button.title = fixedPreviewMode
-      ? "Return to responsive canvas layout"
+      ? "Switch to responsive editing layout (not output-equivalent)"
       : "Preview PDF layout at 16:9";
+    button.querySelector(".nav-more-label").textContent =
+      fixedPreviewMode ? "Output preview" : "Responsive editing";
   }
   syncMoreControls();
-  if (fixedPreviewMode) {
-    updateFixedPreviewScale();
-  } else {
-    document.body.style.removeProperty("--fixed-preview-scale");
+  if (!fixedPreviewMode) {
+    outputViewport?.dispose();
+    outputViewport = null;
+    document.getElementById("stage").classList.remove("slide-viewport");
     document.body.classList.remove("fixed-preview-overflow");
   }
-  scheduleLayoutRefresh();
+  surfaceDiagnostic = null;
+  if (rerender && currentVersion >= 0) renderSlide(lastMarkdown);
   updateFixedPreviewWarning();
 }
 
 function toggleFixedPreviewMode() {
   setFixedPreviewMode(!fixedPreviewMode);
+}
+
+function slideViewportState(markdown, index, interactive) {
+  return {
+    markdown, index, total: navTotal, theme: deckTheme, themeLocked: deckThemeLocked,
+    customThemeCss, customThemeMeta, navigationEnabled: interactive,
+  };
+}
+
+function mountSlideViewport(host, id, title, interactive) {
+  return createSlideViewport(host, {
+    id, title,
+    onNavigate: (payload) => { if (interactive) navigate(payload); },
+    onPointer: () => { if (interactive) setMoreControlsOpen(false); },
+    onError: (message) => showExportNotification("error", message),
+    onKey: (detail) => {
+      if (!interactive) return;
+      const event = new KeyboardEvent("keydown", { ...detail, bubbles: true, cancelable: true });
+      document.dispatchEvent(event);
+      detail.handled = event.defaultPrevented;
+    },
+    onLayout: (diagnostic) => {
+      if (id === "presenterNext") return;
+      surfaceDiagnostic = diagnostic;
+      document.body.classList.remove("mermaid-loading");
+      updateFixedPreviewWarning();
+    },
+  });
+}
+
+function updateSlideViewports() {
+  const stage = document.getElementById("stage");
+  document.body.classList.add("mermaid-loading");
+  if (presenterViewOpen) {
+    stage.replaceChildren();
+    currentViewport ??= mountSlideViewport(
+      document.getElementById("presenterCurrentViewport"), "presenterCurrent", "Current slide", true,
+    );
+    currentViewport.setState(slideViewportState(lastMarkdown, navIndex, true));
+    const hasNext = navMode !== "deck" || navIndex < navTotal - 1;
+    if (hasNext) {
+      const index = Math.min(navIndex + 1, navTotal - 1);
+      nextViewport ??= mountSlideViewport(
+        document.getElementById("presenterNextViewport"), "presenterNext", "Next slide", false,
+      );
+      nextViewport.setState(slideViewportState(deckSlides[index] || "", index, false));
+    }
+  } else {
+    if (!outputViewport) {
+      stage.replaceChildren();
+      stage.classList.add("slide-viewport");
+      outputViewport = mountSlideViewport(stage, "outputFrame", "Slide", navigationEnabled);
+    }
+    outputViewport.setState(slideViewportState(lastMarkdown, navIndex, navigationEnabled));
+  }
+}
+
+function initSlideSurface() {
+  surfaceMode = true;
+  presenterMode = true;
+  document.body.classList.add("surface-mode", "fixed-output-mode", "presenter-mode", "preview-mode");
+  let previousState = "";
+  window.__markdstageSurface = {
+    render(state) {
+      const key = JSON.stringify(state);
+      if (key === previousState) {
+        refreshLayout();
+        return;
+      }
+      previousState = key;
+      deckTheme = state.theme;
+      deckThemeLocked = state.themeLocked;
+      applyCustomThemeCss(state.customThemeCss);
+      customThemeMeta = state.customThemeMeta;
+      navIndex = state.index;
+      navTotal = state.total;
+      navigationEnabled = state.navigationEnabled;
+      renderSlide(state.markdown);
+    },
+  };
+  wirePointerNavigation();
+  document.addEventListener("pointerdown", () => {
+    window.frameElement?.dispatchEvent(new CustomEvent("slide-pointer"));
+  });
+  document.addEventListener("keydown", (event) => {
+    if (!navigationEnabled || event.defaultPrevented) return;
+    const target = event.target;
+    if (target?.closest("input, textarea, select, [contenteditable], button, a")) return;
+    const detail = {
+      key: event.key, code: event.code, repeat: event.repeat,
+      ctrlKey: event.ctrlKey, altKey: event.altKey, metaKey: event.metaKey, shiftKey: event.shiftKey,
+    };
+    window.frameElement?.dispatchEvent(new CustomEvent("slide-key", { detail }));
+    if (detail.handled) event.preventDefault();
+  });
+  window.addEventListener("resize", scheduleLayoutRefresh);
+  document.fonts?.addEventListener("loadingdone", scheduleLayoutRefresh);
 }
 
 function updateNav() {
@@ -3956,14 +4083,9 @@ function openPresenterView() {
   document.body.classList.add("presenter-view-mode");
   const view = document.getElementById("presenterView");
   if (view) view.hidden = false;
-  const current = document.getElementById("presenterCurrent");
-  const next = document.getElementById("presenterNext");
-  if (current && !current.getAttribute("src")) {
-    current.setAttribute("src", "./?preview=1&offset=0&navigate=1");
-  }
-  if (next && !next.getAttribute("src")) {
-    next.setAttribute("src", "./?preview=1&offset=1");
-  }
+  outputViewport?.dispose();
+  outputViewport = null;
+  renderSlide(lastMarkdown);
   updatePresenterView();
 }
 
@@ -3972,6 +4094,11 @@ function closePresenterView() {
   document.body.classList.remove("presenter-view-mode");
   const view = document.getElementById("presenterView");
   if (view) view.hidden = true;
+  currentViewport?.dispose();
+  nextViewport?.dispose();
+  currentViewport = null;
+  nextViewport = null;
+  renderSlide(lastMarkdown);
   document.getElementById("navMore")?.focus();
 }
 
@@ -3984,7 +4111,7 @@ function updatePresenterView() {
   if (prev) prev.disabled = navMode === "deck" && navIndex <= 0;
   if (next) next.disabled = navMode === "deck" && navIndex >= navTotal - 1;
   const hasNext = navMode !== "deck" || navIndex < navTotal - 1;
-  const nextFrame = document.getElementById("presenterNext");
+  const nextFrame = document.getElementById("presenterNextViewport");
   const nextEmpty = document.getElementById("presenterNextEmpty");
   if (nextFrame) nextFrame.hidden = !hasNext;
   if (nextEmpty) nextEmpty.hidden = hasNext;
@@ -4512,6 +4639,10 @@ function init() {
   } catch (_) {}
 
   const params = new URLSearchParams(window.location.search);
+  if (params.get("surface") === "1") {
+    initSlideSurface();
+    return;
+  }
   presenterViewRequested = params.get("presenter") === "1";
   if (params.get("pptx") === "1") {
     initPptx(params).catch(reportPptxBootstrapFailure);
@@ -4546,15 +4677,12 @@ function init() {
     requestArchitectureEditMode(true);
   }
 
-  // Canvas and CLI preview start on the fixed 16:9 output surface. Presenter
-  // views keep their purpose-built layouts, and the control still lets users
-  // switch back to the responsive canvas layout.
-  if (
-    !presenterMode &&
-    !presenterViewRequested &&
-    params.get("responsive") !== "1"
-  ) {
+  // Only the explicitly requested editing layout is responsive. Audience and
+  // Desktop previews use the same isolated surface as Canvas and CLI previews.
+  if (presenterMode || params.get("responsive") !== "1") {
     setFixedPreviewMode(true);
+  } else {
+    setFixedPreviewMode(false);
   }
 
   updateArchitectureEditButton();
@@ -4564,7 +4692,6 @@ function init() {
     wirePreviewKeyboardNavigation();
   }
   window.addEventListener("resize", () => {
-    updateFixedPreviewScale();
     scheduleLayoutRefresh();
   });
   if (document.fonts?.ready) {

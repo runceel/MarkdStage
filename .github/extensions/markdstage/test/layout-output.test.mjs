@@ -47,25 +47,28 @@ test("canvas exposes layout, PNG, PDF, and editable PowerPoint output", async ()
 
 test("print, capture, and fixed preview share one 1280x720 output surface", async () => {
   const renderer = await readFile(join(extensionRoot, "renderer", "renderer.js"), "utf8");
+  const viewport = await readFile(join(extensionRoot, "renderer", "slide-viewport.mjs"), "utf8");
   const css = await readFile(join(extensionRoot, "renderer", "slides.css"), "utf8");
   const html = await readFile(join(extensionRoot, "renderer", "index.html"), "utf8");
 
-  assert.match(renderer, /const OUTPUT_WIDTH = 1280/);
-  assert.match(renderer, /const OUTPUT_HEIGHT = 720/);
+  assert.match(viewport, /const OUTPUT_WIDTH = 1280/);
+  assert.match(viewport, /const OUTPUT_HEIGHT = 720/);
   assert.match(renderer, /collectDeckLayout/);
   assert.match(renderer, /params\.get\("capture"\) === "1"/);
   assert.match(
     renderer,
     /params\.get\("responsive"\) !== "1"/,
   );
-  assert.match(renderer, /if \(next && fixedPreviewMode\) setFixedPreviewMode\(false\)/);
+  assert.match(renderer, /if \(next && fixedPreviewMode\) setFixedPreviewMode\(false,/);
   assert.match(css, /body\.fixed-output-mode \.deck/);
   assert.match(css, /width:1280px;height:720px/);
   assert.match(html, /id="navFixedPreview"/);
   assert.match(html, /id="layoutWarning"/);
-  // The live preview scales #stage with a CSS transform, so rect-based measurements are
-  // normalized back to the untransformed 1280x720 space before they are combined with
-  // scrollWidth/clientWidth. Without this the preview and the headless pass disagree.
+  assert.match(viewport, /document\.createElement\("iframe"\)/);
+  assert.match(viewport, /frame\.style\.transform/);
+  assert.match(renderer, /params\.get\("surface"\) === "1"/);
+  assert.match(renderer, /initSlideSurface\(\);\s+return;/);
+  // Content-authored transforms still need normalization in layout diagnostics.
   assert.match(renderer, /function layoutScale\(deck\)/);
   assert.match(renderer, /const scale = layoutScale\(deck\)/);
 });

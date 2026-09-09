@@ -5,6 +5,11 @@
 Canvas, Desktop, and the CLI use the same renderer, so the audience output stays consistent. The
 available preparation and export tools differ by surface.
 
+Normal preview, presenter current/next previews, and the audience window share a fixed 1280x720
+logical viewport. Each surface scales the whole slide uniformly; windows that are not 16:9 show
+letterboxing rather than reflowing content. The responsive toggle is for editing only and is not
+equivalent to presentation or export output.
+
 ## Compare presentation features
 
 | Feature | Canvas Extension | Desktop | CLI |

@@ -18,18 +18,21 @@ public sealed partial class PresenterWindow : Window
     private const int InitialHeightDip = 720;
     private const string PresenterShortcutScript =
         """
-        let presentationHostFullScreen = false;
-        window.chrome.webview.addEventListener("message", event => {
-          presentationHostFullScreen = event.data === "fullscreen";
-        });
-        document.addEventListener("keydown", event => {
-          if (event.repeat) return;
-          if (event.key !== "F11" && !(event.key === "Escape" && presentationHostFullScreen)) {
-            return;
-          }
-          window.chrome.webview.postMessage(event.key);
-          event.preventDefault();
-        }, true);
+        // Slide frames forward keys here; only the top-level bridge reaches the native host.
+        if (window === window.top) {
+          let presentationHostFullScreen = false;
+          window.chrome.webview.addEventListener("message", event => {
+            presentationHostFullScreen = event.data === "fullscreen";
+          });
+          document.addEventListener("keydown", event => {
+            if (event.repeat) return;
+            if (event.key !== "F11" && !(event.key === "Escape" && presentationHostFullScreen)) {
+              return;
+            }
+            window.chrome.webview.postMessage(event.key);
+            event.preventDefault();
+          }, true);
+        }
         """;
     private static readonly TimeSpan NavigationTimeout = TimeSpan.FromSeconds(10);
 

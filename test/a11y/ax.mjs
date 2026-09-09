@@ -11,9 +11,10 @@
 // role="group" on a connector) is not evaluated here.
 
 import { expect } from "@playwright/test";
+import { getSlideFrame } from "../utils/ready.mjs";
 
 /**
- * Retrieve the full-page accessibility tree and rebuild it into a convenient structure.
+ * Retrieve the active slide document's accessibility tree and rebuild it into a convenient structure.
  *
  * Remove `ignored` nodes (not exposed to AT), but promote their children to the parent. Discarding
  * children as well would make content disappear with a DOM container such as a div and falsely
@@ -23,7 +24,18 @@ export async function accessibilityTree(page) {
   const cdp = await page.context().newCDPSession(page);
   try {
     await cdp.send("Accessibility.enable");
-    const { nodes } = await cdp.send("Accessibility.getFullAXTree");
+    const slide = await getSlideFrame(page);
+    let frameId;
+    if (slide !== page) {
+      const { root } = await cdp.send("DOM.getDocument");
+      const { nodeId } = await cdp.send("DOM.querySelector", {
+        nodeId: root.nodeId, selector: "#outputFrame, #presenterCurrent",
+      });
+      const { node } = await cdp.send("DOM.describeNode", { nodeId });
+      frameId = node.frameId;
+      expect(frameId, "the active slide iframe has a Chromium frame ID").toBeTruthy();
+    }
+    const { nodes } = await cdp.send("Accessibility.getFullAXTree", frameId ? { frameId } : {});
     const byId = new Map(nodes.map((node) => [node.nodeId, node]));
 
     const build = (node) => ({
@@ -76,7 +88,7 @@ export function findDiagram(nodes, title) {
  * Any difference among included properties breaks output equivalence.
  */
 export async function readDiagramSemantics(page, title) {
-  return page.evaluate((wantedTitle) => {
+  return (await getSlideFrame(page)).evaluate((wantedTitle) => {
     const svg = [...document.querySelectorAll("svg.architecture-svg")].find(
       (candidate) => candidate.querySelector(":scope > title")?.textContent === wantedTitle,
     );
@@ -104,7 +116,7 @@ export async function readDiagramSemantics(page, title) {
 
 /** Element IDs in diagram DOM order (= paint order = assistive-technology announcement order). */
 export async function domOrder(page, title) {
-  const order = await page.evaluate((wantedTitle) => {
+  const order = await (await getSlideFrame(page)).evaluate((wantedTitle) => {
     const svg = [...document.querySelectorAll("svg.architecture-svg")].find(
       (candidate) => candidate.querySelector(":scope > title")?.textContent === wantedTitle,
     );
