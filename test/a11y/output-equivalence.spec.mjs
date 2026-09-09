@@ -2,13 +2,13 @@
 // produce **the same diagram with the same semantics**.
 //
 // All three paths use the same renderer but different branches:
-//   normal view: init() runs fetchState / connectEvents
-//   presenter:   body.presenter-mode is added
+//   normal view: the parent owns state/events and renders a fixed child surface
+//   presenter:   body.presenter-mode is added; the child uses the same fixed viewport
 //   print:       initPrint() renders every slide at once (an early return bypasses the branches above)
 // Print alone also receives `body.print-mode` rules from slides.css. Separate branches fail in
 // separate ways, so output must be compared across paths.
 //
-// Coordinates and physical sizes naturally differ by path (print fits the paper) and are excluded.
+// Outer display scales differ by path; the content uses a shared fixed logical viewport.
 // Compare semantics: element identity, type, role, accessible name, and declaration order.
 
 import { readFileSync } from "node:fs";
@@ -18,7 +18,7 @@ import { expect, test } from "@playwright/test";
 
 import { REPO_ROOT, startHarness } from "../harness/server.mjs";
 import { splitFixtureDeck } from "../harness/deck.mjs";
-import { waitForPrintReady, waitForSlideReady } from "../utils/ready.mjs";
+import { getSlideFrame, waitForPrintReady, waitForSlideReady } from "../utils/ready.mjs";
 import { accessibilityTree, findDiagram, flatten, readDiagramSemantics } from "./ax.mjs";
 
 const EDITING_DECK = splitFixtureDeck(
@@ -62,8 +62,8 @@ async function openPrint(page, { slides = EDITING_DECK } = {}) {
 }
 
 /** Actual diagram size. Because `meet` preserves aspect ratio, calculate the rendered rectangle. */
-function measureDiagram(page, title) {
-  return page.evaluate((wantedTitle) => {
+async function measureDiagram(page, title) {
+  return (await getSlideFrame(page)).evaluate((wantedTitle) => {
     const svg = [...document.querySelectorAll("svg.architecture-svg")].find(
       (candidate) => candidate.querySelector(":scope > title")?.textContent === wantedTitle,
     );
@@ -164,9 +164,8 @@ test.describe("canvas / presenter / print equivalence", () => {
       // Verify the print CSS height limit. Restricting the diagram to 5.25in of a 7.5in page leaves
       // room for the heading and body. Relaxing this can push the diagram onto the next page.
       expect(printMeasure.box.height).toBeLessThanOrEqual(PRINT_MAX_HEIGHT_PX + 1);
-      // Also verify that this limit actually determines the size rather than screen's 56vh.
-      // The <= assertion alone could pass even if print CSS were entirely inactive.
-      expect(printMeasure.box.height).toBeGreaterThan(liveMeasure.box.height);
+      // Normal preview now uses the same fixed logical geometry, not responsive 56vh sizing.
+      expect(printMeasure).toEqual(liveMeasure);
     } finally {
       await print.close();
     }
@@ -236,7 +235,7 @@ test.describe("coexistence with Mermaid", () => {
     let liveSemantics;
     try {
       // First verify Mermaid rendered; otherwise this does not test coexistence.
-      await expect(page.locator("pre.mermaid svg, .mermaid svg")).toHaveCount(1);
+      await expect((await getSlideFrame(page)).locator("pre.mermaid svg, .mermaid svg")).toHaveCount(1);
       liveSemantics = await readDiagramSemantics(page, MIXED_TITLE);
       expect(liveSemantics).not.toBeNull();
       expect(liveSemantics.elements.length).toBeGreaterThan(0);
@@ -260,15 +259,16 @@ test.describe("coexistence with Mermaid", () => {
       // Architecture <text> does not affect Mermaid. If this becomes zero, Mermaid's rendering
       // method changed and the assumption that Architecture handling does not touch it must be
       // revisited.
-      const mermaidLabels = await page.$$eval(
+      const slide = await getSlideFrame(page);
+      const mermaidLabels = await slide.$$eval(
         ".mermaid svg foreignObject, pre.mermaid svg foreignObject",
         (nodes) => nodes.length,
       );
       expect(mermaidLabels).toBeGreaterThan(0);
-      expect(await page.$$eval(".mermaid svg text, pre.mermaid svg text", (n) => n.length)).toBe(0);
+      expect(await slide.$$eval(".mermaid svg text, pre.mermaid svg text", (n) => n.length)).toBe(0);
 
       // Architecture attributes do not leak into Mermaid.
-      const leaked = await page.$$eval(
+      const leaked = await slide.$$eval(
         ".mermaid svg [data-architecture-order], pre.mermaid svg [data-architecture-order]",
         (nodes) => nodes.length,
       );

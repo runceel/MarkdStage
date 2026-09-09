@@ -18,7 +18,7 @@ import { expect, test } from "@playwright/test";
 import { REPO_ROOT, startHarness } from "../harness/server.mjs";
 import { splitFixtureDeck } from "../harness/deck.mjs";
 import { clickMoreControl, openMoreControls } from "../utils/nav.mjs";
-import { waitForSlideReady } from "../utils/ready.mjs";
+import { getSlideFrame, waitForSlideReady } from "../utils/ready.mjs";
 import { findArchitectureBlocks } from "../../.github/extensions/markdstage/scripts/markdown-blocks.mjs";
 
 const FIXTURES = join(REPO_ROOT, "test", "fixtures");
@@ -57,8 +57,8 @@ test.describe("Markdown import", () => {
       // Title slide plus three regular slides. The harness does not append a back cover.
       expect(harness.total).toBe(4);
 
-      await waitForSlideReady(page);
-      await expect(page.locator(".deck")).toContainText("Import test");
+      const slide = await waitForSlideReady(page);
+      await expect(slide.locator(".deck")).toContainText("Import test");
     } finally {
       await harness.close();
     }
@@ -131,7 +131,7 @@ test.describe("Markdown import", () => {
     const harness = await startHarness({ slides: SLIDES, markdownRoot: root });
     try {
       await page.goto(harness.url, { waitUntil: "load" });
-      await waitForSlideReady(page);
+      const slide = await waitForSlideReady(page);
       await expect(page.locator("#navSourceMode")).toHaveAttribute("hidden", "");
       await clickMoreControl(page, "#navImport");
       await page.locator('input[name="importMode"][value="live"]').check();
@@ -147,25 +147,25 @@ test.describe("Markdown import", () => {
       await writeFile(sourcePath, updated, "utf8");
       await expect.poll(() => harness.slideAt(1)).toContain("After save");
       await expect.poll(() => harness.index).toBe(1);
-      await expect(page.locator(".deck")).toContainText("After save");
+      await expect(slide.locator(".deck")).toContainText("After save");
 
       await writeFile(sourcePath, "", "utf8");
       await expect.poll(() => harness.sourceWatchStatus).toBe("error");
-      await expect(page.locator(".deck")).toContainText("After save");
+      await expect(slide.locator(".deck")).toContainText("After save");
       await expect(page.locator("#navSourceMode")).toHaveAttribute("data-state", "error");
 
       const recovered = updated.replace("After save", "Recovered");
       await writeFile(sourcePath, recovered, "utf8");
       await expect.poll(() => harness.sourceWatchStatus).toBe("watching");
-      await expect(page.locator(".deck")).toContainText("Recovered");
+      await expect(slide.locator(".deck")).toContainText("Recovered");
 
       await clickMoreControl(page, "#navSourceMode");
       await expect.poll(() => harness.sourceMode).toBe("snapshot");
       await expect(page.locator("#navSourceMode")).not.toHaveAttribute("data-state", "active");
       await writeFile(sourcePath, recovered.replace("Recovered", "Must stay hidden"), "utf8");
       await page.waitForTimeout(300);
-      await expect(page.locator(".deck")).toContainText("Recovered");
-      await expect(page.locator(".deck")).not.toContainText("Must stay hidden");
+      await expect(slide.locator(".deck")).toContainText("Recovered");
+      await expect(slide.locator(".deck")).not.toContainText("Must stay hidden");
     } finally {
       await harness.close();
       await rm(root, { recursive: true, force: true });
@@ -182,14 +182,15 @@ test.describe("Markdown import", () => {
       await waitForSlideReady(page);
       await clickMoreControl(page, "#navImport");
       await page.locator("#importList .overview-link", { hasText: "switch.md" }).click();
-      await expect(page.locator(".deck")).toContainText("Snapshot");
+      const slide = await getSlideFrame(page);
+      await expect(slide.locator(".deck")).toContainText("Snapshot");
       await writeFile(sourcePath, "# Latest\n", "utf8");
       await page.waitForTimeout(300);
-      await expect(page.locator(".deck")).toContainText("Snapshot");
+      await expect(slide.locator(".deck")).toContainText("Snapshot");
 
       await clickMoreControl(page, "#navSourceMode");
       await expect.poll(() => harness.sourceMode).toBe("live");
-      await expect(page.locator(".deck")).toContainText("Latest");
+      await expect(slide.locator(".deck")).toContainText("Latest");
     } finally {
       await harness.close();
       await rm(root, { recursive: true, force: true });
@@ -205,13 +206,13 @@ test.describe("Markdown import", () => {
       await waitForSlideReady(page);
       await clickMoreControl(page, "#navImport");
       await page.locator("#importList .overview-link", { hasText: "empty.md" }).click();
-      await waitForSlideReady(page);
-      await expect(page.locator(".architecture-diagram")).toHaveCount(1);
-      await expect(page.locator(".architecture-error")).toHaveCount(0);
+      const slide = await waitForSlideReady(page);
+      await expect(slide.locator(".architecture-diagram")).toHaveCount(1);
+      await expect(slide.locator(".architecture-error")).toHaveCount(0);
 
       await clickMoreControl(page, "#navEdit");
       await expect.poll(() => harness.architectureEditorOpens).toEqual([{ index: 0, block: 0 }]);
-      await expect(page.locator(".architecture-editor-toolbar")).toHaveCount(0);
+      await expect(slide.locator(".architecture-editor-toolbar")).toHaveCount(0);
     } finally {
       await harness.close();
       await rm(root, { recursive: true, force: true });
@@ -298,14 +299,14 @@ test.describe("Markdown import", () => {
       await waitForSlideReady(page);
       await clickMoreControl(page, "#navImport");
       await page.locator("#importList .overview-link", { hasText: "editable.md" }).click();
-      await waitForSlideReady(page);
+      const slide = await waitForSlideReady(page);
 
-      await expect(page.locator(".architecture-editor-toolbar")).toHaveCount(1);
-      await page.locator('[data-architecture-id="client"]').focus();
+      await expect(slide.locator(".architecture-editor-toolbar")).toHaveCount(1);
+      await slide.locator('[data-architecture-id="client"]').focus();
       await page.keyboard.press("ArrowDown");
-      await page.locator('[data-architecture-id="client"]').focus();
+      await slide.locator('[data-architecture-id="client"]').focus();
       await page.keyboard.press("ArrowDown");
-      const saveState = page.locator('[data-architecture-save-state="saved"]');
+      const saveState = slide.locator('[data-architecture-save-state="saved"]');
       await expect(saveState).toBeVisible();
       await expect(saveState).toContainText("Saved to the source Markdown.");
 
@@ -313,7 +314,7 @@ test.describe("Markdown import", () => {
       const savedDsl = JSON.parse(findArchitectureBlocks(saved)[0].body);
       expect(savedDsl.elements.find((element) => element.id === "client").y).toBe(400);
 
-      const savedY = await page
+      const savedY = await slide
         .locator('[data-architecture-id="client"]')
         .evaluate((element) => Math.round(element.getBBox().y));
       expect(savedY).toBe(400);
@@ -339,15 +340,15 @@ test.describe("Markdown import", () => {
       await waitForSlideReady(page);
       await clickMoreControl(page, "#navImport");
       await page.locator("#importList .overview-link", { hasText: "editable.md" }).click();
-      await waitForSlideReady(page);
-      await expect(page.locator(".architecture-editor-toolbar")).toHaveCount(1);
+      const slide = await waitForSlideReady(page);
+      await expect(slide.locator(".architecture-editor-toolbar")).toHaveCount(1);
 
       const external = EDITABLE_SOURCE.replace('"y": 380', '"y": 777');
       await writeFile(sourcePath, external, "utf8");
-      await page.locator('[data-architecture-id="client"]').focus();
+      await slide.locator('[data-architecture-id="client"]').focus();
       await page.keyboard.press("ArrowDown");
 
-      const failure = page.locator('[data-architecture-save-state="failed"]');
+      const failure = slide.locator('[data-architecture-save-state="failed"]');
       await expect(failure).toBeVisible();
       await expect(failure).toContainText("modified externally");
       const unchanged = await readFile(sourcePath, "utf8");

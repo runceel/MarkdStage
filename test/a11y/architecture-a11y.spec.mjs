@@ -17,7 +17,7 @@ import { expect, test } from "@playwright/test";
 
 import { REPO_ROOT, startHarness } from "../harness/server.mjs";
 import { splitFixtureDeck } from "../harness/deck.mjs";
-import { waitForSlideReady } from "../utils/ready.mjs";
+import { getSlideFrame, waitForSlideReady } from "../utils/ready.mjs";
 import { accessibilityTree, findDiagram, flatten, readDiagramSemantics, domOrder } from "./ax.mjs";
 
 const FIXTURE = join(REPO_ROOT, "test", "fixtures", "architecture-editing.md");
@@ -29,9 +29,17 @@ async function openDeck(page, options = {}) {
   const harness = await startHarness({ slides: SLIDES, ...options });
   const query = options.architectureEdit ? "/?architectureEdit=1" : "/";
   await page.goto(`${harness.url}${query}`, { waitUntil: "load" });
-  await waitForSlideReady(page);
-  await expect(page.locator(SVG)).toHaveCount(1);
+  const slide = await waitForSlideReady(page);
+  await expect(slide.locator(SVG)).toHaveCount(1);
   return harness;
+}
+
+async function auditDiagram(page) {
+  const slide = await getSlideFrame(page);
+  const selector = slide === page
+    ? ".architecture-diagram"
+    : ["#outputFrame", ".architecture-diagram"];
+  return new AxeBuilder({ page }).include(selector).analyze();
 }
 
 test.describe("content the diagram exposes to assistive technology", () => {
@@ -39,7 +47,7 @@ test.describe("content the diagram exposes to assistive technology", () => {
     const harness = await openDeck(page);
     try {
       // Apply **all rules, including best practices**, within the diagram. This is Phase 6 scope.
-      const result = await new AxeBuilder({ page }).include(".architecture-diagram").analyze();
+      const result = await auditDiagram(page);
       expect(
         result.violations.map((violation) => `${violation.id}: ${violation.help}`),
       ).toEqual([]);
@@ -51,8 +59,8 @@ test.describe("content the diagram exposes to assistive technology", () => {
   test("axe-core reports no violations in the diagram in edit mode", async ({ page }) => {
     const harness = await openDeck(page, { architectureEdit: true });
     try {
-      await expect(page.locator(".architecture-editor-toolbar")).toHaveCount(1);
-      const result = await new AxeBuilder({ page }).include(".architecture-diagram").analyze();
+      await expect((await getSlideFrame(page)).locator(".architecture-editor-toolbar")).toHaveCount(1);
+      const result = await auditDiagram(page);
       expect(
         result.violations.map((violation) => `${violation.id}: ${violation.help}`),
       ).toEqual([]);
@@ -104,7 +112,7 @@ test.describe("content the diagram exposes to assistive technology", () => {
     try {
       // Cover node bodies, group titles, and connector labels. Visible text may be truncated when it
       // does not fit, so aria-label remains the authoritative value.
-      const texts = await page.$$eval(`${SVG} text`, (nodes) =>
+      const texts = await (await getSlideFrame(page)).$$eval(`${SVG} text`, (nodes) =>
         nodes.map((node) => ({
           text: node.textContent,
           hidden: node.getAttribute("aria-hidden"),
@@ -139,7 +147,8 @@ test.describe("keyboard reachability", () => {
   test("the whole diagram is exactly one tab stop in normal view", async ({ page }) => {
     const harness = await openDeck(page);
     try {
-      const stops = await page.$$eval(`${SVG}, ${SVG} [tabindex]`, (nodes) =>
+      const slide = await getSlideFrame(page);
+      const stops = await slide.$$eval(`${SVG}, ${SVG} [tabindex]`, (nodes) =>
         nodes
           .filter((node) => node.getAttribute("tabindex") === "0")
           .map((node) => node.getAttribute("data-architecture-id") ?? node.tagName.toLowerCase()),
@@ -147,8 +156,8 @@ test.describe("keyboard reachability", () => {
       expect(stops).toEqual(["svg"]);
 
       // Verify actual focus; the presence of an attribute alone does not guarantee reachability.
-      await page.locator(SVG).focus();
-      const focused = await page.evaluate(() =>
+      await slide.locator(SVG).focus();
+      const focused = await slide.evaluate(() =>
         document.activeElement?.classList?.contains("architecture-svg"),
       );
       expect(focused).toBe(true);
@@ -160,11 +169,12 @@ test.describe("keyboard reachability", () => {
   test("elements become tab stops in edit mode without duplicating the diagram root", async ({ page }) => {
     const harness = await openDeck(page, { architectureEdit: true });
     try {
-      await expect(page.locator(".architecture-editor-toolbar")).toHaveCount(1);
+      const slide = await getSlideFrame(page);
+      await expect(slide.locator(".architecture-editor-toolbar")).toHaveCount(1);
       // A tabindex on the root adds an empty stop between "diagram" and the first element.
-      expect(await page.getAttribute(SVG, "tabindex")).toBeNull();
+      expect(await slide.getAttribute(SVG, "tabindex")).toBeNull();
 
-      const stops = await page.$$eval(`${SVG} [tabindex="0"]`, (nodes) =>
+      const stops = await slide.$$eval(`${SVG} [tabindex="0"]`, (nodes) =>
         nodes.map((node) => node.getAttribute("data-architecture-id")),
       );
       expect(stops.sort()).toEqual(["api", "client", "worker", "zone"]);
@@ -176,7 +186,7 @@ test.describe("keyboard reachability", () => {
   test("the two edit UI live regions retain separate purposes", async ({ page }) => {
       const harness = await openDeck(page, { architectureEdit: true });
       try {
-        const toolbar = page.locator(".architecture-editor-toolbar");
+        const toolbar = (await getSlideFrame(page)).locator(".architecture-editor-toolbar");
         await expect(toolbar).toHaveCount(1);
         await expect(toolbar).toHaveAttribute("role", "toolbar");
 

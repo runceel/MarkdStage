@@ -16,7 +16,7 @@ import { expect, test } from "@playwright/test";
 
 import { REPO_ROOT, startHarness } from "../harness/server.mjs";
 import { splitFixtureDeck } from "../harness/deck.mjs";
-import { waitForPrintReady, waitForSlideReady } from "../utils/ready.mjs";
+import { getSlideFrame, waitForPrintReady, waitForSlideReady } from "../utils/ready.mjs";
 
 const FIXTURE = join(REPO_ROOT, "test", "fixtures", "architecture-editing.md");
 const SLIDES = splitFixtureDeck(readFileSync(FIXTURE, "utf8"));
@@ -50,21 +50,21 @@ const MIXED_CASE_ARCHITECTURE_SLIDE = [
 async function openEditor(page, options = {}) {
   const harness = await startHarness({ slides: SLIDES, architectureEdit: true, ...options });
   await page.goto(`${harness.url}/`, { waitUntil: "load" });
-  await waitForSlideReady(page);
-  await expect(page.locator(EDITOR)).toHaveCount(1);
+  const slide = await waitForSlideReady(page);
+  await expect(slide.locator(EDITOR)).toHaveCount(1);
   return harness;
 }
 
 /** Connector paths in the diagram, used to detect rerouting. */
-function connectorPaths(page) {
-  return page.$$eval("[data-architecture-connector] path", (nodes) =>
+async function connectorPaths(page) {
+  return (await getSlideFrame(page)).$$eval("[data-architecture-connector] path", (nodes) =>
     nodes.map((node) => node.getAttribute("d")),
   );
 }
 
 /** Current node position read from rendered output. */
-function nodeBox(page, id) {
-  return page.$eval(`[data-architecture-id="${id}"]`, (node) => {
+async function nodeBox(page, id) {
+  return (await getSlideFrame(page)).$eval(`[data-architecture-id="${id}"]`, (node) => {
     const rect = node.getBBox();
     return { x: Math.round(rect.x), y: Math.round(rect.y) };
   });
@@ -77,9 +77,9 @@ test("Architecture fence names are editable regardless of case", async ({ page }
   });
   try {
     await page.goto(`${harness.url}/`, { waitUntil: "load" });
-    await waitForSlideReady(page);
-    await expect(page.locator(EDITOR)).toHaveCount(1);
-    await expect(page.locator(NODE("mixed-case"))).toHaveCount(1);
+    const slide = await waitForSlideReady(page);
+    await expect(slide.locator(EDITOR)).toHaveCount(1);
+    await expect(slide.locator(NODE("mixed-case"))).toHaveCount(1);
   } finally {
     await harness.close();
   }
@@ -93,7 +93,7 @@ test.describe("edit mode", () => {
       expect(before.length).toBeGreaterThan(0);
       const beforeBox = await nodeBox(page, "client");
 
-      const target = page.locator(NODE("client"));
+      const target = (await getSlideFrame(page)).locator(NODE("client"));
       const box = await target.boundingBox();
       await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
       await page.mouse.down();
@@ -122,7 +122,7 @@ test.describe("edit mode", () => {
       const beforeSource = harness.slides[0];
       const beforeBox = await nodeBox(page, "api");
 
-      const target = page.locator(NODE("api"));
+      const target = (await getSlideFrame(page)).locator(NODE("api"));
       const box = await target.boundingBox();
       await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
       await page.mouse.down();
@@ -135,7 +135,7 @@ test.describe("edit mode", () => {
       expect(harness.editReports).toHaveLength(0);
 
       // Explain why it cannot move and which group must be released.
-      const status = page.locator("[data-architecture-edit-status]");
+      const status = (await getSlideFrame(page)).locator("[data-architecture-edit-status]");
       await expect(status).toHaveAttribute("aria-live", "polite");
       await expect(status).toContainText("zone");
     } finally {
@@ -146,7 +146,8 @@ test.describe("edit mode", () => {
   test("the keyboard alone supports selection, movement, layout release, and undo", async ({ page }) => {
     const harness = await openEditor(page);
     try {
-      await page.locator(NODE("client")).focus();
+      const slide = await getSlideFrame(page);
+      await slide.locator(NODE("client")).focus();
       const start = await nodeBox(page, "client");
 
       await page.keyboard.press("ArrowRight");
@@ -154,21 +155,21 @@ test.describe("edit mode", () => {
       const coarse = await nodeBox(page, "client");
 
       // Shift performs a fine adjustment smaller than coarse movement.
-      await page.locator(NODE("client")).focus();
+      await slide.locator(NODE("client")).focus();
       await page.keyboard.press("Shift+ArrowRight");
       await expect.poll(async () => (await nodeBox(page, "client")).x).toBeGreaterThan(coarse.x);
       const fine = await nodeBox(page, "client");
       expect(fine.x - coarse.x).toBeLessThan(coarse.x - start.x);
 
       // Select a layout-managed node and press L to release it for movement.
-      await page.locator(NODE("api")).focus();
+      await slide.locator(NODE("api")).focus();
       const apiBefore = await nodeBox(page, "api");
       await page.keyboard.press("l");
       await expect.poll(() => harness.slides[0].includes('"layout"')).toBe(false);
       // Releasing does not change appearance.
       expect(await nodeBox(page, "api")).toEqual(apiBefore);
 
-      await page.locator(NODE("api")).focus();
+      await slide.locator(NODE("api")).focus();
       await page.keyboard.press("ArrowDown");
       await expect.poll(async () => (await nodeBox(page, "api")).y).toBeGreaterThan(apiBefore.y);
 
@@ -185,7 +186,7 @@ test.describe("edit mode", () => {
   test("edits write back to the deck Markdown fragment and survive reload", async ({ page }) => {
     const harness = await openEditor(page);
     try {
-      await page.locator(NODE("client")).focus();
+      await (await getSlideFrame(page)).locator(NODE("client")).focus();
       await page.keyboard.press("ArrowDown");
       await expect.poll(() => harness.editReports.length).toBeGreaterThan(0);
 
@@ -211,10 +212,11 @@ test.describe("edit mode", () => {
     });
     const harness = await openEditor(page);
     try {
-      await page.locator(NODE("client")).focus();
+      const slide = await getSlideFrame(page);
+      await slide.locator(NODE("client")).focus();
       await page.keyboard.press("ArrowRight");
       await page.keyboard.press("Control+z");
-      await expect(page.locator(".architecture-error")).toHaveCount(0);
+      await expect(slide.locator(".architecture-error")).toHaveCount(0);
       expect(errors).toEqual([]);
     } finally {
       await harness.close();
@@ -230,17 +232,17 @@ test.describe("editing UI does not leak into presentation or print output", () =
     const harness = await startHarness({ slides: SLIDES, architectureEdit: true });
     try {
       await page.goto(`${harness.url}/?present=1`, { waitUntil: "load" });
-      await waitForSlideReady(page);
+      const slide = await waitForSlideReady(page);
 
-      await expect(page.locator(EDITOR)).toHaveCount(0);
-      await expect(page.locator("[data-architecture-movable]")).toHaveCount(0);
-      await expect(page.locator("[data-architecture-edit-status]")).toHaveCount(0);
+      await expect(slide.locator(EDITOR)).toHaveCount(0);
+      await expect(slide.locator("[data-architecture-movable]")).toHaveCount(0);
+      await expect(slide.locator("[data-architecture-edit-status]")).toHaveCount(0);
 
       // The diagram itself exists, so zero editing elements is not caused by rendering nothing.
-      await expect(page.locator(NODE("client"))).toHaveCount(1);
+      await expect(slide.locator(NODE("client"))).toHaveCount(1);
 
       // Attempting keyboard movement does not change the DSL.
-      await page.locator(NODE("client")).focus();
+      await slide.locator(NODE("client")).focus();
       await page.keyboard.press("ArrowDown");
       await page.waitForTimeout(200);
       expect(harness.editReports).toHaveLength(0);
@@ -271,9 +273,9 @@ test.describe("editing UI does not leak into presentation or print output", () =
     const harness = await startHarness({ slides: SLIDES, architectureEdit: false });
     try {
       await page.goto(`${harness.url}/`, { waitUntil: "load" });
-      await waitForSlideReady(page);
-      await expect(page.locator(EDITOR)).toHaveCount(0);
-      await expect(page.locator(NODE("client"))).toHaveCount(1);
+      const slide = await waitForSlideReady(page);
+      await expect(slide.locator(EDITOR)).toHaveCount(0);
+      await expect(slide.locator(NODE("client"))).toHaveCount(1);
     } finally {
       await harness.close();
     }
@@ -306,22 +308,22 @@ test.describe("user-facing path into edit mode", () => {
       expect(harness.architectureEdit).toBe(false);
 
       await page.goto(`${harness.url}/?architectureEdit=1`, { waitUntil: "load" });
-      await waitForSlideReady(page);
+      const slide = await waitForSlideReady(page);
 
       // The URL parameter reached server state, which is the single source of truth.
       await expect.poll(() => harness.architectureEdit).toBe(true);
-      await expect(page.locator(EDITOR)).toHaveCount(1);
+      await expect(slide.locator(EDITOR)).toHaveCount(1);
 
       // Edit mode remains enabled across the two-second /state poll.
       await page.waitForTimeout(2600);
-      await expect(page.locator(EDITOR)).toHaveCount(1);
+      await expect(slide.locator(EDITOR)).toHaveCount(1);
 
       // Move a node and verify the deck's Markdown fragment changes.
       const before = harness.slideAt(0);
-      await page.locator(NODE("client")).focus();
+      await slide.locator(NODE("client")).focus();
       await page.keyboard.press("ArrowDown");
 
-      await expect(page.locator("[data-architecture-save-state]")).toHaveAttribute(
+      await expect(slide.locator("[data-architecture-save-state]")).toHaveAttribute(
         "data-architecture-save-state",
         "saved",
       );
@@ -356,10 +358,11 @@ test.describe("save failures are visible to users", () => {
         });
       });
 
-      await page.locator(NODE("client")).focus();
+      const slide = await getSlideFrame(page);
+      await slide.locator(NODE("client")).focus();
       await page.keyboard.press("ArrowDown");
 
-      const indicator = page.locator(SAVE_STATE);
+      const indicator = slide.locator(SAVE_STATE);
       await expect(indicator).toHaveAttribute("data-architecture-save-state", "failed");
       await expect(indicator).toBeVisible();
       await expect(indicator).toContainText("Could not save");
@@ -378,10 +381,11 @@ test.describe("save failures are visible to users", () => {
     try {
       await page.route(isEditRequest, (route) => route.abort());
 
-      await page.locator(NODE("client")).focus();
+      const slide = await getSlideFrame(page);
+      await slide.locator(NODE("client")).focus();
       await page.keyboard.press("ArrowDown");
 
-      const indicator = page.locator(SAVE_STATE);
+      const indicator = slide.locator(SAVE_STATE);
       await expect(indicator).toHaveAttribute("data-architecture-save-state", "failed");
       await expect(indicator).toBeVisible();
       await expect(indicator).toContainText("Could not save");
@@ -394,10 +398,11 @@ test.describe("save failures are visible to users", () => {
   test("a successful save appears successful", async ({ page }) => {
     const harness = await openEditor(page);
     try {
-      await page.locator(NODE("client")).focus();
+      const slide = await getSlideFrame(page);
+      await slide.locator(NODE("client")).focus();
       await page.keyboard.press("ArrowDown");
 
-      const indicator = page.locator(SAVE_STATE);
+      const indicator = slide.locator(SAVE_STATE);
       await expect(indicator).toHaveAttribute("data-architecture-save-state", "saved");
       await expect(indicator).toContainText("Saved");
       expect(harness.editReports.length).toBeGreaterThan(0);

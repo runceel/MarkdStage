@@ -628,9 +628,11 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
       for (const index of names.keys()) {
         await page.request.post(`${harness.url}/navigate`, { data: { index } });
         await page.goto(`${harness.url}?present=1`);
-        await waitForSlideReady(page);
-        const before = await page.locator(".deck").screenshot();
-        await page.locator("svg[data-scene-source=mermaid]").evaluate(async (element) => {
+        const slide = await waitForSlideReady(page);
+        // Keep the source/scene swaps on identical compositor layers in the iframe.
+        await slide.addStyleTag({ content: ".mermaid > svg { will-change: transform; }" });
+        const before = await slide.locator(".deck").screenshot();
+        await slide.locator("svg[data-scene-source=mermaid]").evaluate(async (element) => {
           const { captureSvgTree, sceneToSvg } = await import("./renderer/scene-svg.mjs");
           window.__systemScene = element.__presentationScene;
           const original = element.__originalMermaidSvg;
@@ -638,10 +640,10 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
           const svgRoot = captureSvgTree(original);
           original.replaceWith(sceneToSvg({ ...window.__systemScene, nodes: [], meta: { svgRoot } }));
         });
-        const original = await page.locator(".deck").screenshot();
+        const original = await slide.locator(".deck").screenshot();
         expect(before.equals(original), `${names[index]} source snapshot pixels`).toBe(true);
-        await page.locator("pre.mermaid > svg").evaluate((svg) => { svg.style.transform = "translateX(2px)"; });
-        expect((await page.locator(".deck").screenshot()).equals(original), "Shifted-source negative control").toBe(false);
+        await slide.locator("pre.mermaid > svg").evaluate((svg) => { svg.style.transform = "translateX(2px)"; });
+        expect((await slide.locator(".deck").screenshot()).equals(original), "Shifted-source negative control").toBe(false);
       }
     } finally { await harness.close(); }
   });

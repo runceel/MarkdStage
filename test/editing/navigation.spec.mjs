@@ -1,7 +1,8 @@
 import { expect, test } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 
 import { startHarness } from "../harness/server.mjs";
-import { waitForSlideReady } from "../utils/ready.mjs";
+import { getSlideFrame, waitForSlideReady } from "../utils/ready.mjs";
 
 const SLIDES = [
   "---\nlayout: title\n---\n\n# First slide",
@@ -24,18 +25,60 @@ async function openPreview(page, { interactive }) {
   return harness;
 }
 
+test("Desktop host shortcuts reach the top-level WebView2 bridge once from a focused slide", async ({ page }) => {
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  const hostSource = await readFile(new URL(
+    "../../apps/MarkdStage.Desktop/src/MarkdStage.App/PresenterWindow.xaml.cs", import.meta.url,
+  ), "utf8");
+  const script = hostSource.match(/PresenterShortcutScript\s*=\s*"""([\s\S]*?)""";/)?.[1];
+  expect(script).toBeTruthy();
+  await page.addInitScript({ content: `
+    window.hostKeys = [];
+    window.hostMessageListeners = [];
+    window.chrome ||= {};
+    window.chrome.webview = {
+      addEventListener: (name, listener) => {
+        if (name === "message") window.hostMessageListeners.push(listener);
+      },
+      postMessage: (key) => window.hostKeys.push(key),
+    };
+    ${script}
+  ` });
+  const harness = await openPresenter(page);
+  try {
+    const slide = await getSlideFrame(page);
+    expect(errors).toEqual([]);
+    expect(await page.evaluate(() => window.hostMessageListeners.length)).toBe(1);
+    expect(await slide.evaluate(() => window.hostMessageListeners.length)).toBe(0);
+    await slide.locator("body").focus();
+    await page.keyboard.press("F11");
+    await expect.poll(() => page.evaluate(() => window.hostKeys)).toEqual(["F11"]);
+    expect(await slide.evaluate(() => window.hostKeys)).toEqual([]);
+    await page.evaluate(() => {
+      window.hostMessageListeners.forEach((listener) => listener({ data: "fullscreen" }));
+    });
+    await page.keyboard.press("Escape");
+    await expect.poll(() => page.evaluate(() => window.hostKeys)).toEqual(["F11", "Escape"]);
+    expect(await slide.evaluate(() => window.hostKeys)).toEqual([]);
+  } finally {
+    await harness.close();
+  }
+});
+
 test.describe("presenter navigation", () => {
   test("left click and right click on slide whitespace navigate", async ({ page }) => {
     const harness = await openPresenter(page);
     try {
-      await page.locator(".deck").click({ position: { x: 12, y: 120 } });
+      await (await getSlideFrame(page)).locator(".deck").click({ position: { x: 12, y: 120 } });
       await expect.poll(() => harness.index).toBe(1);
       await waitForSlideReady(page);
 
-      await page.locator(".deck").click({
+      await (await getSlideFrame(page)).locator(".deck").click({
         button: "right",
         position: { x: 12, y: 120 },
       });
+
       await expect.poll(() => harness.index).toBe(0);
     } finally {
       await harness.close();
@@ -45,11 +88,11 @@ test.describe("presenter navigation", () => {
   test("interactive current-slide preview navigates by mouse", async ({ page }) => {
     const harness = await openPreview(page, { interactive: true });
     try {
-      await page.locator(".deck").click({ position: { x: 12, y: 120 } });
+      await (await getSlideFrame(page)).locator(".deck").click({ position: { x: 12, y: 120 } });
       await expect.poll(() => harness.index).toBe(1);
       await waitForSlideReady(page);
 
-      await page.locator(".deck").click({
+      await (await getSlideFrame(page)).locator(".deck").click({
         button: "right",
         position: { x: 12, y: 120 },
       });
@@ -62,7 +105,7 @@ test.describe("presenter navigation", () => {
   test("interactive preview keeps slide keys after mouse focus", async ({ page }) => {
     const harness = await openPreview(page, { interactive: true });
     try {
-      await page.locator(".deck").click({ position: { x: 12, y: 120 } });
+      await (await getSlideFrame(page)).locator(".deck").click({ position: { x: 12, y: 120 } });
       await expect.poll(() => harness.index).toBe(1);
 
       await page.keyboard.press("End");
@@ -77,7 +120,7 @@ test.describe("presenter navigation", () => {
   test("read-only next-slide preview ignores mouse navigation", async ({ page }) => {
     const harness = await openPreview(page, { interactive: false });
     try {
-      await page.locator(".deck").click({ position: { x: 12, y: 120 } });
+      await (await getSlideFrame(page)).locator(".deck").click({ position: { x: 12, y: 120 } });
       await page.keyboard.press("End");
       await page.waitForTimeout(100);
       expect(harness.index).toBe(0);
@@ -89,7 +132,7 @@ test.describe("presenter navigation", () => {
   test("modified whitespace clicks do not navigate", async ({ page }) => {
     const harness = await openPresenter(page);
     try {
-      await page.locator(".deck").click({
+      await (await getSlideFrame(page)).locator(".deck").click({
         modifiers: ["Control"],
         position: { x: 12, y: 120 },
       });
@@ -119,12 +162,12 @@ test.describe("presenter navigation", () => {
   test("slide content keeps its own click behavior", async ({ page }) => {
     const harness = await openPresenter(page);
     try {
-      await page.locator(".deck").click({ position: { x: 12, y: 120 } });
+      await (await getSlideFrame(page)).locator(".deck").click({ position: { x: 12, y: 120 } });
       await expect.poll(() => harness.index).toBe(1);
       await waitForSlideReady(page);
 
-      await page.locator(".body > p").click();
-      await page.locator(".body > p").click({ button: "right" });
+      await (await getSlideFrame(page)).locator(".body > p").click();
+      await (await getSlideFrame(page)).locator(".body > p").click({ button: "right" });
       await page.waitForTimeout(100);
       expect(harness.index).toBe(1);
     } finally {

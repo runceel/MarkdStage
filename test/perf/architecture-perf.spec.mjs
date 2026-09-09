@@ -40,6 +40,7 @@
 import { expect, test } from "@playwright/test";
 
 import { startHarness } from "../harness/server.mjs";
+import { getSlideFrame, waitForSlideReady } from "../utils/ready.mjs";
 
 /** Maximum number of elements accepted by the DSL (same as MAX_ELEMENTS in architecture.mjs). */
 const MAX_ELEMENTS = 200;
@@ -119,7 +120,7 @@ function nodesAndCrossingConnectors(nodeCount) {
  * cost (measured at 0.6 ms), so this guards against misreading fast failure as success.
  */
 async function measureRender(page, model) {
-  return page.evaluate(
+  return (await getSlideFrame(page)).evaluate(
     async ({ source, runs, warmup }) => {
       const module = await import("./renderer/architecture.mjs");
       const host = document.createElement("div");
@@ -160,7 +161,7 @@ async function measureRender(page, model) {
  * Alternating applies this drift equally and removes it from the ratio.
  */
 async function measureScaling(page, smallModel, largeModel) {
-  return page.evaluate(
+  return (await getSlideFrame(page)).evaluate(
     async ({ smallSource, largeSource, runs, warmup }) => {
       const module = await import("./renderer/architecture.mjs");
       const host = document.createElement("div");
@@ -225,7 +226,7 @@ test.afterAll(async () => {
 
 test.beforeEach(async ({ page }) => {
   await page.goto(`${harness.url}/`, { waitUntil: "load" });
-  await page.waitForFunction(() => !document.body.classList.contains("mermaid-loading"));
+  await waitForSlideReady(page);
 });
 
 test.describe("Architecture rendering cost", () => {

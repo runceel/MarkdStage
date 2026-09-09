@@ -371,16 +371,16 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
       for (const index of names.keys()) {
         await page.request.post(`${harness.url}/navigate`, { data: { index } });
         await page.goto(`${harness.url}?present=1`);
-        await waitForSlideReady(page);
-        const svg = page.locator("svg[data-scene-source=mermaid]");
+        const slide = await waitForSlideReady(page);
+        const svg = slide.locator("svg[data-scene-source=mermaid]");
         const before = await svg.screenshot();
         await svg.evaluate((element) => {
           const original = element.__originalMermaidSvg;
           original.__sharedSceneSvg = element;
           element.replaceWith(original);
         });
-        expect(await page.locator(".mermaid svg").screenshot(), names[index]).toEqual(before);
-        await page.locator(".mermaid svg").evaluate((element) => element.replaceWith(element.__sharedSceneSvg));
+        expect(await slide.locator(".mermaid svg").screenshot(), names[index]).toEqual(before);
+        await slide.locator(".mermaid svg").evaluate((element) => element.replaceWith(element.__sharedSceneSvg));
         await svg.evaluate(async (element) => {
           const { sceneToSvg } = await import("./renderer/scene-svg.mjs");
           element.replaceWith(sceneToSvg(JSON.parse(JSON.stringify(element.__presentationScene))));

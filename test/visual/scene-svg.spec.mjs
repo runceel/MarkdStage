@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 
 import { expect, test } from "@playwright/test";
 import { startHarness } from "../harness/server.mjs";
-import { waitForSlideReady } from "../utils/ready.mjs";
+import { getSlideFrame, waitForSlideReady } from "../utils/ready.mjs";
 
 const architecture = {
   title: "Shared SVG", canvas: { width: 1200, height: 500 },
@@ -112,8 +112,9 @@ const fidelitySlides = slides.map((slide) =>
     : slide);
 
 async function assertBackend(page, count) {
-  await expect(page.locator("svg[data-scene-backend=svg]")).toHaveCount(count);
-  expect(await page.locator("svg[data-scene-backend=svg]").evaluateAll((svgs) =>
+  const slide = await getSlideFrame(page);
+  await expect(slide.locator("svg[data-scene-backend=svg]")).toHaveCount(count);
+  expect(await slide.locator("svg[data-scene-backend=svg]").evaluateAll((svgs) =>
     svgs.every((svg) => svg.__presentationScene && (svg.hasAttribute("data-scene-source-path") || svg.querySelectorAll("[data-scene-source-path]").length > 0)),
   )).toBe(true);
 }
@@ -138,9 +139,9 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
       for (let index = 0; index < slides.length; index++) {
         await page.request.post(`${harness.url}/navigate`, { data: { index } });
         await page.goto(`${harness.url}?present=1`);
-        await waitForSlideReady(page);
+        const slide = await waitForSlideReady(page);
         await assertBackend(page, 1);
-        const svg = page.locator("svg[data-scene-backend=svg]");
+        const svg = slide.locator("svg[data-scene-backend=svg]");
         const before = await svg.screenshot();
         if (index > 0) {
           await svg.evaluate((element) => {
@@ -148,8 +149,8 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
             original.__sharedSceneSvg = element;
             element.replaceWith(original);
           });
-          expect(await page.locator(".mermaid svg").screenshot()).toEqual(before);
-          await page.locator(".mermaid svg").evaluate((element) => element.replaceWith(element.__sharedSceneSvg));
+          expect(await slide.locator(".mermaid svg").screenshot()).toEqual(before);
+          await slide.locator(".mermaid svg").evaluate((element) => element.replaceWith(element.__sharedSceneSvg));
         }
         await svg.evaluate(async (element) => {
           const { sceneToSvg } = await import("./renderer/scene-svg.mjs");
@@ -157,22 +158,22 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
           element.replaceWith(sceneToSvg(scene));
         });
         await assertBackend(page, 1);
-        expect(await page.locator("svg[data-scene-backend=svg]").screenshot()).toEqual(before);
+        expect(await slide.locator("svg[data-scene-backend=svg]").screenshot()).toEqual(before);
         if (index === 0) {
-          await expect(page.locator("[data-architecture-icon=server]")).toHaveCount(1);
-          await expect(page.locator("[data-architecture-id=client]")).toHaveAttribute("data-scene-source-path", "elements[0]");
+          await expect(slide.locator("[data-architecture-icon=server]")).toHaveCount(1);
+          await expect(slide.locator("[data-architecture-id=client]")).toHaveAttribute("data-scene-source-path", "elements[0]");
         } else if (index === 2) {
-          await expect(page.locator("svg[data-scene-backend=svg]")).toContainText("Hello");
-          expect(await page.locator("svg[data-scene-backend=svg]").evaluate((element) =>
+          await expect(slide.locator("svg[data-scene-backend=svg]")).toContainText("Hello");
+          expect(await slide.locator("svg[data-scene-backend=svg]").evaluate((element) =>
             element.__presentationScene.nodes.some((node) => node.kind === "connector" && node.sourcePath.startsWith("sequence[")),
           )).toBe(true);
         } else if (index === 3) {
-          await expect(page.locator("svg[data-scene-backend=svg]")).toContainText("Shares");
-          expect(await page.locator("svg[data-scene-backend=svg]").evaluate((element) =>
+          await expect(slide.locator("svg[data-scene-backend=svg]")).toContainText("Shares");
+          expect(await slide.locator("svg[data-scene-backend=svg]").evaluate((element) =>
             element.__presentationScene.nodes.some((node) => node.kind === "fallback"),
           )).toBe(true);
         } else if (index === 6) {
-          const paths = await page.locator("svg[data-scene-backend=svg]").evaluate((element) => ({
+          const paths = await slide.locator("svg[data-scene-backend=svg]").evaluate((element) => ({
             labels: element.__presentationScene.nodes.filter((node) => /^classes\[\d+\]\.labels\[/.test(node.sourcePath)).map((node) => node.sourcePath),
             rendered: [...element.querySelectorAll("[data-scene-source-path]")].map((node) => node.dataset.sceneSourcePath),
           }));
@@ -235,7 +236,7 @@ test("default fixed preview, presenter, PNG and PDF use the same shared scene st
         if (!query) {
           await expect(page.locator("body")).toHaveClass(/fixed-preview-mode/);
         }
-        const svg = page.locator(index === 0 ? "svg.architecture-svg" : ".mermaid svg")
+        const svg = (await getSlideFrame(page)).locator(index === 0 ? "svg.architecture-svg" : ".mermaid svg")
           .nth(query.includes("print=") && index > 0 ? index - 1 : 0);
         await expect(svg).toHaveAttribute("data-scene-backend", "svg");
         signatures.push(await svg.evaluate((element) => ({
@@ -274,11 +275,11 @@ test("an invalid Mermaid block does not bypass the backend for valid sibling dia
   ] });
   try {
     await page.goto(harness.url);
-    await waitForSlideReady(page);
+    const slide = await waitForSlideReady(page);
     await assertBackend(page, 3);
-    await expect(page.locator(".mermaid").nth(0)).toContainText("A");
-    await expect(page.locator(".mermaid").nth(1)).toContainText("Syntax error");
-    await expect(page.locator(".mermaid").nth(2)).toContainText("D");
+    await expect(slide.locator(".mermaid").nth(0)).toContainText("A");
+    await expect(slide.locator(".mermaid").nth(1)).toContainText("Syntax error");
+    await expect(slide.locator(".mermaid").nth(2)).toContainText("D");
   } finally { await harness.close(); }
 });
 

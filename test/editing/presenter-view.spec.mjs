@@ -1,4 +1,7 @@
 import { expect, test } from "@playwright/test";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { startHarness } from "../harness/server.mjs";
 import { clickMoreControl, openMoreControls } from "../utils/nav.mjs";
@@ -20,11 +23,15 @@ test("presenter view provides presentation controls and returns to the slide", a
     await expect(page.locator("#presenterView")).toBeVisible();
     await expect(page.locator("#presenterCurrent")).toHaveAttribute(
       "src",
-      "./?preview=1&offset=0&navigate=1",
+      "./?surface=1",
     );
-    await expect(page.locator("#presenterNext")).toHaveAttribute("src", "./?preview=1&offset=1");
+    await expect(page.locator("#presenterNext")).toHaveAttribute("src", "./?surface=1");
+    await expect(page.locator("#presenterNext")).toHaveAttribute("tabindex", "-1");
     await expect(page.locator("#presenterNotes strong")).toHaveText("context");
 
+    await page.frameLocator("#presenterNext").locator(".deck").click({ position: { x: 12, y: 80 } });
+    await page.keyboard.press("End");
+    expect(harness.index).toBe(0);
     await page.locator("#presenterNextButton").click();
     await expect.poll(() => harness.index).toBe(1);
     await expect(page.locator("#presenterCounter")).toHaveText("2 / 3");
@@ -142,5 +149,41 @@ test("hides controls for actions that the host cannot provide", async ({ page })
     await expect(page.locator("#presenterToggleButton")).toBeHidden();
   } finally {
     await harness.close();
+  }
+});
+
+test("live source refresh updates both previews, notes and the projection without replacing frames", async ({ page, context }) => {
+  const root = await mkdtemp(join(tmpdir(), "markdstage-presenter-refresh-"));
+  const source = join(root, "slides.md");
+  const markdown = (suffix) => [
+    `# Current ${suffix}\n\n<!-- Notes ${suffix} -->`,
+    `# Next ${suffix}`,
+  ].join("\n\n---\n\n");
+  await writeFile(source, markdown("before"));
+  const harness = await startHarness({ slides: SLIDES, markdownRoot: root });
+  const projection = await context.newPage();
+  try {
+    const response = await page.request.post(`${harness.url}/import`, {
+      data: { path: "slides.md", sourceMode: "live" },
+    });
+    expect(response.ok()).toBe(true);
+    await page.goto(`${harness.url}/?presenter=1`);
+    await projection.goto(`${harness.url}/?present=1`);
+    const current = await waitForSlideReady(page);
+    const projected = await waitForSlideReady(projection);
+    const next = await (await page.$("#presenterNext")).contentFrame();
+    await waitForSlideReady(next);
+    const original = await current.locator("body").elementHandle();
+    await writeFile(source, markdown("after"));
+    await expect(current.locator(".deck")).toContainText("Current after");
+    await expect(next.locator(".deck")).toContainText("Next after");
+    await expect(projected.locator(".deck")).toContainText("Current after");
+    await expect(page.locator("#presenterNotes")).toHaveText("Notes after");
+    expect(await original.evaluate((body) => body === document.body)).toBe(true);
+    expect(page.frames()).toHaveLength(3);
+  } finally {
+    await projection.close();
+    await harness.close();
+    await rm(root, { recursive: true, force: true });
   }
 });

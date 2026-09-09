@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { startHarness } from "../harness/server.mjs";
 import { clickMoreControl } from "../utils/nav.mjs";
-import { waitForSlideReady } from "../utils/ready.mjs";
+import { getSlideFrame, waitForSlideReady } from "../utils/ready.mjs";
 
 const SLIDES = [
   ["---", "title: First", "---", "## First", "", "- Short content"].join("\n"),
@@ -35,11 +35,12 @@ test("16:9 preview is the default, uses the fixed PDF surface, and remains toggl
     await settleFrames(page);
 
     await expect(page.locator("body")).toHaveClass(/fixed-preview-mode/);
-    await expect(page.locator("body")).toHaveClass(/fixed-output-mode/);
+    const frame = await getSlideFrame(page);
+    await expect(frame.locator("body")).toHaveClass(/fixed-output-mode/);
     await expect(button).toHaveAttribute("aria-pressed", "true");
     await expect(button).toHaveAttribute("data-state", "active");
 
-    const fixedSize = await page.locator("#stage > .deck").evaluate((deck) => {
+    const fixedSize = await frame.locator("#stage > .deck").evaluate((deck) => {
       const style = getComputedStyle(deck);
       const stage = document.getElementById("stage");
       return {
@@ -50,7 +51,8 @@ test("16:9 preview is the default, uses the fixed PDF surface, and remains toggl
     });
     expect(fixedSize.width).toBe("1280px");
     expect(fixedSize.height).toBe("720px");
-    expect(fixedSize.transform).not.toBe("none");
+    expect(fixedSize.transform).toBe("none");
+    await expect(page.locator("#outputFrame")).not.toHaveCSS("transform", "none");
 
     await page.locator("#navNext").click();
     await expect.poll(() => harness.index).toBe(1);
@@ -84,7 +86,7 @@ test("16:9 preview on a square display keeps the theme background covering the t
     await waitForSlideReady(page);
     await settleFrames(page);
 
-    const dimensions = await page.locator("#stage > .deck").evaluate((deck) => {
+    const dimensions = await (await getSlideFrame(page)).locator("#stage > .deck").evaluate((deck) => {
       const background = deck.querySelector(".theme-cover-background");
       return {
         deck: { width: deck.clientWidth, height: deck.clientHeight },
@@ -106,7 +108,8 @@ test("16:9 preview ignores one pixel but warns when PDF clipping exceeds the tol
     await waitForSlideReady(page);
     await settleFrames(page);
 
-    await page.locator(".body").evaluate((body) => {
+    const frame = await getSlideFrame(page);
+    await frame.locator(".body").evaluate((body) => {
       body.replaceChildren();
       const probe = document.createElement("div");
       probe.id = "overflowProbe";
@@ -118,7 +121,7 @@ test("16:9 preview ignores one pixel but warns when PDF clipping exceeds the tol
     await settleFrames(page);
     await expect(page.locator("#layoutWarning")).toBeHidden();
 
-    await page.locator("#overflowProbe").evaluate((probe) => {
+    await frame.locator("#overflowProbe").evaluate((probe) => {
       const body = probe.parentElement;
       probe.style.height = `${body.clientHeight + 3}px`;
       window.dispatchEvent(new Event("resize"));
@@ -129,6 +132,34 @@ test("16:9 preview ignores one pixel but warns when PDF clipping exceeds the tol
     await expect(page.locator("#navFixedPreview")).toHaveAttribute("data-state", "error");
     await expect(page.locator("#navMore")).toHaveAttribute("data-state", "error");
   } finally {
+    await harness.close();
+  }
+});
+
+test("fixed preview waits for images and closes host controls on slide interaction", async ({ page }) => {
+  const harness = await startHarness({
+    slides: [TITLE_SLIDE], theme: "custom", customThemeMeta: CUSTOM_THEME_META,
+  });
+  let releaseImage;
+  const imageReady = new Promise((resolve) => { releaseImage = resolve; });
+  await page.route("**/assets/sample.svg", async (route) => {
+    await imageReady;
+    await route.continue();
+  });
+  try {
+    await page.goto(harness.url, { waitUntil: "domcontentloaded" });
+    await expect(page.frameLocator("#outputFrame").locator(".slide-background")).toHaveCount(1);
+    const frame = await getSlideFrame(page);
+    await expect(frame.locator("body")).toHaveClass(/mermaid-loading/);
+    await expect(page.locator("body")).toHaveClass(/mermaid-loading/);
+    releaseImage();
+    await waitForSlideReady(page);
+    await page.locator("#navMore").click();
+    await expect(page.locator("#navMorePanel")).toBeVisible();
+    await frame.locator(".deck h1").click();
+    await expect(page.locator("#navMorePanel")).toBeHidden();
+  } finally {
+    releaseImage();
     await harness.close();
   }
 });
