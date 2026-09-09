@@ -80,6 +80,58 @@ test("the dedicated Architecture Editor has no WCAG violations", async ({ page }
   }
 });
 
+test("multiple selections expose accessible mixed inspector values without mutating on focus", async ({ page }) => {
+  const raw = JSON.parse(SOURCE);
+  raw.elements[0].shape = "rect";
+  raw.elements[1].shape = "ellipse";
+  raw.elements.push({ type: "connector", from: "api", to: "client", arrow: false, routing: "straight" });
+  const source = `${JSON.stringify(raw, null, 2)}\n`;
+  const harness = await startArchitectureEditorHarness({ source });
+  try {
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    await page.goto(harness.url, { waitUntil: "load" });
+    await expect(page.locator(".tree-item")).toHaveCount(4);
+    const tree = page.getByRole("tree");
+    await expect(tree).toHaveAttribute("aria-multiselectable", "true");
+    await page.locator('.tree-item[data-ref="client"]').click();
+    await page.locator('.tree-item[data-ref="api"]').click({ modifiers: ["Control"] });
+    await expect(page.locator('.tree-item[aria-selected="true"]')).toHaveCount(2);
+    await expect(page.locator('.tree-item[data-ref="api"]')).toBeFocused();
+    if (!(await page.locator("#inspectorPanel").isVisible())) {
+      await page.getByRole("button", { name: "Properties", exact: true }).click();
+    }
+    const text = page.getByLabel("Text", { exact: true });
+    await expect(text).toHaveAttribute("placeholder", "Multiple values");
+    await expect(text).toHaveAccessibleDescription("Multiple values");
+    await expect(page.getByLabel("Shape", { exact: true })).toHaveValue("__mixed__");
+    await text.focus();
+    await page.keyboard.press("Tab");
+    await expect(page.getByLabel("Shape", { exact: true })).toBeFocused();
+    let result = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+      .analyze();
+    expect(result.violations.map((violation) => `${violation.id}: ${violation.help}`)).toEqual([]);
+
+    await page.locator('.tree-item[data-ref="elements[2]"]').click();
+    await page.locator('.tree-item[data-ref="elements[3]"]').click({ modifiers: ["Control"] });
+    const arrow = page.getByLabel("Arrow", { exact: true });
+    await expect(arrow).toHaveJSProperty("indeterminate", true);
+    await expect(arrow).toHaveAccessibleDescription("Multiple values");
+    await expect(page.getByLabel("Routing", { exact: true })).toHaveValue("__mixed__");
+    await arrow.focus();
+    await page.keyboard.press("Tab");
+    await expect(page.locator('[data-action="undo"]')).toBeDisabled();
+    await expect(page.locator('[data-action="save"]')).toBeDisabled();
+    expect(harness.draftSource).toBe(source);
+    result = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+      .analyze();
+    expect(result.violations.map((violation) => `${violation.id}: ${violation.help}`)).toEqual([]);
+  } finally {
+    await harness.close();
+  }
+});
+
 test("there are no WCAG violations with the context menu open", async ({ page }) => {
   const harness = await startArchitectureEditorHarness({ source: SOURCE });
   try {

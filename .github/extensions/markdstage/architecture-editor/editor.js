@@ -86,6 +86,8 @@ const compactPanels = window.matchMedia("(max-width: 620px)");
 
 let architecture = null;
 let selectedRef = null;
+let selectedRefs = new Set();
+let selectionAnchor = null;
 let sourcePath = "";
 let blockIndex = 0;
 let dirty = false;
@@ -96,6 +98,7 @@ let targetGeneration = null;
 let draftQueue = Promise.resolve();
 let drag = null;
 let pan = null;
+let marquee = null;
 let spacePressed = false;
 let connectorTool = null;
 let serverVersion = -1;
@@ -302,6 +305,52 @@ function modelFor(ref) {
   ) || null;
 }
 
+function setSelection(refs, primary = refs.at(-1) ?? null) {
+  selectedRefs = new Set(refs.filter((ref) => modelFor(ref)));
+  selectedRef = selectedRefs.has(primary) ? primary : [...selectedRefs].at(-1) ?? null;
+}
+
+function selectOnly(ref) {
+  setSelection(ref ? [ref] : []);
+  selectionAnchor = ref;
+}
+
+function selectFromEvent(ref, event, { range = false } = {}) {
+  const additive = event.ctrlKey || event.metaKey;
+  if (range && event.shiftKey && selectionAnchor) {
+    const refs = rawEntries(architecture.raw).map((entry) => entry.ref);
+    const start = refs.indexOf(selectionAnchor);
+    const end = refs.indexOf(ref);
+    if (start !== -1 && end !== -1) {
+      const slice = refs.slice(Math.min(start, end), Math.max(start, end) + 1);
+      setSelection(additive ? [...selectedRefs, ...slice] : slice, ref);
+      return;
+    }
+  }
+  if (additive) {
+    setSelection([...selectedRefs, ref], ref);
+    selectionAnchor = ref;
+  } else {
+    selectOnly(ref);
+  }
+}
+
+function selectionRoots() {
+  const elements = [...selectedRefs].map(modelFor).filter(
+    (element) => element && element.type !== "connector",
+  );
+  return elements.filter((element) => !elements.some(
+    (parent) => parent.type === "group" &&
+      element.sourcePath.startsWith(`${parent.sourcePath}.children[`),
+  ));
+}
+
+function setSelectedProperty(path, value) {
+  return selectedRefs.size > 1
+    ? architecture.setElements([...selectedRefs], path, value)
+    : architecture.setElement(selectedRef, path, value);
+}
+
 function endpointOptions() {
   return architecture.model.elements
     .filter((element) => element.type !== "connector")
@@ -337,6 +386,7 @@ function queueDraft() {
 
 function applyResult(result, { select = undefined, quiet = false } = {}) {
   if (!result?.ok) {
+    if (result?.reason === "unchanged") return false;
     const message =
       result?.reason === "layout-managed"
         ? `The layout of ${result.layoutOwner} controls the placement of ${result.id}.`
@@ -344,8 +394,10 @@ function applyResult(result, { select = undefined, quiet = false } = {}) {
     announce(message, "error");
     return false;
   }
-  if (select !== undefined) selectedRef = select;
-  else if (result.ref) selectedRef = result.ref;
+  if (select !== undefined) selectOnly(select);
+  else if (result.refs) setSelection(result.refs, selectedRef);
+  else if (result.ref) selectOnly(result.ref);
+  else setSelection([...selectedRefs]);
   renderAll();
   queueDraft();
   if (!quiet) announce("Changed. The update will not affect the Markdown until you save.");
@@ -441,6 +493,16 @@ function menuItemsFor({ ref, point }) {
       { label: "Redo", action: "redo", shortcut: "Ctrl+Y", disabled: !architecture.canRedo },
       { separator: true },
       { label: "Save to Markdown", action: "save", shortcut: "Ctrl+S", disabled: !dirty },
+    ];
+  }
+
+  if (selectedRefs.size > 1) {
+    return [
+      { label: "Duplicate", action: "duplicate", shortcut: "Ctrl+D" },
+      { label: "Bring forward", action: "order-front", disabled: true },
+      { label: "Send backward", action: "order-back", disabled: true },
+      { separator: true },
+      { label: "Delete", action: "delete", shortcut: "Delete", danger: true },
     ];
   }
 
@@ -662,7 +724,7 @@ function openElementContextMenu(ref, options) {
     options.origin === "diagram"
       ? architecturePoint(options.clientX, options.clientY)
       : null;
-  selectedRef = ref;
+  if (!selectedRefs.has(ref)) selectOnly(ref);
   connectorTool = null;
   renderAll();
   openContextMenu({ ...options, ref, point });
@@ -673,7 +735,7 @@ function openBlankContextMenu(options) {
     options.origin === "canvas"
       ? architecturePoint(options.clientX, options.clientY)
       : null;
-  selectedRef = null;
+  selectOnly(null);
   connectorTool = null;
   renderAll();
   openContextMenu({ ...options, point });
@@ -873,7 +935,7 @@ function renderTree() {
     button.dataset.ref = entry.ref;
     button.setAttribute("role", "treeitem");
     button.setAttribute("aria-level", String(entry.depth + 1));
-    button.setAttribute("aria-selected", entry.ref === selectedRef ? "true" : "false");
+    button.setAttribute("aria-selected", selectedRefs.has(entry.ref) ? "true" : "false");
     button.setAttribute("aria-haspopup", "menu");
     const icon = document.createElement("span");
     icon.className = "tree-icon";
@@ -882,10 +944,11 @@ function renderTree() {
     label.className = "tree-label";
     label.textContent = labelFor(entry);
     button.append(icon, label);
-    button.addEventListener("click", () => {
-      selectedRef = entry.ref;
+    button.addEventListener("click", (event) => {
+      selectFromEvent(entry.ref, event, { range: true });
       connectorTool = null;
       renderAll();
+      tree.querySelector(`[data-ref="${CSS.escape(entry.ref)}"]`)?.focus({ preventScroll: true });
     });
     button.addEventListener("contextmenu", (event) => {
       event.preventDefault();
@@ -944,6 +1007,7 @@ function addResizeHandles(svg, element) {
 }
 
 function decorateDiagram(svg) {
+  addGrid(svg);
   const byOrder = new Map(
     architecture.model.elements.map((element) => [
       String(element.order),
@@ -963,10 +1027,10 @@ function decorateDiagram(svg) {
       element?.type !== "connector" && architecture.describe(ref).movable ? "true" : "false";
     node.setAttribute("tabindex", "0");
     node.setAttribute("aria-haspopup", "menu");
-    if (ref === selectedRef) node.dataset.editorSelected = "true";
+    if (selectedRefs.has(ref)) node.dataset.editorSelected = "true";
     node.addEventListener("click", (event) => {
       event.stopPropagation();
-      chooseElement(ref);
+      chooseElement(ref, event);
     });
     node.addEventListener("pointerdown", beginMove);
     node.addEventListener("keydown", onElementKeyDown);
@@ -985,13 +1049,36 @@ function decorateDiagram(svg) {
       .querySelector(`[data-editor-ref="${CSS.escape(connectorTool.from)}"]`)
       ?.classList.add("connector-source");
   }
-  addResizeHandles(svg, modelFor(selectedRef));
+  if (selectedRefs.size === 1) addResizeHandles(svg, modelFor(selectedRef));
   svg.addEventListener("click", (event) => {
     if (event.target === svg) {
-      selectedRef = null;
+      selectOnly(null);
       renderAll();
     }
   });
+}
+
+function addGrid(svg) {
+  const defs = document.createElementNS(SVG_NS, "defs");
+  const pattern = document.createElementNS(SVG_NS, "pattern");
+  pattern.id = "editor-grid-pattern";
+  pattern.setAttribute("patternUnits", "userSpaceOnUse");
+  pattern.setAttribute("width", String(SNAP_SIZE));
+  pattern.setAttribute("height", String(SNAP_SIZE));
+  const path = document.createElementNS(SVG_NS, "path");
+  path.setAttribute("d", `M ${SNAP_SIZE} 0 H 0 V ${SNAP_SIZE}`);
+  path.setAttribute("fill", "none");
+  path.setAttribute("stroke", "var(--editor-grid)");
+  path.setAttribute("stroke-width", "0.5");
+  pattern.appendChild(path);
+  defs.appendChild(pattern);
+  const grid = document.createElementNS(SVG_NS, "rect");
+  grid.classList.add("editor-grid");
+  grid.setAttribute("aria-hidden", "true");
+  const box = svg.viewBox.baseVal;
+  for (const key of ["x", "y", "width", "height"]) grid.setAttribute(key, String(box[key]));
+  grid.setAttribute("fill", "url(#editor-grid-pattern)");
+  svg.prepend(defs, grid);
 }
 
 function renderSurface() {
@@ -1035,6 +1122,44 @@ function readValue(path) {
   return value;
 }
 
+function fieldApplies(entry, path) {
+  const type = entry.element.type;
+  if (["id", "parent", "layout"].includes(path) || path.startsWith("layout.")) return false;
+  if (path.startsWith("style.")) {
+    return path !== "style.dash-preset" || type === "connector";
+  }
+  if (["ariaLabel", "z"].includes(path)) return true;
+  if (["x", "y", "width", "height"].includes(path)) {
+    return type !== "connector" && architecture.describe(entry.ref).movable;
+  }
+  const byType = {
+    node: ["text", "shape", "icon"],
+    image: ["src", "fit"],
+    group: ["title"],
+    connector: ["from", "to", "fromPort", "toPort", "label", "labelLayer", "routing", "arrow", "lane", "points"],
+  };
+  return byType[type]?.includes(path) &&
+    (path !== "points" || entry.element.routing === "polyline");
+}
+
+function effectiveValue(ref, path) {
+  const entry = entryFor(ref);
+  const model = modelFor(ref);
+  if (path === "style.dash-preset") {
+    return lineStyleForDash(effectiveValue(ref, "style.dash"));
+  }
+  const get = (value) => path.split(".").reduce((owner, key) => owner?.[key], value);
+  let value = get(entry.element) ?? get(model);
+  if (["style.fill", "style.stroke", "style.textColor"].includes(path)) {
+    const color = THEME_TOKENS[value] ?? value;
+    value = Object.entries(THEME_TOKENS).find(([, resolved]) => resolved === color)?.[0] ?? color;
+  }
+  if (["x", "y"].includes(path) && entry.element[path] === undefined) {
+    value = model[path] - (modelFor(entry.parentId)?.[path] ?? 0);
+  }
+  return value;
+}
+
 function addField(container, {
   label,
   path,
@@ -1048,6 +1173,15 @@ function addField(container, {
   suggestions = null,
   onChange,
 }) {
+  const multiple = selectedRefs.size > 1;
+  if (multiple && ![...selectedRefs].every((ref) => fieldApplies(entryFor(ref), path))) return;
+  let mixed = false;
+  if (multiple) {
+    const values = [...selectedRefs].map((ref) => effectiveValue(ref, path));
+    mixed = values.some((item) => JSON.stringify(item) !== JSON.stringify(values[0]));
+    value = mixed ? undefined : values[0];
+    if (path === "points" && value !== undefined) value = JSON.stringify(value, null, 2);
+  }
   const id = `field-${path.replace(/[^A-Za-z0-9_-]/g, "-")}-${container.children.length}`;
   const caption = document.createElement("label");
   caption.htmlFor = id;
@@ -1083,19 +1217,41 @@ function addField(container, {
   if (step !== undefined) input.step = String(step);
   if (type === "checkbox") input.checked = Boolean(value);
   else input.value = value ?? "";
+  if (mixed) {
+    input.dataset.mixed = "true";
+    if (type === "checkbox") input.indeterminate = true;
+    else if (options) {
+      const option = document.createElement("option");
+      option.value = "__mixed__";
+      option.textContent = "Multiple values";
+      option.disabled = true;
+      input.prepend(option);
+      input.value = option.value;
+    } else input.placeholder = "Multiple values";
+    const hint = document.createElement("span");
+    hint.id = `${id}-mixed`;
+    hint.className = "visually-hidden";
+    hint.textContent = "Multiple values";
+    input.setAttribute("aria-describedby", hint.id);
+    container.appendChild(hint);
+  }
   input.addEventListener("change", () => {
+    input.setCustomValidity("");
+    if (!input.reportValidity()) return;
+    if (options && input.value === "__mixed__") return;
     let next;
     if (type === "checkbox") next = input.checked;
     else if (type === "number") next = input.value === "" ? undefined : Number(input.value);
     else next = input.value === "" ? undefined : input.value;
     if (onChange) onChange(next, input);
-    else applyResult(architecture.setElement(selectedRef, path, next));
+    else applyResult(setSelectedProperty(path, next));
   });
   container.append(caption, input);
   return input;
 }
 
 function addInspectorAction(container, label, onClick) {
+  if (selectedRefs.size > 1) return;
   const row = document.createElement("div");
   row.className = "inspector-action-row";
   const button = document.createElement("button");
@@ -1154,11 +1310,11 @@ function addStyleFields(container, { connector = false } = {}) {
       options: LINE_STYLES,
       onChange: (value) => {
         if (value === "custom") {
-          applyResult(architecture.setElement(selectedRef, "style.dash", "6 3"));
+          applyResult(setSelectedProperty("style.dash", "6 3"));
           return;
         }
         applyResult(
-          architecture.setElement(selectedRef, "style.dash", LINE_STYLE_PATTERNS[value]),
+          setSelectedProperty("style.dash", LINE_STYLE_PATTERNS[value]),
         );
       },
     });
@@ -1227,7 +1383,7 @@ function renderInspector() {
     return;
   }
 
-  const general = section(entry.element.type);
+  const general = section(selectedRefs.size > 1 ? `${selectedRefs.size} selected` : entry.element.type);
   if (entry.element.type !== "connector") {
     addField(general, { label: "ID", path: "id", value: entry.element.id });
     addField(general, {
@@ -1257,7 +1413,7 @@ function renderInspector() {
     addField(general, {
       label: "Shape",
       path: "shape",
-      value: entry.element.shape || "rect",
+      value: entry.element.shape || "rounded-rect",
       options: SHAPES,
     });
     addField(general, {
@@ -1427,7 +1583,7 @@ function renderInspector() {
         onChange: (value, input) => {
           try {
             input.setCustomValidity("");
-            applyResult(architecture.setElement(selectedRef, "points", JSON.parse(value || "[]")));
+            applyResult(setSelectedProperty("points", JSON.parse(value || "[]")));
           } catch (_) {
             input.setCustomValidity("Enter a JSON array of points containing x/y values.");
             input.reportValidity();
@@ -1474,7 +1630,12 @@ function renderInspector() {
   });
 
   const style = section("Style");
-  addStyleFields(style, { connector: entry.element.type === "connector" });
+  addStyleFields(style, {
+    connector: [...selectedRefs].every((ref) => modelFor(ref).type === "connector"),
+  });
+  for (const empty of inspector.querySelectorAll(".inspector-section")) {
+    if (empty !== general && empty.children.length === 1) empty.remove();
+  }
 }
 
 function refreshToolbar() {
@@ -1482,23 +1643,32 @@ function refreshToolbar() {
   document.querySelector('[data-action="undo"]').disabled = !architecture.canUndo;
   document.querySelector('[data-action="redo"]').disabled = !architecture.canRedo;
   for (const action of ["duplicate", "delete", "order-back", "order-front"]) {
-    document.querySelector(`[data-action="${action}"]`).disabled = !entry;
+    document.querySelector(`[data-action="${action}"]`).disabled =
+      !entry || (selectedRefs.size > 1 && action.startsWith("order-"));
   }
   document.querySelector('[data-action="release-layout"]').disabled =
-    !selectedRef || !releaseLayoutAvailable(selectedRef);
+    selectedRefs.size !== 1 || !releaseLayoutAvailable(selectedRef);
   setDirty(dirty);
 }
 
 function renderAll() {
+  const focused = document.activeElement;
+  const ref = focused?.dataset?.ref || focused?.dataset?.editorRef;
+  const inTree = tree.contains(focused);
+  setSelection([...selectedRefs], selectedRef);
   closeContextMenu();
   renderTree();
   renderSurface();
   renderInspector();
   refreshToolbar();
   zoomStatus.textContent = `${Math.round(zoom * 100)}%`;
+  if (ref) {
+    const selector = inTree ? `.tree-item[data-ref="${CSS.escape(ref)}"]` : `[data-editor-ref="${CSS.escape(ref)}"]`;
+    (inTree ? tree : surface).querySelector(selector)?.focus({ preventScroll: true });
+  }
 }
 
-function chooseElement(ref) {
+function chooseElement(ref, event) {
   const element = modelFor(ref);
   if (connectorTool && element?.type !== "connector") {
     if (!connectorTool.from) {
@@ -1517,42 +1687,57 @@ function chooseElement(ref) {
     return;
   }
   connectorTool = null;
-  selectedRef = ref;
+  selectFromEvent(ref, event);
   renderAll();
 }
 
 function beginMove(event) {
-  if (event.button !== 0 || event.currentTarget.dataset.architectureType === "connector") return;
+  if (event.button !== 0 || spacePressed || event.ctrlKey || event.metaKey ||
+      event.currentTarget.dataset.architectureType === "connector") return;
   if (connectorTool) return;
   const ref = event.currentTarget.dataset.editorRef;
   if (!ref) return;
-  selectedRef = ref;
-  const placement = architecture.describe(ref);
-  if (!placement.movable) {
-    announce(`${ref} cannot move because it is managed by a layout.`, "error");
-    renderAll();
-    return;
-  }
   event.preventDefault();
   event.stopPropagation();
-  event.currentTarget.setPointerCapture?.(event.pointerId);
-  event.currentTarget.classList.add("editor-drag-target");
+  event.currentTarget.focus({ preventScroll: true });
+  if (!selectedRefs.has(ref)) selectOnly(ref);
+  viewport.setPointerCapture?.(event.pointerId);
+  const roots = selectionRoots();
+  const targets = architecture.model.elements.filter((element) =>
+    element.type !== "connector" && roots.some((root) =>
+      root === element || element.sourcePath.startsWith(`${root.sourcePath}.children[`),
+    ),
+  ).map((element) => surface.querySelector(
+    `[data-editor-ref="${CSS.escape(element.id)}"]`,
+  )).filter(Boolean);
+  for (const target of targets) target.classList.add("editor-drag-target");
+  for (const node of surface.querySelectorAll("[data-editor-ref]")) {
+    node.dataset.editorSelected = String(selectedRefs.has(node.dataset.editorRef));
+  }
+  surface.querySelectorAll(".editor-resize-handle").forEach((handle) => handle.remove());
+  renderTree();
+  renderInspector();
+  refreshToolbar();
   viewport.classList.add("is-dragging");
   drag = {
     kind: "move",
     ref,
-    target: event.currentTarget,
-    captureTarget: event.currentTarget,
-    baseTransform: event.currentTarget.getAttribute("transform"),
+    refs: [...selectedRefs],
+    roots,
+    targets: targets.map((target) => ({ target, baseTransform: target.getAttribute("transform") })),
+    captureTarget: viewport,
     pointerId: event.pointerId,
     startX: event.clientX,
     startY: event.clientY,
+    startPoint: architecturePoint(event.clientX, event.clientY),
+    moved: false,
     dx: 0,
     dy: 0,
   };
 }
 
 function beginResize(event) {
+  if (event.button !== 0 || spacePressed || selectedRefs.size !== 1) return;
   event.preventDefault();
   event.stopPropagation();
   const ref = event.currentTarget.dataset.ref;
@@ -1572,6 +1757,7 @@ function beginResize(event) {
     pointerId: event.pointerId,
     startX: event.clientX,
     startY: event.clientY,
+    startPoint: architecturePoint(event.clientX, event.clientY),
     box: { x: element.x, y: element.y, width: element.width, height: element.height },
     targets: targets.map((target) => ({
       target,
@@ -1580,7 +1766,30 @@ function beginResize(event) {
     captureTarget: event.currentTarget,
     dx: 0,
     dy: 0,
+    moved: false,
   };
+}
+
+function moveDelta(roots, dx, dy, snapping = true) {
+  const blocked = roots.find((root) => !architecture.describe(root.id).movable);
+  if (blocked || !roots.length) return { dx: 0, dy: 0 };
+  const x = Math.min(...roots.map((root) => root.x));
+  const y = Math.min(...roots.map((root) => root.y));
+  if (snapping) {
+    dx = snap(x + dx) - x;
+    dy = snap(y + dy) - y;
+  }
+  for (const axis of ["x", "y"]) {
+    const positions = roots.map((root) =>
+      root[axis] - architecture.describe(root.id).origin[axis],
+    );
+    const value = axis === "x" ? dx : dy;
+    const clamped = Math.max(-4000 - Math.min(...positions),
+      Math.min(4000 - Math.max(...positions), value));
+    if (axis === "x") dx = clamped;
+    else dy = clamped;
+  }
+  return { dx, dy };
 }
 
 function resizedBox(pending, shouldSnap) {
@@ -1612,16 +1821,18 @@ function restoreTransform(target, transform) {
 
 function renderDragPreview() {
   dragFrame = 0;
-  if (!drag) return;
+  if (!drag || !drag.moved) return;
   if (drag.kind === "move") {
-    const translation = `translate(${drag.dx} ${drag.dy})`;
-    drag.target.setAttribute(
-      "transform",
-      drag.baseTransform ? `${drag.baseTransform} ${translation}` : translation,
-    );
+    const { dx, dy } = moveDelta(drag.roots, drag.dx, drag.dy);
+    const translation = `translate(${dx} ${dy})`;
+    for (const item of drag.targets) {
+      item.target.setAttribute(
+        "transform", item.baseTransform ? `${item.baseTransform} ${translation}` : translation,
+      );
+    }
     return;
   }
-  const next = resizedBox(drag, false);
+  const next = resizedBox(drag, true);
   const sx = next.width / drag.box.width;
   const sy = next.height / drag.box.height;
   const tx = next.x - drag.box.x * sx;
@@ -1639,8 +1850,10 @@ function updateDrag(event) {
   if (!drag || event.pointerId !== drag.pointerId) return;
   const svg = surface.querySelector("svg");
   const scale = viewBoxScale(svg);
-  drag.dx = (event.clientX - drag.startX) / scale.x;
-  drag.dy = (event.clientY - drag.startY) / scale.y;
+  const point = architecturePoint(event.clientX, event.clientY);
+  drag.dx = point && drag.startPoint ? point.x - drag.startPoint.x : (event.clientX - drag.startX) / scale.x;
+  drag.dy = point && drag.startPoint ? point.y - drag.startPoint.y : (event.clientY - drag.startY) / scale.y;
+  if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 3) drag.moved = true;
   if (!dragFrame) dragFrame = requestAnimationFrame(renderDragPreview);
 }
 
@@ -1653,8 +1866,9 @@ function settleElement(ref) {
   });
 }
 
-function finishDrag(event) {
+function finishDrag(event, cancelled = false) {
   if (!drag || event.pointerId !== drag.pointerId) return;
+  if (!cancelled) updateDrag(event);
   const pending = drag;
   drag = null;
   if (dragFrame) {
@@ -1662,28 +1876,125 @@ function finishDrag(event) {
     dragFrame = 0;
   }
   viewport.classList.remove("is-dragging");
+  suppressCanvasClick = true;
   if (pending.captureTarget?.hasPointerCapture?.(pending.pointerId)) {
     pending.captureTarget.releasePointerCapture(pending.pointerId);
-  }
-  if (pending.kind === "move") {
-    pending.target.classList.remove("editor-drag-target");
-    restoreTransform(pending.target, pending.baseTransform);
-    const dx = snap(pending.dx);
-    const dy = snap(pending.dy);
-    if (dx || dy) {
-      if (applyResult(architecture.move(pending.ref, dx, dy))) settleElement(pending.ref);
-    }
-    return;
   }
   for (const item of pending.targets) {
     item.target.classList.remove("editor-drag-target");
     restoreTransform(item.target, item.baseTransform);
+  }
+  if (cancelled || !pending.moved) {
+    if (!cancelled && pending.kind === "move") selectOnly(pending.ref);
+    renderAll();
+    return;
+  }
+  if (pending.kind === "move") {
+    const blocked = pending.roots.find((root) => !architecture.describe(root.id).movable);
+    if (blocked) {
+      renderAll();
+      announce(`${blocked.id} cannot move because it is managed by a layout.`, "error");
+      return;
+    }
+    const { dx, dy } = moveDelta(pending.roots, pending.dx, pending.dy);
+    if (dx || dy) {
+      if (applyResult(architecture.moveMany(pending.refs, dx, dy))) {
+        pending.roots.forEach((root) => settleElement(root.id));
+      }
+    } else renderAll();
+    return;
   }
   const next = resizedBox(pending, true);
   const changed = Object.entries(next).some(
     ([key, value]) => value !== pending.box[key],
   );
   if (changed && applyResult(architecture.resize(pending.ref, next))) settleElement(pending.ref);
+  else renderAll();
+}
+
+function beginMarquee(event) {
+  const point = architecturePoint(event.clientX, event.clientY);
+  if (!point) return;
+  event.preventDefault();
+  const rect = document.createElementNS(SVG_NS, "rect");
+  rect.classList.add("editor-marquee");
+  rect.setAttribute("aria-hidden", "true");
+  surface.querySelector("svg").appendChild(rect);
+  marquee = {
+    pointerId: event.pointerId,
+    point,
+    clientX: event.clientX,
+    clientY: event.clientY,
+    startX: event.clientX,
+    startY: event.clientY,
+    initial: [...selectedRefs],
+    primary: selectedRef,
+    additive: event.ctrlKey || event.metaKey,
+    rect,
+    moved: false,
+  };
+  viewport.setPointerCapture?.(event.pointerId);
+  viewport.classList.add("is-selecting");
+}
+
+function updateMarquee(event) {
+  if (!marquee || marquee.pointerId !== event.pointerId) return;
+  marquee.clientX = event.clientX;
+  marquee.clientY = event.clientY;
+  const point = architecturePoint(event.clientX, event.clientY);
+  if (!point) return;
+  if (Math.hypot(event.clientX - marquee.startX, event.clientY - marquee.startY) > 3) marquee.moved = true;
+  if (!marquee.moved) return;
+  const x = Math.min(point.x, marquee.point.x);
+  const y = Math.min(point.y, marquee.point.y);
+  const right = Math.max(point.x, marquee.point.x);
+  const bottom = Math.max(point.y, marquee.point.y);
+  for (const [key, value] of Object.entries({ x, y, width: right - x, height: bottom - y })) {
+    marquee.rect.setAttribute(key, String(value));
+  }
+  const refs = architecture.model.elements.filter((element) =>
+    element.type !== "connector" && element.x >= x && element.y >= y &&
+      element.x + element.width <= right && element.y + element.height <= bottom,
+  ).map((element) => element.id);
+  setSelection(marquee.additive ? [...marquee.initial, ...refs] : refs);
+  for (const node of surface.querySelectorAll("[data-editor-ref]")) {
+    node.dataset.editorSelected = String(selectedRefs.has(node.dataset.editorRef));
+  }
+  for (const node of tree.querySelectorAll("[data-ref]")) {
+    node.setAttribute("aria-selected", String(selectedRefs.has(node.dataset.ref)));
+  }
+}
+
+function finishMarquee(event, cancelled = false) {
+  if (!marquee || marquee.pointerId !== event.pointerId) return;
+  if (!cancelled) updateMarquee(event);
+  const pending = marquee;
+  marquee = null;
+  pending.rect.remove();
+  viewport.classList.remove("is-selecting");
+  suppressCanvasClick = true;
+  if (viewport.hasPointerCapture?.(pending.pointerId)) viewport.releasePointerCapture(pending.pointerId);
+  if (cancelled) setSelection(pending.initial, pending.primary);
+  else if (!pending.moved && !pending.additive) selectOnly(null);
+  renderAll();
+  if (!cancelled) {
+    const target = selectedRef
+      ? surface.querySelector(`[data-editor-ref="${CSS.escape(selectedRef)}"]`)
+      : viewport;
+    target?.focus({ preventScroll: true });
+    announce(`${selectedRefs.size} elements selected.`);
+  }
+}
+
+function cancelGestures() {
+  if (drag) finishDrag({ pointerId: drag.pointerId }, true);
+  if (marquee) finishMarquee({ pointerId: marquee.pointerId }, true);
+  if (pan) {
+    const pending = pan;
+    pan = null;
+    viewport.classList.remove("is-panning");
+    if (viewport.hasPointerCapture?.(pending.pointerId)) viewport.releasePointerCapture(pending.pointerId);
+  }
 }
 
 function onElementKeyDown(event) {
@@ -1700,6 +2011,7 @@ function onElementKeyDown(event) {
   }
   if (event.key.startsWith("Arrow") && modelFor(ref)?.type !== "connector") {
     event.preventDefault();
+    if (!selectedRefs.has(ref)) selectOnly(ref);
     const step = event.shiftKey ? 1 : SNAP_SIZE;
     const delta = {
       ArrowLeft: [-step, 0],
@@ -1707,7 +2019,16 @@ function onElementKeyDown(event) {
       ArrowUp: [0, -step],
       ArrowDown: [0, step],
     }[event.key];
-    if (delta) applyResult(architecture.move(ref, delta[0], delta[1]));
+    if (delta) {
+      const roots = selectionRoots();
+      const blocked = roots.find((root) => !architecture.describe(root.id).movable);
+      if (blocked) {
+        announce(`${blocked.id} cannot move because it is managed by a layout.`, "error");
+        return;
+      }
+      const { dx, dy } = moveDelta(roots, delta[0], delta[1], !event.shiftKey);
+      applyResult(architecture.moveMany([...selectedRefs], dx, dy));
+    }
   }
 }
 
@@ -1774,6 +2095,7 @@ async function reloadFromMarkdown() {
 }
 
 function setZoom(value, { fit = false } = {}) {
+  cancelGestures();
   zoom = Math.min(2.5, Math.max(0.3, value));
   fitToViewport = fit;
   renderSurface();
@@ -1849,29 +2171,37 @@ function addPosition(point, parentId, width, height) {
 }
 
 function invokeAction(action, context = {}) {
+  cancelGestures();
   const ref = Object.hasOwn(context, "ref") ? context.ref : selectedRef;
+  if (selectedRefs.size > 1 &&
+      ["order-front", "order-back", "release-layout", "set-layout", "start-connector"].includes(action)) {
+    announce("Select a single element for this action.", "error");
+    return;
+  }
   if (action === "undo") {
+    setSelection([...selectedRefs].filter((item) => modelFor(item)?.type !== "connector"));
     applyResult(architecture.undo(), { quiet: true });
   } else if (action === "redo") {
+    setSelection([...selectedRefs].filter((item) => modelFor(item)?.type !== "connector"));
     applyResult(architecture.redo(), { quiet: true });
   } else if (action === "toggle-shape-palette") {
     if (shapePalette.hidden) openShapePalette();
     else closeShapePalette({ restoreFocus: true });
   } else if (action === "add-node") {
-    const parentId = entryFor(ref)?.element.type === "group" ? ref : null;
+    const parentId = selectedRefs.size <= 1 && entryFor(ref)?.element.type === "group" ? ref : null;
     applyResult(architecture.addNode({
       parentId,
       shape: SHAPES.includes(context.shape) ? context.shape : "rounded-rect",
       ...addPosition(context.point, parentId, 260, 140),
     }));
   } else if (action === "add-group") {
-    const parentId = entryFor(ref)?.element.type === "group" ? ref : null;
+    const parentId = selectedRefs.size <= 1 && entryFor(ref)?.element.type === "group" ? ref : null;
     applyResult(architecture.addGroup({
       parentId,
       ...addPosition(context.point, parentId, 520, 320),
     }));
   } else if (action === "add-image") {
-    const parentId = entryFor(ref)?.element.type === "group" ? ref : null;
+    const parentId = selectedRefs.size <= 1 && entryFor(ref)?.element.type === "group" ? ref : null;
     openAssetPicker({
       mode: "add-image",
       parentId,
@@ -1885,15 +2215,20 @@ function invokeAction(action, context = {}) {
   } else if (action === "start-connector" && ref) {
     const element = modelFor(ref);
     if (!element || element.type === "connector") return;
-    selectedRef = ref;
+    selectOnly(ref);
     connectorTool = { from: element.id };
     announce(`Set ${element.id} as the source. Select a target.`);
     renderAll();
   } else if (action === "duplicate" && ref) {
-    applyResult(architecture.duplicate(ref));
+    applyResult(selectedRefs.size > 1
+      ? architecture.duplicateMany([...selectedRefs])
+      : architecture.duplicate(ref));
   } else if (action === "delete" && ref) {
-    const deleted = ref;
-    if (applyResult(architecture.remove(ref), { select: null })) {
+    const deleted = selectedRefs.size > 1 ? `${selectedRefs.size} elements` : ref;
+    const result = selectedRefs.size > 1
+      ? architecture.removeMany([...selectedRefs])
+      : architecture.remove(ref);
+    if (applyResult(result, { select: null })) {
       announce(`Deleted ${deleted}.`);
     }
   } else if (action === "release-layout" && ref) {
@@ -1923,7 +2258,8 @@ function wireControls() {
   document.querySelectorAll("[data-action]").forEach((button) => {
     button.addEventListener("click", () => {
       const insideMore = toolbarMoreMenu.contains(button);
-      if (insideMore) closeToolbarMore({ restoreFocus: true });
+      const keepMoreOpen = ["zoom-out", "zoom-in"].includes(button.dataset.action);
+      if (insideMore && !keepMoreOpen) closeToolbarMore({ restoreFocus: true });
       invokeAction(
         button.dataset.action,
         insideMore ? { returnFocus: toolbarMoreButton } : {},
@@ -2019,7 +2355,12 @@ function wireControls() {
   });
   document.addEventListener("pointermove", updateDrag);
   document.addEventListener("pointerup", finishDrag);
-  document.addEventListener("pointercancel", finishDrag);
+  document.addEventListener("pointercancel", (event) => finishDrag(event, true));
+  document.addEventListener("lostpointercapture", (event) => finishDrag(event, true));
+  document.addEventListener("pointermove", updateMarquee);
+  document.addEventListener("pointerup", finishMarquee);
+  document.addEventListener("pointercancel", (event) => finishMarquee(event, true));
+  document.addEventListener("lostpointercapture", (event) => finishMarquee(event, true));
   assetSearch.addEventListener("input", renderAssetLibrary);
   assetImportButton.addEventListener("click", () => assetFileInput.click());
   assetFileInput.addEventListener("change", () => {
@@ -2126,12 +2467,20 @@ function wireControls() {
       origin: "canvas",
     });
   });
+  viewport.addEventListener("pointerdown", () => { suppressCanvasClick = false; }, true);
   viewport.addEventListener("pointerdown", (event) => {
     const interactiveTarget = event.target.closest(
       "[data-editor-ref], .editor-resize-handle, button, input, select, textarea, a",
     );
+    const bounds = viewport.getBoundingClientRect();
+    if (event.clientX >= bounds.left + viewport.clientWidth ||
+        event.clientY >= bounds.top + viewport.clientHeight) return;
     const primaryBlankDrag = event.button === 0 && !interactiveTarget;
-    if (event.button !== 1 && !(event.button === 0 && spacePressed) && !primaryBlankDrag) return;
+    const panning = event.button === 1 || (event.button === 0 && spacePressed);
+    if (!panning) {
+      if (primaryBlankDrag) beginMarquee(event);
+      return;
+    }
     event.preventDefault();
     viewport.setPointerCapture?.(event.pointerId);
     pan = {
@@ -2140,7 +2489,6 @@ function wireControls() {
       y: event.clientY,
       left: viewport.scrollLeft,
       top: viewport.scrollTop,
-      moved: false,
     };
     viewport.classList.add("is-panning");
   });
@@ -2148,13 +2496,12 @@ function wireControls() {
     if (!pan || pan.pointerId !== event.pointerId) return;
     const dx = event.clientX - pan.x;
     const dy = event.clientY - pan.y;
-    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) pan.moved = true;
     viewport.scrollLeft = pan.left - dx;
     viewport.scrollTop = pan.top - dy;
   });
   const finishPan = (event) => {
     if (!pan || pan.pointerId !== event.pointerId) return;
-    suppressCanvasClick = pan.moved;
+    suppressCanvasClick = true;
     pan = null;
     viewport.classList.remove("is-panning");
     if (viewport.hasPointerCapture?.(event.pointerId)) {
@@ -2165,7 +2512,7 @@ function wireControls() {
   viewport.addEventListener("pointercancel", finishPan);
   viewport.addEventListener("lostpointercapture", (event) => {
     if (pan?.pointerId !== event.pointerId) return;
-    suppressCanvasClick = pan.moved;
+    suppressCanvasClick = true;
     pan = null;
     viewport.classList.remove("is-panning");
   });
@@ -2175,6 +2522,9 @@ function wireControls() {
     event.preventDefault();
     event.stopPropagation();
   }, true);
+  viewport.addEventListener("auxclick", (event) => {
+    if (event.button === 1) event.preventDefault();
+  });
   viewport.addEventListener("scroll", () => closeContextMenu(), { passive: true });
   tree.closest(".editor-sidebar")?.addEventListener("scroll", () => closeContextMenu(), {
     passive: true,
@@ -2191,9 +2541,18 @@ function wireControls() {
   window.addEventListener("keydown", (event) => {
     if (assetDialog.open) return;
     const editable = ["INPUT", "TEXTAREA", "SELECT"].includes(event.target.tagName);
-    if (event.code === "Space" && !editable) spacePressed = true;
+    if (event.code === "Space" && !editable) {
+      spacePressed = true;
+      if (viewport.contains(event.target) || tree.contains(event.target) ||
+          event.target === document.body) event.preventDefault();
+    }
     const modifier = event.ctrlKey || event.metaKey;
     const key = event.key.toLowerCase();
+    if (event.key === "Escape" && (drag || marquee || pan)) {
+      event.preventDefault();
+      cancelGestures();
+      return;
+    }
     if (event.key === "Escape" && !toolbarMoreMenu.hidden) {
       event.preventDefault();
       closeToolbarMore({ restoreFocus: true });
@@ -2230,7 +2589,7 @@ function wireControls() {
       invokeAction("delete");
     } else if (event.key === "Escape") {
       connectorTool = null;
-      selectedRef = null;
+      selectOnly(null);
       renderAll();
     }
   });
@@ -2238,7 +2597,11 @@ function wireControls() {
     if (event.code === "Space") spacePressed = false;
   });
   window.addEventListener("resize", () => closeContextMenu(), { passive: true });
-  window.addEventListener("blur", () => closeContextMenu());
+  window.addEventListener("blur", () => {
+    spacePressed = false;
+    cancelGestures();
+    closeContextMenu();
+  });
   window.addEventListener("beforeunload", (event) => {
     if (!dirty) return;
     event.preventDefault();
@@ -2263,7 +2626,8 @@ async function refreshState() {
     targetGeneration = stateGeneration;
     draftRevision = stateRevision;
     architecture = createArchitectureDocument(state.source);
-    selectedRef = null;
+    cancelGestures();
+    selectOnly(null);
     setDirty(state.dirty);
     renderAll();
     return;
@@ -2276,7 +2640,8 @@ async function refreshState() {
   draftRevision = stateRevision;
   if (!architecture || architecture.source !== state.source) {
     architecture = createArchitectureDocument(state.source);
-    selectedRef = null;
+    cancelGestures();
+    selectOnly(null);
     setDirty(state.dirty);
     renderAll();
   } else {
