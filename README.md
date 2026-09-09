@@ -68,12 +68,12 @@ for supported elements and fallback details.
 ## Use the canvas Extension
 
 When you open this repository as a project, `.github/extensions/markdstage/` loads at project
-scope. To install the current **[v3.7.0 release](https://github.com/runceel/markdstage/releases/tag/v3.7.0)**
+scope. To install the current **[v3.8.0 release](https://github.com/runceel/markdstage/releases/tag/v3.8.0)**
 at user scope in another repository, ask GitHub Copilot:
 
 > Install MarkdStage at user scope from the following GitHub repository folder.
 >
-> `https://github.com/runceel/markdstage/tree/v3.7.0/.github/extensions/markdstage`
+> `https://github.com/runceel/markdstage/tree/v3.8.0/.github/extensions/markdstage`
 
 The Extension runs local code in the user's environment. Review its contents before installation,
 and use a trusted release tag or commit SHA for a reproducible install. The `main` branch tracks
@@ -202,11 +202,11 @@ from a file picker. It displays the current and next slides with the current sli
 and launches a synchronized native presentation window without GitHub Copilot.
 
 It requires Windows and the Microsoft Edge WebView2 Runtime. The current
-**[v3.7.0 release](https://github.com/runceel/markdstage/releases/tag/v3.7.0)** includes portable
+**[v3.8.0 release](https://github.com/runceel/markdstage/releases/tag/v3.8.0)** includes portable
 builds and SHA-256 checksum files for Windows x64 and ARM64:
 
-- [MarkdStage-win-x64.zip](https://github.com/runceel/markdstage/releases/download/v3.7.0/MarkdStage-win-x64.zip)
-- [MarkdStage-win-arm64.zip](https://github.com/runceel/markdstage/releases/download/v3.7.0/MarkdStage-win-arm64.zip)
+- [MarkdStage-win-x64.zip](https://github.com/runceel/markdstage/releases/download/v3.8.0/MarkdStage-win-x64.zip)
+- [MarkdStage-win-arm64.zip](https://github.com/runceel/markdstage/releases/download/v3.8.0/MarkdStage-win-arm64.zip)
 
 Extract the whole folder, run `MarkdStageApp.exe`, and open your Markdown file.
 
