@@ -133,8 +133,9 @@ The themed slide is displayed and updates automatically
   The snapshot includes a temporary `show_slide` replacement. Prefer one
   whole-deck inspection, or serialize targeted inspections because PDF, layout,
   and PNG output jobs are intentionally exclusive. The result contains compact
-  JSON for clipped pages, including vertical/horizontal overflow and bounded
-  element hints. Call `capture_slides` only when visual inspection is needed;
+  JSON for clipped pages and pages containing Architecture diagrams, including
+  vertical/horizontal overflow and bounded element measurements.
+  Call `capture_slides` only when visual inspection is needed;
   PNGs are fixed 1280×720 files and the action returns paths instead of inline
   image data.
 - Open the **external presenter** with **More controls > External window** or

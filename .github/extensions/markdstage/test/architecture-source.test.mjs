@@ -71,3 +71,21 @@ test("invalid source reads preserve primary diagnostics and the canonical valida
     assert.equal(await readFile(file, "utf8"), content);
   });
 });
+
+test("reading and saving auto sizes and coordinate endpoints preserves the original DSL", async () => {
+  const source = JSON.stringify({ elements: [
+    { type: "node", id: "auto", x: 20, y: 30, width: "auto", height: "auto", text: "Auto",
+      style: { textAlign: "left", autoFit: "none" } },
+    { type: "connector", from: { x: 0, y: 0 }, to: "auto" },
+  ] });
+  await withSource(source, async ({ dir, file, content }) => {
+    const loaded = await readArchitectureSourceTarget(dir, "slides.md", 0);
+    assert.equal(loaded.source.trimEnd(), source);
+    const saved = await saveArchitectureSource({
+      workspaceRoot: dir, sourcePath: "slides.md", sourceFile: file, blockIndex: 0,
+      source: loaded.source, expectedMarkdown: content,
+    });
+    assert.equal(saved.ok, true);
+    assert.equal(await readFile(file, "utf8"), content);
+  });
+});

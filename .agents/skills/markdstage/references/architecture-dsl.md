@@ -76,6 +76,10 @@ When writing explicit JSON, `elements` is required by the JSON Schema.
   `rounded-rect`, `ellipse`, `diamond`, `triangle`, `hexagon`, or
   `parallelogram`. These additive shape values remain Architecture DSL v1 and
   export as native PowerPoint shapes.
+  Node `width` and `height` also accept `"auto"` to hug estimated text and icon
+  content, including padding and shape insets. Either dimension can be automatic;
+  group and image dimensions remain numeric. Automatic node sizes are resolved
+  before group placement and must fit the available layout cell.
 - `icon` is a built-in name or a path under an adjacent or workspace-root
   `assets/` folder. See [Icons](#icons).
 - An `image` places an `assets/` image as an independent element. `fit` is
@@ -88,6 +92,10 @@ When writing explicit JSON, `elements` is required by the JSON Schema.
   from group interior size plus `gap` or `rowGap` / `columnGap`, `padding`, and
   `columns`. `layered` uses dependency direction. These are deterministic
   presentation helpers, not general graph auto-layout.
+  A grid can specify `columnWidths` as positive ratios, for example
+  `{ "type": "grid", "columns": 3, "columnWidths": [1, 2, 1] }`.
+  The ratios divide the space remaining after padding and column gaps, and the
+  array length must match `columns` (default `3`). Other layouts reject this field.
 - A `connector` attaches to `from` / `to` boundaries and supports `straight`,
   `orthogonal`, and `polyline`, arrows, and labels. Ports are `auto`, `top`,
   `right`, `bottom`, or `left`. Parallel edges receive stable lanes, and
@@ -100,17 +108,83 @@ When writing explicit JSON, `elements` is required by the JSON Schema.
   A label that would hide its own line is moved perpendicular to it.
   `labelLayer: "front"` (default) draws labels in front of boxes; `"behind"`
   leaves them in connector z-order.
+  Either endpoint may instead be a coordinate point, such as
+  `{ "type": "connector", "from": { "x": 40, "y": 100 },
+  "to": { "x": 800, "y": 100 }, "arrow": false,
+  "style": { "dash": "10 6" } }`.
+  Points are relative to the containing group, do not need dummy nodes, and
+  anchor exactly at their coordinates without the node-boundary gap. Points and
+  element IDs can be mixed. Use these connectors for rules, underlines, arrows,
+  and callouts. A stroked `rect` with width or height at most 2 still renders
+  its rectangular outline; a diagnostic recommends a coordinate connector to
+  avoid doubled strokes.
 - Elements render from smaller `z` (`-100` to `100`) to larger, preserving
   declaration order for equal values. Defaults are group `-50`, connector
   `-10`, and node/image `0`, giving container → line → box order. Connector `z`
   applies to its line and `"behind"` label; `"front"` labels use a final layer.
 - `style` supports `fill`, `stroke`, `textColor`, `strokeWidth`, `fontSize`,
-  `opacity`, `dash`, and `cornerRadius`. Prefer theme tokens `accent`,
+  `opacity`, `dash`, `cornerRadius`, and the text controls below. Prefer theme tokens `accent`,
   `accentStrong`, `accentSoft`, `accentLine`, `surface`, `fg`, `muted`, `body`,
   `border`, and `bg`. Literal colors are limited to hex, white, black, and
   transparent. Omit `dash` (or use an empty value) for a solid line, use
   `"dash": "1 5"` for a dotted line, or provide another space-separated numeric
   pattern such as `"10 6"` for dashed/custom output.
+
+### Text sizing and alignment
+
+| Style | Values / default |
+| --- | --- |
+| `textAlign` | Node text: `left`, `center` (default), `right` |
+| `verticalAlign` | Node text: `top`, `middle` (default), `bottom` |
+| `autoFit` | `shrink` (default) reduces estimated text width to fit; `none` retains the requested font size |
+| `padding` | Node inset, 0–400 logical pixels; default `16` |
+| `fontWeight` | 100–900; default `600` for nodes, `700` for group titles |
+| `fontFamily` | Font family or fallback list; defaults to the theme font; install the font on the rendering system |
+| `lineHeight` | Line-height multiplier, 0.5–4; default `1.2` |
+
+For example, a left-aligned label can use
+`"style": { "textAlign": "left", "verticalAlign": "top", "padding": 8,
+"autoFit": "none", "fontWeight": 400, "lineHeight": 1.4 }`.
+These controls are preserved in SVG and editable PowerPoint output.
+
+Auto-fit uses a deterministic width estimate, not browser font measurement.
+For an icon-free rectangle, rounded rectangle, or ellipse with default padding,
+the available width is `max(32, width - 32)`. Shrinking is unnecessary when
+`fontSize × estimatedLineWidth <= availableWidth`. Character width units are
+1 for non-ASCII, 0.35 for whitespace and narrow characters, 0.95 for
+`mwMW@#%&`, 0.72 for other uppercase ASCII, and 0.6 otherwise.
+Diamond/triangle insets are at least `width × 0.24`, hexagon `width × 0.14`,
+and parallelogram `width × 0.16`; explicit padding cannot remove these shape
+protections. Icons consume additional horizontal space.
+
+Node text renders at most **8 newline-separated lines**. Extra lines are
+retained in the source but omitted visually. Validation reports text shrinking,
+overflow, and truncation as warnings, including requested and effective font
+sizes where applicable. Use `autoFit: "none"` to prevent unexpected shrinking,
+then inspect the rendered output for actual glyph bounds. Automatic sizing is
+also estimate-based and does not guarantee that every installed font will fit.
+
+### Measured Architecture layout
+
+`inspect_layout` (clean Architecture slides are included by default), CLI
+`inspect --all --json`, and capture layout reports include Architecture measurements:
+
+- `elements` entries with `kind: "architecture"`, `blockIndex`, `id`, `type`,
+  and a measured `bbox` (`x`, `y`, `width`, `height`) in fixed-slide pixels.
+- Text `fontSize` in rendered slide pixels, plus `requestedFontSize` and
+  `effectiveFontSize` in diagram logical pixels. `shrunk` and `truncated`
+  distinguish fitting changes from the diagram's overall scaling.
+- `architecture` block summaries with `effectiveScale`, measured `bbox`,
+  `elementCount`, and `reportedElementCount`. A scale of `0.5` maps 24 logical
+  font pixels to 12 slide pixels.
+
+Measurements are bounded; compare element counts and `architectureBlockCount`
+to detect omitted detail. These are browser measurements of the rendered output,
+not a substitute for schema validation or a guarantee that a requested font is
+installed.
+
+### Validation and limits
+
 - Invalid JSON, out-of-range numbers, duplicate IDs, unknown references, and
   unsupported elements, styles, or colors render an inline diagram error while
   preserving other slide content. DSL values never generate HTML, script, or

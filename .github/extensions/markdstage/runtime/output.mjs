@@ -13,6 +13,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { getOutputSnapshotSlides } from "../deck-state.mjs";
 import { normalizeTheme } from "../renderer/theme.mjs";
 import { MarkdStageError } from "./errors.mjs";
+import { sanitizeLayoutReport } from "./layout-report.mjs";
 import {
   findChromiumBrowser,
   runCdpOutputBrowser,
@@ -388,18 +389,21 @@ export async function preparePptxPackageModel(
   return { masters, layouts, slides, assets };
 }
 
-async function runLayoutInspectionJob(inst, snapshot, browser) {
+async function runLayoutInspectionJob(inst, snapshot, browser, requestedIndex) {
   const token = randomUUID();
   const profileDir = await mkdtemp(join(tmpdir(), "markdstage-inspect-"));
   const job = createOutputJob(snapshot, "inspect");
   inst.exportJobs.set(token, job);
   try {
-    const pageUrl = pageUrlFor(inst, { print: 1, token });
+    const pageUrl = pageUrlFor(inst, {
+      print: 1, token,
+      ...(requestedIndex === undefined ? {} : { "layout-index": requestedIndex }),
+    });
     await runCdpOutputBrowser(browser, pageUrl, profileDir, job, false);
     if (!job.layout || !Array.isArray(job.layout.slides)) {
       throw new Error("The layout renderer did not return diagnostics.");
     }
-    return job.layout;
+    return sanitizeLayoutReport(job.layout);
   } finally {
     inst.exportJobs.delete(token);
     await rm(profileDir, { recursive: true, force: true }).catch(() => {});
@@ -407,6 +411,7 @@ async function runLayoutInspectionJob(inst, snapshot, browser) {
 }
 
 export function selectLayoutResults(layout, requestedIndex, includeFits) {
+  layout = sanitizeLayoutReport(layout);
   const selected =
     requestedIndex === undefined
       ? layout.slides
@@ -424,7 +429,8 @@ export function selectLayoutResults(layout, requestedIndex, includeFits) {
     inspected: selected.length,
     issueCount,
     hasIssues: issueCount > 0,
-    slides: includeFits ? selected : selected.filter((slide) => slide.pdfClipped),
+    slides: includeFits ? selected : selected.filter((slide) =>
+      slide.pdfClipped || slide.architecture?.length > 0),
   };
 }
 
@@ -463,7 +469,7 @@ export async function inspectLayout(inst, requestedIndex, includeFits = false) {
 
   inst.exporting = true;
   try {
-    const layout = await runLayoutInspectionJob(inst, snapshot, browser);
+    const layout = await runLayoutInspectionJob(inst, snapshot, browser, requestedIndex);
     return selectLayoutResults(layout, requestedIndex, Boolean(includeFits));
   } catch (error) {
     if (error instanceof MarkdStageError) throw error;
@@ -581,7 +587,7 @@ export async function captureSlides(
         }
         await writeFile(temporaryPath, png);
         const image = await verifyPng(temporaryPath);
-        const diagnostic = job.layout.slides[0];
+        const diagnostic = sanitizeLayoutReport(job.layout).slides[0];
         pendingFiles.push({ temporaryPath, outputPath });
         staged = true;
         files.push({

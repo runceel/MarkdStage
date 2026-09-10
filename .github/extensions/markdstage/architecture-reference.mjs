@@ -96,14 +96,14 @@ export function architectureSchemaReference(contract = architectureContract) {
   const lines = [
     "# Architecture DSL v1 authoring reference",
     "",
-    "Schema-derived structural contract. Every permitted field is listed; unspecified fields are optional unless required below. Unknown fields are rejected, including inside style, canvas, point and layout objects. Do not invent aliases or CSS.",
+    "Complete schema-derived fields; optional unless required below. Unknown fields are rejected at every level. Do not invent aliases or CSS.",
     "",
     "## Root",
     `Required: ${JSON.stringify(contract.root.required)}.`,
     propertyList(contract.root.properties),
     "",
     "## Element fields and requirements",
-    "fixed = immediate parent has no layout (including the root). flow = immediate parent group has layout. A group's OWN layout places its children; it does NOT waive that group's fixed box requirements. Grandchildren follow their own parent's layout.",
+    "fixed = immediate parent has no layout (also root); flow = parent has layout. A group's OWN layout places children; it does NOT waive its fixed box requirements.",
     "",
   ];
   for (const [type, element] of Object.entries(contract.elements)) {
@@ -125,21 +125,22 @@ export function architectureSchemaReference(contract = architectureContract) {
   lines.push(
     "",
     "## Authoring rules",
-    'Visible node text uses "text" (use \\n for multiple lines); group headings use "title"; connector annotations use "label". Root "title" is the accessible diagram name. A connector has no "id". Group children are elements.',
-    "Conditional constraints are emitted from Schema alongside the fields and shared values. A field permitted in one routing/layout mode is not automatically permitted in every mode.",
-    "For flow children omit x/y: runtime ignores them. Width/height are optional there and must fit the calculated cells. Use node.icon for built-in icons or assets/ paths; image.src is an asset path, not a URL. Theme tokens adapt; literal colors and image artwork do not.",
+    'node text uses "text" (\\n separates lines); group headings use "title"; connector annotations use "label". Root "title" names the diagram accessibly. A connector has no "id".',
+    "Schema conditional constraints restrict fields by routing/layout mode.",
+    'Flow ignores x/y; optional dimensions must fit cells. Node "auto" dimensions resolve numerically without rewriting source. Grid columnWidths: positive ratios, one per column. node.icon: built-in or assets/ path; image.src: asset path, not URL. Only theme tokens adapt to themes.',
+    'from/to: ID or {x,y} relative to containing group (canvas at root). Points do not follow referenced nodes. style.autoFit: "none" preserves font size; "shrink" may reduce it. textAlign/verticalAlign/padding place node text.',
     "",
     "## Runtime checks",
-    "Schema validity is necessary for authoring, not sufficient for rendering. parseArchitecture also checks unique IDs across the tree, existing non-connector endpoints, no self-links, flattened element/connector/text limits, nesting depth and layout fit. Assets need separate existence/content checks; inspect visual clipping separately. Existing v1 runtime compatibility is preserved: ignored flow x/y and root $schema can differ from the stricter authoring schema. Never resolve $schema at runtime.",
+    "Beyond schema: parseArchitecture checks unique IDs, referenced endpoints, no self-links, flattened element/connector/text limits, depth and layout fit. Check assets and visual clipping separately. v1 runtime accepts ignored flow x/y and root $schema beyond the stricter authoring schema. Never resolve $schema.",
     "",
     "## Complete minimal example",
-    "Two nodes and one connector; no assets or schema URL required. Paste into an architecture fence:",
+    "Two nodes and one connector; paste into an architecture fence:",
     "```architecture",
     JSON.stringify(minimalExample, null, 2),
     "```",
     "",
     "## Details",
-    "Full structural schema: bundled schema/architecture-v1.schema.json (offline editor completion). For layout semantics, constraints, examples and editing request markdstage_guide topic=architecture-dsl; this compact contract is topic=architecture-schema. See schema/README.md for schema/runtime differences and v1 compatibility.",
+    "Offline schema: schema/architecture-v1.schema.json. Layouts, examples and editing: markdstage_guide topic=architecture-dsl; this contract: topic=architecture-schema. schema/README.md covers schema/runtime differences and v1 compatibility.",
   );
   const reference = lines.join("\n");
   const bytes = new TextEncoder().encode(reference).byteLength;

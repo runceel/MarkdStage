@@ -3,18 +3,18 @@
 
 # Architecture DSL v1 authoring reference
 
-Schema-derived structural contract. Every permitted field is listed; unspecified fields are optional unless required below. Unknown fields are rejected, including inside style, canvas, point and layout objects. Do not invent aliases or CSS.
+Complete schema-derived fields; optional unless required below. Unknown fields are rejected at every level. Do not invent aliases or CSS.
 
 ## Root
 Required: ["elements"].
 "$schema": string; "version": 1; "canvas": canvas; "title": string maxLength=200; "description": string maxLength=1000; "elements": array<element> maxItems=200
 
 ## Element fields and requirements
-fixed = immediate parent has no layout (including the root). flow = immediate parent group has layout. A group's OWN layout places its children; it does NOT waive that group's fixed box requirements. Grandchildren follow their own parent's layout.
+fixed = immediate parent has no layout (also root); flow = parent has layout. A group's OWN layout places children; it does NOT waive its fixed box requirements.
 
 ### node
 Required fixed: ["type","id","x","y","width","height"]; flow: ["type","id"].
-"type": "node"; "id": identifier; "shape": "rect"|"rounded-rect"|"ellipse"|"diamond"|"triangle"|"hexagon"|"parallelogram"; "x": coordinate; "y": coordinate; "width": extent; "height": extent; "text": string maxLength=500; "icon": icon; "ariaLabel": string maxLength=300; "z": zIndex; "style": style
+"type": "node"; "id": identifier; "shape": "rect"|"rounded-rect"|"ellipse"|"diamond"|"triangle"|"hexagon"|"parallelogram"; "x": coordinate; "y": coordinate; "width": nodeExtent; "height": nodeExtent; "text": string maxLength=500; "icon": icon; "ariaLabel": string maxLength=300; "z": zIndex; "style": style
 
 ### group
 Required fixed: ["type","id","x","y","width","height"]; flow: ["type","id"].
@@ -27,37 +27,39 @@ Required fixed: ["type","id","src","x","y","width","height"]; flow: ["type","id"
 
 ### connector
 Required fixed: ["type","from","to"]; flow: ["type","from","to"].
-"type": "connector"; "from": identifier; "to": identifier; "fromPort": "auto"|"top"|"right"|"bottom"|"left"; "toPort": "auto"|"top"|"right"|"bottom"|"left"; "label": string maxLength=200; "labelLayer": "front"|"behind" default="front"; "ariaLabel": string maxLength=300; "routing": "straight"|"orthogonal"|"polyline"; "points": array<point> maxItems=12; "arrow": boolean; "lane": number minimum=-12 maximum=12; "z": zIndex; "style": style
+"type": "connector"; "from": (identifier | point); "to": (identifier | point); "fromPort": "auto"|"top"|"right"|"bottom"|"left"; "toPort": "auto"|"top"|"right"|"bottom"|"left"; "label": string maxLength=200; "labelLayer": "front"|"behind" default="front"; "ariaLabel": string maxLength=300; "routing": "straight"|"orthogonal"|"polyline"; "points": array<point> maxItems=12; "arrow": boolean; "lane": number minimum=-12 maximum=12; "z": zIndex; "style": style
 Conditional constraints: if={"properties":{"routing":{"const":"polyline"}},"required":["routing"],"type":"object"} else={"properties":{"points":{"maxItems":0,"type":"array"}},"type":"object"}.
 
 ## Shared value schemas
 - canvas: object{"width": number minimum=320 maximum=4000; "height": number minimum=180 maximum=4000} additionalProperties=false
 - identifier: string pattern="^[A-Za-z][A-Za-z0-9_.-]{0,63}$"
 - coordinate: number minimum=-4000 maximum=4000
-- extent: number minimum=1 maximum=4000
+- nodeExtent: (extent | "auto")
 - icon: (iconName | assetPath)
 - zIndex: number minimum=-100 maximum=100
-- style: object{"fill": color; "stroke": color; "textColor": color; "strokeWidth": number minimum=0.5 maximum=20; "fontSize": number minimum=8 maximum=160; "opacity": number minimum=0 maximum=1; "dash": string maxLength=40 pattern="^$|^\\d+(?:\\.\\d+)?(?:[ ,]+\\d+(?:\\.\\d+)?)*$"; "cornerRadius": number minimum=0 maximum=200} additionalProperties=false
+- style: object{"fill": color; "stroke": color; "textColor": color; "strokeWidth": number minimum=0.5 maximum=20; "fontSize": number minimum=8 maximum=160; "textAlign": "left"|"center"|"right"; "verticalAlign": "top"|"middle"|"bottom"; "autoFit": "shrink"|"none"; "padding": number minimum=0 maximum=400; "fontWeight": number minimum=100 maximum=900; "fontFamily": string minLength=1 maxLength=200 pattern="^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$"; "lineHeight": number minimum=0.5 maximum=4; "opacity": number minimum=0 maximum=1; "dash": string maxLength=40 pattern="^$|^\\d+(?:\\.\\d+)?(?:[ ,]+\\d+(?:\\.\\d+)?)*$"; "cornerRadius": number minimum=0 maximum=200} additionalProperties=false
+- extent: number minimum=1 maximum=4000
 - layout: ("row"|"column"|"grid"|"layered" | layoutObject)
 - groupChildrenL1: if={"required":["layout"],"type":"object"} then={"properties":{"children":{"items":{"$ref":"#/$defs/elementFlowL1"},"type":"array"}},"type":"object"} else={"properties":{"children":{"items":{"$ref":"#/$defs/elementFixedL1"},"type":"array"}},"type":"object"}
 - assetPath: string maxLength=200 pattern="^assets/(?:[A-Za-z0-9][A-Za-z0-9_-]*(?:\\.[A-Za-z0-9_-]+)*/)*[A-Za-z0-9][A-Za-z0-9_-]*(?:\\.[A-Za-z0-9_-]+)*\\.(?:[Ss][Vv][Gg]|[Pp][Nn][Gg]|[Ww][Ee][Bb][Pp]|[Jj][Pp][Gg]|[Jj][Pp][Ee][Gg])$"
 - point: object{"x": coordinate; "y": coordinate} additionalProperties=false required=["x","y"]
 - iconName ("builtIn"): "cloud"|"database"|"api"|"user"|"server"|"analytics"|"browser"|"mobile"|"network"|"queue"|"shield"
 - color: (themeToken | literalColor)
-- layoutObject: object{"type": "row"|"column"|"grid"|"layered"; "gap": number minimum=0 maximum=240; "rowGap": number minimum=0 maximum=240; "columnGap": number minimum=0 maximum=240; "padding": number minimum=0 maximum=400; "columns": number minimum=1 maximum=12; "direction": "down"|"right"} (if={"not":{"properties":{"type":{"const":"layered"}},"required":["type"]}} then={"not":{"required":["direction"]}}) additionalProperties=false required=["type"]
+- layoutObject: object{"type": "row"|"column"|"grid"|"layered"; "gap": number minimum=0 maximum=240; "rowGap": number minimum=0 maximum=240; "columnGap": number minimum=0 maximum=240; "padding": number minimum=0 maximum=400; "columns": number minimum=1 maximum=12; "columnWidths": array<number exclusiveMinimum=0 maximum=4000> minItems=1 maxItems=12; "direction": "down"|"right"} (if={"not":{"properties":{"type":{"const":"layered"}},"required":["type"]}} then={"not":{"required":["direction"]}} & if={"not":{"properties":{"type":{"const":"grid"}},"required":["type"]}} then={"not":{"required":["columnWidths"]}}) additionalProperties=false required=["type"]
 - themeToken: "accent"|"accentStrong"|"accentSoft"|"accentLine"|"surface"|"fg"|"muted"|"body"|"border"|"bg"
 - literalColor: string pattern="^(?:#[0-9a-fA-F]{3,8}|[Bb][Ll][Aa][Cc][Kk]|[Ww][Hh][Ii][Tt][Ee]|[Tt][Rr][Aa][Nn][Ss][Pp][Aa][Rr][Ee][Nn][Tt]|[Nn][Oo][Nn][Ee])$"
 
 ## Authoring rules
-Visible node text uses "text" (use \n for multiple lines); group headings use "title"; connector annotations use "label". Root "title" is the accessible diagram name. A connector has no "id". Group children are elements.
-Conditional constraints are emitted from Schema alongside the fields and shared values. A field permitted in one routing/layout mode is not automatically permitted in every mode.
-For flow children omit x/y: runtime ignores them. Width/height are optional there and must fit the calculated cells. Use node.icon for built-in icons or assets/ paths; image.src is an asset path, not a URL. Theme tokens adapt; literal colors and image artwork do not.
+node text uses "text" (\n separates lines); group headings use "title"; connector annotations use "label". Root "title" names the diagram accessibly. A connector has no "id".
+Schema conditional constraints restrict fields by routing/layout mode.
+Flow ignores x/y; optional dimensions must fit cells. Node "auto" dimensions resolve numerically without rewriting source. Grid columnWidths: positive ratios, one per column. node.icon: built-in or assets/ path; image.src: asset path, not URL. Only theme tokens adapt to themes.
+from/to: ID or {x,y} relative to containing group (canvas at root). Points do not follow referenced nodes. style.autoFit: "none" preserves font size; "shrink" may reduce it. textAlign/verticalAlign/padding place node text.
 
 ## Runtime checks
-Schema validity is necessary for authoring, not sufficient for rendering. parseArchitecture also checks unique IDs across the tree, existing non-connector endpoints, no self-links, flattened element/connector/text limits, nesting depth and layout fit. Assets need separate existence/content checks; inspect visual clipping separately. Existing v1 runtime compatibility is preserved: ignored flow x/y and root $schema can differ from the stricter authoring schema. Never resolve $schema at runtime.
+Beyond schema: parseArchitecture checks unique IDs, referenced endpoints, no self-links, flattened element/connector/text limits, depth and layout fit. Check assets and visual clipping separately. v1 runtime accepts ignored flow x/y and root $schema beyond the stricter authoring schema. Never resolve $schema.
 
 ## Complete minimal example
-Two nodes and one connector; no assets or schema URL required. Paste into an architecture fence:
+Two nodes and one connector; paste into an architecture fence:
 ```architecture
 {
   "version": 1,
@@ -97,4 +99,4 @@ Two nodes and one connector; no assets or schema URL required. Paste into an arc
 ```
 
 ## Details
-Full structural schema: bundled schema/architecture-v1.schema.json (offline editor completion). For layout semantics, constraints, examples and editing request markdstage_guide topic=architecture-dsl; this compact contract is topic=architecture-schema. See schema/README.md for schema/runtime differences and v1 compatibility.
+Offline schema: schema/architecture-v1.schema.json. Layouts, examples and editing: markdstage_guide topic=architecture-dsl; this contract: topic=architecture-schema. schema/README.md covers schema/runtime differences and v1 compatibility.

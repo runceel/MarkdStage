@@ -2454,7 +2454,7 @@ const session = await joinSession({
         {
           name: "inspect_layout",
           description:
-            "Inspect the registered in-memory output snapshot with the same fixed 1280x720 layout used for PDF output, including any temporary show_slide replacement. This never reads or validates the source file named by sourceName. Prefer one whole-deck inspection; targeted inspections must be serialized because PDF, layout, and PNG jobs are exclusive. By default, return only pages that would be clipped; pass index for one zero-based page or includeFits=true to include pages that fit.",
+            "Inspect the registered in-memory output snapshot with the same fixed 1280x720 layout used for PDF output, including any temporary show_slide replacement. This never reads or validates the source file named by sourceName. Prefer one whole-deck inspection; targeted inspections must be serialized because PDF, layout, and PNG jobs are exclusive. By default, return clipped pages and pages with Architecture element bounds, effective font sizes, fitting flags, and diagram scale; pass index for one zero-based page or includeFits=true to include all pages that fit.",
           inputSchema: {
             type: "object",
             properties: {

@@ -117,6 +117,28 @@ test("CLI compatibility diagnostics remain nonblocking and do not become legacy 
   });
 });
 
+test("CLI layout diagnostics remain warnings with requested and effective text sizes", async () => {
+  const source = JSON.stringify({ elements: [
+    { type: "node", id: "line", shape: "rect", x: 40, y: 40, width: 100, height: 2 },
+    { type: "node", id: "text", x: 40, y: 100, width: 80, height: 100,
+      text: "A long label", style: { fontSize: 32 } },
+  ] });
+  await withFile(deck(fragment(source)), async ({ dir, file }) => {
+    const result = await invoke(["validate", file, "--workspace", dir, "--json"]);
+    const report = JSON.parse(result.stdout);
+    assert.equal(result.code, EXIT_OK);
+    assert.equal(report.ok, true);
+    assert.equal(report.valid, true);
+    assert.equal(report.complete, true);
+    assert.deepEqual(report.errors, []);
+    assert.ok(report.diagnostics.some((item) => item.code === "thin_stroked_rect"));
+    const text = report.diagnostics.find((item) => item.code === "text_shrunk");
+    assert.equal(text.requestedFontSize, 32);
+    assert.ok(text.effectiveFontSize < 32);
+    assert.ok(report.diagnostics.every((item) => item.severity === "warning"));
+  });
+});
+
 test("CLI inspection cutoffs cannot produce an OK result or a successful exit", async () => {
   const manyBlocks = Array(201).fill(fragment('{"elements":[]}')).join("\n");
   await withFile(deck(manyBlocks), async ({ dir, file }) => {

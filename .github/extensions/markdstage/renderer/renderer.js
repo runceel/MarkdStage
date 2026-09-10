@@ -1,5 +1,6 @@
 import { powerPointDashStyle, renderArchitectureBlock } from "./architecture.mjs";
 import { architectureSnapshotToScene } from "./architecture-scene.mjs";
+import { collectArchitectureLayout, ARCHITECTURE_LAYOUT_ELEMENT_LIMIT } from "./architecture-layout.mjs";
 import { mermaidSvgToScene } from "./mermaid-scene.mjs";
 import { captureSvgTree, sceneToSvg } from "./scene-svg.mjs";
 import { sceneToPptxElements } from "./scene-pptx.mjs";
@@ -305,7 +306,7 @@ function elementHint(element, root, bounds, kind, scale = 1) {
   };
 }
 
-function collectSlideLayout(slide, index) {
+function collectSlideLayout(slide, index, architectureLimit = ARCHITECTURE_LAYOUT_ELEMENT_LIMIT) {
   const { deck, bodyEl } = slide;
   const scale = layoutScale(deck);
   const deckRect = deck.getBoundingClientRect();
@@ -394,6 +395,8 @@ function collectSlideLayout(slide, index) {
   const horizontalOverflow = Math.max(bodyHorizontal, deckHorizontal, nestedHorizontal, 0);
   const hasIssue =
     verticalOverflow > SCROLL_EPSILON || horizontalOverflow > SCROLL_EPSILON;
+  const { elements: architectureElements, ...architectureDetails } =
+    collectArchitectureLayout(deck, scale, architectureLimit);
 
   return {
     index,
@@ -412,12 +415,19 @@ function collectSlideLayout(slide, index) {
     contentWidthPx: roundedMetric(bodyEl.scrollWidth),
     contentHeightPx: roundedMetric(bodyEl.scrollHeight),
     scrollContainers,
-    elements: hints,
+    elements: [...hints, ...architectureElements],
+    ...architectureDetails,
   };
 }
 
-function collectDeckLayout(rendered) {
-  const slides = rendered.map((slide, index) => collectSlideLayout(slide, index));
+function collectDeckLayout(rendered, requestedIndex) {
+  let remaining = ARCHITECTURE_LAYOUT_ELEMENT_LIMIT;
+  const slides = rendered.map((slide, index) => {
+    const layout = collectSlideLayout(slide, index,
+      requestedIndex === undefined || requestedIndex === index ? remaining : 0);
+    remaining -= layout.elements.filter((element) => element.kind === "architecture").length;
+    return layout;
+  });
   return {
     width: OUTPUT_WIDTH,
     height: OUTPUT_HEIGHT,
@@ -2888,6 +2898,7 @@ async function renderPrintDeck(
   customCss = "",
   themeMetadata = null,
   themeLocked = false,
+  requestedIndex,
 ) {
   deckTheme = normalizeTheme(theme);
   deckThemeLocked = Boolean(themeLocked);
@@ -2918,7 +2929,7 @@ async function renderPrintDeck(
   await waitForImages(stage);
   await afterLayout();
 
-  const layout = collectDeckLayout(rendered);
+  const layout = collectDeckLayout(rendered, requestedIndex);
   document.body.classList.remove("mermaid-loading");
   document.documentElement.setAttribute("data-print-ready", "true");
   window.__presentationPrintReady = true;
@@ -2947,6 +2958,8 @@ async function initPrint(params) {
       data.customThemeCss,
       data.customThemeMeta,
       data.themeLocked,
+      params.has("layout-index") && /^\d+$/.test(params.get("layout-index"))
+        ? Number(params.get("layout-index")) : undefined,
     );
     await reportOutputStatus(token, "ready", "", layout);
   } catch (error) {

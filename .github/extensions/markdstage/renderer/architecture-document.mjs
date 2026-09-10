@@ -435,10 +435,15 @@ export function createArchitectureDocument(source, options = {}) {
       const y = clamp(round(Number(box.y) - placement.origin.y), COORDINATE_MIN, COORDINATE_MAX);
       const width = clamp(round(Number(box.width)), EXTENT_MIN, EXTENT_MAX);
       const height = clamp(round(Number(box.height)), EXTENT_MIN, EXTENT_MAX);
+      if (x === round(element.x - placement.origin.x) &&
+          y === round(element.y - placement.origin.y) &&
+          width === round(element.width) && height === round(element.height)) {
+        return reject("unchanged", { ref });
+      }
       located.element.x = x;
       located.element.y = y;
-      located.element.width = width;
-      located.element.height = height;
+      if (width !== round(element.width)) located.element.width = width;
+      if (height !== round(element.height)) located.element.height = height;
       return { ref: element.id, x, y, width, height };
     });
   }
@@ -533,15 +538,20 @@ export function createArchitectureDocument(source, options = {}) {
           .filter((entry) => entry.element.type !== "connector")
           .map((entry) => entry.element.id),
       );
-      if (!endpointIds.has(options.from) || !endpointIds.has(options.to)) {
+      const validEndpoint = (endpoint) => typeof endpoint === "string"
+        ? endpointIds.has(endpoint)
+        : endpoint && typeof endpoint === "object" && !Array.isArray(endpoint) &&
+          Object.keys(endpoint).length === 2 &&
+          Number.isFinite(endpoint.x) && Number.isFinite(endpoint.y);
+      if (!validEndpoint(options.from) || !validEndpoint(options.to)) {
         return reject("invalid-endpoint", { from: options.from, to: options.to });
       }
       const items = targetItems(raw, options.parentId);
       if (!items) return reject("invalid-parent", { parentId: options.parentId });
       const connector = {
         type: "connector",
-        from: options.from,
-        to: options.to,
+        from: clone(options.from),
+        to: clone(options.to),
         routing: options.routing || "orthogonal",
         arrow: options.arrow !== false,
       };
@@ -655,8 +665,12 @@ export function createArchitectureDocument(source, options = {}) {
         const parentModel = target ? modelElement(current().model, parentId) : null;
         entry.element.x = round(element.x - (parentModel?.x || 0));
         entry.element.y = round(element.y - (parentModel?.y || 0));
-        entry.element.width = round(element.width);
-        entry.element.height = round(element.height);
+        if (!placement.movable || entry.element.width !== "auto") {
+          entry.element.width = round(element.width);
+        }
+        if (!placement.movable || entry.element.height !== "auto") {
+          entry.element.height = round(element.height);
+        }
       } else if (placement.movable) {
         delete entry.element.x;
         delete entry.element.y;

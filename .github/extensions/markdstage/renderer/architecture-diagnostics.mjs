@@ -106,7 +106,7 @@ export function checkArchitectureReferences(elements, report = throwArchitecture
     if (element.type !== "connector") continue;
     connectors += 1;
     for (const endpoint of ["from", "to"]) {
-      if (!ids.has(element[endpoint])) {
+      if (typeof element[endpoint] === "string" && !ids.has(element[endpoint])) {
         report(architectureDiagnostic(
           `${element.sourcePath}.${endpoint}`,
           `references unknown element '${element[endpoint]}'`,
@@ -115,7 +115,7 @@ export function checkArchitectureReferences(elements, report = throwArchitecture
         ));
       }
     }
-    if (element.from === element.to) {
+    if (typeof element.from === "string" && element.from === element.to) {
       report(architectureDiagnostic(
         element.sourcePath,
         "self-referencing connectors are not supported",
@@ -391,6 +391,58 @@ export function architectureCompatibilityWarnings(raw) {
       relatedPointers,
     }] : [],
   };
+}
+
+export function architectureLayoutWarnings(model, measureText) {
+  const diagnostics = [];
+  const warn = (path, message, remedy, code, details = {}) => diagnostics.push({
+    ...architectureDiagnostic(path, message, remedy, {
+      code, category: "layout", severity: "warning",
+    }),
+    ...details,
+  });
+  for (const element of model.elements) {
+    if (element.type !== "node" && element.type !== "group") continue;
+    if (element.type === "node" && element.shape === "rect" && (element.width <= 2 || element.height <= 2) &&
+        element.style.stroke !== "none" && element.style.strokeWidth > 0) {
+      warn(element.sourcePath,
+        `thin stroked rectangle (${element.width} × ${element.height}) may render as an unexpectedly thick line`,
+        'use a connector with coordinate endpoints { "x": ..., "y": ... } and arrow: false for a line',
+        "thin_stroked_rect",
+        { width: element.width, height: element.height, strokeWidth: element.style.strokeWidth });
+    }
+    const textField = element.type === "group" ? "title" : "text";
+    if (!element[textField]) continue;
+    const metrics = measureText(element);
+    if (!metrics) continue;
+    const overflow = {
+      horizontal: metrics.effectiveTextWidth > metrics.availableWidth,
+      vertical: metrics.effectiveTextHeight > metrics.availableHeight,
+    };
+    if (metrics.effectiveFontSize < metrics.requestedFontSize) {
+      warn(`${element.sourcePath}.${textField}`,
+        `text font size shrunk from requested ${metrics.requestedFontSize} to effective ${metrics.effectiveFontSize}`,
+        "increase the text box dimensions, shorten the text, or set style.autoFit to none to preserve the requested size",
+        "text_shrunk",
+        { requestedFontSize: metrics.requestedFontSize, effectiveFontSize: metrics.effectiveFontSize });
+    }
+    if (metrics.autoFit === "none" && (overflow.horizontal || overflow.vertical)) {
+      warn(`${element.sourcePath}.${textField}`,
+        "text overflows its available box with style.autoFit set to none",
+        "increase the text box dimensions, reduce the requested font size, or enable shrink auto-fit",
+        "text_overflow",
+        { requestedFontSize: metrics.requestedFontSize, effectiveFontSize: metrics.effectiveFontSize,
+          overflow });
+    }
+    if (metrics.fullLineCount > metrics.renderedLineCount) {
+      warn(`${element.sourcePath}.${textField}`,
+        `text has ${metrics.fullLineCount} lines but only ${metrics.renderedLineCount} are rendered; remaining lines are truncated`,
+        "increase the text box height or split the text across nodes; at most 8 lines are rendered",
+        "text_truncated",
+        { lineCount: metrics.fullLineCount, renderedLineCount: metrics.renderedLineCount });
+    }
+  }
+  return diagnostics;
 }
 
 export function architectureFailureReport(raw, primary, options) {

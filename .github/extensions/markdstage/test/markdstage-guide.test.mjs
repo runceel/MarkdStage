@@ -72,6 +72,20 @@ test("readGuide returns every document-backed topic", async () => {
   assert.match(await readGuide("architecture-dsl"), /`labelLayer`/);
 });
 
+test("architecture guide explains text fitting and coordinate connectors", async () => {
+  const guide = await readGuide("architecture-dsl");
+  for (const field of [
+    "textAlign", "verticalAlign", "autoFit", "padding", "fontWeight",
+    "fontFamily", "lineHeight", "columnWidths",
+  ]) {
+    assert.ok(guide.includes(`\`${field}\``), field);
+  }
+  assert.match(guide, /8 newline-separated lines/);
+  assert.match(guide, /not browser font measurement/);
+  assert.match(guide, /coordinate point/);
+  assert.match(guide, /doubled strokes/);
+});
+
 test("deck validation reports missing front matter and architecture errors", () => {
   const feedback = deckValidationFeedback([
     "# No metadata",

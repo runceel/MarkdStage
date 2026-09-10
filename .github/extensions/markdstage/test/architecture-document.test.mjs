@@ -47,6 +47,100 @@ function raw(document) {
   return JSON.parse(document.source);
 }
 
+const AUTO_POINT_FIXTURE = {
+  elements: [
+    { type: "node", id: "auto", x: 20, y: 30, width: "auto", height: "auto", text: "Automatic" },
+    { type: "group", id: "group", x: 400, y: 200, width: 600, height: 400, children: [
+      { type: "node", id: "child", x: 50, y: 70, width: "auto", height: "auto", text: "Child" },
+      { type: "connector", from: { x: 10, y: 20 }, to: "child" },
+      { type: "connector", from: { x: 20, y: 30 }, to: { x: 200, y: 150 } },
+    ] },
+    { type: "connector", from: "auto", to: { x: 300, y: 80 } },
+  ],
+};
+
+test("auto extents stay numeric in models and remain source-backed across no-op and partial resizes", () => {
+  const text = JSON.stringify(AUTO_POINT_FIXTURE);
+  const document = createArchitectureDocument(text);
+  const node = document.model.elements.find((element) => element.id === "auto");
+  assert.ok(Number.isFinite(node.width) && Number.isFinite(node.height));
+  assert.equal(document.source, text);
+  assert.equal(document.resize("auto", node).reason, "unchanged");
+  assert.equal(document.source, text);
+  assert.equal(document.depth, 1);
+  assert.equal(document.resize("auto", { ...node, width: node.width + 10 }).ok, true);
+  assert.equal(raw(document).elements[0].width, node.width + 10);
+  assert.equal(raw(document).elements[0].height, "auto");
+  assert.equal(document.undo().ok, true);
+  assert.equal(document.source, text);
+  assert.equal(document.move("auto", 10, 20).ok, true);
+  assert.equal(raw(document).elements[0].width, "auto");
+  assert.equal(raw(document).elements[0].height, "auto");
+  assert.equal(document.reparent("auto", "group").ok, true);
+  assert.equal(raw(document).elements[0].children.at(-1).width, "auto");
+});
+
+test("coordinate connectors survive rename, duplicate and deletion without becoming references", () => {
+  const document = createArchitectureDocument(JSON.stringify(AUTO_POINT_FIXTURE));
+  assert.equal(document.renameElement("child", "renamed").ok, true);
+  assert.deepEqual(raw(document).elements[1].children[1].from, { x: 10, y: 20 });
+  assert.equal(raw(document).elements[1].children[1].to, "renamed");
+  assert.equal(document.duplicate("group").ok, true);
+  const copy = raw(document).elements[2];
+  assert.equal(copy.children[1].to, "renamed-copy");
+  assert.deepEqual(copy.children[1].from, { x: 10, y: 20 });
+  assert.deepEqual(copy.children[2].to, { x: 200, y: 150 });
+  assert.equal(document.remove("renamed").ok, true);
+  assert.equal(raw(document).elements[1].children.length, 1);
+  assert.deepEqual(raw(document).elements[1].children[0].from, { x: 20, y: 30 });
+  assert.equal(document.describe("elements[1].children[0]").reason, "connector");
+});
+
+test("coordinate endpoints move only with their containing group, not a mixed selection's nodes", () => {
+  const document = createArchitectureDocument(JSON.stringify(AUTO_POINT_FIXTURE));
+  const connector = () => document.model.elements.find(
+    (element) => element.sourcePath === "elements[1].children[1]",
+  );
+  assert.deepEqual(connector().from, { x: 410, y: 220 });
+  assert.equal(document.moveMany(["child", "elements[1].children[1]"], 12, 15).ok, true);
+  assert.deepEqual(connector().from, { x: 410, y: 220 });
+  assert.deepEqual(raw(document).elements[1].children[1].from, { x: 10, y: 20 });
+  assert.equal(document.move("group", 30, 40).ok, true);
+  assert.deepEqual(connector().from, { x: 440, y: 260 });
+  assert.deepEqual(raw(document).elements[1].children[1].from, { x: 10, y: 20 });
+});
+
+test("addConnector accepts point and ID endpoints and rejects malformed points atomically", () => {
+  const document = createArchitectureDocument(JSON.stringify(AUTO_POINT_FIXTURE));
+  assert.equal(document.addConnector({ from: { x: 0, y: 0 }, to: "auto" }).ok, true);
+  assert.equal(document.addConnector({
+    parentId: "group", from: { x: 10, y: 20 }, to: { x: 200, y: 100 },
+  }).ok, true);
+  const before = document.source;
+  for (const from of [{ x: 0 }, { x: NaN, y: 1 }, [0, 1], { x: 0, y: 0, z: 1 }, "missing"]) {
+    assert.equal(document.addConnector({ from, to: "auto" }).ok, false);
+    assert.equal(document.source, before);
+  }
+});
+
+test("new style properties and weighted layouts remain editable and retain auto source sizes", () => {
+  const document = createArchitectureDocument(JSON.stringify(AUTO_POINT_FIXTURE));
+  for (const [path, value] of Object.entries({
+    textAlign: "left", verticalAlign: "top", autoFit: "none", padding: 12,
+    fontFamily: "Arial, sans-serif", fontWeight: 400, lineHeight: 1.5,
+  })) {
+    assert.equal(document.setElements(["auto", "child"], `style.${path}`, value).ok, true);
+  }
+  assert.equal(raw(document).elements[0].width, "auto");
+  assert.equal(document.setGroupLayout("group", {
+    type: "grid", columns: 2, columnWidths: [1, 2],
+  }).ok, true);
+  assert.deepEqual(raw(document).elements[1].layout.columnWidths, [1, 2]);
+  assert.equal(document.releaseLayout("group").ok, true);
+  assert.ok(Number.isFinite(raw(document).elements[1].children[0].width));
+  assert.deepEqual(raw(document).elements[1].children[1].from, { x: 10, y: 20 });
+});
+
 test("creates a canonical editable document from an empty block", () => {
   const document = createArchitectureDocument("\n");
   assert.deepEqual(raw(document), { version: 1, elements: [] });

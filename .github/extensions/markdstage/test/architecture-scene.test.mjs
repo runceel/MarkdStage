@@ -67,6 +67,7 @@ test("maps a representative Architecture snapshot to scene nodes", () => {
   assert.deepEqual(scene.nodes.find((node) => node.id === "api").meta, {
     architecture: { kind: "node", id: "api", sourcePath: "elements[0].children[0]", order: 1, z: 0 },
     icon: "api",
+    textLayout: snapshot.objects.find((object) => object.architecture.id === "api").textLayout,
   });
   assert.equal(scene.nodes.find((node) => node.kind === "image").meta.architecture.kind, "icon-picture");
   assert.equal(scene.nodes.find((node) => node.kind === "connector").points.length, 2);

@@ -31,6 +31,17 @@ function scene(nodes) {
   })).scene;
 }
 
+test("explicit scene line height preserves baseline spacing and vertical alignment", () => {
+  for (const [verticalAlignment, firstY] of [["top", 29], ["middle", 32], ["bottom", 35]]) {
+    const svg = sceneToSvg(scene([{
+      kind: "shape", preset: "rect", bounds, z: 0, text: richText,
+      textLayout: { lineHeight: 2, verticalAlignment },
+    }]), { document });
+    const labels = all(svg).filter((node) => node.tagName === "text");
+    assert.deepEqual(labels.map((label) => Number(label.attributes.get("y"))), [firstY, firstY + 36]);
+  }
+});
+
 test("renders bounded narrative cards and hexagons without changing their corner geometry", () => {
   const svg = sceneToSvg(scene([
     { kind: "shape", preset: "topRoundedRect", bounds, z: 0, style: { cornerRadius: 5 } },

@@ -104,11 +104,14 @@ function connectorBounds(node) {
   };
 }
 
-function cloneText(text) {
+function cloneText(text, lineHeight) {
   if (typeof text === "string") return text;
   return {
     paragraphs: text.paragraphs.map((paragraph) => ({
       ...paragraph,
+      ...(lineHeight === undefined ? {} : {
+        lineSpacing: Math.max(1, ...paragraph.runs.map((run) => run.fontSize ?? 16)) * lineHeight,
+      }),
       runs: paragraph.runs.map((run) => {
         const next = { ...run };
         if (next.fontSize !== undefined && next.fontSize <= 0) delete next.fontSize;
@@ -163,7 +166,7 @@ function shapeElement(node, index, options, shape) {
     ...styleFields(node.style),
     ...(node.rotation !== undefined ? { rotation: node.rotation } : {}),
   };
-  if (node.text !== undefined) element.text = cloneText(node.text);
+  if (node.text !== undefined) element.text = cloneText(node.text, node.textLayout?.lineHeight);
   copyTextLayout(element, node.textLayout, ["verticalAlignment", "textWrap", "textInsets"]);
   return element;
 }
@@ -302,7 +305,7 @@ function groupElement(node, index, options) {
 }
 
 function textElement(node, index, options) {
-  const text = cloneText(node.text);
+  const text = cloneText(node.text, node.textLayout?.lineHeight);
   const element = {
     ...elementBase(node, index, options),
     type: "text",

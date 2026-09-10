@@ -434,17 +434,19 @@ export function sceneToSvg(scene, {
       }
       return output;
     });
-    const heights = lines.map((line) => Math.max(1, ...line.runs.map((run) => run.fontSize ?? 16)) * 1.2);
+    const fontSizes = lines.map((line) => Math.max(1, ...line.runs.map((run) => run.fontSize ?? 16)));
+    const heights = fontSizes.map((size) => size * (layout.lineHeight ?? 1.2));
     const insets = layout.textInsets || {};
     const availableHeight = bounds.height - (insets.top || 0) - (insets.bottom || 0);
-    const total = heights.reduce((a, b) => a + b, 0);
+    const total = heights.reduce((a, b) => a + b, 0) -
+      (layout.lineHeight === undefined ? 0 : heights.at(-1) - fontSizes.at(-1));
     let y = bounds.y + (insets.top || 0) + (layout.verticalAlignment === "bottom" ? availableHeight - total : layout.verticalAlignment === "middle" ? (availableHeight - total) / 2 : 0);
     lines.forEach((line, index) => {
       const alignment = line.alignment || layout.alignment || "left";
       const left = bounds.x + (insets.left || 0);
       const right = bounds.x + bounds.width - (insets.right || 0);
       const x = alignment === "center" ? (left + right) / 2 : alignment === "right" ? right : left;
-      const label = dom("text", { x, y: y + heights[index] / 2, "dominant-baseline": "middle", "text-anchor": alignment === "center" ? "middle" : alignment === "right" ? "end" : "start" });
+      const label = dom("text", { x, y: y + (layout.lineHeight === undefined ? heights[index] : fontSizes[index]) / 2, "dominant-baseline": "middle", "text-anchor": alignment === "center" ? "middle" : alignment === "right" ? "end" : "start" });
       for (const run of line.runs) {
         const span = dom("tspan", {
           fill: run.color === null ? "none" : run.color ?? "#000000", "font-size": run.fontSize ?? 16,

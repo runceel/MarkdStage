@@ -27,7 +27,19 @@ export function formatInspectReport(report) {
         (details.length ? ` — ${details.join(", ")}` : ""),
     );
     for (const hint of slide.elements ?? []) {
-      lines.push(`      ${hint.kind}: ${hint.path || hint.tag}${hint.text ? ` — ${hint.text}` : ""}`);
+      const metrics = hint.kind === "architecture" ? [
+        hint.bbox ? `bbox ${hint.bbox.x},${hint.bbox.y} ${hint.bbox.width}x${hint.bbox.height}px` : "",
+        `scale ${hint.effectiveScale}`,
+        hint.fontSize !== undefined ? `font ${hint.fontSize}px (requested ${hint.requestedFontSize}, effective ${hint.effectiveFontSize})` : "",
+        hint.requestedSize && hint.effectiveSize
+          ? `size ${hint.requestedSize.width}x${hint.requestedSize.height} -> ${hint.effectiveSize.width}x${hint.effectiveSize.height}` : "",
+        hint.shrunk ? "shrunk" : "",
+        hint.truncated ? "truncated" : "",
+      ].filter(Boolean).join("; ") : "";
+      lines.push(`      ${hint.kind}: ${hint.path || hint.tag}${hint.text ? ` — ${hint.text}` : ""}${metrics ? ` [${metrics}]` : ""}`);
+    }
+    for (const diagram of slide.architecture ?? []) {
+      lines.push(`      architecture[${diagram.blockIndex}]: scale ${diagram.effectiveScale}; ${diagram.reportedElementCount}/${diagram.elementCount} element(s) reported`);
     }
   }
   lines.push(`  ${report.issueCount} slide(s) do not fit.`);

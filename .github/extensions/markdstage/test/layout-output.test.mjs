@@ -3,6 +3,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { sanitizeLayoutReport } from "../runtime/layout-report.mjs";
+import { selectLayoutResults } from "../runtime/output.mjs";
+import { formatInspectReport } from "../../../../packages/markdstage-cli/src/commands/inspect.mjs";
+import { withDeckServer } from "../../../../packages/markdstage-cli/src/deck.mjs";
 
 const extensionRoot = fileURLToPath(new URL("..", import.meta.url));
 
@@ -71,4 +75,97 @@ test("print, capture, and fixed preview share one 1280x720 output surface", asyn
   // Content-authored transforms still need normalization in layout diagnostics.
   assert.match(renderer, /function layoutScale\(deck\)/);
   assert.match(renderer, /const scale = layoutScale\(deck\)/);
+});
+
+const architectureElement = {
+  kind: "architecture", path: "architecture[0].node[0]", tag: "g",
+  blockIndex: 0, id: "service", type: "node",
+  bbox: { x: -4, y: 100, width: 200, height: 80 },
+  fontSize: 18, requestedFontSize: 40, effectiveFontSize: 30,
+  requestedSize: { width: 300, height: 120 },
+  effectiveSize: { width: 333, height: 133 },
+  effectiveScale: 0.6, shrunk: true, truncated: false,
+};
+
+function cleanArchitectureReport(elements = [architectureElement]) {
+  return {
+    width: 1280, height: 720, total: 1, slides: [{
+      index: 0, page: 1, title: "Clean diagram", status: "fits", pdfClipped: false,
+      elements, architectureBlockCount: 1,
+      architecture: [{
+        blockIndex: 0, bbox: { x: 20, y: 100, width: 960, height: 540 },
+        effectiveScale: 0.6, elementCount: elements.length, reportedElementCount: elements.length,
+      }],
+    }],
+  };
+}
+
+test("inspect retains clean architecture measurements without treating them as clipping", () => {
+  const report = selectLayoutResults(cleanArchitectureReport(), undefined, false);
+  assert.equal(report.issueCount, 0);
+  assert.equal(report.hasIssues, false);
+  assert.equal(report.slides.length, 1);
+  assert.deepEqual(report.slides[0].elements[0], architectureElement);
+  assert.match(formatInspectReport(report), /font 18px \(requested 40, effective 30\)/);
+  assert.match(formatInspectReport(report), /architecture\[0\]: scale 0.6; 1\/1/);
+  assert.match(formatInspectReport(report), /shrunk/);
+  assert.equal(selectLayoutResults(cleanArchitectureReport([]), 1, true).slides.length, 0);
+});
+
+test("layout report whitelist bounds architecture output and drops untrusted metadata", () => {
+  const source = cleanArchitectureReport(Array.from({ length: 500 }, () => ({
+    ...architectureElement, source: "private source", image: "data:image/png;base64,private",
+    id: "x".repeat(1000), fontSize: Infinity,
+    bbox: { x: -Infinity, y: -3, width: NaN, height: 40, source: "private" },
+  })));
+  source.slides[0].secret = "private";
+  source.slides[0].architecture[0].svg = "<svg>private</svg>";
+  const result = sanitizeLayoutReport(source);
+  const slide = result.slides[0];
+  assert.equal(slide.elements.length, 200);
+  assert.equal(slide.architecture[0].reportedElementCount, 200);
+  assert.equal(slide.architecture[0].elementCount, 500);
+  assert.equal(slide.elements[0].id.length, 96);
+  assert.equal(slide.elements[0].fontSize, undefined);
+  assert.deepEqual(slide.elements[0].bbox, { x: 0, y: -3, width: 0, height: 40 });
+  assert.doesNotMatch(JSON.stringify(result), /private|Infinity|NaN/);
+  assert.equal(sanitizeLayoutReport(null), null);
+  assert.equal(sanitizeLayoutReport({ slides: {} }), null);
+});
+
+test("architecture detail budget is shared across inspected slides", () => {
+  const source = cleanArchitectureReport(Array.from({ length: 150 }, () => architectureElement));
+  source.slides.push({ ...source.slides[0], index: 1, page: 2 });
+  const result = sanitizeLayoutReport(source);
+  assert.deepEqual(result.slides.map((slide) => slide.elements.length), [150, 50]);
+  assert.equal(result.slides[1].architecture[0].reportedElementCount, 50);
+});
+
+test("requested auto dimensions survive the bounded report schema", () => {
+  const source = cleanArchitectureReport([{
+    ...architectureElement, requestedSize: { width: "auto", height: 120 },
+  }]);
+  assert.deepEqual(sanitizeLayoutReport(source).slides[0].elements[0].requestedSize,
+    { width: "auto", height: 120 });
+});
+
+test("CLI export-status API preserves bounded architecture diagnostics", async () => {
+  await withDeckServer({
+    file: join(extensionRoot, "../../../test/fixtures/layout-visual.md"),
+    workspaceRoot: join(extensionRoot, "../../.."),
+  }, async (session) => {
+    const job = { status: "pending" };
+    session.exportJobs.set("layout-test", job);
+    const source = cleanArchitectureReport([{ ...architectureElement, source: "private source" }]);
+    const response = await fetch(new URL("export-status?token=layout-test", session.url), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Origin: new URL(session.url).origin },
+      body: JSON.stringify({ status: "ready", layout: source }),
+    });
+    assert.equal(response.status, 204);
+    assert.equal(job.status, "ready");
+    assert.deepEqual(job.layout.slides[0].elements[0], architectureElement);
+    assert.doesNotMatch(JSON.stringify(job.layout), /private source/);
+    session.exportJobs.delete("layout-test");
+  });
 });

@@ -382,7 +382,11 @@ function validateText(value, path) {
 function validateTextLayout(value, path) {
   if (value === undefined) return;
   requiredObject(value, path);
-  exactKeys(value, new Set(["alignment", "verticalAlignment", "textWrap", "textInsets"]), path);
+  exactKeys(value, new Set(["alignment", "verticalAlignment", "textWrap", "textInsets", "lineHeight"]), path);
+  if (value.lineHeight !== undefined) {
+    const lineHeight = finiteNumber(value.lineHeight, `${path}.lineHeight`);
+    if (lineHeight < 0.5 || lineHeight > 4) fail(`${path}.lineHeight must be between 0.5 and 4`);
+  }
   if (value.alignment !== undefined && !ALIGNMENTS.has(value.alignment)) fail(`${path}.alignment is invalid`);
   if (value.verticalAlignment !== undefined && !VERTICAL_ALIGNMENTS.has(value.verticalAlignment)) {
     fail(`${path}.verticalAlignment must be "top", "middle", or "bottom"`);

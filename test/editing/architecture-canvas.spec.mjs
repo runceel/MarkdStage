@@ -99,6 +99,45 @@ function draftElements(harness) {
   return JSON.parse(harness.draftSource).elements;
 }
 
+test("auto sizes and coordinate endpoints stay source-backed through inspector selection and edits", async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  const source = JSON.stringify({ elements: [
+    { type: "node", id: "auto", x: 100, y: 180, width: "auto", height: "auto", text: "Automatic" },
+    { type: "connector", from: { x: 10, y: 20 }, to: "auto" },
+    { type: "connector", from: { x: 30, y: 40 }, to: { x: 500, y: 250 } },
+  ] });
+  const harness = await startArchitectureEditorHarness({ source });
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  try {
+    await page.goto(harness.url, { waitUntil: "load" });
+    await expect(page.locator(".tree-item")).toHaveCount(3);
+    await selectRefs(page, ["elements[1]"]);
+    await openProperties(page);
+    await expect(page.getByLabel("Source", { exact: true })).toHaveValue('{"x":10,"y":20}');
+    await expect(page.locator('.tree-item[data-ref="elements[1]"]')).toContainText("(10, 20) → auto");
+    await selectRefs(page, ["elements[1]", "elements[2]"]);
+    await expect(page.getByLabel("Source", { exact: true })).toHaveValue("__mixed__");
+    expect(harness.draftSource).toBe(source);
+    await selectRefs(page, ["auto"]);
+    await expect(page.getByLabel("Width", { exact: true })).toHaveValue("auto");
+    await expect(page.getByLabel("Height", { exact: true })).toHaveValue("auto");
+    await page.getByLabel("Text alignment", { exact: true }).selectOption("left");
+    await expect.poll(() => draftElements(harness)[0].style?.textAlign).toBe("left");
+    await page.getByLabel("Width", { exact: true }).fill("240");
+    await page.getByLabel("Width", { exact: true }).press("Tab");
+    await expect.poll(() => draftElements(harness)[0].width).toBe(240);
+    expect(draftElements(harness)[0].height).toBe("auto");
+    await page.getByLabel("Width", { exact: true }).fill("auto");
+    await page.getByLabel("Width", { exact: true }).press("Tab");
+    await expect.poll(() => draftElements(harness)[0].width).toBe("auto");
+    expect(draftElements(harness)[1].from).toEqual({ x: 10, y: 20 });
+    expect(errors).toEqual([]);
+  } finally {
+    await harness.close();
+  }
+});
+
 async function openEditor(page) {
   const harness = await startArchitectureEditorHarness({
     source: SOURCE,
