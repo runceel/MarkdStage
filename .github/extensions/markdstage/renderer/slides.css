@@ -95,11 +95,13 @@
 html,body{height:100%;margin:0;overflow:hidden}
 #stage{height:100%}
 body.fixed-preview-mode #stage{
-  position:fixed;inset:12px 12px 76px;height:auto;
+  position:fixed;inset:32px 32px 96px;height:auto;overflow:visible;
 }
 .slide-viewport{position:relative;overflow:hidden;}
 .slide-viewport-frame{position:absolute;left:50%;top:50%;width:1280px;height:720px;
   max-width:none;max-height:none;border:0;transform-origin:center;display:block;}
+body.fixed-preview-mode .slide-viewport-frame{
+  box-shadow:0 10px 30px rgba(0,0,0,.24);}
 body.presenter-mode.fixed-preview-mode #stage{inset:0;background:#000;}
 body.surface-mode #stage{width:1280px;height:720px;}
 body.surface-mode #nav,body.surface-mode .layout-warning{display:none!important;}
