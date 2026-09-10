@@ -10,6 +10,7 @@ import {
 import { architectureSnapshotToScene } from "../renderer/architecture-scene.mjs";
 import { sceneToPptxElements } from "../renderer/scene-pptx.mjs";
 import { sceneToSvg } from "../renderer/scene-svg.mjs";
+import { buildPptxPackage } from "../runtime/pptx-package.mjs";
 
 class Element {
   constructor(tagName, namespaceURI = "") {
@@ -44,6 +45,19 @@ test("text style defaults preserve centered semibold node labels and bold group 
   assert.equal(byId(model).style.lineHeight, 1.2);
   assert.equal(byId(model).style.fontWeight, 600);
   assert.equal(byId(model, "group").style.fontWeight, 700);
+});
+
+test("legacy group titles remain unshrunk unless custom title layout opts into fitting", () => {
+  const group = {
+    type: "group", id: "group", x: 100, y: 100, width: 90, height: 120,
+    title: "A long legacy group title",
+  };
+  const legacy = architectureTextLayout(byId(parse([group]), "group"));
+  assert.equal(legacy.effectiveFontSize, 28);
+  assert.equal(legacy.shrunk, false);
+  const custom = architectureTextLayout(byId(parse([{ ...group, style: { autoFit: "shrink" } }]), "group"));
+  assert.ok(custom.effectiveFontSize < 28);
+  assert.equal(custom.shrunk, true);
 });
 
 test("all horizontal and vertical alignments use the padded box in SVG and snapshots", () => {
@@ -117,6 +131,7 @@ test("autoFit none retains requested size and overflowing text within the eight-
   const displayed = text.split("\n").slice(0, 8).join("\n");
   assert.equal(layout.lines.join("\n"), displayed);
   assert.equal(architecturePowerPointSnapshot(model).objects[0].text.paragraphs[0].runs[0].text, displayed);
+  assert.equal(architecturePowerPointSnapshot(model).objects[0].textWrap, "none");
 });
 
 test("auto node dimensions hug text and shape/icon insets before parent layout", () => {
@@ -147,15 +162,30 @@ test("auto node dimensions hug text and shape/icon insets before parent layout",
   const oneAxis = byId(parse([node({ width: 320, height: "auto", text: "API" })]));
   assert.equal(oneAxis.width, 320);
   assert.ok(oneAxis.height < 100);
-  for (const dimensions of [{ width: "auto" }, { height: "auto" }]) {
-    const implicit = parse([{
-      type: "group", id: "g", x: 0, y: 0, width: 600, height: 300, layout: "row",
-      children: [{ type: "node", id: "node", text: "API", icon: "api", ...dimensions }],
-    }]);
-    assert.ok(Number.isFinite(byId(implicit).width));
-    assert.ok(Number.isFinite(byId(implicit).height));
-    assert.equal(architectureTextLayout(byId(implicit)).shrunk, false);
+  for (const layout of ["row", "grid"]) {
+    for (const dimensions of [{ width: "auto" }, { height: "auto" }]) {
+      const implicit = parse([{
+        type: "group", id: "g", x: 0, y: 0, width: 600, height: 300, layout,
+        children: [{ type: "node", id: "node", text: "API", icon: "api", ...dimensions }],
+      }]);
+      assert.ok(Number.isFinite(byId(implicit).width));
+      assert.ok(Number.isFinite(byId(implicit).height));
+      assert.equal(architectureTextLayout(byId(implicit)).shrunk, false);
+    }
   }
+  const short = byId(parse([node({ width: "auto", text: "A", style: { padding: 0 } })]));
+  assert.equal(architectureTextLayout(short).shrunk, false);
+  const eightLines = Array(8).fill("Short").join("\n");
+  const visibleOnly = byId(parse([node({ width: "auto", text: eightLines })]));
+  const hiddenLongLine = byId(parse([node({ width: "auto", text: `${eightLines}\n${"Long".repeat(80)}` })]));
+  assert.equal(hiddenLongLine.width, visibleOnly.width);
+  const iconOnly = byId(parse([node({ width: "auto", height: "auto", text: "", icon: "api" })]));
+  assert.equal(iconOnly.width, 40);
+  assert.equal(iconOnly.height, 40);
+  const compactLines = byId(parse([node({ width: "auto", height: "auto",
+    style: { lineHeight: 0.5 } })]));
+  const compactMetrics = architectureTextLayout(compactLines);
+  assert.ok(compactMetrics.effectiveTextHeight <= compactMetrics.availableHeight);
   for (const type of ["group", "image"]) {
     assert.throws(() => parse([{ ...node({ type, width: "auto" }), ...(type === "image" ? { src: "assets/test.png" } : {}) }]));
   }
@@ -285,7 +315,29 @@ test("custom font survives scene theme defaults and editable PowerPoint mapping"
   assert.equal(pptx.text.paragraphs[0].runs[0].fontFace, "Arial");
   assert.equal(pptx.verticalAlignment, "bottom");
   assert.equal(pptx.text.paragraphs[0].lineSpacing, 36);
+  const packageXml = buildPptxPackage({ slides: [{ elements: [pptx] }] }).toString("utf8");
+  assert.match(packageXml, /<a:latin typeface="Arial"\/>/);
+  assert.match(packageXml, /<a:lnSpc><a:spcPts val="2700"\/><\/a:lnSpc>/);
   const genericSvg = sceneToSvg(scene, { document: documentRef });
   const texts = descendants(genericSvg).filter((element) => element.tagName === "text");
   assert.equal(Number(texts[1].attributes.get("y")) - Number(texts[0].attributes.get("y")), 36);
+});
+
+test("CSS family lists become one unquoted native typeface with theme fallback for generics", () => {
+  for (const [fontFamily, expected] of [
+    ['"Segoe UI", Arial, sans-serif', "Segoe UI"],
+    ["'Arial', sans-serif", "Arial"],
+    ["system-ui", "Theme Font"],
+  ]) {
+    const model = parse([node({ style: { fontFamily } })]);
+    const { scene } = architectureSnapshotToScene(architecturePowerPointSnapshot(model), {
+      fontFace: '"Theme Font", sans-serif', resolveColor: () => "#111111",
+    });
+    assert.equal(scene.nodes[0].text.paragraphs[0].runs[0].fontFace, expected);
+    const { elements } = sceneToPptxElements(scene);
+    const xml = buildPptxPackage({ slides: [{ elements }] }).toString("utf8");
+    assert.ok(xml.includes(`<a:latin typeface="${expected}"/>`));
+    assert.equal(xml.includes('typeface="&quot;'), false);
+    assert.equal(xml.includes('typeface="system-ui"'), false);
+  }
 });

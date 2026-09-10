@@ -64,6 +64,18 @@ function definedEntries(object) {
   return Object.fromEntries(Object.entries(object).filter(([, value]) => value !== undefined));
 }
 
+function sceneFontFace(family, themeFamily) {
+  const firstFamily = (value) => {
+    const match = String(value || "").trim().match(/^(?:"([^"]+)"|'([^']+)'|([^,]+))/);
+    return (match?.[1] || match?.[2] || match?.[3] || "").trim();
+  };
+  const generic = /^(?:serif|sans-serif|monospace|cursive|fantasy|system-ui|ui-serif|ui-sans-serif|ui-monospace|ui-rounded|emoji|math|fangsong)$/i;
+  const preferred = firstFamily(family);
+  if (preferred && !generic.test(preferred)) return preferred;
+  const fallback = firstFamily(themeFamily);
+  return fallback && !generic.test(fallback) ? fallback : undefined;
+}
+
 function mapStyle(object, path, options, diagnostics) {
   const dash = object.dash === undefined ? undefined : options.resolveDash(object.dash, path);
   const sceneDash = (() => {
@@ -98,7 +110,7 @@ function mapText(text, path, options, diagnostics) {
         const runPath = `${path}.paragraphs[${paragraphIndex}].runs[${runIndex}]`;
         return definedEntries({
           ...run,
-          fontFace: run.fontFace || options.fontFace,
+          fontFace: sceneFontFace(run.fontFace || options.fontFace, options.fontFace),
           fontSize: scaledMetric(run.fontSize, options),
           bold: Number(run.fontWeight) >= 600,
           color: normalizeColor(run.color, `${runPath}.color`, options, diagnostics),

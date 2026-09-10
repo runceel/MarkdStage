@@ -207,15 +207,26 @@ test("autoFit none preserves font size but still warns about the eight-line limi
   assert.equal(report.diagnostics[0].renderedLineCount, 8);
 });
 
-test("group title diagnostics use shared text measurements and title pointers", () => {
+test("explicitly fitted group title diagnostics use shared measurements and title pointers", () => {
   const report = validateArchitecture(source([{
     type: "group", id: "group", x: 0, y: 0, width: 120, height: 300,
-    title: "A long group title that needs to shrink", children: [],
+    title: "A long group title that needs to shrink", style: { autoFit: "shrink" }, children: [],
   }]));
   assert.equal(report.valid, true);
   const warning = report.diagnostics.find((item) => item.code === "text_shrunk");
   assert.equal(warning.pointer, "/elements/0/title");
   assert.equal(warning.effectiveFontSize, architectureTextLayout(report.model.elements[0]).effectiveFontSize);
+});
+
+test("legacy group titles do not report font shrinking that is not rendered", () => {
+  const report = validateArchitecture(source([{
+    type: "group", id: "group", x: 0, y: 0, width: 120, height: 300,
+    title: "A long group title retaining its legacy font size", children: [],
+  }]));
+  assert.equal(report.valid, true);
+  assert.ok(!report.diagnostics.some((item) => item.code === "text_shrunk"));
+  const metrics = architectureTextLayout(report.model.elements[0]);
+  assert.equal(metrics.requestedFontSize, metrics.effectiveFontSize);
 });
 
 test("thin stroked rectangles suggest coordinate connectors only for line-like rectangles", () => {

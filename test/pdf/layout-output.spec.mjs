@@ -113,6 +113,9 @@ test("architecture inspection distinguishes shrink, truncation, and preserved te
         text: longText, style: { fontSize: 40, padding: 8, autoFit: "none" } },
       { type: "node", id: "auto", x: 800, y: 600, width: "auto", height: "auto",
         text: "Auto dimensions", style: { fontSize: 28, padding: 16 } },
+      { type: "node", id: "capped", x: 100, y: 650, width: 400, height: 200,
+        text: Array.from({ length: 10 }, (_, index) => `Line ${index + 1}`).join("\n"),
+        style: { fontSize: 24, padding: 8, autoFit: "none" } },
     ],
   }), "```"].join("\n");
   const harness = await startHarness({ slides: [markdown] });
@@ -124,11 +127,12 @@ test("architecture inspection distinguishes shrink, truncation, and preserved te
     const shrunk = report.elements.find((entry) => entry.id === "shrunk");
     const preserved = report.elements.find((entry) => entry.id === "preserved");
     const auto = report.elements.find((entry) => entry.id === "auto");
+    const capped = report.elements.find((entry) => entry.id === "capped");
     expect(shrunk.requestedFontSize).toBe(40);
     expect(shrunk.effectiveFontSize).toBeLessThan(40);
     expect(shrunk.fontSize).toBeCloseTo(shrunk.effectiveFontSize * shrunk.effectiveScale, 1);
     expect(shrunk.shrunk).toBe(true);
-    expect(shrunk.truncated).toBe(true);
+    expect(shrunk.truncated).toBe(false);
     expect(preserved.requestedFontSize).toBe(40);
     expect(preserved.effectiveFontSize).toBe(40);
     expect(preserved.shrunk).toBe(false);
@@ -137,6 +141,10 @@ test("architecture inspection distinguishes shrink, truncation, and preserved te
     expect(auto.requestedSize).toEqual({ width: "auto", height: "auto" });
     expect(auto.effectiveSize.width).toBeGreaterThan(32);
     expect(auto.effectiveSize.height).toBeGreaterThan(32);
+    expect(capped.requestedFontSize).toBe(24);
+    expect(capped.effectiveFontSize).toBe(24);
+    expect(capped.shrunk).toBe(false);
+    expect(capped.truncated).toBe(true);
   } finally {
     await harness.close();
   }

@@ -1,4 +1,4 @@
-// markdstage inspect — the compact 1280x720 clipping diagnostics the Canvas
+// markdstage inspect — 1280x720 clipping and measured Architecture diagnostics the Canvas
 // `inspect_layout` action returns.
 
 import { inspectLayout } from "../runtime.mjs";

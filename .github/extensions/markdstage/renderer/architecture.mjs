@@ -841,28 +841,30 @@ function resolveAutoNodeSize(element, path, defaults = {}) {
   const icon = iconValue(element.icon, `${path}.icon`);
   const shape = enumValue(element.shape, `${path}.shape`, SHAPES, "rounded-rect");
   const lines = text.split(/\r?\n/).slice(0, 8);
-  const textWidth = Math.max(0, ...lines.map(textWidthUnits)) * style.fontSize;
-  const textHeight = text ? lines.length * style.fontSize * style.lineHeight : 0;
+  const textWidth = text ? Math.max(1, ...lines.map(textWidthUnits)) * style.fontSize : 0;
+  const textHeight = text ? style.fontSize * (1 + (lines.length - 1) * style.lineHeight) : 0;
   const minimum = architectureContract.definitions.extent.minimum;
-  const height = element.height === "auto"
-    ? Math.max(minimum, textHeight + style.padding * 2, icon ? style.padding * 2 / 0.64 : 0)
+  let height = element.height === "auto"
+    ? Math.max(minimum, textHeight + style.padding * 2)
     : element.height ?? defaults.height;
   let width = element.width === "auto" ? Math.max(minimum, textWidth + style.padding * 2)
     : element.width ?? defaults.width;
   // Shape and icon insets depend on the resulting size; solve their monotone
   // constraints before a parent layout measures or positions this node.
-  if (element.width === "auto") {
-    for (let pass = 0; pass < 40; pass += 1) {
-      const node = { width, height, shape, style };
-      const size = icon ? Math.min(58, height * 0.36, width * 0.2) : 0;
-      const left = icon && text ? nodeIconInset(node) + size + 16 : nodeContentInset(node);
-      const required = text
-        ? textWidth + left + nodeContentInset(node)
-        : size + nodeContentInset(node) * 2;
-      if (required <= width + 1e-9) break;
-      width = required;
-    }
-    width = Math.ceil(width * 100) / 100;
+  for (let pass = 0; pass < 40; pass += 1) {
+    const node = { width, height, shape, style };
+    const size = icon ? Math.min(58, height * 0.36, width * 0.2) : 0;
+    const left = icon && text ? nodeIconInset(node) + size + 16 : nodeContentInset(node);
+    const requiredWidth = text
+      ? textWidth + left + nodeContentInset(node)
+      : size + nodeContentInset(node) * 2;
+    const nextWidth = element.width === "auto"
+      ? Math.ceil(Math.max(width, requiredWidth) * 100) / 100 : width;
+    const nextHeight = element.height === "auto"
+      ? Math.ceil(Math.max(height, Math.max(textHeight, size) + style.padding * 2) * 100) / 100 : height;
+    if (nextWidth === width && nextHeight === height) break;
+    width = nextWidth;
+    height = nextHeight;
   }
   return { ...element, width, height };
 }
@@ -1490,9 +1492,10 @@ export function architectureTextLayout(element) {
   const lines = originalLines.slice(0, 8);
   const requestedFontSize = style.fontSize;
   const longestLine = Math.max(...lines.map(textWidthUnits), 1);
-  const effectiveFontSize = style.autoFit === "none"
+  const fittedFontSize = style.autoFit === "none" || legacyTitle
     ? requestedFontSize
     : Math.min(requestedFontSize, Math.max(MIN_FONT_SIZE, fittingWidth / longestLine));
+  const effectiveFontSize = requestedFontSize - fittedFontSize < 1e-9 ? requestedFontSize : fittedFontSize;
   return {
     alignment: style.textAlign ?? "center",
     verticalAlignment: style.verticalAlign ?? "middle",
@@ -4182,7 +4185,7 @@ export function architecturePowerPointSnapshot(model, documentRef = globalThis.d
         }),
         ...textLayout,
         textLayout,
-        textWrap: element.text.includes("\n") ? "square" : "none",
+        textWrap: element.style.autoFit !== "none" && element.text.includes("\n") ? "square" : "none",
         icon: element.icon || "",
         architecture: source(element),
       });

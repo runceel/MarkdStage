@@ -146,6 +146,8 @@ For example, a left-aligned label can use
 `"style": { "textAlign": "left", "verticalAlign": "top", "padding": 8,
 "autoFit": "none", "fontWeight": 400, "lineHeight": 1.4 }`.
 These controls are preserved in SVG and editable PowerPoint output.
+Group titles retain their existing left/top placement and unshrunk font unless
+text-layout controls are explicitly specified (for example, `autoFit: "shrink"`).
 
 Auto-fit uses a deterministic width estimate, not browser font measurement.
 For an icon-free rectangle, rounded rectangle, or ellipse with default padding,
