@@ -226,6 +226,36 @@ test("nested coordinate endpoints and waypoints resolve relative to their group"
   assert.deepEqual(connector.points, [{ x: 250, y: 300 }]);
 });
 
+test("equal-length coordinate routes support shared lanes and tied diagnostic source metadata", () => {
+  const model = parse([
+    node({ id: "blocker", x: 0, y: 0, width: 800, height: 600, text: "" }),
+    ...[0, 1, -1].map((lane) => ({
+      type: "connector", from: { x: 100, y: 100 }, to: { x: 700, y: 100 },
+      routing: "orthogonal", lane, label: `Lane ${lane}`,
+    })),
+  ]);
+  for (const element of model.elements) {
+    if (element.type === "connector") element.sourcePath = "shared-source";
+  }
+  const snapshot = architectureSemanticSnapshot(model);
+  assert.equal(snapshot.routing.degraded, true);
+  assert.equal(snapshot.routing.diagnostics.length, 3);
+  assert.equal(new Set(snapshot.elements.filter((element) => element.type === "connector")
+    .map((element) => element.lane)).size, 3);
+  assert.deepEqual(architectureSemanticSnapshot(model), snapshot);
+  const messages = [];
+  const originalWarn = console.warn;
+  console.warn = (message) => messages.push(String(message));
+  try {
+    renderArchitectureDiagram(model, documentRef);
+  } finally {
+    console.warn = originalWarn;
+  }
+  assert.ok(messages.length > 0);
+  assert.equal(messages.some((message) => message.includes("[object Object]")), false);
+  assert.ok(messages.some((message) => message.includes("(100, 100) -> (700, 100)")));
+});
+
 test("coincident point endpoints stay finite and do not break SVG or scene export", () => {
   for (const routing of ["straight", "orthogonal", "polyline"]) {
     const model = parse([{ type: "connector", from: { x: 100, y: 100 }, to: { x: 100, y: 100 }, routing }]);

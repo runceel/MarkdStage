@@ -3610,8 +3610,8 @@ function planConnectorRoutes(model, lookup) {
   diagnostics.sort(
     (left, right) =>
       left.sourcePath.localeCompare(right.sourcePath) ||
-      left.from.localeCompare(right.from) ||
-      left.to.localeCompare(right.to),
+      endpointName(left.from).localeCompare(endpointName(right.from)) ||
+      endpointName(left.to).localeCompare(endpointName(right.to)),
   );
   return { routes, diagnostics };
 }
