@@ -215,6 +215,27 @@ test("weighted grid columns divide available width after padding and gaps", () =
     layout: { type: "grid", columns: 2.9, columnWidths: [1, 2, 1] } }]), /columnWidths/);
 });
 
+test("auto heights use the exact rendered glyph span for compact and expanded line spacing", () => {
+  for (const lineHeight of [0.5, 2]) {
+    for (const text of ["One", "One\nTwo"]) {
+      const expectedHeight = 32 * (1 + (text.split("\n").length - 1) * lineHeight);
+      const child = {
+        type: "node", id: "node", text, width: "auto", height: "auto",
+        style: { fontSize: 32, lineHeight, padding: 0 },
+      };
+      const standalone = byId(parse([{ ...child, x: 100, y: 100 }]));
+      assert.equal(standalone.height, expectedHeight);
+      assert.equal(architectureTextLayout(standalone).effectiveTextHeight, expectedHeight);
+      const flow = parse([{
+        type: "group", id: "group", x: 0, y: 0, width: 400, height: expectedHeight,
+        layout: { type: "row", padding: 0 }, children: [child],
+      }]);
+      assert.equal(byId(flow).height, expectedHeight);
+      assert.equal(architectureTextLayout(byId(flow)).shrunk, false);
+    }
+  }
+});
+
 test("point and mixed connectors keep exact endpoints across all routing and export paths", () => {
   for (const routing of ["straight", "orthogonal", "polyline"]) {
     for (const [from, to] of [
