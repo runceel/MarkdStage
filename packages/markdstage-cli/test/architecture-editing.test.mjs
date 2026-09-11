@@ -5,6 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { withDeckServer } from "../src/deck.mjs";
+import { sharedPath } from "../src/runtime.mjs";
 
 function architecture(id, text, x) {
   return JSON.stringify(
@@ -194,6 +195,13 @@ test("watch mode opens the detailed editor and reloads its successful save", asy
       assert.match(await shell.text(), /<title>Architecture Editor<\/title>/);
       const script = await fetch(new URL("editor/editor.js", url));
       assert.equal(script.status, 200);
+      for (const name of ["scene-graph.mjs", "image-source.mjs"]) {
+        const response = await fetch(new URL(`renderer/${name}`, url));
+        assert.equal(response.status, 200, name);
+        assert.match(response.headers.get("content-type"), /^text\/javascript/);
+        assert.equal(response.headers.get("cache-control"), "no-store");
+        assert.equal(await response.text(), await readFile(sharedPath("renderer", name), "utf8"));
+      }
 
       const editorState = await (await fetch(new URL("state", url))).json();
       assert.equal(editorState.sourcePath, "slides.md");
