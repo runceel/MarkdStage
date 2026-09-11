@@ -70,6 +70,35 @@ test("surfaces nested active state on the More controls button", async ({ page }
   }
 });
 
+test("keeps controls readable with a partial light custom palette", async ({ page }) => {
+  const harness = await startHarness({
+    slides: SLIDES,
+    theme: "custom",
+    customThemeCss: "--bg:#fff;--fg:#172033;--body:#344054;--accent:#2563eb;",
+  });
+  try {
+    await page.goto(harness.url, { waitUntil: "load" });
+    await waitForSlideReady(page);
+    await openMoreControls(page);
+
+    const colors = await page.locator("#navMorePanel").evaluate((panel) => {
+      const style = getComputedStyle(panel);
+      return {
+        foreground: style.getPropertyValue("--fg").trim(),
+        surface: style.getPropertyValue("--surface").trim(),
+        slideForeground: getComputedStyle(document.documentElement).getPropertyValue("--fg").trim(),
+      };
+    });
+    expect(colors).toEqual({
+      foreground: "#f0f4fa",
+      surface: "#161b22",
+      slideForeground: "#172033",
+    });
+  } finally {
+    await harness.close();
+  }
+});
+
 test("keeps Open Markdown as the only direct action for an empty deck", async ({ page }) => {
   const harness = await startHarness({ slides: [] });
   try {

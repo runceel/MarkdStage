@@ -75,6 +75,13 @@ test("print, capture, and fixed preview share one 1280x720 output surface", asyn
   // Content-authored transforms still need normalization in layout diagnostics.
   assert.match(renderer, /function layoutScale\(deck\)/);
   assert.match(renderer, /const scale = layoutScale\(deck\)/);
+  // Partial custom slide palettes must not make product controls unreadable.
+  assert.match(css, /--markdstage-ui-bg:/);
+  assert.match(
+    css,
+    /\.nav,\.pptx-export-dialog,\.export-notification,\.presenter-view,\.overview-panel\{/,
+  );
+  assert.match(css, /--surface:var\(--markdstage-ui-bg\)/);
 });
 
 const architectureElement = {
