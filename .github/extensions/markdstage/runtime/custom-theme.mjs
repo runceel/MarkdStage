@@ -145,7 +145,9 @@ export async function loadCustomTheme(
       css: serializeThemeVariables(variables),
       warnings: unknown.map((name) => ({
         code: "unknown_theme_property",
-        message: `Unknown custom theme property: ${name}. It is applied as-is but no standard layout uses it.`,
+        message:
+          `Unknown custom theme property: ${name}. It is applied as-is, but no standard ` +
+          "layout uses it; see schema/theme-v1.json for the supported properties.",
       })),
       dir: relative(workspaceRoot, themeDir),
       metadata: metadata

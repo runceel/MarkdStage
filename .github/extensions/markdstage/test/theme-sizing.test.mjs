@@ -13,7 +13,7 @@ test("custom theme sizing tokens also win on the fixed output surface", () => {
   // Layer order, not specificity, decides: the fixed 1280x720 rules are more
   // specific than the injected theme selector but sit in the earlier layer.
   assert.match(css, /@layer markdstage\.base, markdstage\.theme, markdstage\.size;/);
-  const base = css.match(/@layer markdstage\.base\{\nbody\.fixed-output-mode \.deck\{[^}]*\}\n\}/);
+  const base = css.match(/@layer markdstage\.base\{\s*body\.fixed-output-mode \.deck\{[^}]*\}\s*\}/);
   assert.ok(base, "the fixed output tokens must live in the markdstage.base layer");
   assert.match(base[0], /--deck-pad-x:84px/);
   assert.match(base[0], /--slide-body-size:22px/);
@@ -33,7 +33,7 @@ test("size presets stay in the last layer and gain a compact step", () => {
   }
   assert.match(
     css,
-    /body\.fixed-output-mode \.deck\.size-compact\{\n\s*--slide-h1-size:40px;[^}]*--slide-body-size:18px;--slide-code-size:13px;/,
+    /body\.fixed-output-mode \.deck\.size-compact\{[^}]*--slide-h1-size:\s*40px;[^}]*--slide-body-size:\s*18px;[^}]*--slide-code-size:\s*13px;/,
   );
   assert.match(renderer, /SIZE_MODES = new Set\(\["auto", "compact", "normal", "large", "xlarge"\]\)/);
   assert.match(renderer, /\(auto\|compact\|normal\|large\|xlarge\)/);
@@ -43,16 +43,16 @@ test("size presets stay in the last layer and gain a compact step", () => {
 });
 
 test("fixed output dimensions and decoration read theme tokens", () => {
-  assert.match(css, /body\.fixed-output-mode \.kicker\{font-size:var\(--kicker-size,12px\);\}/);
-  assert.match(css, /max-height:var\(--slide-image-max-height,346px\)/);
-  assert.match(css, /max-height:var\(--mermaid-max-height,317px\)/);
-  assert.match(css, /max-height:var\(--architecture-max-height,504px\)/);
-  assert.match(css, /border-top:var\(--rule-width,1px\) solid var\(--rule-color,var\(--border\)\)/);
-  assert.match(css, /font-size:var\(--table-font-size,\.9em\)/);
-  assert.match(css, /border:var\(--table-border-width,1px\) solid var\(--border\)/);
-  assert.match(css, /padding:var\(--table-cell-padding,\.55em \.8em\)/);
-  assert.match(css, /\.deck :is\(h1,h2,h3,h4,h5,h6\)\{font-family:var\(--heading-font,inherit\);\}/);
-  assert.match(css, /code\{font-family:var\(--code-font,"Cascadia Code"/);
+  assert.match(css, /body\.fixed-output-mode \.kicker\{\s*font-size:var\(--kicker-size,\s*12px\);/);
+  assert.match(css, /max-height:var\(--slide-image-max-height,\s*346px\)/);
+  assert.match(css, /max-height:var\(--mermaid-max-height,\s*317px\)/);
+  assert.match(css, /max-height:var\(--architecture-max-height,\s*504px\)/);
+  assert.match(css, /border-top:var\(--rule-width,\s*1px\) solid var\(--rule-color,\s*var\(--border\)\)/);
+  assert.match(css, /font-size:var\(--table-font-size,\s*\.9em\)/);
+  assert.match(css, /border:var\(--table-border-width,\s*1px\) solid var\(--border\)/);
+  assert.match(css, /padding:var\(--table-cell-padding,\s*\.55em \.8em\)/);
+  assert.match(css, /\.deck :is\(h1,h2,h3,h4,h5,h6\)\{\s*font-family:var\(--heading-font,\s*inherit\);/);
+  assert.match(css, /code\{\s*font-family:var\(--code-font,\s*"Cascadia Code"/);
 });
 
 test("custom theme loading warns about properties outside the theme schema", async () => {
@@ -70,8 +70,8 @@ test("custom theme loading warns about properties outside the theme schema", asy
       {
         code: "unknown_theme_property",
         message:
-          "Unknown custom theme property: --slide-bodysize. " +
-          "It is applied as-is but no standard layout uses it.",
+          "Unknown custom theme property: --slide-bodysize. It is applied as-is, but no " +
+          "standard layout uses it; see schema/theme-v1.json for the supported properties.",
       },
     ]);
   } finally {
