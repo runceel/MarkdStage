@@ -43,6 +43,7 @@ Fran&ccedil;ais &eacute;lan &copy; 2026.
 | Name | Value |
 | --- | ---: |
 | Alpha | 42 |
+| | Empty category |
 
 ![Raster sample](/assets/readme/simple-slide.png)
 
@@ -562,9 +563,13 @@ test("collects native text, nested lists, links, tables, and raster images", asy
     expect(listText[0].paragraphs[1].leftMargin).toBeGreaterThan(
       listText[0].paragraphs[0].leftMargin || 0,
     );
-    expect(table.rows).toHaveLength(2);
+    expect(table.rows).toHaveLength(3);
     expect(table.rows[0].cells).toHaveLength(2);
     expect(table.rows[1].cells[1].paragraphs[0].runs[0].text.trim()).toBe("42");
+    expect(table.rows[2].cells[0].paragraphs[0].runs).toEqual([
+      expect.objectContaining({ text: "" }),
+    ]);
+    expect(table.rows[2].cells[1].paragraphs[0].runs[0].text.trim()).toBe("Empty category");
     expect(image.src).toMatch(/simple-slide\.png$/);
     expect(image.shape).toBe("roundedRect");
     expect(svg.src).toMatch(/sample\.svg$/);
