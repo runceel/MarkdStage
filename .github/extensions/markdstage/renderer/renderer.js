@@ -4,6 +4,7 @@ import { collectArchitectureLayout, ARCHITECTURE_LAYOUT_ELEMENT_LIMIT } from "./
 import { mermaidSvgToScene } from "./mermaid-scene.mjs";
 import { captureSvgTree, sceneToSvg } from "./scene-svg.mjs";
 import { sceneToPptxElements } from "./scene-pptx.mjs";
+import { SceneGraphError } from "./scene-graph.mjs";
 import { attachArchitectureEditor } from "./architecture-editor.mjs";
 import {
   DEFAULT_THEME,
@@ -2794,7 +2795,12 @@ async function renderPptxDeck(
 
   const pptxSlides = [];
   for (const [index, slide] of rendered.entries()) {
-    pptxSlides.push(await collectPptxSlide(slide, index, options));
+    try {
+      pptxSlides.push(await collectPptxSlide(slide, index, options));
+    } catch (error) {
+      if (!(error instanceof SceneGraphError)) throw error;
+      throw new SceneGraphError(`PowerPoint slide ${index + 1}: ${error.message}`);
+    }
   }
   const themes = [...new Set(rendered.map((slide) => slide.theme))];
   const layoutTemplates = themes.flatMap((slideTheme) =>

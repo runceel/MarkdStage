@@ -1,3 +1,5 @@
+import { ImageSourceError, inspectImageSource } from "./image-source.mjs";
+
 export class SceneGraphError extends Error {
   constructor(message) {
     super(message);
@@ -460,7 +462,13 @@ function validateNode(node, path, state, depth) {
     validateText(node.text, `${path}.text`);
     validateTextLayout(node.textLayout, `${path}.textLayout`);
   } else if (node.kind === "image") {
-    requiredString(node.src, `${path}.src`);
+    try {
+      inspectImageSource(node.src,
+        `${path}.src${node.sourcePath ? ` (${node.sourcePath.slice(0, 256)})` : ""}`);
+    } catch (error) {
+      if (!(error instanceof ImageSourceError)) throw error;
+      fail(error.message);
+    }
     stringValue(node.alt, `${path}.alt`);
     if (!IMAGE_FITS.has(node.fit)) fail(`${path}.fit is not supported`);
     if (node.opacity !== undefined) {
