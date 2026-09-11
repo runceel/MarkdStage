@@ -1185,7 +1185,11 @@ function listItemTextBounds(element, deck) {
   element.childNodes.forEach(visit);
   if (rects.length === 0) return relativeBounds(element, deck);
   const slide = deck.getBoundingClientRect();
-  const left = Math.min(...rects.map((rect) => rect.left));
+  // Text-node ranges exclude inline padding and borders. That made list items
+  // beginning with inline code appear indented in PPTX, even though the CSS
+  // marker belongs to the list item rather than its first child.
+  const itemRect = element.getBoundingClientRect();
+  const left = itemRect.left;
   const top = Math.min(...rects.map((rect) => rect.top));
   const right = Math.max(...rects.map((rect) => rect.right));
   const bottom = Math.max(...rects.map((rect) => rect.bottom));
@@ -1334,7 +1338,19 @@ function paragraphFor(element, options = {}) {
     ...(lineSpacing > 0 ? { lineSpacing } : {}),
     ...(options.level !== undefined ? { level: options.level } : {}),
     ...(options.bullet ? { bullet: options.bullet } : {}),
+    ...(options.bulletOffsetPx !== undefined
+      ? { bulletOffsetPx: options.bulletOffsetPx }
+      : {}),
   };
+}
+
+function listBulletOffsetFor(element) {
+  const list = element.parentElement;
+  if (!list?.matches("ul, ol")) return undefined;
+  const style = getComputedStyle(list);
+  const paddingLeft = Number.parseFloat(style.paddingLeft);
+  if (!Number.isFinite(paddingLeft) || paddingLeft <= 0) return undefined;
+  return roundedMetric(paddingLeft);
 }
 
 function listBulletFor(element) {
@@ -1395,6 +1411,7 @@ function nativeListTextElement(list, deck, eligibleItems) {
           ).length - 1,
         ),
         bullet: listBulletFor(item),
+        bulletOffsetPx: listBulletOffsetFor(item),
       });
       paragraph.runs = trimListItemRuns(paragraph.runs);
       return {

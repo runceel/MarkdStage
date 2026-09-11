@@ -641,6 +641,39 @@ test("emits grouped list paragraphs with explicit marker colors and offsets", ()
   assert.match(slide, /<a:buChar char="2\."\/>/);
 });
 
+test("uses the renderer-provided CSS bullet offset when available", () => {
+  const files = readStoredZip(
+    buildPptxPackage({
+      slides: [
+        {
+          elements: [
+            {
+              type: "text",
+              x: 100,
+              y: 40,
+              width: 400,
+              height: 80,
+              paragraphs: [
+                {
+                  bullet: "•",
+                  bulletOffsetPx: 30,
+                  runs: [{ text: "CSS-aligned item", fontSize: "22px" }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    }),
+  );
+  const slide = xml(files, "ppt/slides/slide1.xml");
+
+  assert.match(
+    slide,
+    /<a:off x="666750" y="381000"\/><a:ext cx="4095750" cy="762000"\/>[\s\S]*?<a:pPr algn="l" lvl="0" marL="285750" indent="-285750"><a:buChar char="•"\/>/,
+  );
+});
+
 test("uses Yu Gothic for Japanese theme fonts and native text", () => {
   const files = readStoredZip(
     buildPptxPackage({
