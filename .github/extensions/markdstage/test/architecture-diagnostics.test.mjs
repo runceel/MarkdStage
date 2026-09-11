@@ -3,10 +3,12 @@ import test from "node:test";
 import {
   ArchitectureError,
   MAX_SOURCE_LENGTH,
+  architectureTextLayout,
   parseArchitecture,
   validateArchitecture,
 } from "../renderer/architecture.mjs";
 import { corpus } from "../../../../test/schema/corpus.mjs";
+import { checkArchitectureReferences } from "../renderer/architecture-diagnostics.mjs";
 
 const node = (id = "client", extra = {}) => ({
   type: "node", id, x: 0, y: 0, width: 120, height: 80, ...extra,
@@ -112,6 +114,164 @@ test("aggregates duplicate IDs, both missing endpoints and self-references as se
     { code: "self_reference", pointer: "/elements/3" },
   ]);
   assert.ok(errors(report).every((item) => item.category === "semantic"));
+});
+
+test("coordinate endpoints are not missing IDs or self-referencing elements", () => {
+  const point = { x: 100, y: 120 };
+  const diagnostics = [];
+  const count = checkArchitectureReferences([
+    { type: "node", id: "client", sourcePath: "elements[0]" },
+    { type: "connector", from: point, to: point, sourcePath: "elements[1]" },
+    { type: "connector", from: "client", to: point, sourcePath: "elements[2]" },
+    { type: "connector", from: point, to: "missing", sourcePath: "elements[3]" },
+  ], (diagnostic) => diagnostics.push(diagnostic));
+  assert.equal(count, 3);
+  assert.deepEqual(diagnostics.map(({ code, pointer }) => ({ code, pointer })), [
+    { code: "undefined_reference", pointer: "/elements/3/to" },
+  ]);
+});
+
+test("text shrinking reports requested and effective size without rejecting valid input", () => {
+  const input = source([node("label", {
+    text: "A long label that cannot fit at the requested font size",
+    style: { fontSize: 32 },
+  })]);
+  const report = validateArchitecture(input);
+  assert.equal(report.valid, true);
+  assert.equal(report.complete, true);
+  assert.equal(report.stages.layout, "passed");
+  const warning = report.diagnostics.find((item) => item.code === "text_shrunk");
+  assert.equal(warning.severity, "warning");
+  assert.equal(warning.category, "layout");
+  assert.equal(warning.pointer, "/elements/0/text");
+  assert.equal(warning.requestedFontSize, 32);
+  assert.ok(warning.effectiveFontSize < warning.requestedFontSize);
+  assert.equal(warning.effectiveFontSize, architectureTextLayout(report.model.elements[0]).effectiveFontSize);
+  assert.match(warning.message, /requested 32.*effective/);
+  assert.deepEqual(parseArchitecture(input), report.model);
+});
+
+test("autoFit none overflow warnings cover horizontal and vertical overflow", () => {
+  for (const extra of [
+    { text: "A label much too long for this width", width: 60, height: 200 },
+    { text: "One\nTwo\nThree", width: 600, height: 20 },
+  ]) {
+    const report = validateArchitecture(source([node("label", {
+      ...extra, style: { autoFit: "none", fontSize: 32 },
+    })]));
+    assert.equal(report.valid, true);
+    const warning = report.diagnostics.find((item) => item.code === "text_overflow");
+    assert.equal(warning.severity, "warning");
+    assert.equal(warning.requestedFontSize, warning.effectiveFontSize);
+    assert.equal(warning.overflow.horizontal, extra.width === 60);
+    assert.equal(warning.overflow.vertical, extra.height === 20);
+    assert.ok(!report.diagnostics.some((item) => item.code === "text_shrunk"));
+  }
+});
+
+test("silent eight-line truncation is a warning with nested source pointers", () => {
+  const report = validateArchitecture(source([{
+    type: "group", id: "group", x: 0, y: 0, width: 800, height: 600,
+    children: [node("label", {
+      width: 600, height: 500, text: Array.from({ length: 10 }, (_, index) => `Line ${index + 1}`).join("\n"),
+    })],
+  }]));
+  assert.equal(report.valid, true);
+  const warning = report.diagnostics.find((item) => item.code === "text_truncated");
+  assert.equal(warning.severity, "warning");
+  assert.equal(warning.pointer, "/elements/0/children/0/text");
+  assert.equal(warning.lineCount, 10);
+  assert.equal(warning.renderedLineCount, 8);
+  assert.match(warning.message, /10 lines.*8.*truncated/);
+  assert.ok(warning.suggestions.every((suggestion) => suggestion.automatic === false));
+});
+
+test("fitting text and exactly eight lines do not produce text warnings", () => {
+  const report = validateArchitecture(source([
+    node("plain", { text: "OK", width: 600, height: 200, style: { autoFit: "none" } }),
+    node("eight", { text: Array(8).fill("OK").join("\n"), width: 600, height: 600 }),
+  ]));
+  assert.equal(report.valid, true);
+  assert.deepEqual(report.diagnostics, []);
+});
+
+test("autoFit none preserves font size but still warns about the eight-line limit", () => {
+  const report = validateArchitecture(source([node("all-lines", {
+    text: Array(10).fill("OK").join("\n"), width: 600, height: 600,
+    style: { autoFit: "none" },
+  })]));
+  assert.equal(report.valid, true);
+  assert.equal(report.diagnostics.length, 1);
+  assert.equal(report.diagnostics[0].code, "text_truncated");
+  assert.equal(report.diagnostics[0].lineCount, 10);
+  assert.equal(report.diagnostics[0].renderedLineCount, 8);
+});
+
+test("explicitly fitted group title diagnostics use shared measurements and title pointers", () => {
+  const report = validateArchitecture(source([{
+    type: "group", id: "group", x: 0, y: 0, width: 120, height: 300,
+    title: "A long group title that needs to shrink", style: { autoFit: "shrink" }, children: [],
+  }]));
+  assert.equal(report.valid, true);
+  const warning = report.diagnostics.find((item) => item.code === "text_shrunk");
+  assert.equal(warning.pointer, "/elements/0/title");
+  assert.equal(warning.effectiveFontSize, architectureTextLayout(report.model.elements[0]).effectiveFontSize);
+});
+
+test("legacy group titles do not report font shrinking that is not rendered", () => {
+  const report = validateArchitecture(source([{
+    type: "group", id: "group", x: 0, y: 0, width: 120, height: 300,
+    title: "A long group title retaining its legacy font size", children: [],
+  }]));
+  assert.equal(report.valid, true);
+  assert.ok(!report.diagnostics.some((item) => item.code === "text_shrunk"));
+  const metrics = architectureTextLayout(report.model.elements[0]);
+  assert.equal(metrics.requestedFontSize, metrics.effectiveFontSize);
+});
+
+test("thin stroked rectangles suggest coordinate connectors only for line-like rectangles", () => {
+  for (const dimensions of [{ width: 2, height: 100 }, { width: 100, height: 1 }]) {
+    const report = validateArchitecture(source([node("line", { shape: "rect", ...dimensions })]));
+    assert.equal(report.valid, true);
+    assert.equal(report.diagnostics.length, 1);
+    const warning = report.diagnostics[0];
+    assert.equal(warning.code, "thin_stroked_rect");
+    assert.equal(warning.severity, "warning");
+    assert.equal(warning.pointer, "/elements/0");
+    assert.match(warning.message, /connector with coordinate endpoints/);
+  }
+  for (const extra of [
+    { width: 3, height: 3 },
+    { width: 1, style: { stroke: "none" } },
+    { height: 2, style: { stroke: "none" } },
+    { height: 2, shape: "ellipse" },
+  ]) {
+    const report = validateArchitecture(source([node("not-line", { shape: "rect", ...extra })]));
+    assert.equal(report.valid, true);
+    assert.ok(!report.diagnostics.some((item) => item.code === "thin_stroked_rect"));
+  }
+});
+
+test("warning diagnostics are bounded without changing parser acceptance", () => {
+  const input = source(Array.from({ length: 60 }, (_, index) =>
+    node(`line${index}`, { shape: "rect", width: 1 })));
+  const report = validateArchitecture(input, { maxDiagnostics: 2 });
+  assert.equal(report.valid, true);
+  assert.equal(report.diagnostics.length, 2);
+  assert.equal(report.truncated, true);
+  assert.deepEqual(report.truncationReasons, ["maxDiagnostics"]);
+  assert.equal(parseArchitecture(input).elements.length, 60);
+});
+
+test("mixed coordinate endpoints retain actual missing-reference errors", () => {
+  const report = validateArchitecture(source([
+    { type: "connector", from: { x: 20, y: 30 }, to: "missing" },
+    { type: "connector", from: { x: 30, y: 40 }, to: { x: 100, y: 200 } },
+  ]));
+  assert.equal(report.stages.structure, "passed");
+  assert.deepEqual(errors(report).map(({ code, pointer }) => ({ code, pointer })), [
+    { code: "undefined_reference", pointer: "/elements/0/to" },
+  ]);
 });
 
 test("invalid JSON does not pretend to run structural, semantic or layout validation", () => {

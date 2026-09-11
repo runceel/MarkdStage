@@ -15,6 +15,7 @@ import {
   ROUTE_FALLBACK_REASONS,
   architecturePowerPointSnapshot,
   architectureSemanticSnapshot,
+  architectureTextLayout,
   computeConnectorRoute,
   connectorLabelAnchor,
   connectorLabelBox,
@@ -1914,7 +1915,7 @@ test("diagnostics pair every problem with remediation guidance", () => {
   assert.throws(() => parseArchitecture("{"), /contains invalid JSON[^;]*; check for trailing commas/);
 });
 
-test("semantic snapshot contains deterministic geometry only", () => {
+test("semantic snapshot contains deterministic geometry and text layout", () => {
   const model = parseArchitecture(
     JSON.stringify({
       version: 1,
@@ -1953,8 +1954,10 @@ test("semantic snapshot contains deterministic geometry only", () => {
           { x: 586, y: 140 },
         ],
       },
-      { type: "node", id: "a", x: 40, y: 100, width: 160, height: 80, icon: "api" },
-      { type: "node", id: "b", x: 600, y: 100, width: 160, height: 80, icon: undefined },
+      { type: "node", id: "a", x: 40, y: 100, width: 160, height: 80, icon: "api",
+        textLayout: architectureTextLayout(model.elements.find((element) => element.id === "a")) },
+      { type: "node", id: "b", x: 600, y: 100, width: 160, height: 80, icon: undefined,
+        textLayout: architectureTextLayout(model.elements.find((element) => element.id === "b")) },
     ],
   });
 });

@@ -351,10 +351,21 @@ function setSelectedProperty(path, value) {
     : architecture.setElement(selectedRef, path, value);
 }
 
-function endpointOptions() {
-  return architecture.model.elements
+function endpointLabel(endpoint) {
+  return typeof endpoint === "string" ? endpoint : `(${endpoint.x}, ${endpoint.y})`;
+}
+
+function endpointOptions(path) {
+  const points = new Map([...selectedRefs].map((ref) => readEndpoint(ref, path))
+    .filter((endpoint) => endpoint && typeof endpoint === "object")
+    .map((endpoint) => [JSON.stringify(endpoint), endpointLabel(endpoint)]));
+  return [...points].map(([value, label]) => ({ value, label })).concat(architecture.model.elements
     .filter((element) => element.type !== "connector")
-    .map((element) => ({ value: element.id, label: element.id }));
+    .map((element) => ({ value: element.id, label: element.id })));
+}
+
+function readEndpoint(ref, path) {
+  return entryFor(ref)?.element[path];
 }
 
 function queueDraft() {
@@ -413,7 +424,7 @@ function iconFor(type) {
 
 function labelFor(entry) {
   const item = entry.element;
-  if (item.type === "connector") return `${item.from} → ${item.to}`;
+  if (item.type === "connector") return `${endpointLabel(item.from)} → ${endpointLabel(item.to)}`;
   const detail = item.text
     ? String(item.text).split("\n")[0]
     : item.title || (item.type === "image" ? item.src : "");
@@ -461,7 +472,10 @@ function updateGroupLayout(ref, type) {
   for (const key of SHARED_LAYOUT_KEYS) {
     if (current[key] !== undefined) next[key] = current[key];
   }
-  if (type === "grid" && current.columns !== undefined) next.columns = current.columns;
+  if (type === "grid") {
+    if (current.columns !== undefined) next.columns = current.columns;
+    if (current.columnWidths !== undefined) next.columnWidths = current.columnWidths;
+  }
   if (type === "layered" && current.direction !== undefined) {
     next.direction = current.direction;
   }
@@ -1182,6 +1196,9 @@ function addField(container, {
     value = mixed ? undefined : values[0];
     if (path === "points" && value !== undefined) value = JSON.stringify(value, null, 2);
   }
+  if (["from", "to"].includes(path) && value && typeof value === "object") {
+    value = JSON.stringify(value);
+  }
   const id = `field-${path.replace(/[^A-Za-z0-9_-]/g, "-")}-${container.children.length}`;
   const caption = document.createElement("label");
   caption.htmlFor = id;
@@ -1287,6 +1304,9 @@ function addStyleFields(container, { connector = false } = {}) {
   for (const [label, path, min, max, step] of [
     ["Stroke width", "style.strokeWidth", 0.5, 20, 0.5],
     ["Font size", "style.fontSize", 8, 160, 1],
+    ["Font weight", "style.fontWeight", 100, 900, 100],
+    ["Line height", "style.lineHeight", 0.5, 4, 0.1],
+    ["Text padding", "style.padding", 0, 400, 1],
     ["Opacity", "style.opacity", 0, 1, 0.05],
     ["Corner radius", "style.cornerRadius", 0, 200, 1],
   ]) {
@@ -1298,6 +1318,19 @@ function addStyleFields(container, { connector = false } = {}) {
       min,
       max,
       step,
+    });
+  }
+  addField(container, { label: "Font family", path: "style.fontFamily", value: readValue("style.fontFamily") });
+  for (const [label, path, values] of [
+    ["Text alignment", "style.textAlign", ["left", "center", "right"]],
+    ["Vertical alignment", "style.verticalAlign", ["top", "middle", "bottom"]],
+    ["Text auto fit", "style.autoFit", ["shrink", "none"]],
+  ]) {
+    addField(container, {
+      label,
+      path,
+      value: readValue(path),
+      options: [{ value: "", label: "Default" }, ...values],
     });
   }
   if (connector) {
@@ -1490,19 +1523,45 @@ function renderInspector() {
       }
       if (layout.type === "grid") {
         addField(general, {
-        label: "Columns",
-        path: "layout.columns",
-        value: layout.columns,
-        type: "number",
-        min: 1,
-        max: 12,
-        onChange: (value) =>
-          applyResult(
-            architecture.setElement(selectedRef, "layout", {
+          label: "Columns",
+          path: "layout.columns",
+          value: layout.columns,
+          type: "number",
+          min: 1,
+          max: 12,
+          onChange: (value) =>
+            applyResult(
+              architecture.setElement(selectedRef, "layout", {
+                ...layout,
+                columns: value,
+                ...(layout.columnWidths ? {
+                  columnWidths: Array.from({ length: Math.trunc(value ?? 3) },
+                    (_, index) => layout.columnWidths[index] ?? 1),
+                } : {}),
+              }),
+            ),
+        });
+        addField(general, {
+          label: "Column widths JSON",
+          path: "layout.columnWidths",
+          value: layout.columnWidths === undefined ? "" : JSON.stringify(layout.columnWidths),
+          onChange: (value, input) => {
+            let columnWidths;
+            try {
+              columnWidths = value === undefined ? undefined : JSON.parse(value);
+            } catch (error) {
+              if (!(error instanceof SyntaxError)) throw error;
+              const message = "Enter a JSON array with one positive ratio per column.";
+              input.setCustomValidity(message);
+              input.reportValidity();
+              announce(message, "error");
+              return;
+            }
+            applyResult(architecture.setElement(selectedRef, "layout", {
               ...layout,
-              columns: value,
-            }),
-          ),
+              columnWidths,
+            }));
+          },
         });
       }
       if (layout.type === "layered") {
@@ -1522,18 +1581,17 @@ function renderInspector() {
       }
     }
   } else {
-    addField(general, {
-      label: "Source",
-      path: "from",
-      value: entry.element.from,
-      options: endpointOptions(),
-    });
-    addField(general, {
-      label: "Target",
-      path: "to",
-      value: entry.element.to,
-      options: endpointOptions(),
-    });
+    for (const [label, path] of [["Source", "from"], ["Target", "to"]]) {
+      addField(general, {
+        label,
+        path,
+        value: entry.element[path],
+        options: endpointOptions(path),
+        onChange: (value) => applyResult(setSelectedProperty(
+          path, value?.startsWith("{") ? JSON.parse(value) : value,
+        )),
+      });
+    }
     addField(general, {
       label: "Source port",
       path: "fromPort",
@@ -1601,13 +1659,20 @@ function renderInspector() {
       ["Width", "width", 1, 4000],
       ["Height", "height", 1, 4000],
     ]) {
+      const autoExtent = entry.element.type === "node" && ["width", "height"].includes(key);
       addField(geometry, {
         label,
         path: key,
         value: entry.element[key] ?? model[key],
-        type: "number",
+        type: autoExtent ? "text" : "number",
+        suggestions: autoExtent ? ["auto"] : null,
         min,
         max,
+        ...(autoExtent ? {
+          onChange: (value) => applyResult(setSelectedProperty(
+            key, value === "auto" ? value : value === undefined ? undefined : Number(value),
+          )),
+        } : {}),
       });
     }
   }

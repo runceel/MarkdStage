@@ -13,6 +13,14 @@ import { createHash, randomUUID } from "node:crypto";
 import { getOutputSnapshotSlides } from "../deck-state.mjs";
 import { normalizeTheme } from "../renderer/theme.mjs";
 import { MarkdStageError } from "./errors.mjs";
+import { sanitizeLayoutReport } from "./layout-report.mjs";
+import {
+  MAX_IMAGE_BYTES,
+  MAX_TOTAL_IMAGE_BYTES,
+  checkImageBytes,
+  decodePercentImageData,
+  inspectImageSource,
+} from "../renderer/image-source.mjs";
 import {
   findChromiumBrowser,
   runCdpOutputBrowser,
@@ -36,8 +44,8 @@ import {
 } from "./pptx-package.mjs";
 
 export const MAX_CAPTURE_SLIDES = 10;
-export const MAX_PPTX_ASSET_BYTES = 10 * 1024 * 1024;
-export const MAX_PPTX_TOTAL_ASSET_BYTES = 100 * 1024 * 1024;
+export const MAX_PPTX_ASSET_BYTES = MAX_IMAGE_BYTES;
+export const MAX_PPTX_TOTAL_ASSET_BYTES = MAX_TOTAL_IMAGE_BYTES;
 
 function logFor(inst, message, level = "info") {
   try {
@@ -81,59 +89,31 @@ export function createOutputJob(snapshot, kind, options = {}) {
   };
 }
 
-function decodeDataImage(source) {
-  const match = /^data:(image\/(?:png|jpeg|gif|svg\+xml))((?:;[^,]*)*),([\s\S]*)$/i.exec(source);
-  if (!match) {
-    throw new Error("Only PNG, JPEG, GIF, or SVG data URLs can be embedded in PowerPoint.");
-  }
-  const parameters = match[2]
-    .split(";")
-    .map((parameter) => parameter.trim().toLowerCase())
-    .filter(Boolean);
-  const base64 = parameters.includes("base64");
-  const data = base64
-    ? Buffer.from(match[3], "base64")
-    : Buffer.from(
-        decodeURIComponent(match[3]),
-        match[1].toLowerCase() === "image/svg+xml" ? "utf8" : "binary",
-      );
-  return { data, contentType: match[1].toLowerCase() };
+function ensurePptxAssetSize(data, label, currentTotal) {
+  checkImageBytes(data.length, label, currentTotal);
 }
 
-function ensurePptxAssetSize(data, source, currentTotal) {
-  if (data.length > MAX_PPTX_ASSET_BYTES) {
-    throw new Error(
-      `PowerPoint image exceeds ${MAX_PPTX_ASSET_BYTES} bytes: ${source}`,
-    );
-  }
-  if (currentTotal + data.length > MAX_PPTX_TOTAL_ASSET_BYTES) {
-    throw new Error(
-      `PowerPoint image assets exceed ${MAX_PPTX_TOTAL_ASSET_BYTES} bytes in total.`,
-    );
-  }
-}
-
-async function loadPptxImage(inst, source, fetchImpl, currentTotal) {
-  if (typeof source !== "string" || !source) {
-    throw new Error("PowerPoint image is missing its source URL.");
-  }
-  if (source.startsWith("data:")) {
-    const decoded = decodeDataImage(source);
-    ensurePptxAssetSize(decoded.data, "data URL", currentTotal);
-    return decoded;
+async function loadPptxImage(inst, source, fetchImpl, currentTotal, label) {
+  const image = inspectImageSource(source, label);
+  if (image) {
+    checkImageBytes(image.byteLength, label, currentTotal);
+    const data = image.base64
+      ? Buffer.from(image.payload, "base64")
+      : Buffer.from(decodePercentImageData(image));
+    return { data, contentType: image.contentType };
   }
 
   const base = new URL(inst.url);
   const url = new URL(source, base);
   if (url.origin !== base.origin) {
-    throw new Error(`PowerPoint image must be served by the MarkdStage workspace: ${source}`);
+    throw new Error(`${label}: image must be served by the MarkdStage workspace`);
   }
   const response = await fetchImpl(url, { cache: "no-store" });
   if (!response.ok) {
-    throw new Error(`Could not load PowerPoint image (${response.status}): ${source}`);
+    throw new Error(`${label}: could not load image (${response.status})`);
   }
   const data = Buffer.from(await response.arrayBuffer());
-  ensurePptxAssetSize(data, source, currentTotal);
+  ensurePptxAssetSize(data, label, currentTotal);
   const responseType = response.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
   const contentType = ["image/png", "image/jpeg", "image/gif", "image/svg+xml"].includes(responseType)
     ? responseType
@@ -194,11 +174,11 @@ export async function preparePptxPackageModel(
     pngAssets.set(key, id);
     return id;
   };
-  const prepareImage = async (sourceElement) => {
+  const prepareImage = async (sourceElement, label) => {
     const source = sourceElement.src;
     let assetId = sourceAssets.get(source);
     if (!assetId) {
-      const loaded = await loadPptxImage(inst, source, fetchImpl, totalAssetBytes);
+      const loaded = await loadPptxImage(inst, source, fetchImpl, totalAssetBytes, label);
       totalAssetBytes += loaded.data.length;
       assetId = `markdstage-image-${sourceAssets.size + 1}`;
       sourceAssets.set(source, assetId);
@@ -252,8 +232,9 @@ export async function preparePptxPackageModel(
       throw new Error(`PowerPoint layout ${sourceLayout.id} has an invalid element list.`);
     }
     const elements = [];
-    for (const sourceElement of sourceElements) {
-      elements.push(await prepareImage(sourceElement));
+    for (const [elementIndex, sourceElement] of sourceElements.entries()) {
+      elements.push(await prepareImage(sourceElement,
+        `PowerPoint layout ${index + 1} image ${elementIndex + 1}`));
     }
     const layout = {
       id: sourceLayout.id,
@@ -312,12 +293,13 @@ export async function preparePptxPackageModel(
       throw new Error(`PowerPoint slide ${slideIndex + 1} has invalid speaker notes.`);
     }
     const elements = [];
-    for (const sourceElement of sourceSlide.elements) {
+    for (const [elementIndex, sourceElement] of sourceSlide.elements.entries()) {
       if (sourceElement?.type !== "image") {
         elements.push(sourceElement);
         continue;
       }
-      elements.push(await prepareImage(sourceElement));
+      elements.push(await prepareImage(sourceElement,
+        `PowerPoint slide ${slideIndex + 1} image ${elementIndex + 1}`));
     }
     const fallbacks = Array.isArray(sourceSlide.fallbacks) ? sourceSlide.fallbacks : [];
     const expectedFallbackIndexes = fallbacks
@@ -388,18 +370,21 @@ export async function preparePptxPackageModel(
   return { masters, layouts, slides, assets };
 }
 
-async function runLayoutInspectionJob(inst, snapshot, browser) {
+async function runLayoutInspectionJob(inst, snapshot, browser, requestedIndex) {
   const token = randomUUID();
   const profileDir = await mkdtemp(join(tmpdir(), "markdstage-inspect-"));
   const job = createOutputJob(snapshot, "inspect");
   inst.exportJobs.set(token, job);
   try {
-    const pageUrl = pageUrlFor(inst, { print: 1, token });
+    const pageUrl = pageUrlFor(inst, {
+      print: 1, token,
+      ...(requestedIndex === undefined ? {} : { "layout-index": requestedIndex }),
+    });
     await runCdpOutputBrowser(browser, pageUrl, profileDir, job, false);
     if (!job.layout || !Array.isArray(job.layout.slides)) {
       throw new Error("The layout renderer did not return diagnostics.");
     }
-    return job.layout;
+    return sanitizeLayoutReport(job.layout);
   } finally {
     inst.exportJobs.delete(token);
     await rm(profileDir, { recursive: true, force: true }).catch(() => {});
@@ -407,6 +392,7 @@ async function runLayoutInspectionJob(inst, snapshot, browser) {
 }
 
 export function selectLayoutResults(layout, requestedIndex, includeFits) {
+  layout = sanitizeLayoutReport(layout);
   const selected =
     requestedIndex === undefined
       ? layout.slides
@@ -424,7 +410,8 @@ export function selectLayoutResults(layout, requestedIndex, includeFits) {
     inspected: selected.length,
     issueCount,
     hasIssues: issueCount > 0,
-    slides: includeFits ? selected : selected.filter((slide) => slide.pdfClipped),
+    slides: includeFits ? selected : selected.filter((slide) =>
+      slide.pdfClipped || slide.architecture?.length > 0),
   };
 }
 
@@ -463,7 +450,7 @@ export async function inspectLayout(inst, requestedIndex, includeFits = false) {
 
   inst.exporting = true;
   try {
-    const layout = await runLayoutInspectionJob(inst, snapshot, browser);
+    const layout = await runLayoutInspectionJob(inst, snapshot, browser, requestedIndex);
     return selectLayoutResults(layout, requestedIndex, Boolean(includeFits));
   } catch (error) {
     if (error instanceof MarkdStageError) throw error;
@@ -581,7 +568,7 @@ export async function captureSlides(
         }
         await writeFile(temporaryPath, png);
         const image = await verifyPng(temporaryPath);
-        const diagnostic = job.layout.slides[0];
+        const diagnostic = sanitizeLayoutReport(job.layout).slides[0];
         pendingFiles.push({ temporaryPath, outputPath });
         staged = true;
         files.push({

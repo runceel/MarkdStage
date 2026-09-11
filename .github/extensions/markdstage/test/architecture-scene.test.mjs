@@ -51,7 +51,7 @@ test("maps a representative Architecture snapshot to scene nodes", () => {
   });
   const { scene, diagnostics } = architectureSnapshotToScene(snapshot, {
     resolveColor,
-    resolveImage: (entry, kind) => `data:image/png;base64,${kind}-${entry.id}`,
+    resolveImage: (entry, kind) => `data:image/png;base64,${Buffer.from(`${kind}-${entry.id}`).toString("base64")}`,
   });
 
   assert.deepEqual(diagnostics, []);
@@ -63,10 +63,12 @@ test("maps a representative Architecture snapshot to scene nodes", () => {
   assert.deepEqual(scene.nodes.map((node) => node.z), [0, 1, 2, 3, 4, 5]);
   assert.deepEqual(scene.nodes[0].bounds, { x: 20, y: 20, width: 500, height: 320 });
   assert.equal(scene.nodes.find((node) => node.id === "api").text.paragraphs[0].runs[0].text, "API");
-  assert.equal(scene.nodes.find((node) => node.kind === "image").src, "data:image/png;base64,icon-picture-api");
+  assert.equal(scene.nodes.find((node) => node.kind === "image").src,
+    `data:image/png;base64,${Buffer.from("icon-picture-api").toString("base64")}`);
   assert.deepEqual(scene.nodes.find((node) => node.id === "api").meta, {
     architecture: { kind: "node", id: "api", sourcePath: "elements[0].children[0]", order: 1, z: 0 },
     icon: "api",
+    textLayout: snapshot.objects.find((object) => object.architecture.id === "api").textLayout,
   });
   assert.equal(scene.nodes.find((node) => node.kind === "image").meta.architecture.kind, "icon-picture");
   assert.equal(scene.nodes.find((node) => node.kind === "connector").points.length, 2);
@@ -227,7 +229,7 @@ test("icons and images route through the injected image resolver", () => {
     resolveImage: (entry, kind) => {
       calls.push({ kind, id: entry.id || entry.architecture?.id });
       return {
-        src: `data:image/png;base64,${kind}`,
+        src: `data:image/png;base64,${Buffer.from(kind).toString("base64")}`,
         bounds: { x: 1, y: calls.length, width: 3, height: 4 },
       };
     },
@@ -239,7 +241,7 @@ test("icons and images route through the injected image resolver", () => {
   ]);
   assert.deepEqual(
     scene.nodes.filter((node) => node.kind === "image").map((node) => node.src),
-    ["data:image/png;base64,icon-picture", "data:image/png;base64,image-picture"],
+    ["icon-picture", "image-picture"].map((kind) => `data:image/png;base64,${Buffer.from(kind).toString("base64")}`),
   );
   assert.deepEqual(
     scene.nodes.filter((node) => node.kind === "image").map((node) => node.meta.architecture.kind),

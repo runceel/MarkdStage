@@ -39,7 +39,7 @@ const COMMANDS = [
   ["present", "Open the MarkdStage UI in presenter view."],
   ["preview", "Open the MarkdStage UI in slide view."],
   ["validate", "Check deck structure, Architecture DSL blocks, and themes."],
-  ["inspect", "Report 1280x720 clipping diagnostics for a deck."],
+  ["inspect", "Report clipping and measured Architecture layout at 1280x720."],
   ["capture", "Write 1280x720 PNG files for selected or clipped slides."],
   ["export", "Export the deck as PDF or editable PowerPoint."],
   ["guide", "Print the canonical MarkdStage authoring guide."],
@@ -146,8 +146,10 @@ function usage(command) {
     inspect: [
       "Usage: markdstage inspect <file.md> [options]",
       "",
+      "Includes clipped slides and measured Architecture diagrams, even when they fit.",
+      "",
       "  --slide <n>        Inspect a single 1-based page.",
-      "  --all              Include slides that fit.",
+      "  --all              Also include other slides that fit.",
       "  --fail-on-issues   Exit with code 5 when a slide is clipped.",
     ],
     capture: [

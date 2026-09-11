@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import {
   createOutputJob,
   exportPptx,
+  MAX_PPTX_ASSET_BYTES,
   preparePptxPackageModel,
 } from "../runtime/output.mjs";
 
@@ -220,6 +221,42 @@ test("decodes parameterized UTF-8 SVG data URLs without corrupting text", async 
 
   const asset = prepared.assets.find((candidate) => candidate.contentType === "image/svg+xml");
   assert.equal(asset.data.toString("utf8"), source);
+});
+
+test("prepares embedded images larger than 8192 characters without changing their bytes", async () => {
+  const data = Buffer.concat([PNG, Buffer.alloc(8192, 42)]);
+  const image = {
+    type: "image", src: `data:image/png;base64,${data.toString("base64")}`,
+    x: 0, y: 0, width: 100, height: 50, fit: "fill",
+  };
+  const prepared = await preparePptxPackageModel(
+    { url: "http://127.0.0.1:4321/token/" }, model([image, image]), [PNG], [[]],
+  );
+  assert.equal(prepared.assets.length, 2);
+  assert.deepEqual(prepared.assets[1].data, data);
+  assert.equal(prepared.slides[0].elements[0].assetId, prepared.slides[0].elements[1].assetId);
+});
+
+test("invalid and oversized image errors identify the slide or layout without dumping the source", async () => {
+  for (const source of [
+    "data:image/png;base64,private-invalid-data",
+    `data:image/png;base64,${Buffer.alloc(MAX_PPTX_ASSET_BYTES + 1).toString("base64")}`,
+  ]) {
+    const image = { type: "image", src: source, x: 0, y: 0, width: 10, height: 10, fit: "fill" };
+    for (const onLayout of [false, true]) {
+      await assert.rejects(() => preparePptxPackageModel(
+        { url: "http://127.0.0.1:4321/token/" },
+        model(onLayout ? [] : [image], undefined, [], onLayout ? [image] : []),
+        [PNG], [[]],
+      ), (error) => {
+        assert.match(error.message, onLayout ? /^PowerPoint layout 1 image 1:/ : /^PowerPoint slide 1 image 1:/);
+        assert.ok(error.message.length < 200);
+        assert.doesNotMatch(error.message, /data:image|private-invalid-data/);
+        if (source.length > 8192) assert.match(error.message, /10485761 bytes.*10 MiB/);
+        return true;
+      });
+    }
+  }
 });
 
 test("orders fallback pictures with native elements by renderer z-order", async () => {

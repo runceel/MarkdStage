@@ -192,6 +192,13 @@ test("validate requires a file argument", async () => {
   assert.match(io.stderr(), /requires a Markdown file/);
 });
 
+test("inspect help explains clean Architecture measurements", async () => {
+  const io = capture();
+  assert.equal(await run(["inspect", "--help"], io), EXIT_OK);
+  assert.match(io.stdout(), /Architecture diagrams, even when they fit/);
+  assert.match(io.stdout(), /Also include other slides that fit/);
+});
+
 test("inspect forwards the requested zero-based slide index", async () => {
   await withDeck(VALID_DECK, async ({ file }) => {
     let received;

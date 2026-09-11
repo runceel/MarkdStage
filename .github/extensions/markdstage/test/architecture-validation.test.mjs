@@ -57,6 +57,47 @@ test("nonblocking compatibility warnings preserve valid and complete reports", (
   assert.ok(report.diagnostics[0].relatedPointers.includes("/$schema"));
 });
 
+test("layout warnings retain structured slide positions without failing validation", () => {
+  const source = JSON.stringify({ elements: [
+    { type: "node", id: "line", shape: "rect", x: 20, y: 30, width: 2, height: 100 },
+    { type: "node", id: "text", x: 100, y: 30, width: 80, height: 100,
+      text: "A label that needs a smaller font", style: { fontSize: 32 } },
+  ] });
+  const report = validateArchitectureInput({
+    format: "slides", slides: ["# Intro", fence(source)],
+  });
+  assert.equal(report.valid, true);
+  assert.equal(report.complete, true);
+  assert.equal(report.truncated, false);
+  assert.equal(report.blocks[0].dslValid, true);
+  assert.ok(report.diagnostics.some((item) => item.code === "thin_stroked_rect"));
+  assert.ok(report.diagnostics.some((item) => item.code === "text_shrunk"));
+  for (const diagnostic of report.diagnostics) {
+    assert.equal(diagnostic.severity, "warning");
+    assert.equal(diagnostic.category, "layout");
+    assert.equal(diagnostic.slideIndex, 1);
+    assert.equal(diagnostic.page, 2);
+    assert.equal(diagnostic.blockIndex, 0);
+  }
+  assert.equal(report.stages.layout, "passed");
+});
+
+test("bounded layout warnings disclose incomplete inspection but preserve DSL validity", () => {
+  const report = validateArchitectureInput({ format: "dsl", maxDiagnostics: 1,
+    source: JSON.stringify({ elements: Array.from({ length: 3 }, (_, index) => ({
+      type: "node", id: `line${index}`, shape: "rect", x: 20, y: 30, width: 1, height: 100,
+    })) }),
+  });
+  assert.equal(report.valid, false);
+  assert.equal(report.complete, false);
+  assert.equal(report.truncated, true);
+  assert.equal(report.blocks[0].dslValid, true);
+  assert.equal(report.diagnostics.length, 1);
+  assert.equal(report.diagnostics[0].severity, "warning");
+  assert.equal(report.stages.structure, "passed");
+  assert.deepEqual(report.budget.limitsReached, ["maxDiagnostics"]);
+});
+
 test("explicit slides collect four independent errors in one block", () => {
   const report = validateArchitectureInput({ format: "slides", slides: [fence(fourErrors())] });
   assert.equal(report.ok, true);

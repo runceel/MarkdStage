@@ -88,20 +88,37 @@ export const architectureContract = {
           "description": "Coordinate in the canvas coordinate system, relative to the parent group."
         },
         "width": {
-          "type": "number",
-          "minimum": 1,
-          "maximum": 4000,
-          "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 4000,
+              "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+            },
+            {
+              "const": "auto"
+            }
+          ],
+          "description": "Numeric extent or auto to hug the node's estimated text and icon size, including padding and shape insets. Group and image extents remain numeric."
         },
         "height": {
-          "type": "number",
-          "minimum": 1,
-          "maximum": 4000,
-          "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 4000,
+              "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+            },
+            {
+              "const": "auto"
+            }
+          ],
+          "description": "Numeric extent or auto to hug the node's estimated text and icon size, including padding and shape insets. Group and image extents remain numeric."
         },
         "text": {
           "type": "string",
-          "maxLength": 500
+          "maxLength": 500,
+          "description": "Newline-separated text. At most 8 lines are rendered; additional lines produce a truncation diagnostic."
         },
         "icon": {
           "anyOf": [
@@ -229,6 +246,54 @@ export const architectureContract = {
               "type": "number",
               "minimum": 8,
               "maximum": 160
+            },
+            "textAlign": {
+              "enum": [
+                "left",
+                "center",
+                "right"
+              ],
+              "description": "Node horizontal text alignment. Defaults to center."
+            },
+            "verticalAlign": {
+              "enum": [
+                "top",
+                "middle",
+                "bottom"
+              ],
+              "description": "Node vertical text alignment. Defaults to middle."
+            },
+            "autoFit": {
+              "enum": [
+                "shrink",
+                "none"
+              ],
+              "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+            },
+            "padding": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 400,
+              "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+            },
+            "fontWeight": {
+              "type": "number",
+              "minimum": 100,
+              "maximum": 900,
+              "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+            },
+            "fontFamily": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+              "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+            },
+            "lineHeight": {
+              "type": "number",
+              "minimum": 0.5,
+              "maximum": 4,
+              "description": "Line-height multiplier. Defaults to 1.2."
             },
             "opacity": {
               "type": "number",
@@ -359,6 +424,17 @@ export const architectureContract = {
                   "maximum": 12,
                   "description": "Number of grid columns. Fractional values are truncated. Ignored for row / column / layered."
                 },
+                "columnWidths": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 12,
+                  "items": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 4000
+                  },
+                  "description": "Grid column-width ratios after padding and gaps, for example [1, 2, 1]. Length must equal the effective columns count (default 3). Only allowed for grid."
+                },
                 "direction": {
                   "enum": [
                     "down",
@@ -385,6 +461,27 @@ export const architectureContract = {
                     "not": {
                       "required": [
                         "direction"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "not": {
+                      "properties": {
+                        "type": {
+                          "const": "grid"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    }
+                  },
+                  "then": {
+                    "not": {
+                      "required": [
+                        "columnWidths"
                       ]
                     }
                   }
@@ -489,6 +586,54 @@ export const architectureContract = {
               "type": "number",
               "minimum": 8,
               "maximum": 160
+            },
+            "textAlign": {
+              "enum": [
+                "left",
+                "center",
+                "right"
+              ],
+              "description": "Node horizontal text alignment. Defaults to center."
+            },
+            "verticalAlign": {
+              "enum": [
+                "top",
+                "middle",
+                "bottom"
+              ],
+              "description": "Node vertical text alignment. Defaults to middle."
+            },
+            "autoFit": {
+              "enum": [
+                "shrink",
+                "none"
+              ],
+              "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+            },
+            "padding": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 400,
+              "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+            },
+            "fontWeight": {
+              "type": "number",
+              "minimum": 100,
+              "maximum": 900,
+              "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+            },
+            "fontFamily": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+              "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+            },
+            "lineHeight": {
+              "type": "number",
+              "minimum": 0.5,
+              "maximum": 4,
+              "description": "Line-height multiplier. Defaults to 1.2."
             },
             "opacity": {
               "type": "number",
@@ -705,6 +850,54 @@ export const architectureContract = {
               "minimum": 8,
               "maximum": 160
             },
+            "textAlign": {
+              "enum": [
+                "left",
+                "center",
+                "right"
+              ],
+              "description": "Node horizontal text alignment. Defaults to center."
+            },
+            "verticalAlign": {
+              "enum": [
+                "top",
+                "middle",
+                "bottom"
+              ],
+              "description": "Node vertical text alignment. Defaults to middle."
+            },
+            "autoFit": {
+              "enum": [
+                "shrink",
+                "none"
+              ],
+              "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+            },
+            "padding": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 400,
+              "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+            },
+            "fontWeight": {
+              "type": "number",
+              "minimum": 100,
+              "maximum": 900,
+              "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+            },
+            "fontFamily": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+              "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+            },
+            "lineHeight": {
+              "type": "number",
+              "minimum": 0.5,
+              "maximum": 4,
+              "description": "Line-height multiplier. Defaults to 1.2."
+            },
             "opacity": {
               "type": "number",
               "minimum": 0,
@@ -748,14 +941,68 @@ export const architectureContract = {
           "const": "connector"
         },
         "from": {
-          "type": "string",
-          "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
-          "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+              "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "x",
+                "y"
+              ],
+              "properties": {
+                "x": {
+                  "type": "number",
+                  "minimum": -4000,
+                  "maximum": 4000,
+                  "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                },
+                "y": {
+                  "type": "number",
+                  "minimum": -4000,
+                  "maximum": 4000,
+                  "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                }
+              }
+            }
+          ],
+          "description": "Referenced node/group/image ID or a free coordinate point relative to the containing group."
         },
         "to": {
-          "type": "string",
-          "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
-          "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+              "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "x",
+                "y"
+              ],
+              "properties": {
+                "x": {
+                  "type": "number",
+                  "minimum": -4000,
+                  "maximum": 4000,
+                  "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                },
+                "y": {
+                  "type": "number",
+                  "minimum": -4000,
+                  "maximum": 4000,
+                  "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                }
+              }
+            }
+          ],
+          "description": "Referenced node/group/image ID or a free coordinate point relative to the containing group."
         },
         "fromPort": {
           "enum": [
@@ -930,6 +1177,54 @@ export const architectureContract = {
               "minimum": 8,
               "maximum": 160
             },
+            "textAlign": {
+              "enum": [
+                "left",
+                "center",
+                "right"
+              ],
+              "description": "Node horizontal text alignment. Defaults to center."
+            },
+            "verticalAlign": {
+              "enum": [
+                "top",
+                "middle",
+                "bottom"
+              ],
+              "description": "Node vertical text alignment. Defaults to middle."
+            },
+            "autoFit": {
+              "enum": [
+                "shrink",
+                "none"
+              ],
+              "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+            },
+            "padding": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 400,
+              "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+            },
+            "fontWeight": {
+              "type": "number",
+              "minimum": 100,
+              "maximum": 900,
+              "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+            },
+            "fontFamily": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+              "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+            },
+            "lineHeight": {
+              "type": "number",
+              "minimum": 0.5,
+              "maximum": 4,
+              "description": "Line-height multiplier. Defaults to 1.2."
+            },
             "opacity": {
               "type": "number",
               "minimum": 0,
@@ -1102,6 +1397,20 @@ export const architectureContract = {
       "maximum": 4000,
       "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
     },
+    "nodeExtent": {
+      "anyOf": [
+        {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 4000,
+          "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+        },
+        {
+          "const": "auto"
+        }
+      ],
+      "description": "Numeric extent or auto to hug the node's estimated text and icon size, including padding and shape insets. Group and image extents remain numeric."
+    },
     "zIndex": {
       "type": "number",
       "minimum": -100,
@@ -1214,6 +1523,54 @@ export const architectureContract = {
           "minimum": 8,
           "maximum": 160
         },
+        "textAlign": {
+          "enum": [
+            "left",
+            "center",
+            "right"
+          ],
+          "description": "Node horizontal text alignment. Defaults to center."
+        },
+        "verticalAlign": {
+          "enum": [
+            "top",
+            "middle",
+            "bottom"
+          ],
+          "description": "Node vertical text alignment. Defaults to middle."
+        },
+        "autoFit": {
+          "enum": [
+            "shrink",
+            "none"
+          ],
+          "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+        },
+        "padding": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 400,
+          "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+        },
+        "fontWeight": {
+          "type": "number",
+          "minimum": 100,
+          "maximum": 900,
+          "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+        },
+        "fontFamily": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+          "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+        },
+        "lineHeight": {
+          "type": "number",
+          "minimum": 0.5,
+          "maximum": 4,
+          "description": "Line-height multiplier. Defaults to 1.2."
+        },
         "opacity": {
           "type": "number",
           "minimum": 0,
@@ -1273,6 +1630,17 @@ export const architectureContract = {
           "maximum": 12,
           "description": "Number of grid columns. Fractional values are truncated. Ignored for row / column / layered."
         },
+        "columnWidths": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 12,
+          "items": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 4000
+          },
+          "description": "Grid column-width ratios after padding and gaps, for example [1, 2, 1]. Length must equal the effective columns count (default 3). Only allowed for grid."
+        },
         "direction": {
           "enum": [
             "down",
@@ -1299,6 +1667,27 @@ export const architectureContract = {
             "not": {
               "required": [
                 "direction"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "not": {
+              "properties": {
+                "type": {
+                  "const": "grid"
+                }
+              },
+              "required": [
+                "type"
+              ]
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "columnWidths"
               ]
             }
           }
@@ -1357,6 +1746,17 @@ export const architectureContract = {
               "maximum": 12,
               "description": "Number of grid columns. Fractional values are truncated. Ignored for row / column / layered."
             },
+            "columnWidths": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 12,
+              "items": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 4000
+              },
+              "description": "Grid column-width ratios after padding and gaps, for example [1, 2, 1]. Length must equal the effective columns count (default 3). Only allowed for grid."
+            },
             "direction": {
               "enum": [
                 "down",
@@ -1383,6 +1783,27 @@ export const architectureContract = {
                 "not": {
                   "required": [
                     "direction"
+                  ]
+                }
+              }
+            },
+            {
+              "if": {
+                "not": {
+                  "properties": {
+                    "type": {
+                      "const": "grid"
+                    }
+                  },
+                  "required": [
+                    "type"
+                  ]
+                }
+              },
+              "then": {
+                "not": {
+                  "required": [
+                    "columnWidths"
                   ]
                 }
               }
@@ -1454,20 +1875,37 @@ export const architectureContract = {
           "description": "Coordinate in the canvas coordinate system, relative to the parent group."
         },
         "width": {
-          "type": "number",
-          "minimum": 1,
-          "maximum": 4000,
-          "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 4000,
+              "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+            },
+            {
+              "const": "auto"
+            }
+          ],
+          "description": "Numeric extent or auto to hug the node's estimated text and icon size, including padding and shape insets. Group and image extents remain numeric."
         },
         "height": {
-          "type": "number",
-          "minimum": 1,
-          "maximum": 4000,
-          "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 4000,
+              "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+            },
+            {
+              "const": "auto"
+            }
+          ],
+          "description": "Numeric extent or auto to hug the node's estimated text and icon size, including padding and shape insets. Group and image extents remain numeric."
         },
         "text": {
           "type": "string",
-          "maxLength": 500
+          "maxLength": 500,
+          "description": "Newline-separated text. At most 8 lines are rendered; additional lines produce a truncation diagnostic."
         },
         "icon": {
           "anyOf": [
@@ -1595,6 +2033,54 @@ export const architectureContract = {
               "type": "number",
               "minimum": 8,
               "maximum": 160
+            },
+            "textAlign": {
+              "enum": [
+                "left",
+                "center",
+                "right"
+              ],
+              "description": "Node horizontal text alignment. Defaults to center."
+            },
+            "verticalAlign": {
+              "enum": [
+                "top",
+                "middle",
+                "bottom"
+              ],
+              "description": "Node vertical text alignment. Defaults to middle."
+            },
+            "autoFit": {
+              "enum": [
+                "shrink",
+                "none"
+              ],
+              "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+            },
+            "padding": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 400,
+              "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+            },
+            "fontWeight": {
+              "type": "number",
+              "minimum": 100,
+              "maximum": 900,
+              "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+            },
+            "fontFamily": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+              "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+            },
+            "lineHeight": {
+              "type": "number",
+              "minimum": 0.5,
+              "maximum": 4,
+              "description": "Line-height multiplier. Defaults to 1.2."
             },
             "opacity": {
               "type": "number",
@@ -1661,20 +2147,37 @@ export const architectureContract = {
           "description": "Coordinate in the canvas coordinate system, relative to the parent group."
         },
         "width": {
-          "type": "number",
-          "minimum": 1,
-          "maximum": 4000,
-          "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 4000,
+              "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+            },
+            {
+              "const": "auto"
+            }
+          ],
+          "description": "Numeric extent or auto to hug the node's estimated text and icon size, including padding and shape insets. Group and image extents remain numeric."
         },
         "height": {
-          "type": "number",
-          "minimum": 1,
-          "maximum": 4000,
-          "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 4000,
+              "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+            },
+            {
+              "const": "auto"
+            }
+          ],
+          "description": "Numeric extent or auto to hug the node's estimated text and icon size, including padding and shape insets. Group and image extents remain numeric."
         },
         "text": {
           "type": "string",
-          "maxLength": 500
+          "maxLength": 500,
+          "description": "Newline-separated text. At most 8 lines are rendered; additional lines produce a truncation diagnostic."
         },
         "icon": {
           "anyOf": [
@@ -1802,6 +2305,54 @@ export const architectureContract = {
               "type": "number",
               "minimum": 8,
               "maximum": 160
+            },
+            "textAlign": {
+              "enum": [
+                "left",
+                "center",
+                "right"
+              ],
+              "description": "Node horizontal text alignment. Defaults to center."
+            },
+            "verticalAlign": {
+              "enum": [
+                "top",
+                "middle",
+                "bottom"
+              ],
+              "description": "Node vertical text alignment. Defaults to middle."
+            },
+            "autoFit": {
+              "enum": [
+                "shrink",
+                "none"
+              ],
+              "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+            },
+            "padding": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 400,
+              "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+            },
+            "fontWeight": {
+              "type": "number",
+              "minimum": 100,
+              "maximum": 900,
+              "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+            },
+            "fontFamily": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+              "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+            },
+            "lineHeight": {
+              "type": "number",
+              "minimum": 0.5,
+              "maximum": 4,
+              "description": "Line-height multiplier. Defaults to 1.2."
             },
             "opacity": {
               "type": "number",
@@ -1863,20 +2414,37 @@ export const architectureContract = {
           "description": "Coordinate in the canvas coordinate system, relative to the parent group."
         },
         "width": {
-          "type": "number",
-          "minimum": 1,
-          "maximum": 4000,
-          "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 4000,
+              "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+            },
+            {
+              "const": "auto"
+            }
+          ],
+          "description": "Numeric extent or auto to hug the node's estimated text and icon size, including padding and shape insets. Group and image extents remain numeric."
         },
         "height": {
-          "type": "number",
-          "minimum": 1,
-          "maximum": 4000,
-          "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 4000,
+              "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+            },
+            {
+              "const": "auto"
+            }
+          ],
+          "description": "Numeric extent or auto to hug the node's estimated text and icon size, including padding and shape insets. Group and image extents remain numeric."
         },
         "text": {
           "type": "string",
-          "maxLength": 500
+          "maxLength": 500,
+          "description": "Newline-separated text. At most 8 lines are rendered; additional lines produce a truncation diagnostic."
         },
         "icon": {
           "anyOf": [
@@ -2004,6 +2572,54 @@ export const architectureContract = {
               "type": "number",
               "minimum": 8,
               "maximum": 160
+            },
+            "textAlign": {
+              "enum": [
+                "left",
+                "center",
+                "right"
+              ],
+              "description": "Node horizontal text alignment. Defaults to center."
+            },
+            "verticalAlign": {
+              "enum": [
+                "top",
+                "middle",
+                "bottom"
+              ],
+              "description": "Node vertical text alignment. Defaults to middle."
+            },
+            "autoFit": {
+              "enum": [
+                "shrink",
+                "none"
+              ],
+              "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+            },
+            "padding": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 400,
+              "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+            },
+            "fontWeight": {
+              "type": "number",
+              "minimum": 100,
+              "maximum": 900,
+              "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+            },
+            "fontFamily": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+              "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+            },
+            "lineHeight": {
+              "type": "number",
+              "minimum": 0.5,
+              "maximum": 4,
+              "description": "Line-height multiplier. Defaults to 1.2."
             },
             "opacity": {
               "type": "number",
@@ -2180,6 +2796,54 @@ export const architectureContract = {
               "type": "number",
               "minimum": 8,
               "maximum": 160
+            },
+            "textAlign": {
+              "enum": [
+                "left",
+                "center",
+                "right"
+              ],
+              "description": "Node horizontal text alignment. Defaults to center."
+            },
+            "verticalAlign": {
+              "enum": [
+                "top",
+                "middle",
+                "bottom"
+              ],
+              "description": "Node vertical text alignment. Defaults to middle."
+            },
+            "autoFit": {
+              "enum": [
+                "shrink",
+                "none"
+              ],
+              "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+            },
+            "padding": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 400,
+              "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+            },
+            "fontWeight": {
+              "type": "number",
+              "minimum": 100,
+              "maximum": 900,
+              "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+            },
+            "fontFamily": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+              "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+            },
+            "lineHeight": {
+              "type": "number",
+              "minimum": 0.5,
+              "maximum": 4,
+              "description": "Line-height multiplier. Defaults to 1.2."
             },
             "opacity": {
               "type": "number",
@@ -2361,6 +3025,54 @@ export const architectureContract = {
               "minimum": 8,
               "maximum": 160
             },
+            "textAlign": {
+              "enum": [
+                "left",
+                "center",
+                "right"
+              ],
+              "description": "Node horizontal text alignment. Defaults to center."
+            },
+            "verticalAlign": {
+              "enum": [
+                "top",
+                "middle",
+                "bottom"
+              ],
+              "description": "Node vertical text alignment. Defaults to middle."
+            },
+            "autoFit": {
+              "enum": [
+                "shrink",
+                "none"
+              ],
+              "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+            },
+            "padding": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 400,
+              "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+            },
+            "fontWeight": {
+              "type": "number",
+              "minimum": 100,
+              "maximum": 900,
+              "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+            },
+            "fontFamily": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+              "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+            },
+            "lineHeight": {
+              "type": "number",
+              "minimum": 0.5,
+              "maximum": 4,
+              "description": "Line-height multiplier. Defaults to 1.2."
+            },
             "opacity": {
               "type": "number",
               "minimum": 0,
@@ -2536,6 +3248,54 @@ export const architectureContract = {
               "minimum": 8,
               "maximum": 160
             },
+            "textAlign": {
+              "enum": [
+                "left",
+                "center",
+                "right"
+              ],
+              "description": "Node horizontal text alignment. Defaults to center."
+            },
+            "verticalAlign": {
+              "enum": [
+                "top",
+                "middle",
+                "bottom"
+              ],
+              "description": "Node vertical text alignment. Defaults to middle."
+            },
+            "autoFit": {
+              "enum": [
+                "shrink",
+                "none"
+              ],
+              "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+            },
+            "padding": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 400,
+              "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+            },
+            "fontWeight": {
+              "type": "number",
+              "minimum": 100,
+              "maximum": 900,
+              "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+            },
+            "fontFamily": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+              "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+            },
+            "lineHeight": {
+              "type": "number",
+              "minimum": 0.5,
+              "maximum": 4,
+              "description": "Line-height multiplier. Defaults to 1.2."
+            },
             "opacity": {
               "type": "number",
               "minimum": 0,
@@ -2570,14 +3330,68 @@ export const architectureContract = {
           "const": "connector"
         },
         "from": {
-          "type": "string",
-          "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
-          "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+              "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "x",
+                "y"
+              ],
+              "properties": {
+                "x": {
+                  "type": "number",
+                  "minimum": -4000,
+                  "maximum": 4000,
+                  "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                },
+                "y": {
+                  "type": "number",
+                  "minimum": -4000,
+                  "maximum": 4000,
+                  "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                }
+              }
+            }
+          ],
+          "description": "Referenced node/group/image ID or a free coordinate point relative to the containing group."
         },
         "to": {
-          "type": "string",
-          "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
-          "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+              "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "x",
+                "y"
+              ],
+              "properties": {
+                "x": {
+                  "type": "number",
+                  "minimum": -4000,
+                  "maximum": 4000,
+                  "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                },
+                "y": {
+                  "type": "number",
+                  "minimum": -4000,
+                  "maximum": 4000,
+                  "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                }
+              }
+            }
+          ],
+          "description": "Referenced node/group/image ID or a free coordinate point relative to the containing group."
         },
         "fromPort": {
           "enum": [
@@ -2752,6 +3566,54 @@ export const architectureContract = {
               "minimum": 8,
               "maximum": 160
             },
+            "textAlign": {
+              "enum": [
+                "left",
+                "center",
+                "right"
+              ],
+              "description": "Node horizontal text alignment. Defaults to center."
+            },
+            "verticalAlign": {
+              "enum": [
+                "top",
+                "middle",
+                "bottom"
+              ],
+              "description": "Node vertical text alignment. Defaults to middle."
+            },
+            "autoFit": {
+              "enum": [
+                "shrink",
+                "none"
+              ],
+              "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+            },
+            "padding": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 400,
+              "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+            },
+            "fontWeight": {
+              "type": "number",
+              "minimum": 100,
+              "maximum": 900,
+              "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+            },
+            "fontFamily": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+              "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+            },
+            "lineHeight": {
+              "type": "number",
+              "minimum": 0.5,
+              "maximum": 4,
+              "description": "Line-height multiplier. Defaults to 1.2."
+            },
             "opacity": {
               "type": "number",
               "minimum": 0,
@@ -2893,6 +3755,17 @@ export const architectureContract = {
                   "maximum": 12,
                   "description": "Number of grid columns. Fractional values are truncated. Ignored for row / column / layered."
                 },
+                "columnWidths": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 12,
+                  "items": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 4000
+                  },
+                  "description": "Grid column-width ratios after padding and gaps, for example [1, 2, 1]. Length must equal the effective columns count (default 3). Only allowed for grid."
+                },
                 "direction": {
                   "enum": [
                     "down",
@@ -2919,6 +3792,27 @@ export const architectureContract = {
                     "not": {
                       "required": [
                         "direction"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "not": {
+                      "properties": {
+                        "type": {
+                          "const": "grid"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    }
+                  },
+                  "then": {
+                    "not": {
+                      "required": [
+                        "columnWidths"
                       ]
                     }
                   }
@@ -3023,6 +3917,54 @@ export const architectureContract = {
               "type": "number",
               "minimum": 8,
               "maximum": 160
+            },
+            "textAlign": {
+              "enum": [
+                "left",
+                "center",
+                "right"
+              ],
+              "description": "Node horizontal text alignment. Defaults to center."
+            },
+            "verticalAlign": {
+              "enum": [
+                "top",
+                "middle",
+                "bottom"
+              ],
+              "description": "Node vertical text alignment. Defaults to middle."
+            },
+            "autoFit": {
+              "enum": [
+                "shrink",
+                "none"
+              ],
+              "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+            },
+            "padding": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 400,
+              "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+            },
+            "fontWeight": {
+              "type": "number",
+              "minimum": 100,
+              "maximum": 900,
+              "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+            },
+            "fontFamily": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+              "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+            },
+            "lineHeight": {
+              "type": "number",
+              "minimum": 0.5,
+              "maximum": 4,
+              "description": "Line-height multiplier. Defaults to 1.2."
             },
             "opacity": {
               "type": "number",
@@ -3282,6 +4224,17 @@ export const architectureContract = {
                   "maximum": 12,
                   "description": "Number of grid columns. Fractional values are truncated. Ignored for row / column / layered."
                 },
+                "columnWidths": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 12,
+                  "items": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 4000
+                  },
+                  "description": "Grid column-width ratios after padding and gaps, for example [1, 2, 1]. Length must equal the effective columns count (default 3). Only allowed for grid."
+                },
                 "direction": {
                   "enum": [
                     "down",
@@ -3308,6 +4261,27 @@ export const architectureContract = {
                     "not": {
                       "required": [
                         "direction"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "not": {
+                      "properties": {
+                        "type": {
+                          "const": "grid"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    }
+                  },
+                  "then": {
+                    "not": {
+                      "required": [
+                        "columnWidths"
                       ]
                     }
                   }
@@ -3412,6 +4386,54 @@ export const architectureContract = {
               "type": "number",
               "minimum": 8,
               "maximum": 160
+            },
+            "textAlign": {
+              "enum": [
+                "left",
+                "center",
+                "right"
+              ],
+              "description": "Node horizontal text alignment. Defaults to center."
+            },
+            "verticalAlign": {
+              "enum": [
+                "top",
+                "middle",
+                "bottom"
+              ],
+              "description": "Node vertical text alignment. Defaults to middle."
+            },
+            "autoFit": {
+              "enum": [
+                "shrink",
+                "none"
+              ],
+              "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+            },
+            "padding": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 400,
+              "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+            },
+            "fontWeight": {
+              "type": "number",
+              "minimum": 100,
+              "maximum": 900,
+              "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+            },
+            "fontFamily": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+              "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+            },
+            "lineHeight": {
+              "type": "number",
+              "minimum": 0.5,
+              "maximum": 4,
+              "description": "Line-height multiplier. Defaults to 1.2."
             },
             "opacity": {
               "type": "number",
@@ -3570,6 +4592,17 @@ export const architectureContract = {
                   "maximum": 12,
                   "description": "Number of grid columns. Fractional values are truncated. Ignored for row / column / layered."
                 },
+                "columnWidths": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 12,
+                  "items": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 4000
+                  },
+                  "description": "Grid column-width ratios after padding and gaps, for example [1, 2, 1]. Length must equal the effective columns count (default 3). Only allowed for grid."
+                },
                 "direction": {
                   "enum": [
                     "down",
@@ -3596,6 +4629,27 @@ export const architectureContract = {
                     "not": {
                       "required": [
                         "direction"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "not": {
+                      "properties": {
+                        "type": {
+                          "const": "grid"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    }
+                  },
+                  "then": {
+                    "not": {
+                      "required": [
+                        "columnWidths"
                       ]
                     }
                   }
@@ -3700,6 +4754,54 @@ export const architectureContract = {
               "type": "number",
               "minimum": 8,
               "maximum": 160
+            },
+            "textAlign": {
+              "enum": [
+                "left",
+                "center",
+                "right"
+              ],
+              "description": "Node horizontal text alignment. Defaults to center."
+            },
+            "verticalAlign": {
+              "enum": [
+                "top",
+                "middle",
+                "bottom"
+              ],
+              "description": "Node vertical text alignment. Defaults to middle."
+            },
+            "autoFit": {
+              "enum": [
+                "shrink",
+                "none"
+              ],
+              "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+            },
+            "padding": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 400,
+              "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+            },
+            "fontWeight": {
+              "type": "number",
+              "minimum": 100,
+              "maximum": 900,
+              "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+            },
+            "fontFamily": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+              "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+            },
+            "lineHeight": {
+              "type": "number",
+              "minimum": 0.5,
+              "maximum": 4,
+              "description": "Line-height multiplier. Defaults to 1.2."
             },
             "opacity": {
               "type": "number",
@@ -3861,6 +4963,17 @@ export const architectureContract = {
                   "maximum": 12,
                   "description": "Number of grid columns. Fractional values are truncated. Ignored for row / column / layered."
                 },
+                "columnWidths": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 12,
+                  "items": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 4000
+                  },
+                  "description": "Grid column-width ratios after padding and gaps, for example [1, 2, 1]. Length must equal the effective columns count (default 3). Only allowed for grid."
+                },
                 "direction": {
                   "enum": [
                     "down",
@@ -3887,6 +5000,27 @@ export const architectureContract = {
                     "not": {
                       "required": [
                         "direction"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "not": {
+                      "properties": {
+                        "type": {
+                          "const": "grid"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    }
+                  },
+                  "then": {
+                    "not": {
+                      "required": [
+                        "columnWidths"
                       ]
                     }
                   }
@@ -3991,6 +5125,54 @@ export const architectureContract = {
               "type": "number",
               "minimum": 8,
               "maximum": 160
+            },
+            "textAlign": {
+              "enum": [
+                "left",
+                "center",
+                "right"
+              ],
+              "description": "Node horizontal text alignment. Defaults to center."
+            },
+            "verticalAlign": {
+              "enum": [
+                "top",
+                "middle",
+                "bottom"
+              ],
+              "description": "Node vertical text alignment. Defaults to middle."
+            },
+            "autoFit": {
+              "enum": [
+                "shrink",
+                "none"
+              ],
+              "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+            },
+            "padding": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 400,
+              "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+            },
+            "fontWeight": {
+              "type": "number",
+              "minimum": 100,
+              "maximum": 900,
+              "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+            },
+            "fontFamily": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+              "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+            },
+            "lineHeight": {
+              "type": "number",
+              "minimum": 0.5,
+              "maximum": 4,
+              "description": "Line-height multiplier. Defaults to 1.2."
             },
             "opacity": {
               "type": "number",
@@ -4149,6 +5331,17 @@ export const architectureContract = {
                   "maximum": 12,
                   "description": "Number of grid columns. Fractional values are truncated. Ignored for row / column / layered."
                 },
+                "columnWidths": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 12,
+                  "items": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 4000
+                  },
+                  "description": "Grid column-width ratios after padding and gaps, for example [1, 2, 1]. Length must equal the effective columns count (default 3). Only allowed for grid."
+                },
                 "direction": {
                   "enum": [
                     "down",
@@ -4175,6 +5368,27 @@ export const architectureContract = {
                     "not": {
                       "required": [
                         "direction"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "not": {
+                      "properties": {
+                        "type": {
+                          "const": "grid"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    }
+                  },
+                  "then": {
+                    "not": {
+                      "required": [
+                        "columnWidths"
                       ]
                     }
                   }
@@ -4279,6 +5493,54 @@ export const architectureContract = {
               "type": "number",
               "minimum": 8,
               "maximum": 160
+            },
+            "textAlign": {
+              "enum": [
+                "left",
+                "center",
+                "right"
+              ],
+              "description": "Node horizontal text alignment. Defaults to center."
+            },
+            "verticalAlign": {
+              "enum": [
+                "top",
+                "middle",
+                "bottom"
+              ],
+              "description": "Node vertical text alignment. Defaults to middle."
+            },
+            "autoFit": {
+              "enum": [
+                "shrink",
+                "none"
+              ],
+              "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+            },
+            "padding": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 400,
+              "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+            },
+            "fontWeight": {
+              "type": "number",
+              "minimum": 100,
+              "maximum": 900,
+              "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+            },
+            "fontFamily": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+              "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+            },
+            "lineHeight": {
+              "type": "number",
+              "minimum": 0.5,
+              "maximum": 4,
+              "description": "Line-height multiplier. Defaults to 1.2."
             },
             "opacity": {
               "type": "number",
@@ -4440,6 +5702,17 @@ export const architectureContract = {
                   "maximum": 12,
                   "description": "Number of grid columns. Fractional values are truncated. Ignored for row / column / layered."
                 },
+                "columnWidths": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 12,
+                  "items": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 4000
+                  },
+                  "description": "Grid column-width ratios after padding and gaps, for example [1, 2, 1]. Length must equal the effective columns count (default 3). Only allowed for grid."
+                },
                 "direction": {
                   "enum": [
                     "down",
@@ -4466,6 +5739,27 @@ export const architectureContract = {
                     "not": {
                       "required": [
                         "direction"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "not": {
+                      "properties": {
+                        "type": {
+                          "const": "grid"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    }
+                  },
+                  "then": {
+                    "not": {
+                      "required": [
+                        "columnWidths"
                       ]
                     }
                   }
@@ -4570,6 +5864,54 @@ export const architectureContract = {
               "type": "number",
               "minimum": 8,
               "maximum": 160
+            },
+            "textAlign": {
+              "enum": [
+                "left",
+                "center",
+                "right"
+              ],
+              "description": "Node horizontal text alignment. Defaults to center."
+            },
+            "verticalAlign": {
+              "enum": [
+                "top",
+                "middle",
+                "bottom"
+              ],
+              "description": "Node vertical text alignment. Defaults to middle."
+            },
+            "autoFit": {
+              "enum": [
+                "shrink",
+                "none"
+              ],
+              "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+            },
+            "padding": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 400,
+              "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+            },
+            "fontWeight": {
+              "type": "number",
+              "minimum": 100,
+              "maximum": 900,
+              "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+            },
+            "fontFamily": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+              "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+            },
+            "lineHeight": {
+              "type": "number",
+              "minimum": 0.5,
+              "maximum": 4,
+              "description": "Line-height multiplier. Defaults to 1.2."
             },
             "opacity": {
               "type": "number",
@@ -4728,6 +6070,17 @@ export const architectureContract = {
                   "maximum": 12,
                   "description": "Number of grid columns. Fractional values are truncated. Ignored for row / column / layered."
                 },
+                "columnWidths": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 12,
+                  "items": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 4000
+                  },
+                  "description": "Grid column-width ratios after padding and gaps, for example [1, 2, 1]. Length must equal the effective columns count (default 3). Only allowed for grid."
+                },
                 "direction": {
                   "enum": [
                     "down",
@@ -4754,6 +6107,27 @@ export const architectureContract = {
                     "not": {
                       "required": [
                         "direction"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "not": {
+                      "properties": {
+                        "type": {
+                          "const": "grid"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    }
+                  },
+                  "then": {
+                    "not": {
+                      "required": [
+                        "columnWidths"
                       ]
                     }
                   }
@@ -4858,6 +6232,54 @@ export const architectureContract = {
               "type": "number",
               "minimum": 8,
               "maximum": 160
+            },
+            "textAlign": {
+              "enum": [
+                "left",
+                "center",
+                "right"
+              ],
+              "description": "Node horizontal text alignment. Defaults to center."
+            },
+            "verticalAlign": {
+              "enum": [
+                "top",
+                "middle",
+                "bottom"
+              ],
+              "description": "Node vertical text alignment. Defaults to middle."
+            },
+            "autoFit": {
+              "enum": [
+                "shrink",
+                "none"
+              ],
+              "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+            },
+            "padding": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 400,
+              "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+            },
+            "fontWeight": {
+              "type": "number",
+              "minimum": 100,
+              "maximum": 900,
+              "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+            },
+            "fontFamily": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+              "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+            },
+            "lineHeight": {
+              "type": "number",
+              "minimum": 0.5,
+              "maximum": 4,
+              "description": "Line-height multiplier. Defaults to 1.2."
             },
             "opacity": {
               "type": "number",
@@ -5019,6 +6441,17 @@ export const architectureContract = {
                   "maximum": 12,
                   "description": "Number of grid columns. Fractional values are truncated. Ignored for row / column / layered."
                 },
+                "columnWidths": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 12,
+                  "items": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 4000
+                  },
+                  "description": "Grid column-width ratios after padding and gaps, for example [1, 2, 1]. Length must equal the effective columns count (default 3). Only allowed for grid."
+                },
                 "direction": {
                   "enum": [
                     "down",
@@ -5045,6 +6478,27 @@ export const architectureContract = {
                     "not": {
                       "required": [
                         "direction"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "not": {
+                      "properties": {
+                        "type": {
+                          "const": "grid"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    }
+                  },
+                  "then": {
+                    "not": {
+                      "required": [
+                        "columnWidths"
                       ]
                     }
                   }
@@ -5149,6 +6603,54 @@ export const architectureContract = {
               "type": "number",
               "minimum": 8,
               "maximum": 160
+            },
+            "textAlign": {
+              "enum": [
+                "left",
+                "center",
+                "right"
+              ],
+              "description": "Node horizontal text alignment. Defaults to center."
+            },
+            "verticalAlign": {
+              "enum": [
+                "top",
+                "middle",
+                "bottom"
+              ],
+              "description": "Node vertical text alignment. Defaults to middle."
+            },
+            "autoFit": {
+              "enum": [
+                "shrink",
+                "none"
+              ],
+              "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+            },
+            "padding": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 400,
+              "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+            },
+            "fontWeight": {
+              "type": "number",
+              "minimum": 100,
+              "maximum": 900,
+              "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+            },
+            "fontFamily": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+              "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+            },
+            "lineHeight": {
+              "type": "number",
+              "minimum": 0.5,
+              "maximum": 4,
+              "description": "Line-height multiplier. Defaults to 1.2."
             },
             "opacity": {
               "type": "number",
@@ -5307,6 +6809,17 @@ export const architectureContract = {
                   "maximum": 12,
                   "description": "Number of grid columns. Fractional values are truncated. Ignored for row / column / layered."
                 },
+                "columnWidths": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 12,
+                  "items": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 4000
+                  },
+                  "description": "Grid column-width ratios after padding and gaps, for example [1, 2, 1]. Length must equal the effective columns count (default 3). Only allowed for grid."
+                },
                 "direction": {
                   "enum": [
                     "down",
@@ -5333,6 +6846,27 @@ export const architectureContract = {
                     "not": {
                       "required": [
                         "direction"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "not": {
+                      "properties": {
+                        "type": {
+                          "const": "grid"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    }
+                  },
+                  "then": {
+                    "not": {
+                      "required": [
+                        "columnWidths"
                       ]
                     }
                   }
@@ -5437,6 +6971,54 @@ export const architectureContract = {
               "type": "number",
               "minimum": 8,
               "maximum": 160
+            },
+            "textAlign": {
+              "enum": [
+                "left",
+                "center",
+                "right"
+              ],
+              "description": "Node horizontal text alignment. Defaults to center."
+            },
+            "verticalAlign": {
+              "enum": [
+                "top",
+                "middle",
+                "bottom"
+              ],
+              "description": "Node vertical text alignment. Defaults to middle."
+            },
+            "autoFit": {
+              "enum": [
+                "shrink",
+                "none"
+              ],
+              "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+            },
+            "padding": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 400,
+              "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+            },
+            "fontWeight": {
+              "type": "number",
+              "minimum": 100,
+              "maximum": 900,
+              "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+            },
+            "fontFamily": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+              "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+            },
+            "lineHeight": {
+              "type": "number",
+              "minimum": 0.5,
+              "maximum": 4,
+              "description": "Line-height multiplier. Defaults to 1.2."
             },
             "opacity": {
               "type": "number",
@@ -5568,20 +7150,37 @@ export const architectureContract = {
                 "description": "Coordinate in the canvas coordinate system, relative to the parent group."
               },
               "width": {
-                "type": "number",
-                "minimum": 1,
-                "maximum": 4000,
-                "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 1,
+                    "maximum": 4000,
+                    "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                  },
+                  {
+                    "const": "auto"
+                  }
+                ],
+                "description": "Numeric extent or auto to hug the node's estimated text and icon size, including padding and shape insets. Group and image extents remain numeric."
               },
               "height": {
-                "type": "number",
-                "minimum": 1,
-                "maximum": 4000,
-                "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 1,
+                    "maximum": 4000,
+                    "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                  },
+                  {
+                    "const": "auto"
+                  }
+                ],
+                "description": "Numeric extent or auto to hug the node's estimated text and icon size, including padding and shape insets. Group and image extents remain numeric."
               },
               "text": {
                 "type": "string",
-                "maxLength": 500
+                "maxLength": 500,
+                "description": "Newline-separated text. At most 8 lines are rendered; additional lines produce a truncation diagnostic."
               },
               "icon": {
                 "anyOf": [
@@ -5709,6 +7308,54 @@ export const architectureContract = {
                     "type": "number",
                     "minimum": 8,
                     "maximum": 160
+                  },
+                  "textAlign": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "description": "Node horizontal text alignment. Defaults to center."
+                  },
+                  "verticalAlign": {
+                    "enum": [
+                      "top",
+                      "middle",
+                      "bottom"
+                    ],
+                    "description": "Node vertical text alignment. Defaults to middle."
+                  },
+                  "autoFit": {
+                    "enum": [
+                      "shrink",
+                      "none"
+                    ],
+                    "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+                  },
+                  "padding": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+                  },
+                  "fontWeight": {
+                    "type": "number",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+                    "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+                  },
+                  "lineHeight": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 4,
+                    "description": "Line-height multiplier. Defaults to 1.2."
                   },
                   "opacity": {
                     "type": "number",
@@ -5847,6 +7494,17 @@ export const architectureContract = {
                         "maximum": 12,
                         "description": "Number of grid columns. Fractional values are truncated. Ignored for row / column / layered."
                       },
+                      "columnWidths": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 12,
+                        "items": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "maximum": 4000
+                        },
+                        "description": "Grid column-width ratios after padding and gaps, for example [1, 2, 1]. Length must equal the effective columns count (default 3). Only allowed for grid."
+                      },
                       "direction": {
                         "enum": [
                           "down",
@@ -5873,6 +7531,27 @@ export const architectureContract = {
                           "not": {
                             "required": [
                               "direction"
+                            ]
+                          }
+                        }
+                      },
+                      {
+                        "if": {
+                          "not": {
+                            "properties": {
+                              "type": {
+                                "const": "grid"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          }
+                        },
+                        "then": {
+                          "not": {
+                            "required": [
+                              "columnWidths"
                             ]
                           }
                         }
@@ -5977,6 +7656,54 @@ export const architectureContract = {
                     "type": "number",
                     "minimum": 8,
                     "maximum": 160
+                  },
+                  "textAlign": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "description": "Node horizontal text alignment. Defaults to center."
+                  },
+                  "verticalAlign": {
+                    "enum": [
+                      "top",
+                      "middle",
+                      "bottom"
+                    ],
+                    "description": "Node vertical text alignment. Defaults to middle."
+                  },
+                  "autoFit": {
+                    "enum": [
+                      "shrink",
+                      "none"
+                    ],
+                    "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+                  },
+                  "padding": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+                  },
+                  "fontWeight": {
+                    "type": "number",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+                    "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+                  },
+                  "lineHeight": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 4,
+                    "description": "Line-height multiplier. Defaults to 1.2."
                   },
                   "opacity": {
                     "type": "number",
@@ -6208,6 +7935,54 @@ export const architectureContract = {
                     "minimum": 8,
                     "maximum": 160
                   },
+                  "textAlign": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "description": "Node horizontal text alignment. Defaults to center."
+                  },
+                  "verticalAlign": {
+                    "enum": [
+                      "top",
+                      "middle",
+                      "bottom"
+                    ],
+                    "description": "Node vertical text alignment. Defaults to middle."
+                  },
+                  "autoFit": {
+                    "enum": [
+                      "shrink",
+                      "none"
+                    ],
+                    "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+                  },
+                  "padding": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+                  },
+                  "fontWeight": {
+                    "type": "number",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+                    "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+                  },
+                  "lineHeight": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 4,
+                    "description": "Line-height multiplier. Defaults to 1.2."
+                  },
                   "opacity": {
                     "type": "number",
                     "minimum": 0,
@@ -6254,14 +8029,68 @@ export const architectureContract = {
                 "const": "connector"
               },
               "from": {
-                "type": "string",
-                "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
-                "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+                    "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      }
+                    }
+                  }
+                ],
+                "description": "Referenced node/group/image ID or a free coordinate point relative to the containing group."
               },
               "to": {
-                "type": "string",
-                "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
-                "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+                    "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      }
+                    }
+                  }
+                ],
+                "description": "Referenced node/group/image ID or a free coordinate point relative to the containing group."
               },
               "fromPort": {
                 "enum": [
@@ -6435,6 +8264,54 @@ export const architectureContract = {
                     "type": "number",
                     "minimum": 8,
                     "maximum": 160
+                  },
+                  "textAlign": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "description": "Node horizontal text alignment. Defaults to center."
+                  },
+                  "verticalAlign": {
+                    "enum": [
+                      "top",
+                      "middle",
+                      "bottom"
+                    ],
+                    "description": "Node vertical text alignment. Defaults to middle."
+                  },
+                  "autoFit": {
+                    "enum": [
+                      "shrink",
+                      "none"
+                    ],
+                    "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+                  },
+                  "padding": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+                  },
+                  "fontWeight": {
+                    "type": "number",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+                    "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+                  },
+                  "lineHeight": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 4,
+                    "description": "Line-height multiplier. Defaults to 1.2."
                   },
                   "opacity": {
                     "type": "number",
@@ -6553,20 +8430,37 @@ export const architectureContract = {
                 "description": "Coordinate in the canvas coordinate system, relative to the parent group."
               },
               "width": {
-                "type": "number",
-                "minimum": 1,
-                "maximum": 4000,
-                "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 1,
+                    "maximum": 4000,
+                    "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                  },
+                  {
+                    "const": "auto"
+                  }
+                ],
+                "description": "Numeric extent or auto to hug the node's estimated text and icon size, including padding and shape insets. Group and image extents remain numeric."
               },
               "height": {
-                "type": "number",
-                "minimum": 1,
-                "maximum": 4000,
-                "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 1,
+                    "maximum": 4000,
+                    "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                  },
+                  {
+                    "const": "auto"
+                  }
+                ],
+                "description": "Numeric extent or auto to hug the node's estimated text and icon size, including padding and shape insets. Group and image extents remain numeric."
               },
               "text": {
                 "type": "string",
-                "maxLength": 500
+                "maxLength": 500,
+                "description": "Newline-separated text. At most 8 lines are rendered; additional lines produce a truncation diagnostic."
               },
               "icon": {
                 "anyOf": [
@@ -6694,6 +8588,54 @@ export const architectureContract = {
                     "type": "number",
                     "minimum": 8,
                     "maximum": 160
+                  },
+                  "textAlign": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "description": "Node horizontal text alignment. Defaults to center."
+                  },
+                  "verticalAlign": {
+                    "enum": [
+                      "top",
+                      "middle",
+                      "bottom"
+                    ],
+                    "description": "Node vertical text alignment. Defaults to middle."
+                  },
+                  "autoFit": {
+                    "enum": [
+                      "shrink",
+                      "none"
+                    ],
+                    "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+                  },
+                  "padding": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+                  },
+                  "fontWeight": {
+                    "type": "number",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+                    "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+                  },
+                  "lineHeight": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 4,
+                    "description": "Line-height multiplier. Defaults to 1.2."
                   },
                   "opacity": {
                     "type": "number",
@@ -6832,6 +8774,17 @@ export const architectureContract = {
                         "maximum": 12,
                         "description": "Number of grid columns. Fractional values are truncated. Ignored for row / column / layered."
                       },
+                      "columnWidths": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 12,
+                        "items": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "maximum": 4000
+                        },
+                        "description": "Grid column-width ratios after padding and gaps, for example [1, 2, 1]. Length must equal the effective columns count (default 3). Only allowed for grid."
+                      },
                       "direction": {
                         "enum": [
                           "down",
@@ -6858,6 +8811,27 @@ export const architectureContract = {
                           "not": {
                             "required": [
                               "direction"
+                            ]
+                          }
+                        }
+                      },
+                      {
+                        "if": {
+                          "not": {
+                            "properties": {
+                              "type": {
+                                "const": "grid"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          }
+                        },
+                        "then": {
+                          "not": {
+                            "required": [
+                              "columnWidths"
                             ]
                           }
                         }
@@ -6962,6 +8936,54 @@ export const architectureContract = {
                     "type": "number",
                     "minimum": 8,
                     "maximum": 160
+                  },
+                  "textAlign": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "description": "Node horizontal text alignment. Defaults to center."
+                  },
+                  "verticalAlign": {
+                    "enum": [
+                      "top",
+                      "middle",
+                      "bottom"
+                    ],
+                    "description": "Node vertical text alignment. Defaults to middle."
+                  },
+                  "autoFit": {
+                    "enum": [
+                      "shrink",
+                      "none"
+                    ],
+                    "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+                  },
+                  "padding": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+                  },
+                  "fontWeight": {
+                    "type": "number",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+                    "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+                  },
+                  "lineHeight": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 4,
+                    "description": "Line-height multiplier. Defaults to 1.2."
                   },
                   "opacity": {
                     "type": "number",
@@ -7193,6 +9215,54 @@ export const architectureContract = {
                     "minimum": 8,
                     "maximum": 160
                   },
+                  "textAlign": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "description": "Node horizontal text alignment. Defaults to center."
+                  },
+                  "verticalAlign": {
+                    "enum": [
+                      "top",
+                      "middle",
+                      "bottom"
+                    ],
+                    "description": "Node vertical text alignment. Defaults to middle."
+                  },
+                  "autoFit": {
+                    "enum": [
+                      "shrink",
+                      "none"
+                    ],
+                    "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+                  },
+                  "padding": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+                  },
+                  "fontWeight": {
+                    "type": "number",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+                    "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+                  },
+                  "lineHeight": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 4,
+                    "description": "Line-height multiplier. Defaults to 1.2."
+                  },
                   "opacity": {
                     "type": "number",
                     "minimum": 0,
@@ -7239,14 +9309,68 @@ export const architectureContract = {
                 "const": "connector"
               },
               "from": {
-                "type": "string",
-                "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
-                "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+                    "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      }
+                    }
+                  }
+                ],
+                "description": "Referenced node/group/image ID or a free coordinate point relative to the containing group."
               },
               "to": {
-                "type": "string",
-                "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
-                "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+                    "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      }
+                    }
+                  }
+                ],
+                "description": "Referenced node/group/image ID or a free coordinate point relative to the containing group."
               },
               "fromPort": {
                 "enum": [
@@ -7421,6 +9545,54 @@ export const architectureContract = {
                     "minimum": 8,
                     "maximum": 160
                   },
+                  "textAlign": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "description": "Node horizontal text alignment. Defaults to center."
+                  },
+                  "verticalAlign": {
+                    "enum": [
+                      "top",
+                      "middle",
+                      "bottom"
+                    ],
+                    "description": "Node vertical text alignment. Defaults to middle."
+                  },
+                  "autoFit": {
+                    "enum": [
+                      "shrink",
+                      "none"
+                    ],
+                    "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+                  },
+                  "padding": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+                  },
+                  "fontWeight": {
+                    "type": "number",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+                    "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+                  },
+                  "lineHeight": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 4,
+                    "description": "Line-height multiplier. Defaults to 1.2."
+                  },
                   "opacity": {
                     "type": "number",
                     "minimum": 0,
@@ -7533,20 +9705,37 @@ export const architectureContract = {
                 "description": "Coordinate in the canvas coordinate system, relative to the parent group."
               },
               "width": {
-                "type": "number",
-                "minimum": 1,
-                "maximum": 4000,
-                "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 1,
+                    "maximum": 4000,
+                    "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                  },
+                  {
+                    "const": "auto"
+                  }
+                ],
+                "description": "Numeric extent or auto to hug the node's estimated text and icon size, including padding and shape insets. Group and image extents remain numeric."
               },
               "height": {
-                "type": "number",
-                "minimum": 1,
-                "maximum": 4000,
-                "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 1,
+                    "maximum": 4000,
+                    "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                  },
+                  {
+                    "const": "auto"
+                  }
+                ],
+                "description": "Numeric extent or auto to hug the node's estimated text and icon size, including padding and shape insets. Group and image extents remain numeric."
               },
               "text": {
                 "type": "string",
-                "maxLength": 500
+                "maxLength": 500,
+                "description": "Newline-separated text. At most 8 lines are rendered; additional lines produce a truncation diagnostic."
               },
               "icon": {
                 "anyOf": [
@@ -7674,6 +9863,54 @@ export const architectureContract = {
                     "type": "number",
                     "minimum": 8,
                     "maximum": 160
+                  },
+                  "textAlign": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "description": "Node horizontal text alignment. Defaults to center."
+                  },
+                  "verticalAlign": {
+                    "enum": [
+                      "top",
+                      "middle",
+                      "bottom"
+                    ],
+                    "description": "Node vertical text alignment. Defaults to middle."
+                  },
+                  "autoFit": {
+                    "enum": [
+                      "shrink",
+                      "none"
+                    ],
+                    "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+                  },
+                  "padding": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+                  },
+                  "fontWeight": {
+                    "type": "number",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+                    "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+                  },
+                  "lineHeight": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 4,
+                    "description": "Line-height multiplier. Defaults to 1.2."
                   },
                   "opacity": {
                     "type": "number",
@@ -7809,6 +10046,17 @@ export const architectureContract = {
                         "maximum": 12,
                         "description": "Number of grid columns. Fractional values are truncated. Ignored for row / column / layered."
                       },
+                      "columnWidths": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 12,
+                        "items": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "maximum": 4000
+                        },
+                        "description": "Grid column-width ratios after padding and gaps, for example [1, 2, 1]. Length must equal the effective columns count (default 3). Only allowed for grid."
+                      },
                       "direction": {
                         "enum": [
                           "down",
@@ -7835,6 +10083,27 @@ export const architectureContract = {
                           "not": {
                             "required": [
                               "direction"
+                            ]
+                          }
+                        }
+                      },
+                      {
+                        "if": {
+                          "not": {
+                            "properties": {
+                              "type": {
+                                "const": "grid"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          }
+                        },
+                        "then": {
+                          "not": {
+                            "required": [
+                              "columnWidths"
                             ]
                           }
                         }
@@ -7939,6 +10208,54 @@ export const architectureContract = {
                     "type": "number",
                     "minimum": 8,
                     "maximum": 160
+                  },
+                  "textAlign": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "description": "Node horizontal text alignment. Defaults to center."
+                  },
+                  "verticalAlign": {
+                    "enum": [
+                      "top",
+                      "middle",
+                      "bottom"
+                    ],
+                    "description": "Node vertical text alignment. Defaults to middle."
+                  },
+                  "autoFit": {
+                    "enum": [
+                      "shrink",
+                      "none"
+                    ],
+                    "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+                  },
+                  "padding": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+                  },
+                  "fontWeight": {
+                    "type": "number",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+                    "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+                  },
+                  "lineHeight": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 4,
+                    "description": "Line-height multiplier. Defaults to 1.2."
                   },
                   "opacity": {
                     "type": "number",
@@ -8164,6 +10481,54 @@ export const architectureContract = {
                     "minimum": 8,
                     "maximum": 160
                   },
+                  "textAlign": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "description": "Node horizontal text alignment. Defaults to center."
+                  },
+                  "verticalAlign": {
+                    "enum": [
+                      "top",
+                      "middle",
+                      "bottom"
+                    ],
+                    "description": "Node vertical text alignment. Defaults to middle."
+                  },
+                  "autoFit": {
+                    "enum": [
+                      "shrink",
+                      "none"
+                    ],
+                    "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+                  },
+                  "padding": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+                  },
+                  "fontWeight": {
+                    "type": "number",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+                    "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+                  },
+                  "lineHeight": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 4,
+                    "description": "Line-height multiplier. Defaults to 1.2."
+                  },
                   "opacity": {
                     "type": "number",
                     "minimum": 0,
@@ -8211,14 +10576,68 @@ export const architectureContract = {
                 "const": "connector"
               },
               "from": {
-                "type": "string",
-                "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
-                "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+                    "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      }
+                    }
+                  }
+                ],
+                "description": "Referenced node/group/image ID or a free coordinate point relative to the containing group."
               },
               "to": {
-                "type": "string",
-                "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
-                "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+                    "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      }
+                    }
+                  }
+                ],
+                "description": "Referenced node/group/image ID or a free coordinate point relative to the containing group."
               },
               "fromPort": {
                 "enum": [
@@ -8392,6 +10811,54 @@ export const architectureContract = {
                     "type": "number",
                     "minimum": 8,
                     "maximum": 160
+                  },
+                  "textAlign": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "description": "Node horizontal text alignment. Defaults to center."
+                  },
+                  "verticalAlign": {
+                    "enum": [
+                      "top",
+                      "middle",
+                      "bottom"
+                    ],
+                    "description": "Node vertical text alignment. Defaults to middle."
+                  },
+                  "autoFit": {
+                    "enum": [
+                      "shrink",
+                      "none"
+                    ],
+                    "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+                  },
+                  "padding": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+                  },
+                  "fontWeight": {
+                    "type": "number",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+                    "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+                  },
+                  "lineHeight": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 4,
+                    "description": "Line-height multiplier. Defaults to 1.2."
                   },
                   "opacity": {
                     "type": "number",
@@ -8510,20 +10977,37 @@ export const architectureContract = {
                 "description": "Coordinate in the canvas coordinate system, relative to the parent group."
               },
               "width": {
-                "type": "number",
-                "minimum": 1,
-                "maximum": 4000,
-                "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 1,
+                    "maximum": 4000,
+                    "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                  },
+                  {
+                    "const": "auto"
+                  }
+                ],
+                "description": "Numeric extent or auto to hug the node's estimated text and icon size, including padding and shape insets. Group and image extents remain numeric."
               },
               "height": {
-                "type": "number",
-                "minimum": 1,
-                "maximum": 4000,
-                "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 1,
+                    "maximum": 4000,
+                    "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                  },
+                  {
+                    "const": "auto"
+                  }
+                ],
+                "description": "Numeric extent or auto to hug the node's estimated text and icon size, including padding and shape insets. Group and image extents remain numeric."
               },
               "text": {
                 "type": "string",
-                "maxLength": 500
+                "maxLength": 500,
+                "description": "Newline-separated text. At most 8 lines are rendered; additional lines produce a truncation diagnostic."
               },
               "icon": {
                 "anyOf": [
@@ -8651,6 +11135,54 @@ export const architectureContract = {
                     "type": "number",
                     "minimum": 8,
                     "maximum": 160
+                  },
+                  "textAlign": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "description": "Node horizontal text alignment. Defaults to center."
+                  },
+                  "verticalAlign": {
+                    "enum": [
+                      "top",
+                      "middle",
+                      "bottom"
+                    ],
+                    "description": "Node vertical text alignment. Defaults to middle."
+                  },
+                  "autoFit": {
+                    "enum": [
+                      "shrink",
+                      "none"
+                    ],
+                    "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+                  },
+                  "padding": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+                  },
+                  "fontWeight": {
+                    "type": "number",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+                    "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+                  },
+                  "lineHeight": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 4,
+                    "description": "Line-height multiplier. Defaults to 1.2."
                   },
                   "opacity": {
                     "type": "number",
@@ -8789,6 +11321,17 @@ export const architectureContract = {
                         "maximum": 12,
                         "description": "Number of grid columns. Fractional values are truncated. Ignored for row / column / layered."
                       },
+                      "columnWidths": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 12,
+                        "items": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "maximum": 4000
+                        },
+                        "description": "Grid column-width ratios after padding and gaps, for example [1, 2, 1]. Length must equal the effective columns count (default 3). Only allowed for grid."
+                      },
                       "direction": {
                         "enum": [
                           "down",
@@ -8815,6 +11358,27 @@ export const architectureContract = {
                           "not": {
                             "required": [
                               "direction"
+                            ]
+                          }
+                        }
+                      },
+                      {
+                        "if": {
+                          "not": {
+                            "properties": {
+                              "type": {
+                                "const": "grid"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          }
+                        },
+                        "then": {
+                          "not": {
+                            "required": [
+                              "columnWidths"
                             ]
                           }
                         }
@@ -8919,6 +11483,54 @@ export const architectureContract = {
                     "type": "number",
                     "minimum": 8,
                     "maximum": 160
+                  },
+                  "textAlign": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "description": "Node horizontal text alignment. Defaults to center."
+                  },
+                  "verticalAlign": {
+                    "enum": [
+                      "top",
+                      "middle",
+                      "bottom"
+                    ],
+                    "description": "Node vertical text alignment. Defaults to middle."
+                  },
+                  "autoFit": {
+                    "enum": [
+                      "shrink",
+                      "none"
+                    ],
+                    "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+                  },
+                  "padding": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+                  },
+                  "fontWeight": {
+                    "type": "number",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+                    "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+                  },
+                  "lineHeight": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 4,
+                    "description": "Line-height multiplier. Defaults to 1.2."
                   },
                   "opacity": {
                     "type": "number",
@@ -9150,6 +11762,54 @@ export const architectureContract = {
                     "minimum": 8,
                     "maximum": 160
                   },
+                  "textAlign": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "description": "Node horizontal text alignment. Defaults to center."
+                  },
+                  "verticalAlign": {
+                    "enum": [
+                      "top",
+                      "middle",
+                      "bottom"
+                    ],
+                    "description": "Node vertical text alignment. Defaults to middle."
+                  },
+                  "autoFit": {
+                    "enum": [
+                      "shrink",
+                      "none"
+                    ],
+                    "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+                  },
+                  "padding": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+                  },
+                  "fontWeight": {
+                    "type": "number",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+                    "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+                  },
+                  "lineHeight": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 4,
+                    "description": "Line-height multiplier. Defaults to 1.2."
+                  },
                   "opacity": {
                     "type": "number",
                     "minimum": 0,
@@ -9196,14 +11856,68 @@ export const architectureContract = {
                 "const": "connector"
               },
               "from": {
-                "type": "string",
-                "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
-                "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+                    "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      }
+                    }
+                  }
+                ],
+                "description": "Referenced node/group/image ID or a free coordinate point relative to the containing group."
               },
               "to": {
-                "type": "string",
-                "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
-                "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+                    "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      }
+                    }
+                  }
+                ],
+                "description": "Referenced node/group/image ID or a free coordinate point relative to the containing group."
               },
               "fromPort": {
                 "enum": [
@@ -9378,6 +12092,54 @@ export const architectureContract = {
                     "minimum": 8,
                     "maximum": 160
                   },
+                  "textAlign": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "description": "Node horizontal text alignment. Defaults to center."
+                  },
+                  "verticalAlign": {
+                    "enum": [
+                      "top",
+                      "middle",
+                      "bottom"
+                    ],
+                    "description": "Node vertical text alignment. Defaults to middle."
+                  },
+                  "autoFit": {
+                    "enum": [
+                      "shrink",
+                      "none"
+                    ],
+                    "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+                  },
+                  "padding": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+                  },
+                  "fontWeight": {
+                    "type": "number",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+                    "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+                  },
+                  "lineHeight": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 4,
+                    "description": "Line-height multiplier. Defaults to 1.2."
+                  },
                   "opacity": {
                     "type": "number",
                     "minimum": 0,
@@ -9490,20 +12252,37 @@ export const architectureContract = {
                 "description": "Coordinate in the canvas coordinate system, relative to the parent group."
               },
               "width": {
-                "type": "number",
-                "minimum": 1,
-                "maximum": 4000,
-                "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 1,
+                    "maximum": 4000,
+                    "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                  },
+                  {
+                    "const": "auto"
+                  }
+                ],
+                "description": "Numeric extent or auto to hug the node's estimated text and icon size, including padding and shape insets. Group and image extents remain numeric."
               },
               "height": {
-                "type": "number",
-                "minimum": 1,
-                "maximum": 4000,
-                "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 1,
+                    "maximum": 4000,
+                    "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                  },
+                  {
+                    "const": "auto"
+                  }
+                ],
+                "description": "Numeric extent or auto to hug the node's estimated text and icon size, including padding and shape insets. Group and image extents remain numeric."
               },
               "text": {
                 "type": "string",
-                "maxLength": 500
+                "maxLength": 500,
+                "description": "Newline-separated text. At most 8 lines are rendered; additional lines produce a truncation diagnostic."
               },
               "icon": {
                 "anyOf": [
@@ -9631,6 +12410,54 @@ export const architectureContract = {
                     "type": "number",
                     "minimum": 8,
                     "maximum": 160
+                  },
+                  "textAlign": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "description": "Node horizontal text alignment. Defaults to center."
+                  },
+                  "verticalAlign": {
+                    "enum": [
+                      "top",
+                      "middle",
+                      "bottom"
+                    ],
+                    "description": "Node vertical text alignment. Defaults to middle."
+                  },
+                  "autoFit": {
+                    "enum": [
+                      "shrink",
+                      "none"
+                    ],
+                    "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+                  },
+                  "padding": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+                  },
+                  "fontWeight": {
+                    "type": "number",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+                    "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+                  },
+                  "lineHeight": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 4,
+                    "description": "Line-height multiplier. Defaults to 1.2."
                   },
                   "opacity": {
                     "type": "number",
@@ -9766,6 +12593,17 @@ export const architectureContract = {
                         "maximum": 12,
                         "description": "Number of grid columns. Fractional values are truncated. Ignored for row / column / layered."
                       },
+                      "columnWidths": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 12,
+                        "items": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "maximum": 4000
+                        },
+                        "description": "Grid column-width ratios after padding and gaps, for example [1, 2, 1]. Length must equal the effective columns count (default 3). Only allowed for grid."
+                      },
                       "direction": {
                         "enum": [
                           "down",
@@ -9792,6 +12630,27 @@ export const architectureContract = {
                           "not": {
                             "required": [
                               "direction"
+                            ]
+                          }
+                        }
+                      },
+                      {
+                        "if": {
+                          "not": {
+                            "properties": {
+                              "type": {
+                                "const": "grid"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          }
+                        },
+                        "then": {
+                          "not": {
+                            "required": [
+                              "columnWidths"
                             ]
                           }
                         }
@@ -9896,6 +12755,54 @@ export const architectureContract = {
                     "type": "number",
                     "minimum": 8,
                     "maximum": 160
+                  },
+                  "textAlign": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "description": "Node horizontal text alignment. Defaults to center."
+                  },
+                  "verticalAlign": {
+                    "enum": [
+                      "top",
+                      "middle",
+                      "bottom"
+                    ],
+                    "description": "Node vertical text alignment. Defaults to middle."
+                  },
+                  "autoFit": {
+                    "enum": [
+                      "shrink",
+                      "none"
+                    ],
+                    "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+                  },
+                  "padding": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+                  },
+                  "fontWeight": {
+                    "type": "number",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+                    "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+                  },
+                  "lineHeight": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 4,
+                    "description": "Line-height multiplier. Defaults to 1.2."
                   },
                   "opacity": {
                     "type": "number",
@@ -10121,6 +13028,54 @@ export const architectureContract = {
                     "minimum": 8,
                     "maximum": 160
                   },
+                  "textAlign": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "description": "Node horizontal text alignment. Defaults to center."
+                  },
+                  "verticalAlign": {
+                    "enum": [
+                      "top",
+                      "middle",
+                      "bottom"
+                    ],
+                    "description": "Node vertical text alignment. Defaults to middle."
+                  },
+                  "autoFit": {
+                    "enum": [
+                      "shrink",
+                      "none"
+                    ],
+                    "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+                  },
+                  "padding": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+                  },
+                  "fontWeight": {
+                    "type": "number",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+                    "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+                  },
+                  "lineHeight": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 4,
+                    "description": "Line-height multiplier. Defaults to 1.2."
+                  },
                   "opacity": {
                     "type": "number",
                     "minimum": 0,
@@ -10168,14 +13123,68 @@ export const architectureContract = {
                 "const": "connector"
               },
               "from": {
-                "type": "string",
-                "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
-                "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+                    "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      }
+                    }
+                  }
+                ],
+                "description": "Referenced node/group/image ID or a free coordinate point relative to the containing group."
               },
               "to": {
-                "type": "string",
-                "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
-                "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+                    "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      }
+                    }
+                  }
+                ],
+                "description": "Referenced node/group/image ID or a free coordinate point relative to the containing group."
               },
               "fromPort": {
                 "enum": [
@@ -10349,6 +13358,54 @@ export const architectureContract = {
                     "type": "number",
                     "minimum": 8,
                     "maximum": 160
+                  },
+                  "textAlign": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "description": "Node horizontal text alignment. Defaults to center."
+                  },
+                  "verticalAlign": {
+                    "enum": [
+                      "top",
+                      "middle",
+                      "bottom"
+                    ],
+                    "description": "Node vertical text alignment. Defaults to middle."
+                  },
+                  "autoFit": {
+                    "enum": [
+                      "shrink",
+                      "none"
+                    ],
+                    "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+                  },
+                  "padding": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+                  },
+                  "fontWeight": {
+                    "type": "number",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+                    "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+                  },
+                  "lineHeight": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 4,
+                    "description": "Line-height multiplier. Defaults to 1.2."
                   },
                   "opacity": {
                     "type": "number",
@@ -10467,20 +13524,37 @@ export const architectureContract = {
                 "description": "Coordinate in the canvas coordinate system, relative to the parent group."
               },
               "width": {
-                "type": "number",
-                "minimum": 1,
-                "maximum": 4000,
-                "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 1,
+                    "maximum": 4000,
+                    "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                  },
+                  {
+                    "const": "auto"
+                  }
+                ],
+                "description": "Numeric extent or auto to hug the node's estimated text and icon size, including padding and shape insets. Group and image extents remain numeric."
               },
               "height": {
-                "type": "number",
-                "minimum": 1,
-                "maximum": 4000,
-                "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 1,
+                    "maximum": 4000,
+                    "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                  },
+                  {
+                    "const": "auto"
+                  }
+                ],
+                "description": "Numeric extent or auto to hug the node's estimated text and icon size, including padding and shape insets. Group and image extents remain numeric."
               },
               "text": {
                 "type": "string",
-                "maxLength": 500
+                "maxLength": 500,
+                "description": "Newline-separated text. At most 8 lines are rendered; additional lines produce a truncation diagnostic."
               },
               "icon": {
                 "anyOf": [
@@ -10608,6 +13682,54 @@ export const architectureContract = {
                     "type": "number",
                     "minimum": 8,
                     "maximum": 160
+                  },
+                  "textAlign": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "description": "Node horizontal text alignment. Defaults to center."
+                  },
+                  "verticalAlign": {
+                    "enum": [
+                      "top",
+                      "middle",
+                      "bottom"
+                    ],
+                    "description": "Node vertical text alignment. Defaults to middle."
+                  },
+                  "autoFit": {
+                    "enum": [
+                      "shrink",
+                      "none"
+                    ],
+                    "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+                  },
+                  "padding": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+                  },
+                  "fontWeight": {
+                    "type": "number",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+                    "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+                  },
+                  "lineHeight": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 4,
+                    "description": "Line-height multiplier. Defaults to 1.2."
                   },
                   "opacity": {
                     "type": "number",
@@ -10746,6 +13868,17 @@ export const architectureContract = {
                         "maximum": 12,
                         "description": "Number of grid columns. Fractional values are truncated. Ignored for row / column / layered."
                       },
+                      "columnWidths": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 12,
+                        "items": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "maximum": 4000
+                        },
+                        "description": "Grid column-width ratios after padding and gaps, for example [1, 2, 1]. Length must equal the effective columns count (default 3). Only allowed for grid."
+                      },
                       "direction": {
                         "enum": [
                           "down",
@@ -10772,6 +13905,27 @@ export const architectureContract = {
                           "not": {
                             "required": [
                               "direction"
+                            ]
+                          }
+                        }
+                      },
+                      {
+                        "if": {
+                          "not": {
+                            "properties": {
+                              "type": {
+                                "const": "grid"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          }
+                        },
+                        "then": {
+                          "not": {
+                            "required": [
+                              "columnWidths"
                             ]
                           }
                         }
@@ -10876,6 +14030,54 @@ export const architectureContract = {
                     "type": "number",
                     "minimum": 8,
                     "maximum": 160
+                  },
+                  "textAlign": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "description": "Node horizontal text alignment. Defaults to center."
+                  },
+                  "verticalAlign": {
+                    "enum": [
+                      "top",
+                      "middle",
+                      "bottom"
+                    ],
+                    "description": "Node vertical text alignment. Defaults to middle."
+                  },
+                  "autoFit": {
+                    "enum": [
+                      "shrink",
+                      "none"
+                    ],
+                    "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+                  },
+                  "padding": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+                  },
+                  "fontWeight": {
+                    "type": "number",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+                    "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+                  },
+                  "lineHeight": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 4,
+                    "description": "Line-height multiplier. Defaults to 1.2."
                   },
                   "opacity": {
                     "type": "number",
@@ -11107,6 +14309,54 @@ export const architectureContract = {
                     "minimum": 8,
                     "maximum": 160
                   },
+                  "textAlign": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "description": "Node horizontal text alignment. Defaults to center."
+                  },
+                  "verticalAlign": {
+                    "enum": [
+                      "top",
+                      "middle",
+                      "bottom"
+                    ],
+                    "description": "Node vertical text alignment. Defaults to middle."
+                  },
+                  "autoFit": {
+                    "enum": [
+                      "shrink",
+                      "none"
+                    ],
+                    "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+                  },
+                  "padding": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+                  },
+                  "fontWeight": {
+                    "type": "number",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+                    "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+                  },
+                  "lineHeight": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 4,
+                    "description": "Line-height multiplier. Defaults to 1.2."
+                  },
                   "opacity": {
                     "type": "number",
                     "minimum": 0,
@@ -11153,14 +14403,68 @@ export const architectureContract = {
                 "const": "connector"
               },
               "from": {
-                "type": "string",
-                "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
-                "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+                    "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      }
+                    }
+                  }
+                ],
+                "description": "Referenced node/group/image ID or a free coordinate point relative to the containing group."
               },
               "to": {
-                "type": "string",
-                "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
-                "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+                    "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      }
+                    }
+                  }
+                ],
+                "description": "Referenced node/group/image ID or a free coordinate point relative to the containing group."
               },
               "fromPort": {
                 "enum": [
@@ -11335,6 +14639,54 @@ export const architectureContract = {
                     "minimum": 8,
                     "maximum": 160
                   },
+                  "textAlign": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "description": "Node horizontal text alignment. Defaults to center."
+                  },
+                  "verticalAlign": {
+                    "enum": [
+                      "top",
+                      "middle",
+                      "bottom"
+                    ],
+                    "description": "Node vertical text alignment. Defaults to middle."
+                  },
+                  "autoFit": {
+                    "enum": [
+                      "shrink",
+                      "none"
+                    ],
+                    "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+                  },
+                  "padding": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+                  },
+                  "fontWeight": {
+                    "type": "number",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+                    "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+                  },
+                  "lineHeight": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 4,
+                    "description": "Line-height multiplier. Defaults to 1.2."
+                  },
                   "opacity": {
                     "type": "number",
                     "minimum": 0,
@@ -11447,20 +14799,37 @@ export const architectureContract = {
                 "description": "Coordinate in the canvas coordinate system, relative to the parent group."
               },
               "width": {
-                "type": "number",
-                "minimum": 1,
-                "maximum": 4000,
-                "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 1,
+                    "maximum": 4000,
+                    "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                  },
+                  {
+                    "const": "auto"
+                  }
+                ],
+                "description": "Numeric extent or auto to hug the node's estimated text and icon size, including padding and shape insets. Group and image extents remain numeric."
               },
               "height": {
-                "type": "number",
-                "minimum": 1,
-                "maximum": 4000,
-                "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 1,
+                    "maximum": 4000,
+                    "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                  },
+                  {
+                    "const": "auto"
+                  }
+                ],
+                "description": "Numeric extent or auto to hug the node's estimated text and icon size, including padding and shape insets. Group and image extents remain numeric."
               },
               "text": {
                 "type": "string",
-                "maxLength": 500
+                "maxLength": 500,
+                "description": "Newline-separated text. At most 8 lines are rendered; additional lines produce a truncation diagnostic."
               },
               "icon": {
                 "anyOf": [
@@ -11588,6 +14957,54 @@ export const architectureContract = {
                     "type": "number",
                     "minimum": 8,
                     "maximum": 160
+                  },
+                  "textAlign": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "description": "Node horizontal text alignment. Defaults to center."
+                  },
+                  "verticalAlign": {
+                    "enum": [
+                      "top",
+                      "middle",
+                      "bottom"
+                    ],
+                    "description": "Node vertical text alignment. Defaults to middle."
+                  },
+                  "autoFit": {
+                    "enum": [
+                      "shrink",
+                      "none"
+                    ],
+                    "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+                  },
+                  "padding": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+                  },
+                  "fontWeight": {
+                    "type": "number",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+                    "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+                  },
+                  "lineHeight": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 4,
+                    "description": "Line-height multiplier. Defaults to 1.2."
                   },
                   "opacity": {
                     "type": "number",
@@ -11723,6 +15140,17 @@ export const architectureContract = {
                         "maximum": 12,
                         "description": "Number of grid columns. Fractional values are truncated. Ignored for row / column / layered."
                       },
+                      "columnWidths": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 12,
+                        "items": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "maximum": 4000
+                        },
+                        "description": "Grid column-width ratios after padding and gaps, for example [1, 2, 1]. Length must equal the effective columns count (default 3). Only allowed for grid."
+                      },
                       "direction": {
                         "enum": [
                           "down",
@@ -11749,6 +15177,27 @@ export const architectureContract = {
                           "not": {
                             "required": [
                               "direction"
+                            ]
+                          }
+                        }
+                      },
+                      {
+                        "if": {
+                          "not": {
+                            "properties": {
+                              "type": {
+                                "const": "grid"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          }
+                        },
+                        "then": {
+                          "not": {
+                            "required": [
+                              "columnWidths"
                             ]
                           }
                         }
@@ -11853,6 +15302,54 @@ export const architectureContract = {
                     "type": "number",
                     "minimum": 8,
                     "maximum": 160
+                  },
+                  "textAlign": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "description": "Node horizontal text alignment. Defaults to center."
+                  },
+                  "verticalAlign": {
+                    "enum": [
+                      "top",
+                      "middle",
+                      "bottom"
+                    ],
+                    "description": "Node vertical text alignment. Defaults to middle."
+                  },
+                  "autoFit": {
+                    "enum": [
+                      "shrink",
+                      "none"
+                    ],
+                    "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+                  },
+                  "padding": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+                  },
+                  "fontWeight": {
+                    "type": "number",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+                    "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+                  },
+                  "lineHeight": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 4,
+                    "description": "Line-height multiplier. Defaults to 1.2."
                   },
                   "opacity": {
                     "type": "number",
@@ -12078,6 +15575,54 @@ export const architectureContract = {
                     "minimum": 8,
                     "maximum": 160
                   },
+                  "textAlign": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "description": "Node horizontal text alignment. Defaults to center."
+                  },
+                  "verticalAlign": {
+                    "enum": [
+                      "top",
+                      "middle",
+                      "bottom"
+                    ],
+                    "description": "Node vertical text alignment. Defaults to middle."
+                  },
+                  "autoFit": {
+                    "enum": [
+                      "shrink",
+                      "none"
+                    ],
+                    "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+                  },
+                  "padding": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+                  },
+                  "fontWeight": {
+                    "type": "number",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+                    "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+                  },
+                  "lineHeight": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 4,
+                    "description": "Line-height multiplier. Defaults to 1.2."
+                  },
                   "opacity": {
                     "type": "number",
                     "minimum": 0,
@@ -12125,14 +15670,68 @@ export const architectureContract = {
                 "const": "connector"
               },
               "from": {
-                "type": "string",
-                "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
-                "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+                    "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      }
+                    }
+                  }
+                ],
+                "description": "Referenced node/group/image ID or a free coordinate point relative to the containing group."
               },
               "to": {
-                "type": "string",
-                "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
-                "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+                    "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      }
+                    }
+                  }
+                ],
+                "description": "Referenced node/group/image ID or a free coordinate point relative to the containing group."
               },
               "fromPort": {
                 "enum": [
@@ -12306,6 +15905,54 @@ export const architectureContract = {
                     "type": "number",
                     "minimum": 8,
                     "maximum": 160
+                  },
+                  "textAlign": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "description": "Node horizontal text alignment. Defaults to center."
+                  },
+                  "verticalAlign": {
+                    "enum": [
+                      "top",
+                      "middle",
+                      "bottom"
+                    ],
+                    "description": "Node vertical text alignment. Defaults to middle."
+                  },
+                  "autoFit": {
+                    "enum": [
+                      "shrink",
+                      "none"
+                    ],
+                    "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+                  },
+                  "padding": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+                  },
+                  "fontWeight": {
+                    "type": "number",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+                    "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+                  },
+                  "lineHeight": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 4,
+                    "description": "Line-height multiplier. Defaults to 1.2."
                   },
                   "opacity": {
                     "type": "number",
@@ -12424,20 +16071,37 @@ export const architectureContract = {
                 "description": "Coordinate in the canvas coordinate system, relative to the parent group."
               },
               "width": {
-                "type": "number",
-                "minimum": 1,
-                "maximum": 4000,
-                "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 1,
+                    "maximum": 4000,
+                    "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                  },
+                  {
+                    "const": "auto"
+                  }
+                ],
+                "description": "Numeric extent or auto to hug the node's estimated text and icon size, including padding and shape insets. Group and image extents remain numeric."
               },
               "height": {
-                "type": "number",
-                "minimum": 1,
-                "maximum": 4000,
-                "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 1,
+                    "maximum": 4000,
+                    "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                  },
+                  {
+                    "const": "auto"
+                  }
+                ],
+                "description": "Numeric extent or auto to hug the node's estimated text and icon size, including padding and shape insets. Group and image extents remain numeric."
               },
               "text": {
                 "type": "string",
-                "maxLength": 500
+                "maxLength": 500,
+                "description": "Newline-separated text. At most 8 lines are rendered; additional lines produce a truncation diagnostic."
               },
               "icon": {
                 "anyOf": [
@@ -12565,6 +16229,54 @@ export const architectureContract = {
                     "type": "number",
                     "minimum": 8,
                     "maximum": 160
+                  },
+                  "textAlign": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "description": "Node horizontal text alignment. Defaults to center."
+                  },
+                  "verticalAlign": {
+                    "enum": [
+                      "top",
+                      "middle",
+                      "bottom"
+                    ],
+                    "description": "Node vertical text alignment. Defaults to middle."
+                  },
+                  "autoFit": {
+                    "enum": [
+                      "shrink",
+                      "none"
+                    ],
+                    "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+                  },
+                  "padding": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+                  },
+                  "fontWeight": {
+                    "type": "number",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+                    "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+                  },
+                  "lineHeight": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 4,
+                    "description": "Line-height multiplier. Defaults to 1.2."
                   },
                   "opacity": {
                     "type": "number",
@@ -12759,6 +16471,54 @@ export const architectureContract = {
                     "minimum": 8,
                     "maximum": 160
                   },
+                  "textAlign": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "description": "Node horizontal text alignment. Defaults to center."
+                  },
+                  "verticalAlign": {
+                    "enum": [
+                      "top",
+                      "middle",
+                      "bottom"
+                    ],
+                    "description": "Node vertical text alignment. Defaults to middle."
+                  },
+                  "autoFit": {
+                    "enum": [
+                      "shrink",
+                      "none"
+                    ],
+                    "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+                  },
+                  "padding": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+                  },
+                  "fontWeight": {
+                    "type": "number",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+                    "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+                  },
+                  "lineHeight": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 4,
+                    "description": "Line-height multiplier. Defaults to 1.2."
+                  },
                   "opacity": {
                     "type": "number",
                     "minimum": 0,
@@ -12805,14 +16565,68 @@ export const architectureContract = {
                 "const": "connector"
               },
               "from": {
-                "type": "string",
-                "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
-                "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+                    "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      }
+                    }
+                  }
+                ],
+                "description": "Referenced node/group/image ID or a free coordinate point relative to the containing group."
               },
               "to": {
-                "type": "string",
-                "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
-                "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+                    "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      }
+                    }
+                  }
+                ],
+                "description": "Referenced node/group/image ID or a free coordinate point relative to the containing group."
               },
               "fromPort": {
                 "enum": [
@@ -12987,6 +16801,54 @@ export const architectureContract = {
                     "minimum": 8,
                     "maximum": 160
                   },
+                  "textAlign": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "description": "Node horizontal text alignment. Defaults to center."
+                  },
+                  "verticalAlign": {
+                    "enum": [
+                      "top",
+                      "middle",
+                      "bottom"
+                    ],
+                    "description": "Node vertical text alignment. Defaults to middle."
+                  },
+                  "autoFit": {
+                    "enum": [
+                      "shrink",
+                      "none"
+                    ],
+                    "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+                  },
+                  "padding": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+                  },
+                  "fontWeight": {
+                    "type": "number",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+                    "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+                  },
+                  "lineHeight": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 4,
+                    "description": "Line-height multiplier. Defaults to 1.2."
+                  },
                   "opacity": {
                     "type": "number",
                     "minimum": 0,
@@ -13099,20 +16961,37 @@ export const architectureContract = {
                 "description": "Coordinate in the canvas coordinate system, relative to the parent group."
               },
               "width": {
-                "type": "number",
-                "minimum": 1,
-                "maximum": 4000,
-                "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 1,
+                    "maximum": 4000,
+                    "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                  },
+                  {
+                    "const": "auto"
+                  }
+                ],
+                "description": "Numeric extent or auto to hug the node's estimated text and icon size, including padding and shape insets. Group and image extents remain numeric."
               },
               "height": {
-                "type": "number",
-                "minimum": 1,
-                "maximum": 4000,
-                "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 1,
+                    "maximum": 4000,
+                    "description": "Width or height. When the parent group has a layout, the effective maximum depends on cell size and is validated by parseArchitecture."
+                  },
+                  {
+                    "const": "auto"
+                  }
+                ],
+                "description": "Numeric extent or auto to hug the node's estimated text and icon size, including padding and shape insets. Group and image extents remain numeric."
               },
               "text": {
                 "type": "string",
-                "maxLength": 500
+                "maxLength": 500,
+                "description": "Newline-separated text. At most 8 lines are rendered; additional lines produce a truncation diagnostic."
               },
               "icon": {
                 "anyOf": [
@@ -13240,6 +17119,54 @@ export const architectureContract = {
                     "type": "number",
                     "minimum": 8,
                     "maximum": 160
+                  },
+                  "textAlign": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "description": "Node horizontal text alignment. Defaults to center."
+                  },
+                  "verticalAlign": {
+                    "enum": [
+                      "top",
+                      "middle",
+                      "bottom"
+                    ],
+                    "description": "Node vertical text alignment. Defaults to middle."
+                  },
+                  "autoFit": {
+                    "enum": [
+                      "shrink",
+                      "none"
+                    ],
+                    "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+                  },
+                  "padding": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+                  },
+                  "fontWeight": {
+                    "type": "number",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+                    "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+                  },
+                  "lineHeight": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 4,
+                    "description": "Line-height multiplier. Defaults to 1.2."
                   },
                   "opacity": {
                     "type": "number",
@@ -13430,6 +17357,54 @@ export const architectureContract = {
                     "minimum": 8,
                     "maximum": 160
                   },
+                  "textAlign": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "description": "Node horizontal text alignment. Defaults to center."
+                  },
+                  "verticalAlign": {
+                    "enum": [
+                      "top",
+                      "middle",
+                      "bottom"
+                    ],
+                    "description": "Node vertical text alignment. Defaults to middle."
+                  },
+                  "autoFit": {
+                    "enum": [
+                      "shrink",
+                      "none"
+                    ],
+                    "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+                  },
+                  "padding": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+                  },
+                  "fontWeight": {
+                    "type": "number",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+                    "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+                  },
+                  "lineHeight": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 4,
+                    "description": "Line-height multiplier. Defaults to 1.2."
+                  },
                   "opacity": {
                     "type": "number",
                     "minimum": 0,
@@ -13477,14 +17452,68 @@ export const architectureContract = {
                 "const": "connector"
               },
               "from": {
-                "type": "string",
-                "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
-                "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+                    "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      }
+                    }
+                  }
+                ],
+                "description": "Referenced node/group/image ID or a free coordinate point relative to the containing group."
               },
               "to": {
-                "type": "string",
-                "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
-                "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+                    "description": "Identifier of 1–64 characters that starts with an ASCII letter and contains only ASCII letters, digits, '.', '_', and '-'."
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": -4000,
+                        "maximum": 4000,
+                        "description": "Coordinate in the canvas coordinate system, relative to the parent group."
+                      }
+                    }
+                  }
+                ],
+                "description": "Referenced node/group/image ID or a free coordinate point relative to the containing group."
               },
               "fromPort": {
                 "enum": [
@@ -13658,6 +17687,54 @@ export const architectureContract = {
                     "type": "number",
                     "minimum": 8,
                     "maximum": 160
+                  },
+                  "textAlign": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "description": "Node horizontal text alignment. Defaults to center."
+                  },
+                  "verticalAlign": {
+                    "enum": [
+                      "top",
+                      "middle",
+                      "bottom"
+                    ],
+                    "description": "Node vertical text alignment. Defaults to middle."
+                  },
+                  "autoFit": {
+                    "enum": [
+                      "shrink",
+                      "none"
+                    ],
+                    "description": "shrink (default) estimates text width and reduces font size as needed; none preserves the requested size. Shrinking and overflow are reported as diagnostics."
+                  },
+                  "padding": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 400,
+                    "description": "Node text inset in logical pixels. Defaults to 16; polygon shapes retain their geometric minimum inset."
+                  },
+                  "fontWeight": {
+                    "type": "number",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "description": "Text weight. Defaults to 600 for nodes and 700 for group titles."
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\u0000-\\u001f\\u007f;{}<>\\\\]+$",
+                    "description": "Font family or fallback list. Defaults to the theme font; fonts must be installed on the rendering system."
+                  },
+                  "lineHeight": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 4,
+                    "description": "Line-height multiplier. Defaults to 1.2."
                   },
                   "opacity": {
                     "type": "number",

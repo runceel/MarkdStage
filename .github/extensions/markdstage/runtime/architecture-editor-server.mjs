@@ -583,6 +583,7 @@ export async function startArchitectureEditorServer({
         "/renderer/architecture.mjs",
         "/renderer/architecture-scene.mjs",
         "/renderer/scene-graph.mjs",
+        "/renderer/image-source.mjs",
         "/renderer/scene-svg.mjs",
         "/renderer/architecture-contract.mjs",
         "/renderer/architecture-diagnostics.mjs",

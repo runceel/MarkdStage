@@ -12,6 +12,26 @@ import {
   inspectPptxPackage,
 } from "../runtime/pptx-package.mjs";
 
+test("scene line height becomes exact native PowerPoint paragraph spacing", () => {
+  const source = createScene({
+    width: 400, height: 300, source: { kind: "architecture", path: "diagram" },
+    nodes: [{
+      kind: "shape", preset: "rect", z: 0,
+      bounds: { x: 10, y: 20, width: 200, height: 100 },
+      text: { paragraphs: [{ runs: [{ text: "First\nSecond", fontSize: 20 }] }] },
+      textLayout: { lineHeight: 1.5, verticalAlignment: "top" },
+    }],
+  });
+  const { elements } = sceneToPptxElements(normalizeScene(source).scene);
+  assert.equal(elements[0].text.paragraphs[0].lineSpacing, 30);
+  assert.match(buildPptxPackage({ slides: [{ elements }] }).toString("utf8"),
+    /<a:lnSpc><a:spcPts val="2250"\/><\/a:lnSpc>/);
+  for (const lineHeight of [0, 0.49, 4.01, Infinity, "1.5"]) {
+    source.nodes[0].textLayout.lineHeight = lineHeight;
+    assert.throws(() => validateScene(source), /lineHeight/);
+  }
+});
+
 test("preserves bounded marker stroke caps through scene normalization, mapping and DrawingML", () => {
   const source = normalizeScene(createScene({
     width: 100, height: 100, source: { kind: "mermaid", path: "markers.svg" },

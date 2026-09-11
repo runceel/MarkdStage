@@ -64,6 +64,18 @@ function definedEntries(object) {
   return Object.fromEntries(Object.entries(object).filter(([, value]) => value !== undefined));
 }
 
+function sceneFontFace(family, themeFamily) {
+  const firstFamily = (value) => {
+    const match = String(value || "").trim().match(/^(?:"([^"]+)"|'([^']+)'|([^,]+))/);
+    return (match?.[1] || match?.[2] || match?.[3] || "").trim();
+  };
+  const generic = /^(?:serif|sans-serif|monospace|cursive|fantasy|system-ui|ui-serif|ui-sans-serif|ui-monospace|ui-rounded|emoji|math|fangsong)$/i;
+  const preferred = firstFamily(family);
+  if (preferred && !generic.test(preferred)) return preferred;
+  const fallback = firstFamily(themeFamily);
+  return fallback && !generic.test(fallback) ? fallback : undefined;
+}
+
 function mapStyle(object, path, options, diagnostics) {
   const dash = object.dash === undefined ? undefined : options.resolveDash(object.dash, path);
   const sceneDash = (() => {
@@ -98,7 +110,7 @@ function mapText(text, path, options, diagnostics) {
         const runPath = `${path}.paragraphs[${paragraphIndex}].runs[${runIndex}]`;
         return definedEntries({
           ...run,
-          fontFace: options.fontFace || run.fontFace,
+          fontFace: sceneFontFace(run.fontFace || options.fontFace, options.fontFace),
           fontSize: scaledMetric(run.fontSize, options),
           bold: Number(run.fontWeight) >= 600,
           color: normalizeColor(run.color, `${runPath}.color`, options, diagnostics),
@@ -112,6 +124,7 @@ function mapTextLayout(object, options) {
   return definedEntries({
     alignment: object.alignment,
     verticalAlignment: object.verticalAlignment,
+    lineHeight: object.lineHeight,
     textWrap: object.textWrap,
     textInsets: object.textInsets
       ? Object.fromEntries(
@@ -199,12 +212,25 @@ function imageNode(entry, kind, index, options) {
 function objectNode(object, index, options, diagnostics) {
   const path = `objects[${index}]`;
   if (object.type === "connector") {
+    const points = (object.points || []).map((point) => transformPoint(point, options))
+      .filter((point, index, all) => index === 0 ||
+        point.x !== all[index - 1].x || point.y !== all[index - 1].y);
+    if (points.length < 2) {
+      return {
+        kind: "fallback",
+        sourcePath: sourcePathFor(object, path),
+        z: index,
+        bounds: transformBounds(object, options),
+        reason: "zero-length-connector",
+        meta: definedEntries({ architecture: object.architecture, from: object.from, to: object.to }),
+      };
+    }
     return {
       kind: "connector",
       ...(sourceIdFor(object) ? { id: sourceIdFor(object) } : {}),
       sourcePath: sourcePathFor(object, path),
       z: index,
-      points: (object.points || []).map((point) => transformPoint(point, options)),
+      points,
       style: mapStyle(object, path, options, diagnostics),
       arrowStart: "none",
       arrowEnd: arrowEndFor(object.arrowEnd),
@@ -235,6 +261,7 @@ function objectNode(object, index, options, diagnostics) {
       meta: definedEntries({
         architecture: object.architecture,
         icon: object.icon,
+        textLayout: object.textLayout,
       }),
     };
   }

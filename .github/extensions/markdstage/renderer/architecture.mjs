@@ -6,6 +6,7 @@ import {
   architectureCompatibilityWarnings,
   architectureDiagnostic,
   architectureFailureReport,
+  architectureLayoutWarnings,
   checkArchitectureReferences,
   claimArchitectureId,
   diagnosticLimit,
@@ -401,12 +402,26 @@ function normalizeStyle(value, path, defaults) {
       'use space or comma separated numbers such as "12 8"',
     );
   }
+  const fontFamily = style.fontFamily === undefined
+    ? undefined
+    : textValue(style.fontFamily, `${path}.fontFamily`, "", fields.fontFamily.maxLength);
+  if (fontFamily !== undefined && !new RegExp(fields.fontFamily.pattern).test(fontFamily)) {
+    fail(`${path}.fontFamily`, "must be a safe font family name",
+      "use a font name such as Arial or Segoe UI", { code: "invalid_value" });
+  }
   return {
     fill: colorValue(style.fill, `${path}.fill`, defaults.fill),
     stroke: colorValue(style.stroke, `${path}.stroke`, defaults.stroke),
     textColor: colorValue(style.textColor, `${path}.textColor`, defaults.textColor),
     strokeWidth: contractNumber(style.strokeWidth, `${path}.strokeWidth`, fields.strokeWidth, defaults.strokeWidth),
     fontSize: contractNumber(style.fontSize, `${path}.fontSize`, fields.fontSize, defaults.fontSize),
+    fontWeight: contractNumber(style.fontWeight, `${path}.fontWeight`, fields.fontWeight, defaults.fontWeight ?? 600),
+    ...(fontFamily !== undefined ? { fontFamily } : {}),
+    textAlign: enumValue(style.textAlign, `${path}.textAlign`, new Set(fields.textAlign.enum), defaults.textAlign ?? "center"),
+    verticalAlign: enumValue(style.verticalAlign, `${path}.verticalAlign`, new Set(fields.verticalAlign.enum), defaults.verticalAlign ?? "middle"),
+    autoFit: enumValue(style.autoFit, `${path}.autoFit`, new Set(fields.autoFit.enum), "shrink"),
+    padding: contractNumber(style.padding, `${path}.padding`, fields.padding, 16),
+    lineHeight: contractNumber(style.lineHeight, `${path}.lineHeight`, fields.lineHeight, 1.2),
     opacity: contractNumber(style.opacity, `${path}.opacity`, fields.opacity, defaults.opacity ?? 1),
     dash,
     cornerRadius: contractNumber(
@@ -425,6 +440,20 @@ function normalizePoint(value, path, origin) {
     x: origin.x + contractNumber(point.x, `${path}.x`, architectureContract.definitions.coordinate),
     y: origin.y + contractNumber(point.y, `${path}.y`, architectureContract.definitions.coordinate),
   };
+}
+
+function normalizeEndpoint(value, path, origin) {
+  return isObject(value) ? normalizePoint(value, path, origin) : idValue(value, path);
+}
+
+function endpointElement(endpoint, lookup) {
+  return typeof endpoint === "string"
+    ? lookup.get(endpoint)
+    : { ...endpoint, width: 0, height: 0, type: "point" };
+}
+
+function endpointName(endpoint) {
+  return typeof endpoint === "string" ? endpoint : `(${endpoint.x}, ${endpoint.y})`;
 }
 
 function parseCanvas(value) {
@@ -464,13 +493,34 @@ function parseLayout(value, path) {
       { code: "invalid_condition" },
     );
   }
+  const columns = Math.trunc(contractNumber(layout.columns, `${path}.columns`, fields.columns, 3));
+  let columnWidths;
+  if (layout.columnWidths !== undefined) {
+    if (type !== "grid") {
+      fail(`${path}.columnWidths`, "is only valid with grid layout",
+        'set "type": "grid" or remove columnWidths', { code: "invalid_condition" });
+    }
+    if (!Array.isArray(layout.columnWidths) || layout.columnWidths.length !== columns) {
+      fail(`${path}.columnWidths`, "must have one positive ratio per column",
+        `provide an array of ${columns} positive numbers`, { code: "invalid_value" });
+    }
+    columnWidths = layout.columnWidths.map((ratio, index) => {
+      if (typeof ratio !== "number" || !Number.isFinite(ratio) ||
+          ratio <= 0 || ratio > fields.columnWidths.items.maximum) {
+        fail(`${path}.columnWidths[${index}]`, "must be a positive finite number",
+          "use a ratio such as 1 or 2", { code: "invalid_value" });
+      }
+      return ratio;
+    });
+  }
   return {
     type,
     gap,
     rowGap: contractNumber(layout.rowGap, `${path}.rowGap`, fields.rowGap, gap),
     columnGap: contractNumber(layout.columnGap, `${path}.columnGap`, fields.columnGap, gap),
     padding: contractNumber(layout.padding, `${path}.padding`, fields.padding, 54),
-    columns: Math.trunc(contractNumber(layout.columns, `${path}.columns`, fields.columns, 3)),
+    columns,
+    ...(columnWidths ? { columnWidths } : {}),
     direction: enumValue(
       layout.direction,
       `${path}.direction`,
@@ -673,10 +723,15 @@ function layoutPlacements(children, group, layout, path, graphEdges = []) {
   const trackCount = tracks.length;
   const widest = Math.max(...tracks.map((track) => track.length));
   const rows = vertical ? trackCount : widest;
-  const columns = vertical ? widest : trackCount;
+  const columns = layout.columnWidths ? layout.columns : vertical ? widest : trackCount;
   const cellWidth = (inner.width - layout.columnGap * (columns - 1)) / columns;
+  const largestRatio = layout.columnWidths ? Math.max(...layout.columnWidths) : 1;
+  const ratios = layout.columnWidths?.map((ratio) => ratio / largestRatio);
+  const ratioTotal = ratios?.reduce((sum, ratio) => sum + ratio, 0);
+  const widths = ratios?.map((ratio) =>
+    (inner.width - layout.columnGap * (columns - 1)) * ratio / ratioTotal);
   const cellHeight = (inner.height - layout.rowGap * (rows - 1)) / rows;
-  if (cellWidth < 24 || cellHeight < 24) {
+  if ((widths ? Math.min(...widths) : cellWidth) < 24 || cellHeight < 24) {
     fail(
       `${path}.layout`,
       "children do not fit",
@@ -698,14 +753,20 @@ function layoutPlacements(children, group, layout, path, graphEdges = []) {
           ? (inner.width - span) / 2
           : (inner.height - span) / 2;
     track.forEach((flowIndex, positionInTrack) => {
-      const { child, index } = flowItems[flowIndex];
-      const defaultWidth = child.type === "group" ? cellWidth : Math.min(cellWidth, 340);
+      const { child: rawChild, index } = flowItems[flowIndex];
+      const columnIndex = vertical ? positionInTrack : trackIndex;
+      const cellWidth = widths?.[columnIndex] ??
+        (inner.width - layout.columnGap * (columns - 1)) / columns;
+      const defaultWidth = rawChild.type === "group" ? cellWidth : Math.min(cellWidth, 340);
       const defaultHeight =
-        child.type === "group"
+        rawChild.type === "group"
           ? cellHeight
-          : child.type === "image"
+          : rawChild.type === "image"
             ? Math.min(cellHeight, 220)
             : Math.min(cellHeight, 170);
+      const child = resolveAutoNodeSize(rawChild, `${path}.children[${index}]`, {
+        width: defaultWidth, height: defaultHeight,
+      });
       const width = numberIn(
         child.width,
         `${path}.children[${index}].width`,
@@ -725,7 +786,9 @@ function layoutPlacements(children, group, layout, path, graphEdges = []) {
         { code: "layout_extent", category: "layout" },
       );
       const cellX = vertical
-        ? inner.x + offset + positionInTrack * (cellWidth + layout.columnGap)
+        ? inner.x + offset + (widths
+          ? widths.slice(0, columnIndex).reduce((sum, width) => sum + width, 0) + columnIndex * layout.columnGap
+          : positionInTrack * (cellWidth + layout.columnGap))
         : inner.x + trackIndex * (cellWidth + layout.columnGap);
       const cellY = vertical
         ? inner.y + trackIndex * (cellHeight + layout.rowGap)
@@ -767,6 +830,45 @@ function normalizeBox(element, origin, path, placement) {
   };
 }
 
+function resolveAutoNodeSize(element, path, defaults = {}) {
+  if (element?.type !== "node" || (element.width !== "auto" && element.height !== "auto")) return element;
+  const fields = architectureContract.elements.node.properties;
+  const style = normalizeStyle(element.style, `${path}.style`, {
+    fill: "surface", stroke: "accent", textColor: "fg", strokeWidth: 4,
+    fontSize: 32, cornerRadius: 28,
+  });
+  const text = textValue(element.text, `${path}.text`, "", fields.text.maxLength);
+  const icon = iconValue(element.icon, `${path}.icon`);
+  const shape = enumValue(element.shape, `${path}.shape`, SHAPES, "rounded-rect");
+  const lines = text.split(/\r?\n/).slice(0, 8);
+  const textWidth = text ? Math.max(1, ...lines.map(textWidthUnits)) * style.fontSize : 0;
+  const textHeight = text ? style.fontSize * (1 + (lines.length - 1) * style.lineHeight) : 0;
+  const minimum = architectureContract.definitions.extent.minimum;
+  let height = element.height === "auto"
+    ? Math.max(minimum, textHeight + style.padding * 2)
+    : element.height ?? defaults.height;
+  let width = element.width === "auto" ? Math.max(minimum, textWidth + style.padding * 2)
+    : element.width ?? defaults.width;
+  // Shape and icon insets depend on the resulting size; solve their monotone
+  // constraints before a parent layout measures or positions this node.
+  for (let pass = 0; pass < 40; pass += 1) {
+    const node = { width, height, shape, style };
+    const size = icon ? Math.min(58, height * 0.36, width * 0.2) : 0;
+    const left = icon && text ? nodeIconInset(node) + size + 16 : nodeContentInset(node);
+    const requiredWidth = text
+      ? textWidth + left + nodeContentInset(node)
+      : size + nodeContentInset(node) * 2;
+    const nextWidth = element.width === "auto"
+      ? Math.ceil(Math.max(width, requiredWidth) * 100) / 100 : width;
+    const nextHeight = element.height === "auto"
+      ? Math.ceil(Math.max(height, Math.max(textHeight, size) + style.padding * 2) * 100) / 100 : height;
+    if (nextWidth === width && nextHeight === height) break;
+    width = nextWidth;
+    height = nextHeight;
+  }
+  return { ...element, width, height };
+}
+
 function flattenElements(
   rawElements,
   origin,
@@ -800,7 +902,7 @@ function flattenElements(
       );
     }
     const elementPath = `${path}[${localIndex}]`;
-    const element = expectObject(raw, elementPath);
+    const element = resolveAutoNodeSize(expectObject(raw, elementPath), elementPath, placements.get(localIndex));
     const type = textValue(element.type, `${elementPath}.type`, "", 20);
     if (!Object.prototype.hasOwnProperty.call(ELEMENT_KEYS, type)) {
       const supported = Object.keys(ELEMENT_KEYS);
@@ -854,8 +956,8 @@ function flattenElements(
       }
       output.push({
         type,
-        from: idValue(element.from, `${elementPath}.from`),
-        to: idValue(element.to, `${elementPath}.to`),
+        from: normalizeEndpoint(element.from, `${elementPath}.from`, origin),
+        to: normalizeEndpoint(element.to, `${elementPath}.to`, origin),
         fromPort: enumValue(element.fromPort, `${elementPath}.fromPort`, PORTS, "auto"),
         toPort: enumValue(element.toPort, `${elementPath}.toPort`, PORTS, "auto"),
         label: textValue(element.label, `${elementPath}.label`, "", fields.label.maxLength),
@@ -908,8 +1010,12 @@ function flattenElements(
         id,
         shape,
         ...box,
+        ...(raw.width === "auto" || raw.height === "auto" ? {
+          requestedSize: { width: raw.width ?? box.width, height: raw.height ?? box.height },
+        } : {}),
         text: textValue(element.text, `${elementPath}.text`, "", fields.text.maxLength),
         icon,
+        ...(element.style?.padding !== undefined ? { customTextPadding: true } : {}),
         ariaLabel: textValue(element.ariaLabel, `${elementPath}.ariaLabel`, "", fields.ariaLabel.maxLength),
         z,
         order,
@@ -962,6 +1068,9 @@ function flattenElements(
       textColor: "accentStrong",
       strokeWidth: 3,
       fontSize: 28,
+      fontWeight: 700,
+      textAlign: "left",
+      verticalAlign: "top",
       opacity: 1,
       dash: "12 8",
       cornerRadius: 32,
@@ -977,6 +1086,9 @@ function flattenElements(
       order,
       sourcePath: elementPath,
       style: groupStyle,
+      customTitleLayout: ["textAlign", "verticalAlign", "padding", "autoFit", "lineHeight"]
+        .some((key) => element.style?.[key] !== undefined),
+      ...(element.style?.padding !== undefined ? { customTextPadding: true } : {}),
     };
     output.push(group);
     const children = element.children === undefined ? [] : element.children;
@@ -1013,8 +1125,8 @@ function assignConnectorLanes(elements) {
   const records = elements
     .filter((element) => element.type === "connector")
     .map((connector) => {
-      const from = lookup.get(connector.from);
-      const to = lookup.get(connector.to);
+      const from = endpointElement(connector.from, lookup);
+      const to = endpointElement(connector.to, lookup);
       const fromPort =
         connector.fromPort === "auto"
           ? autoPort(from, elementCenter(to))
@@ -1023,8 +1135,8 @@ function assignConnectorLanes(elements) {
         connector.toPort === "auto"
           ? autoPort(to, elementCenter(from))
           : connector.toPort;
-      const fromKey = `${connector.from}:${fromPort}`;
-      const toKey = `${connector.to}:${toPort}`;
+      const fromKey = `${endpointName(connector.from)}:${fromPort}`;
+      const toKey = `${endpointName(connector.to)}:${toPort}`;
       return {
         connector,
         automatic: connector.lane === null,
@@ -1287,13 +1399,15 @@ export function validateArchitecture(source, { maxDiagnostics } = {}) {
     });
   }
   const warnings = architectureCompatibilityWarnings(raw);
+  const diagnostics = [...warnings.diagnostics, ...architectureLayoutWarnings(model, architectureTextLayout)];
+  const truncated = diagnostics.length > limit;
   return {
     valid: true,
     complete: true,
-    truncated: false,
-    truncationReasons: [],
+    truncated,
+    truncationReasons: truncated ? ["maxDiagnostics"] : [],
     stages,
-    diagnostics: warnings.diagnostics,
+    diagnostics: diagnostics.slice(0, limit),
     model,
   };
 }
@@ -1355,25 +1469,102 @@ function fitTextToWidth(text, requestedFontSize, maxWidth) {
   };
 }
 
-function appendText(documentRef, parent, element, text, options = {}) {
-  const lines = text.split(/\r?\n/).slice(0, 8);
-  if (!lines.some(Boolean)) return;
-  const availableWidth = options.availableWidth ?? Math.max(32, element.width - 32);
+export function architectureTextLayout(element) {
+  const style = element.style;
+  const text = element.type === "group" ? element.title : element.text;
+  const padding = style.padding ?? 16;
+  const legacyTitle = element.type === "group" && !element.customTitleLayout;
+  const inset = element.type === "node" ? nodeContentInset(element) : padding;
+  const iconSize = element.icon ? Math.min(58, element.height * 0.36, element.width * 0.2) : 0;
+  const textInsets = legacyTitle
+    ? { left: 24, right: 24, top: style.fontSize * 0.2, bottom: 0 }
+    : {
+      left: element.icon && text ? nodeIconInset(element) + iconSize + 16 : inset,
+      right: inset,
+      top: padding,
+      bottom: padding,
+    };
+  const availableWidth = Math.max(0, element.width - textInsets.left - textInsets.right);
+  const fittingWidth = Math.max(element.customTextPadding ? 0 : 32, availableWidth);
+  const availableHeight = Math.max(0, element.height - textInsets.top - textInsets.bottom);
+  const originalLines = (text || "").split(/\r?\n/);
+  const lineHeight = style.lineHeight ?? 1.2;
+  const lines = originalLines.slice(0, 8);
+  const requestedFontSize = style.fontSize;
   const longestLine = Math.max(...lines.map(textWidthUnits), 1);
-  const fontSize = Math.min(
-    element.style.fontSize,
-    Math.max(8, availableWidth / longestLine),
-  );
-  const centerX = options.centerX ?? element.x + element.width / 2;
-  const centerY = element.y + element.height / 2;
+  const fittedFontSize = style.autoFit === "none" || legacyTitle
+    ? requestedFontSize
+    : Math.min(requestedFontSize, Math.max(MIN_FONT_SIZE, fittingWidth / longestLine));
+  const effectiveFontSize = requestedFontSize - fittedFontSize < 1e-9 ? requestedFontSize : fittedFontSize;
+  return {
+    alignment: style.textAlign ?? "center",
+    verticalAlignment: style.verticalAlign ?? "middle",
+    autoFit: style.autoFit ?? "shrink",
+    lineHeight,
+    textInsets,
+    availableWidth,
+    fittingWidth,
+    availableHeight,
+    requestedFontSize,
+    effectiveFontSize,
+    shrunk: effectiveFontSize < requestedFontSize,
+    truncated: lines.join("\n") !== originalLines.join("\n"),
+    fullLineCount: originalLines.length,
+    renderedLineCount: lines.length,
+    requestedTextWidth: Math.max(0, ...originalLines.map(textWidthUnits)) * requestedFontSize,
+    requestedTextHeight: text ? requestedFontSize * (1 + (originalLines.length - 1) * lineHeight) : 0,
+    effectiveTextWidth: Math.max(0, ...lines.map(textWidthUnits)) * effectiveFontSize,
+    effectiveTextHeight: text ? effectiveFontSize * (1 + (lines.length - 1) * lineHeight) : 0,
+    lines,
+  };
+}
+
+function textFitAttributes(layout) {
+  return {
+    "data-requested-font-size": layout.requestedFontSize,
+    "data-effective-font-size": layout.effectiveFontSize,
+    "data-shrunk": layout.shrunk,
+    "data-truncated": layout.truncated,
+    "data-architecture-requested-font-size": layout.requestedFontSize,
+    "data-architecture-effective-font-size": layout.effectiveFontSize,
+    "data-architecture-shrunk": layout.shrunk,
+    "data-architecture-truncated": layout.truncated,
+  };
+}
+
+function boxSizeAttributes(element) {
+  return {
+    "data-architecture-requested-width": element.requestedSize?.width ?? element.width,
+    "data-architecture-requested-height": element.requestedSize?.height ?? element.height,
+    "data-architecture-effective-width": element.width,
+    "data-architecture-effective-height": element.height,
+  };
+}
+
+function appendText(documentRef, parent, element, text) {
+  if (!text) return;
+  const layout = architectureTextLayout(element);
+  const { lines, effectiveFontSize: fontSize, textInsets, alignment, verticalAlignment } = layout;
+  const left = element.x + textInsets.left;
+  const right = element.x + element.width - textInsets.right;
+  const x = alignment === "left" ? left : alignment === "right"
+    ? right : (left + right) / 2;
+  const textHeight = fontSize * (1 + (lines.length - 1) * layout.lineHeight);
+  const top = element.y + textInsets.top;
+  const contentHeight = element.height - textInsets.top - textInsets.bottom;
+  const firstY = top + fontSize / 2 + (verticalAlignment === "top" ? 0 :
+    verticalAlignment === "bottom" ? contentHeight - textHeight :
+      (contentHeight - textHeight) / 2);
   const textElement = svgElement(documentRef, "text", {
-    x: centerX,
-    y: centerY,
+    x,
+    y: firstY,
     fill: element.style.textColor,
     "font-size": fontSize,
-    "font-weight": 600,
-    "text-anchor": "middle",
+    "font-weight": element.style.fontWeight,
+    ...(element.style.fontFamily ? { "font-family": element.style.fontFamily } : {}),
+    "text-anchor": { left: "start", center: "middle", right: "end" }[alignment],
     "dominant-baseline": "middle",
+    ...textFitAttributes(layout),
     "pointer-events": "none",
     // Visual only. The same string is already in the parent's aria-label and <title>;
     // without hiding it, assistive technology announces each element twice, as
@@ -1383,8 +1574,8 @@ function appendText(documentRef, parent, element, text, options = {}) {
   });
   lines.forEach((line, index) => {
     const tspan = svgElement(documentRef, "tspan", {
-      x: centerX,
-      y: centerY + (index - (lines.length - 1) / 2) * fontSize * 1.2,
+      x,
+      y: firstY + index * fontSize * layout.lineHeight,
     });
     tspan.textContent = line;
     textElement.appendChild(tspan);
@@ -1399,7 +1590,8 @@ function nodeContentInset(element) {
     hexagon: 0.14,
     parallelogram: 0.16,
   }[element.shape];
-  return ratio ? Math.max(16, element.width * ratio) : 16;
+  const padding = element.style?.padding ?? 16;
+  return ratio ? Math.max(16, padding, element.width * ratio) : padding;
 }
 
 function nodeIconInset(element) {
@@ -2597,8 +2789,8 @@ export function computeConnectorRoute(
   const detourBaseline = options.detourBaseline ?? null;
   const report = options.report || null;
   const onReason = options.onReason || null;
-  const from = lookup.get(connector.from);
-  const to = lookup.get(connector.to);
+  const from = endpointElement(connector.from, lookup);
+  const to = endpointElement(connector.to, lookup);
   if (!from || !to) throw new ArchitectureError("connector: references an unknown element");
   const laneOffset = connector.lane * CONNECTOR_LANE_SPACING;
   const fromPort = portPoint(
@@ -2620,13 +2812,13 @@ export function computeConnectorRoute(
           toPort.point,
           fromPort.direction,
           toPort.direction,
-          CONNECTOR_ENDPOINT_GAP,
-          CONNECTOR_ENDPOINT_GAP,
+          from.type === "point" ? 0 : CONNECTOR_ENDPOINT_GAP,
+          to.type === "point" ? 0 : CONNECTOR_ENDPOINT_GAP,
           MIN_ORTHOGONAL_ENDPOINT_SPAN,
         )
       : {
-          fromDistance: CONNECTOR_ENDPOINT_GAP,
-          toDistance: CONNECTOR_ENDPOINT_GAP,
+          fromDistance: from.type === "point" ? 0 : CONNECTOR_ENDPOINT_GAP,
+          toDistance: to.type === "point" ? 0 : CONNECTOR_ENDPOINT_GAP,
         };
   const start = offsetPoint(
     fromPort.point,
@@ -2638,6 +2830,7 @@ export function computeConnectorRoute(
     toPort.direction,
     endpointDistances.toDistance,
   );
+  if (start.x === end.x && start.y === end.y && !connector.points?.length) return [start, end];
   if (connector.routing === "straight") return [start, end];
 
   const nodes = [...lookup.values()].filter(
@@ -3278,10 +3471,10 @@ function planConnectorRoutes(model, lookup) {
     .filter((element) => element.type === "connector")
     .slice()
     .sort((left, right) => {
-      const leftFrom = elementCenter(lookup.get(left.from));
-      const leftTo = elementCenter(lookup.get(left.to));
-      const rightFrom = elementCenter(lookup.get(right.from));
-      const rightTo = elementCenter(lookup.get(right.to));
+      const leftFrom = elementCenter(endpointElement(left.from, lookup));
+      const leftTo = elementCenter(endpointElement(left.to, lookup));
+      const rightFrom = elementCenter(endpointElement(right.from, lookup));
+      const rightTo = elementCenter(endpointElement(right.to, lookup));
       const leftDistance =
         Math.abs(leftFrom.x - leftTo.x) + Math.abs(leftFrom.y - leftTo.y);
       const rightDistance =
@@ -3420,8 +3613,8 @@ function planConnectorRoutes(model, lookup) {
   diagnostics.sort(
     (left, right) =>
       left.sourcePath.localeCompare(right.sourcePath) ||
-      left.from.localeCompare(right.from) ||
-      left.to.localeCompare(right.to),
+      endpointName(left.from).localeCompare(endpointName(right.from)) ||
+      endpointName(left.to).localeCompare(endpointName(right.to)),
   );
   return { routes, diagnostics };
 }
@@ -3561,6 +3754,7 @@ function renderGroup(documentRef, element) {
     // Declaration order in the DSL. DOM order is rendering/z order and may differ.
     // Code requiring logical order independent of rendering must use this attribute.
     "data-architecture-order": element.order,
+    ...boxSizeAttributes(element),
     opacity: element.style.opacity,
     role: "group",
     "aria-label": label,
@@ -3580,17 +3774,24 @@ function renderGroup(documentRef, element) {
     }),
   );
   if (element.title) {
+    if (element.customTitleLayout) {
+      appendText(documentRef, group, element, element.title);
+      return group;
+    }
+    const layout = architectureTextLayout(element);
     const title = svgElement(documentRef, "text", {
       x: element.x + 24,
       y: element.y + element.style.fontSize * 1.35,
       fill: element.style.textColor,
-      "font-size": element.style.fontSize,
-      "font-weight": 700,
+      "font-size": layout.effectiveFontSize,
+      "font-weight": element.style.fontWeight,
+      ...(element.style.fontFamily ? { "font-family": element.style.fontFamily } : {}),
+      ...textFitAttributes(layout),
       "pointer-events": "none",
       // Visual only; aria-label / <title> above provide the accessible name.
       "aria-hidden": "true",
     });
-    title.textContent = element.title;
+    title.textContent = layout.lines.join("\n");
     group.appendChild(title);
   }
   return group;
@@ -3609,6 +3810,7 @@ function renderNode(documentRef, element) {
     "data-architecture-id": element.id,
     "data-architecture-type": "node",
     "data-architecture-order": element.order,
+    ...boxSizeAttributes(element),
     opacity: element.style.opacity,
     role: "img",
     "aria-label": label,
@@ -3651,19 +3853,7 @@ function renderNode(documentRef, element) {
   }
   const icon = renderIcon(documentRef, element);
   if (icon) group.appendChild(icon.group);
-  if (icon && element.text) {
-    const textLeft = icon.x + icon.size + 16;
-    const textRight = element.x + element.width - nodeContentInset(element);
-    appendText(documentRef, group, element, element.text, {
-      centerX: (textLeft + textRight) / 2,
-      availableWidth: Math.max(32, textRight - textLeft),
-    });
-  } else {
-    const inset = nodeContentInset(element);
-    appendText(documentRef, group, element, element.text, {
-      availableWidth: Math.max(32, element.width - inset * 2),
-    });
-  }
+  appendText(documentRef, group, element, element.text);
   return group;
 }
 
@@ -3684,6 +3874,7 @@ function renderImage(documentRef, element, clipId) {
     "data-architecture-type": "image",
     "data-architecture-order": element.order,
     "data-architecture-src": element.src,
+    ...boxSizeAttributes(element),
     opacity: element.style.opacity,
     role: "img",
     "aria-label": label,
@@ -3769,8 +3960,8 @@ function endpointDisplayNames(elements) {
  * @returns {string} Text in the form `<from> to <to>[: <label>]`.
  */
 function describeConnector(element, endpointNames) {
-  const from = endpointNames?.get(element.from) || element.from;
-  const to = endpointNames?.get(element.to) || element.to;
+  const from = endpointNames?.get(element.from) || endpointName(element.from);
+  const to = endpointNames?.get(element.to) || endpointName(element.to);
   return `${from} to ${to}${element.label ? `: ${element.label}` : ""}`;
 }
 
@@ -3785,7 +3976,7 @@ function renderConnector(
   const label = element.ariaLabel || describeConnector(element, endpointNames);
   const group = svgElement(documentRef, "g", {
     opacity: element.style.opacity,
-    "data-architecture-connector": `${element.from}-${element.to}`,
+    "data-architecture-connector": `${endpointName(element.from)}-${endpointName(element.to)}`,
     "data-architecture-type": "connector",
     "data-architecture-order": element.order,
     "data-architecture-label-layer": element.labelLayer,
@@ -3811,7 +4002,7 @@ function renderConnector(
     const position = connectorLabelAnchor(element, points, fittedLabel, canvas);
     const { width, height } = fittedLabel;
     const labelGroup = svgElement(documentRef, "g", {
-      "data-architecture-connector-label": `${element.from}-${element.to}`,
+      "data-architecture-connector-label": `${endpointName(element.from)}-${endpointName(element.to)}`,
       "data-architecture-label-layer": element.labelLayer,
       "pointer-events": "none",
       "aria-hidden": "true",
@@ -3834,7 +4025,14 @@ function renderConnector(
       y: position.y,
       fill: element.style.textColor,
       "font-size": fittedLabel.fontSize,
-      "font-weight": 600,
+      ...textFitAttributes({
+        requestedFontSize: element.style.fontSize,
+        effectiveFontSize: fittedLabel.fontSize,
+        shrunk: fittedLabel.fontSize < element.style.fontSize,
+        truncated: fittedLabel.text !== element.label,
+      }),
+      "font-weight": element.style.fontWeight,
+      ...(element.style.fontFamily ? { "font-family": element.style.fontFamily } : {}),
       "text-anchor": "middle",
       "dominant-baseline": "middle",
       // Visual only. Width may truncate it, so the parent's aria-label is authoritative.
@@ -3881,8 +4079,11 @@ export function architectureSemanticSnapshot(model) {
         y: element.y,
         width: element.width,
         height: element.height,
+        ...(element.requestedSize ? { requestedSize: element.requestedSize } : {}),
         ...(element.type === "node" ? { icon: element.icon || undefined } : {}),
         ...(element.type === "image" ? { src: element.src, fit: element.fit } : {}),
+        ...(["node", "group"].includes(element.type)
+          ? { textLayout: architectureTextLayout(element) } : {}),
       };
     }),
   };
@@ -3924,13 +4125,14 @@ export function architecturePowerPointSnapshot(model, documentRef = globalThis.d
       ? {
           paragraphs: [
             {
-              alignment: options.alignment || "center",
+              alignment: options.alignment || element.style.textAlign,
               runs: [
                 {
                   text,
                   fontSize: options.fontSize || element.style.fontSize,
-                  fontWeight: options.fontWeight || 600,
-                  bold: (options.fontWeight || 600) >= 600,
+                  fontWeight: options.fontWeight || element.style.fontWeight,
+                  bold: (options.fontWeight || element.style.fontWeight) >= 600,
+                  ...(element.style.fontFamily ? { fontFace: element.style.fontFamily } : {}),
                   color: element.style.textColor,
                 },
               ],
@@ -3941,6 +4143,7 @@ export function architecturePowerPointSnapshot(model, documentRef = globalThis.d
 
   for (const element of model.elements) {
     if (element.type === "group") {
+      const textLayout = architectureTextLayout(element);
       objects.push({
         type: "shape",
         shape: "roundedRect",
@@ -3949,44 +4152,26 @@ export function architecturePowerPointSnapshot(model, documentRef = globalThis.d
         width: element.width,
         height: element.height,
         ...style(element),
-        text: shapeText(element, element.title, {
-          alignment: "left",
-          fontWeight: 700,
+        text: shapeText(element, textLayout.lines.join("\n"), {
+          fontSize: textLayout.effectiveFontSize,
         }),
-        verticalAlignment: "top",
+        ...textLayout,
+        textLayout,
         textWrap: "none",
-        textInsets: {
-          left: 24,
-          top: Math.max(0, element.style.fontSize * 0.2),
-          right: 24,
-          bottom: 0,
-        },
         architecture: source(element),
       });
       continue;
     }
 
     if (element.type === "node") {
+      const textLayout = architectureTextLayout(element);
       const iconSize = element.icon
         ? Math.min(58, element.height * 0.36, element.width * 0.2)
         : 0;
-      const contentInset = nodeContentInset(element);
       const iconX = element.text
         ? element.x + nodeIconInset(element)
         : element.x + element.width / 2 - iconSize / 2;
       const iconY = element.y + element.height / 2 - iconSize / 2;
-      const textInset = element.icon
-        ? nodeIconInset(element) + iconSize + 16
-        : contentInset;
-      const availableTextWidth = Math.max(32, element.width - textInset - contentInset);
-      const longestLine = Math.max(
-        ...element.text.split(/\r?\n/).slice(0, 8).map(textWidthUnits),
-        1,
-      );
-      const fittedFontSize = Math.min(
-        element.style.fontSize,
-        Math.max(MIN_FONT_SIZE, availableTextWidth / longestLine),
-      );
       objects.push({
         type: "shape",
         shape: nodePowerPointShape(element.shape),
@@ -3995,17 +4180,12 @@ export function architecturePowerPointSnapshot(model, documentRef = globalThis.d
         width: element.width,
         height: element.height,
         ...style(element),
-        text: shapeText(element, element.text, {
-          fontSize: fittedFontSize,
+        text: shapeText(element, textLayout.lines.join("\n"), {
+          fontSize: textLayout.effectiveFontSize,
         }),
-        verticalAlignment: "middle",
-        textWrap: element.text.includes("\n") ? "square" : "none",
-        textInsets: {
-          left: textInset,
-          top: 12,
-          right: contentInset,
-          bottom: 12,
-        },
+        ...textLayout,
+        textLayout,
+        textWrap: element.style.autoFit !== "none" && element.text.includes("\n") ? "square" : "none",
         icon: element.icon || "",
         architecture: source(element),
       });
@@ -4272,7 +4452,7 @@ function appendRoutingWarning(documentRef, wrapper, diagnostics) {
   const summary = diagnostics
     .map(
       (entry) =>
-        `${entry.sourcePath}: ${entry.from} -> ${entry.to} (${entry.kind}, ${entry.reason})`,
+        `${entry.sourcePath}: ${endpointName(entry.from)} -> ${endpointName(entry.to)} (${entry.kind}, ${entry.reason})`,
     )
     .join("; ");
   globalThis.console?.warn?.(

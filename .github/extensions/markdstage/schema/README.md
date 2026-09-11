@@ -87,13 +87,14 @@ constraints, so `renderer/architecture.mjs` is authoritative:
 
 | Constraint | Why it cannot be represented |
 | --- | --- |
-| A `connector` `from` / `to` refers to an existing non-connector element | Requires document-wide reference resolution |
+| A string-valued `connector` `from` / `to` refers to an existing non-connector element | Requires document-wide reference resolution; coordinate endpoints need no reference |
 | Self-referencing connectors are prohibited | Same as above |
 | Each `id` is unique across the complete tree | Applies to the flattened set of nested elements |
 | 200 elements / 100 connectors / 20,000 text characters | Aggregated **after flattening**, not expressible by `maxItems` on one array |
 | 65,536 source code units (UTF-16) | Existing JavaScript string-length limit before parsing; distinct from UTF-8 guide-response budgets |
 | Layout fit (`children do not fit`) | Calculated dynamically from child sizes and group interior dimensions |
 | Child `width` / `height` maximum under `layout` | Maximum depends on `cellWidth` / `cellHeight` |
+| Node `"auto"` dimensions and grid `columnWidths` | Content sizes are estimated before placement; the ratio array must match the effective column count |
 | The `assets/` file referenced by `node.icon` / `image.src` exists | The parser does not access the file system; a missing file renders an empty image region |
 
 `parseArchitecture` can fail even after schema validation. **The parser always

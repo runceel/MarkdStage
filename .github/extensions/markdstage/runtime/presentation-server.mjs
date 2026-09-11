@@ -25,6 +25,7 @@ import { createMarkdownWatcher } from "../scripts/markdown-watcher.mjs";
 import { startArchitectureEditorServer } from "./architecture-editor-server.mjs";
 import { saveArchitectureSource } from "./architecture-source.mjs";
 import { exportPdf, exportPptx } from "./output.mjs";
+import { sanitizeLayoutReport } from "./layout-report.mjs";
 import {
   isPathInside,
   outputPathForSource,
@@ -437,10 +438,7 @@ export async function startPresentationServer(
       }
       job.status = body.status;
       job.error = typeof body.error === "string" ? body.error.slice(0, 2_000) : "";
-      job.layout =
-        body.layout && typeof body.layout === "object" && Array.isArray(body.layout.slides)
-          ? body.layout
-          : null;
+      job.layout = sanitizeLayoutReport(body.layout);
       res.statusCode = 204;
       res.end();
       return;

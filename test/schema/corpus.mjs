@@ -68,6 +68,72 @@ const dashOfLength = (length) => {
 export const corpus = [
   // ---------------------------------------------------------------- Accepted
   { name: "minimal document", expect: "accept", source: doc([]) },
+  {
+    name: "node text style and content-hugging dimensions",
+    expect: "accept",
+    source: doc([node({
+      width: "auto", height: "auto", text: "Heading\nDescription",
+      style: {
+        textAlign: "left", verticalAlign: "top", autoFit: "none", padding: 0,
+        fontWeight: 400, fontFamily: "'Noto Sans', sans-serif", lineHeight: 1.5,
+      },
+    })]),
+  },
+  ...[
+    { textAlign: "start" }, { verticalAlign: "center" }, { autoFit: "grow" },
+    { padding: -1 }, { padding: 401 }, { fontWeight: 99 }, { fontWeight: 901 },
+    { fontFamily: "" }, { fontFamily: "Arial; color:red" }, { fontFamily: "Arial\nsans" },
+    { lineHeight: 0.49 }, { lineHeight: 4.01 },
+  ].map((style) => ({
+    name: `reject unsupported node typography ${JSON.stringify(style)}`,
+    expect: "reject",
+    source: doc([node({ style })]),
+  })),
+  {
+    name: "auto dimensions remain node-only",
+    expect: "reject",
+    source: doc([group({ width: "auto" })]),
+  },
+  {
+    name: "image auto dimensions are unsupported",
+    expect: "reject",
+    source: doc([image({ height: "auto" })]),
+  },
+  {
+    name: "grid proportional column widths",
+    expect: "accept",
+    source: doc([group({ width: 700, layout: { type: "grid", columns: 2, columnWidths: [1, 2] }, children: [node()] })]),
+  },
+  {
+    name: "column widths are grid-only",
+    expect: "reject",
+    source: doc([group({ layout: { type: "row", columnWidths: [1, 2, 1] } })]),
+  },
+  {
+    name: "column ratios must be positive",
+    expect: "reject",
+    source: doc([group({ layout: { type: "grid", columnWidths: [1, 0, 1] } })]),
+  },
+  {
+    name: "standalone coordinate connector",
+    expect: "accept",
+    source: doc([connector({ from: { x: 10, y: 20 }, to: { x: 200, y: 20 }, arrow: false })]),
+  },
+  {
+    name: "mixed node and point connector",
+    expect: "accept",
+    source: doc([node(), connector({ to: { x: 200, y: 20 } })]),
+  },
+  {
+    name: "coordinate connector rejects incomplete point",
+    expect: "reject",
+    source: doc([connector({ from: { x: 10 }, to: { x: 200, y: 20 } })]),
+  },
+  {
+    name: "coordinate connector rejects out-of-range point",
+    expect: "reject",
+    source: doc([connector({ from: { x: 4001, y: 20 }, to: { x: 200, y: 20 } })]),
+  },
   { name: "version omitted", expect: "accept", source: doc([node()]) },
   { name: "version 1", expect: "accept", source: doc([node()], { version: 1 }) },
   {
