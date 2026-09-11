@@ -47,7 +47,7 @@ layout: title
 | `kicker` | 見出しの上に添える小さなラベル |
 | `page` / `total` | 明示したいページ情報 |
 | `layout` | `title`、`section`、`center`、`backcover` |
-| `size` | `auto`、`normal`、`large`、`xlarge` |
+| `size` | `auto`、`compact`、`normal`、`large`、`xlarge` |
 | `theme` | `dark`、`light`、`microsoft`、`custom` |
 | `theme-file` | ワークスペースからの相対パスで指定するカスタムテーマ CSS |
 | `background-image` | `/assets/background.png` などの個別背景。全テーマ・レイアウトで最優先、後続には継承しない |
@@ -80,7 +80,7 @@ layout: title
 既定は `size: auto` です。余白の多い標準スライドは大きく表示しますが、
 コード、表、画像、図があるスライドは自動で拡大しません。
 
-サイズを固定したいときは `normal`、`large`、`xlarge` を指定します。
+サイズを固定したいときは `compact`、`normal`、`large`、`xlarge` を指定します。
 
 ```markdown
 ---

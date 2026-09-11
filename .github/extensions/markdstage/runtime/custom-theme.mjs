@@ -20,6 +20,23 @@ import {
   themeMetadataAssetPaths,
 } from "../renderer/theme.mjs";
 
+const THEME_SCHEMA_URL = new URL("../schema/theme-v1.json", import.meta.url);
+let knownThemeVariables = null;
+
+// The bundled theme schema is the catalog of documented custom properties.
+// Anything else still renders (the runtime accepts any `--name`), but a typo
+// such as `--slide-bodysize` would otherwise fail silently, so it is reported
+// as a warning.
+async function readKnownThemeVariables() {
+  if (!knownThemeVariables) {
+    const schema = JSON.parse(await readFile(THEME_SCHEMA_URL, "utf8"));
+    knownThemeVariables = new Set(
+      Object.keys(schema?.properties?.variables?.properties ?? {}),
+    );
+  }
+  return knownThemeVariables;
+}
+
 export const THEME_METADATA_NAME = "theme.json";
 export const THEME_METADATA_MAX_BYTES = 64 * 1024;
 export const THEME_CSS_MAX_BYTES = 64 * 1024;
@@ -120,9 +137,16 @@ export async function loadCustomTheme(
       }
     }
     const assets = metadata ? themeMetadataAssetPaths(metadata) : [];
+    const variables = parseThemeVariables(css);
+    const known = await readKnownThemeVariables();
+    const unknown = Object.keys(variables).filter((name) => !known.has(name));
     return {
       file: relative(workspaceRoot, path),
-      css: serializeThemeVariables(parseThemeVariables(css)),
+      css: serializeThemeVariables(variables),
+      warnings: unknown.map((name) => ({
+        code: "unknown_theme_property",
+        message: `Unknown custom theme property: ${name}. It is applied as-is but no standard layout uses it.`,
+      })),
       dir: relative(workspaceRoot, themeDir),
       metadata: metadata
         ? mapThemeMetadataAssets(metadata, (assetPath) => `${assetUrlPrefix}${assetPath}`)

@@ -85,11 +85,15 @@ function localAssetUrl(path, documentRef = document) {
 // The deck theme is chosen by the agent (load_deck `theme`) and delivered via
 // /state; slide front matter may override it unless the deck theme was explicit.
 // Anything unrecognized falls back to the default so a slide is never unstyled.
-const SIZE_MODES = new Set(["auto", "normal", "large", "xlarge"]);
+const SIZE_MODES = new Set(["auto", "compact", "normal", "large", "xlarge"]);
+// A custom theme that sets its own type scale owns the slide density, so the
+// automatic enlargement stays out of its way.
+const THEME_SIZE_TOKEN = /--slide-(?:h1|h2|h3|body|code)-size\s*:/;
 const DEFAULT_SIZE_MODE = "auto";
 let deckTheme = DEFAULT_THEME;
 let deckThemeLocked = false;
 let customThemeCss = "";
+let customThemeSizesSlides = false;
 let customThemeMeta = null;
 // Bumped on every render so a late mermaid finish from a previous slide can't
 // reveal a newer, still-rendering one.
@@ -133,8 +137,14 @@ const SCROLL_EPSILON = 2;
 const PPTX_LAYOUT_NAMES = ["title", "default", "center", "section", "backcover"];
 const LAYOUT_HINT_LIMIT = 5;
 
+// Custom themes are injected into the `markdstage.theme` cascade layer declared
+// at the top of slides.css. Layer order (base < theme < size) decides the
+// winner, so theme tokens such as --slide-body-size also apply to the fixed
+// 1280x720 output surface (PNG capture, PDF, PPTX, fixed preview), whose rules
+// are more specific but live in the earlier `markdstage.base` layer.
 function applyCustomThemeCss(css) {
   customThemeCss = typeof css === "string" ? css : "";
+  customThemeSizesSlides = THEME_SIZE_TOKEN.test(customThemeCss);
   let style = document.getElementById("custom-theme-style");
   if (!customThemeCss) {
     style?.remove();
@@ -146,7 +156,9 @@ function applyCustomThemeCss(css) {
     style.id = "custom-theme-style";
     document.head.appendChild(style);
   }
-  style.textContent = `:root[data-theme="custom"], .deck[data-theme="custom"]{${customThemeCss}}`;
+  style.textContent =
+    `@layer markdstage.theme{:root[data-theme="custom"], .deck[data-theme="custom"]` +
+    `{${customThemeCss}}}`;
 }
 
 function themeImage(entry, className, { decorative = false } = {}) {
@@ -166,7 +178,7 @@ function normalizeSizeMode(value) {
 
 function extractSlideSizeDirective(body) {
   const match = body.match(
-    /^\s*<!--\s*slide-size\s*:\s*(auto|normal|large|xlarge)\s*-->\s*/i,
+    /^\s*<!--\s*slide-size\s*:\s*(auto|compact|normal|large|xlarge)\s*-->\s*/i,
   );
   if (!match) return { body, size: "" };
   return {
@@ -176,8 +188,8 @@ function extractSlideSizeDirective(body) {
 }
 
 function setSizeLevel(deck, level) {
-  deck.classList.remove("size-large", "size-xlarge");
-  if (level === "large" || level === "xlarge") {
+  deck.classList.remove("size-compact", "size-large", "size-xlarge");
+  if (level === "compact" || level === "large" || level === "xlarge") {
     deck.classList.add(`size-${level}`);
   }
 }
@@ -218,6 +230,7 @@ function canUseSizeLevel(bodyEl) {
 function applyAutoSize(deck, bodyEl) {
   setSizeLevel(deck, "normal");
   if (
+    (customThemeSizesSlides && deck.dataset.theme === "custom") ||
     !bodyEl.textContent.trim() ||
     bodyEl.querySelector("pre, table, img, .mermaid, svg, video, iframe")
   ) {

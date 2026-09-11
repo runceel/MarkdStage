@@ -110,7 +110,9 @@ For diff rendering, use `--syntax-addition`, `--syntax-addition-bg`,
 | `--print-slide-bg` | Standard PDF page background |
 | `--print-cover-bg` | PDF cover background |
 | `--print-section-bg` | PDF section-divider background |
-| `--ms-font` | Font for Microsoft-style themes |
+| `--ms-font` | Slide body font (every theme, not only Microsoft styles) |
+| `--heading-font` | Slide heading font; defaults to the body font |
+| `--code-font` | Inline and block code font |
 
 `--ms-red`, `--ms-green`, `--ms-blue`, and `--ms-yellow` are also available as
 supporting brand colors.
@@ -213,10 +215,47 @@ You may change `--deck-pad-y`, `--deck-pad-x`, `--slide-h1-size`,
 
 Values may use CSS units and functions such as `px`, `rem`, and `clamp(...)`.
 
+These tokens apply to both the responsive canvas view and the fixed 1280x720
+output surface shared by PNG capture, PDF, PowerPoint, and the fixed preview:
+the stylesheet declares its defaults in the `markdstage.base` cascade layer and
+themes are injected into the later `markdstage.theme` layer. Front-matter `size`
+presets live in the last layer, `markdstage.size`, so an explicit
+`size: compact` / `large` / `xlarge` still overrides theme sizing. A theme that
+sets any `--slide-*-size` token also turns off the automatic enlargement of
+`size: auto`, keeping the theme's type scale.
+
+The following tokens control the remaining slide dimensions. Each keeps its
+built-in value when the theme does not set it; the value in parentheses is the
+one used by the fixed output surface.
+
+| Property | Purpose |
+| --- | --- |
+| `--kicker-size` | Kicker text size (12px) |
+| `--slide-image-max-height` | Maximum height of body images (346px) |
+| `--mermaid-max-height` | Maximum height of Mermaid diagrams (317px) |
+| `--architecture-max-height` | Maximum height of Architecture diagrams (504px) |
+
+An Architecture diagram taller than `--architecture-max-height` is scaled down
+to fit, which changes its effective line and text scale. Raise the token instead
+of letting several diagrams shrink by different factors.
+
+### Rules and tables
+
+| Property | Purpose |
+| --- | --- |
+| `--rule-width` | `hr` thickness (`1px`) |
+| `--rule-color` | `hr` color (`var(--border)`) |
+| `--table-font-size` | Table text size (`.9em`) |
+| `--table-cell-padding` | Table cell padding (`.55em .8em`) |
+| `--table-border-width` | Table border width (`1px`) |
+
 ## Authoring considerations
 
 - Runtime accepts arbitrary custom properties beginning with `--`, but only the
-  names documented here are used by standard layouts.
+  names documented here are used by standard layouts. A name outside
+  `schema/theme-v1.json` still loads, and `markdstage validate` reports it as an
+  `unknown_theme_property` warning, which catches typos such as
+  `--slide-bodysize`.
 - Values cannot be empty.
 - Selectors, `@import`, `url(...)`, `javascript:`, and `expression(...)` are prohibited.
 - Do not put arbitrary CSS rules or JavaScript in a theme file.

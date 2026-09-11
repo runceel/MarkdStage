@@ -33,7 +33,7 @@ delimited by `---`, followed by GFM-compatible content.
 | `page` / `total` | One-based current page / total page count |
 | `title` | Browser-tab title |
 | `layout` | `title` for a cover, `section` for a section divider, `backcover` for the back cover, or `center` to vertically center heading and body together. Standard slides omit it and align heading and body to the top. |
-| `size` | `auto` (default), `normal`, `large`, or `xlarge` |
+| `size` | `auto` (default), `compact`, `normal`, `large`, or `xlarge` |
 | `theme` | Per-slide override; normally use the deck theme |
 | `theme-file` | CSS for `custom`, resolved beside the Markdown before workspace root |
 | `background-image` | Per-slide decorative image, e.g. `/assets/background.png`; overrides every layout and theme |

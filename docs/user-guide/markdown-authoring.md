@@ -47,7 +47,7 @@ Each slide can also have its own front matter. Slide values override deck values
 | `kicker` | Small label above the heading |
 | `page` / `total` | Explicit page information |
 | `layout` | `title`, `section`, `center`, or `backcover` |
-| `size` | `auto`, `normal`, `large`, or `xlarge` |
+| `size` | `auto`, `compact`, `normal`, `large`, or `xlarge` |
 | `theme` | `dark`, `light`, `microsoft`, or `custom` |
 | `theme-file` | Workspace-relative custom theme CSS |
 | `background-image` | Per-slide image such as `/assets/background.png`, overriding all themes/layouts; never inherited |
@@ -81,7 +81,7 @@ See [Themes and layouts](themes-and-layouts.md) for examples.
 `size: auto` is the default. It enlarges spacious standard slides but avoids automatic enlargement
 for code, tables, images, and diagrams.
 
-Use `normal`, `large`, or `xlarge` when you need an explicit size:
+Use `compact`, `normal`, `large`, or `xlarge` when you need an explicit size:
 
 ```markdown
 ---

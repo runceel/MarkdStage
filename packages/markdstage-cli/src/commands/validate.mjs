@@ -60,6 +60,10 @@ export async function validateCommand(options) {
     });
   }
 
+  for (const warning of session.customThemeWarnings ?? []) {
+    warnings.push({ code: warning.code, message: warning.message });
+  }
+
   session.slides.forEach((slide, index) => {
     if (!hasFrontMatter(slide)) {
       warnings.push({
@@ -103,7 +107,7 @@ export function formatValidateReport(report) {
     );
   }
   for (const warning of report.warnings) {
-    lines.push(`  warn   slide ${warning.page}: ${warning.message}`);
+    lines.push(`  warn   ${warning.page ? `slide ${warning.page}: ` : ""}${warning.message}`);
   }
   if (report.complete === false) {
     lines.push(report.truncated
