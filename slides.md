@@ -226,70 +226,69 @@ Point out that the group layout alone aligns the child elements.
 
 ---
 size: normal
+kicker: Architecture DSL / Visual language
 ---
 
-## Shapes, styles, and routes
+## Shape. Style. Route.
 
 ```architecture
 {
   "version": 1,
-  "title": "Shape and routing coverage",
-  "description": "Three shapes, styled nodes and three connector routing modes.",
-  "canvas": { "width": 1600, "height": 900 },
+  "title": "Shape, style and route",
+  "description": "Architecture DSL turns visual language into explicit, editable structure.",
+  "canvas": { "width": 1600, "height": 820 },
   "elements": [
     {
       "type": "node",
       "id": "shape-rect",
-      "x": 760,
-      "y": 240,
-      "width": 300,
-      "height": 140,
-      "text": "Rect",
+      "x": 120,
+      "y": 230,
+      "width": 330,
+      "height": 170,
+      "text": "01\nSHAPE",
       "shape": "rect",
-      "style": { "fill": "surface", "stroke": "accent", "strokeWidth": 3 }
+      "icon": "browser",
+      "style": { "fill": "surface", "stroke": "accent", "strokeWidth": 4, "cornerRadius": 22, "textColor": "fg", "fontWeight": 700, "lineHeight": 1.35 }
     },
     {
       "type": "node",
       "id": "shape-rounded",
-      "x": 760,
-      "y": 550,
-      "width": 300,
-      "height": 140,
-      "text": "Rounded",
+      "x": 635,
+      "y": 230,
+      "width": 330,
+      "height": 170,
+      "text": "02\nSTYLE",
       "shape": "rounded-rect",
-      "style": { "fill": "accentSoft", "stroke": "accentStrong", "cornerRadius": 28 }
+      "icon": "analytics",
+      "style": { "fill": "accentSoft", "stroke": "accentStrong", "strokeWidth": 4, "cornerRadius": 34, "textColor": "fg", "fontWeight": 700, "lineHeight": 1.35 }
     },
     {
       "type": "node",
       "id": "shape-ellipse",
-      "x": 90,
-      "y": 590,
-      "width": 300,
-      "height": 140,
-      "text": "Ellipse",
+      "x": 1150,
+      "y": 230,
+      "width": 330,
+      "height": 170,
+      "text": "03\nROUTE",
       "shape": "ellipse",
-      "style": { "fill": "bg", "stroke": "accentLine", "dash": "10 6" }
+      "icon": "network",
+      "style": { "fill": "bg", "stroke": "accentLine", "strokeWidth": 4, "textColor": "fg", "fontWeight": 700, "lineHeight": 1.35 }
     },
-    {
-      "type": "node",
-      "id": "shape-target",
-      "x": 1120,
-      "y": 380,
-      "width": 320,
-      "height": 160,
-      "text": "Target",
-      "icon": "cloud",
-      "style": { "fill": "surface", "stroke": "accent" }
-    },
-    { "type": "connector", "from": "shape-rect", "to": "shape-target", "routing": "straight", "label": "straight" },
-    { "type": "connector", "from": "shape-rounded", "to": "shape-target", "routing": "orthogonal", "label": "orthogonal", "labelLayer": "behind" },
     {
       "type": "connector",
-      "from": "shape-ellipse",
-      "to": "shape-target",
-      "routing": "polyline",
-      "points": [{ "x": 600, "y": 800 }, { "x": 1500, "y": 800 }, { "x": 1500, "y": 620 }],
-      "label": "polyline"
+      "from": "shape-rect",
+      "to": "shape-rounded",
+      "routing": "straight",
+      "label": "style",
+      "arrow": true
+    },
+    {
+      "type": "connector",
+      "from": "shape-rounded",
+      "to": "shape-ellipse",
+      "routing": "orthogonal",
+      "label": "flow",
+      "arrow": true
     }
   ]
 }
@@ -298,7 +297,7 @@ size: normal
 <!--
 **Speaker notes 9 / 16**
 
-Compare the three shapes, route types, and label layering.
+Read the diagram left to right: choose a shape, add visual emphasis, then define how the flow connects. The same JSON stays editable and presentation-ready.
 -->
 
 ---
@@ -382,7 +381,8 @@ size: normal
       "from": "image-sample",
       "to": "image-node",
       "routing": "orthogonal",
-      "label": "same asset",
+      "label": "asset",
+      "labelLayer": "behind",
       "arrow": true
     }
   ]
