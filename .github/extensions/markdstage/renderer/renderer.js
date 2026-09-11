@@ -1327,10 +1327,11 @@ function pptxAlignment(value) {
 function paragraphFor(element, options = {}) {
   const style = getComputedStyle(element);
   const runs = collectTextRuns(element, options);
+  const lineSpacing = roundedMetric(Number.parseFloat(style.lineHeight));
   return {
     alignment: pptxAlignment(style.textAlign),
-    lineHeight: roundedMetric(parseFloat(style.lineHeight)),
     runs,
+    ...(lineSpacing > 0 ? { lineSpacing } : {}),
     ...(options.level !== undefined ? { level: options.level } : {}),
     ...(options.bullet ? { bullet: options.bullet } : {}),
   };
