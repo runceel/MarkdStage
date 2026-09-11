@@ -2,7 +2,7 @@
   "name": "MarkdStage",
   "tagline": "Markdown, ready for the stage.",
   "repository": "https://github.com/runceel/markdstage",
-  "releaseTag": "v3.8.2",
+  "releaseTag": "v3.8.3",
   "cliSetupCommand": "npm install --global @markdstage/markdstage\nmarkdstage skill install --target claude",
   "cliAlternativeCommand": "markdstage skill install --target codex",
   "cliPreviewCommand": "markdstage preview slides.md --watch",
