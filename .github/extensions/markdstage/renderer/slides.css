@@ -29,7 +29,13 @@
   --print-slide-bg:#0e1117;
   --print-cover-bg:linear-gradient(160deg,#11203a 0%,#0e1117 60%);
   --print-section-bg:var(--section-bg);
-}:root[data-theme="light"],
+  --markdstage-ui-bg:#161b22; --markdstage-ui-fg:#f0f4fa;
+  --markdstage-ui-muted:#8b95a3; --markdstage-ui-body:#c9d2dd;
+  --markdstage-ui-accent:#4ea8ff; --markdstage-ui-accent-strong:#79c0ff;
+  --markdstage-ui-accent-soft:rgba(78,168,255,.14);
+  --markdstage-ui-border:#2a313c; --markdstage-ui-code:#1b2330;
+}
+:root[data-theme="light"],
 .deck[data-theme="light"]{
   --bg:#ffffff; --fg:#15181f; --muted:#5b6470; --body:#333a44;
   --accent:#4f46e5; --accent-strong:#4338ca; --accent-soft:#eef2ff; --accent-line:#c7d2fe;
@@ -56,6 +62,11 @@
   --print-slide-bg:#ffffff;
   --print-cover-bg:linear-gradient(160deg,#e0e7ff 0%,#eef2ff 45%,#ffffff 100%);
   --print-section-bg:var(--section-bg);
+  --markdstage-ui-bg:#ffffff; --markdstage-ui-fg:#15181f;
+  --markdstage-ui-muted:#5b6470; --markdstage-ui-body:#333a44;
+  --markdstage-ui-accent:#4f46e5; --markdstage-ui-accent-strong:#4338ca;
+  --markdstage-ui-accent-soft:#eef2ff;
+  --markdstage-ui-border:#e5e7eb; --markdstage-ui-code:#f3f4f6;
 }
 :root[data-theme="microsoft"],
 .deck[data-theme="microsoft"]{
@@ -86,6 +97,11 @@
   --print-slide-bg:#ffffff;
   --print-cover-bg:linear-gradient(160deg,#a7d4f5 0%,#b7dcf7 55%,#d1e9fa 100%);
   --print-section-bg:var(--section-bg);
+  --markdstage-ui-bg:#ffffff; --markdstage-ui-fg:#201f1e;
+  --markdstage-ui-muted:#605e5c; --markdstage-ui-body:#323130;
+  --markdstage-ui-accent:#0078d4; --markdstage-ui-accent-strong:#106ebe;
+  --markdstage-ui-accent-soft:#eff6fc;
+  --markdstage-ui-border:#e1dfdd; --markdstage-ui-code:#f3f2f1;
 }
 *{box-sizing:border-box}
 /* The canvas viewport itself never scrolls: a slide always fills exactly one
@@ -399,6 +415,13 @@ footer .page{color:var(--accent-strong);font-weight:600;background:var(--accent-
 /* An author `display` rule on .nav/.overview would override the UA's
    [hidden]{display:none}, so re-assert hidden explicitly. */
 .nav[hidden],.overview[hidden]{display:none;}
+.nav,.pptx-export-dialog,.export-notification,.presenter-view,.overview-panel{
+  --bg:var(--markdstage-ui-bg);--surface:var(--markdstage-ui-bg);
+  --fg:var(--markdstage-ui-fg);--muted:var(--markdstage-ui-muted);
+  --body:var(--markdstage-ui-body);--code:var(--markdstage-ui-code);
+  --accent:var(--markdstage-ui-accent);--accent-strong:var(--markdstage-ui-accent-strong);
+  --accent-soft:var(--markdstage-ui-accent-soft);--border:var(--markdstage-ui-border);
+}
 .nav{position:fixed;left:50%;bottom:clamp(10px,2.4vh,22px);transform:translateX(-50%);
      z-index:50;display:flex;align-items:center;gap:.4em;
      padding:.3em .5em;border-radius:999px;

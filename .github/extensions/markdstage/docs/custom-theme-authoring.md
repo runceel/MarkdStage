@@ -58,6 +58,10 @@ You may also wrap declarations in `:root { ... }`.
 }
 ```
 
+Custom properties style slide content only. MarkdStage navigation, dialogs,
+presenter controls, and the slide list retain a complete built-in UI palette so
+that a partial custom theme cannot make controls unreadable.
+
 ## Available properties
 
 ### Base slide colors
