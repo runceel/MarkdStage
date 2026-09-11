@@ -407,6 +407,9 @@ function bulletTextOffsetPx(paragraph, path) {
   ) {
     return 0;
   }
+  if (paragraph.bulletOffsetPx !== undefined) {
+    return nonNegativeNumber(paragraph.bulletOffsetPx, `${path}.bulletOffsetPx`);
+  }
   const largestRunSize = Math.max(
     ...paragraph.runs.map((run, index) =>
       fontSizeOf(run, `${path}.runs[${index}]`),
