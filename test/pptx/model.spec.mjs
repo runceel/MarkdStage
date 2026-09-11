@@ -516,6 +516,11 @@ test("collects native text, nested lists, links, tables, and raster images", asy
     const listText = text.filter((element) =>
       element.paragraphs.some((paragraph) => paragraph.bullet),
     );
+    const paragraphText = text.find((element) =>
+      element.paragraphs.some((paragraph) =>
+        paragraph.runs.some((run) => run.text.includes("Paragraph with")),
+      ),
+    );
     const table = slide.elements.find((element) => element.type === "table");
     const images = slide.elements.filter((element) => element.type === "image");
     const image = images.find((element) => element.src.endsWith("simple-slide.png"));
@@ -552,6 +557,8 @@ test("collects native text, nested lists, links, tables, and raster images", asy
     expect(lists.map((paragraph) => paragraph.level)).toContain(1);
     expect(lists.every((paragraph) => paragraph.bullet.character === "•")).toBe(true);
     expect(lists.every((paragraph) => paragraph.bullet.color === "#0078D4")).toBe(true);
+    expect(paragraphText.paragraphs[0].lineSpacing).toBeGreaterThan(0);
+    expect(paragraphText.paragraphs[0]).not.toHaveProperty("lineHeight");
     expect(listText[0].paragraphs[1].leftMargin).toBeGreaterThan(
       listText[0].paragraphs[0].leftMargin || 0,
     );
