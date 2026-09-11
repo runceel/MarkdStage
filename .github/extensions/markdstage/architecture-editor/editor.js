@@ -472,7 +472,10 @@ function updateGroupLayout(ref, type) {
   for (const key of SHARED_LAYOUT_KEYS) {
     if (current[key] !== undefined) next[key] = current[key];
   }
-  if (type === "grid" && current.columns !== undefined) next.columns = current.columns;
+  if (type === "grid") {
+    if (current.columns !== undefined) next.columns = current.columns;
+    if (current.columnWidths !== undefined) next.columnWidths = current.columnWidths;
+  }
   if (type === "layered" && current.direction !== undefined) {
     next.direction = current.direction;
   }
@@ -1520,19 +1523,45 @@ function renderInspector() {
       }
       if (layout.type === "grid") {
         addField(general, {
-        label: "Columns",
-        path: "layout.columns",
-        value: layout.columns,
-        type: "number",
-        min: 1,
-        max: 12,
-        onChange: (value) =>
-          applyResult(
-            architecture.setElement(selectedRef, "layout", {
+          label: "Columns",
+          path: "layout.columns",
+          value: layout.columns,
+          type: "number",
+          min: 1,
+          max: 12,
+          onChange: (value) =>
+            applyResult(
+              architecture.setElement(selectedRef, "layout", {
+                ...layout,
+                columns: value,
+                ...(layout.columnWidths ? {
+                  columnWidths: Array.from({ length: Math.trunc(value ?? 3) },
+                    (_, index) => layout.columnWidths[index] ?? 1),
+                } : {}),
+              }),
+            ),
+        });
+        addField(general, {
+          label: "Column widths JSON",
+          path: "layout.columnWidths",
+          value: layout.columnWidths === undefined ? "" : JSON.stringify(layout.columnWidths),
+          onChange: (value, input) => {
+            let columnWidths;
+            try {
+              columnWidths = value === undefined ? undefined : JSON.parse(value);
+            } catch (error) {
+              if (!(error instanceof SyntaxError)) throw error;
+              const message = "Enter a JSON array with one positive ratio per column.";
+              input.setCustomValidity(message);
+              input.reportValidity();
+              announce(message, "error");
+              return;
+            }
+            applyResult(architecture.setElement(selectedRef, "layout", {
               ...layout,
-              columns: value,
-            }),
-          ),
+              columnWidths,
+            }));
+          },
         });
       }
       if (layout.type === "layered") {

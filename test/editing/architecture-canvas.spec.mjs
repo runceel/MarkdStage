@@ -1348,6 +1348,119 @@ test("blank space in the element tree adds near the visible canvas without overl
   }
 });
 
+const WEIGHTED_GRID_SOURCE = JSON.stringify({
+  elements: [{
+    type: "group", id: "grid", x: 100, y: 100, width: 900, height: 500,
+    layout: { type: "grid", columns: 2, columnWidths: [1, 2] },
+    children: [{ type: "node", id: "a", text: "A" }, { type: "node", id: "b", text: "B" }],
+  }],
+});
+
+test("weighted grid columns preserve ratios through count edits, undo, and save", async ({ page }) => {
+  const harness = await startArchitectureEditorHarness({ source: WEIGHTED_GRID_SOURCE });
+  try {
+    await page.goto(harness.url, { waitUntil: "load" });
+    await selectRefs(page, ["grid"]);
+    await openProperties(page);
+    const columns = page.getByLabel("Columns", { exact: true });
+    const ratios = page.getByLabel("Column widths JSON", { exact: true });
+    await expect(ratios).toHaveValue("[1,2]");
+    await columns.fill("3");
+    await columns.press("Tab");
+    await expect.poll(() => draftElements(harness)[0].layout).toEqual({
+      type: "grid", columns: 3, columnWidths: [1, 2, 1],
+    });
+    await ratios.fill("[2,3,4]");
+    await ratios.press("Tab");
+    await expect.poll(() => draftElements(harness)[0].layout.columnWidths).toEqual([2, 3, 4]);
+    await columns.fill("1");
+    await columns.press("Tab");
+    await expect.poll(() => draftElements(harness)[0].layout.columnWidths).toEqual([2]);
+    await page.locator('[data-action="undo"]').click();
+    await expect.poll(() => draftElements(harness)[0].layout).toEqual({
+      type: "grid", columns: 3, columnWidths: [2, 3, 4],
+    });
+    await columns.fill("2");
+    await columns.press("Tab");
+    await expect.poll(() => draftElements(harness)[0].layout.columnWidths).toEqual([2, 3]);
+    await columns.fill("");
+    await columns.press("Tab");
+    await expect.poll(() => draftElements(harness)[0].layout).toEqual({
+      type: "grid", columnWidths: [2, 3, 1],
+    });
+    await page.locator('[data-action="save"]').click();
+    await expect(page.locator("#status")).toContainText("Saved");
+    expect(harness.saves).toHaveLength(1);
+    expect(harness.markdown).toContain(harness.draftSource.trim());
+  } finally {
+    await harness.close();
+  }
+});
+
+test("weighted grid ratio validation is atomic and recovers without losing edits", async ({ page }) => {
+  const harness = await startArchitectureEditorHarness({ source: WEIGHTED_GRID_SOURCE });
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  try {
+    await page.goto(harness.url, { waitUntil: "load" });
+    await selectRefs(page, ["grid"]);
+    await openProperties(page);
+    const ratios = page.getByLabel("Column widths JSON", { exact: true });
+    await ratios.fill("{");
+    await ratios.press("Tab");
+    await expect(ratios).toHaveJSProperty("validationMessage",
+      "Enter a JSON array with one positive ratio per column.");
+    expect(harness.draftSource).toBe(WEIGHTED_GRID_SOURCE);
+    for (const invalid of ["[1]", "[0,2]", "[-1,2]", "[4001,2]", '["1",2]', "null", "{}"]) {
+      await ratios.fill(invalid);
+      await ratios.press("Tab");
+      await expect(page.locator("#status")).toHaveAttribute("data-kind", "error");
+      await expect(page.locator("#status")).toContainText("columnWidths");
+      expect(harness.draftSource).toBe(WEIGHTED_GRID_SOURCE);
+      await expect(page.locator('[data-action="undo"]')).toBeDisabled();
+    }
+    await ratios.fill("[3,1]");
+    await ratios.press("Tab");
+    await expect.poll(() => draftElements(harness)[0].layout.columnWidths).toEqual([3, 1]);
+    await expect(ratios).toHaveJSProperty("validationMessage", "");
+    await ratios.fill("");
+    await ratios.press("Tab");
+    await expect.poll(() => draftElements(harness)[0].layout.columnWidths).toBeUndefined();
+    await page.locator('[data-action="undo"]').click();
+    await expect.poll(() => draftElements(harness)[0].layout.columnWidths).toEqual([3, 1]);
+    expect(errors).toEqual([]);
+  } finally {
+    await harness.close();
+  }
+});
+
+test("weighted grid reselection preserves ratios and switching layout removes grid-only fields", async ({ page }) => {
+  const harness = await startArchitectureEditorHarness({ source: WEIGHTED_GRID_SOURCE });
+  try {
+    await page.goto(harness.url, { waitUntil: "load" });
+    await selectRefs(page, ["grid"]);
+    await openProperties(page);
+    await page.getByLabel("Layout", { exact: true }).selectOption("grid");
+    expect(harness.draftSource).toBe(WEIGHTED_GRID_SOURCE);
+    await expect(page.locator('[data-action="undo"]')).toBeDisabled();
+    await page.locator('.tree-item[data-ref="grid"]').click({ button: "right" });
+    await page.locator("#contextMenu").getByRole("menuitem", { name: "Layout", exact: true }).hover();
+    await page.getByRole("menu", { name: "Layout for grid" })
+      .getByRole("menuitemradio", { name: "grid", exact: true }).click();
+    expect(harness.draftSource).toBe(WEIGHTED_GRID_SOURCE);
+    await expect(page.locator('[data-action="undo"]')).toBeDisabled();
+    await page.getByLabel("Layout", { exact: true }).selectOption("row");
+    await expect.poll(() => draftElements(harness)[0].layout).toEqual({ type: "row" });
+    await expect(page.getByLabel("Column widths JSON", { exact: true })).toHaveCount(0);
+    await page.locator('[data-action="undo"]').click();
+    await expect.poll(() => draftElements(harness)[0].layout).toEqual({
+      type: "grid", columns: 2, columnWidths: [1, 2],
+    });
+  } finally {
+    await harness.close();
+  }
+});
+
 test("layout actions appear only in the group context submenu", async ({ page }) => {
   const source = `${JSON.stringify(
     {

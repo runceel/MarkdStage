@@ -47,6 +47,24 @@ test("text style defaults preserve centered semibold node labels and bold group 
   assert.equal(byId(model, "group").style.fontWeight, 700);
 });
 
+test("SVG font-family attributes preserve authored node, group, and connector fonts without hard-coding themed defaults", () => {
+  for (const fontFamily of [undefined, "Courier New"]) {
+    for (const groupLayout of [{}, { padding: 12, textAlign: "right" }]) {
+      const style = fontFamily ? { fontFamily } : {};
+      const model = parse([
+        node({ text: "Node", style }),
+        { type: "group", id: "group", x: 600, y: 100, width: 500, height: 200,
+          title: "Group", style: { ...style, ...groupLayout } },
+        { type: "connector", from: "node", to: "group", label: "Connector", style },
+      ]);
+      const texts = descendants(renderArchitectureDiagram(model, documentRef))
+        .filter((element) => element.tagName === "text");
+      assert.equal(texts.length, 3);
+      for (const text of texts) assert.equal(text.attributes.get("font-family"), fontFamily);
+    }
+  }
+});
+
 test("legacy group titles remain unshrunk unless custom title layout opts into fitting", () => {
   const group = {
     type: "group", id: "group", x: 100, y: 100, width: 90, height: 120,

@@ -515,6 +515,10 @@ When writing explicit JSON, `elements` is required by the JSON Schema.
   `{ "type": "grid", "columns": 3, "columnWidths": [1, 2, 1] }`.
   The ratios divide the space remaining after padding and column gaps, and the
   array length must match `columns` (default `3`). Other layouts reject this field.
+  In the Architecture Editor, **Column widths JSON** edits these ratios; clear it
+  for equal-width columns. Changing **Columns** preserves retained ratios, adds
+  new columns with ratio `1`, and removes trailing ratios when reducing the count.
+  Selecting the current grid layout again preserves its ratios.
 - A `connector` attaches to `from` / `to` boundaries and supports `straight`,
   `orthogonal`, and `polyline`, arrows, and labels. Ports are `auto`, `top`,
   `right`, `bottom`, or `left`. Parallel edges receive stable lanes, and

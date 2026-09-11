@@ -229,7 +229,7 @@ body.mermaid-loading .mermaid{visibility:hidden;}
      align-items:center;justify-content:center;}
 .architecture-svg{display:block;width:100%;height:auto;max-height:56vh;
      color:var(--body);font-family:inherit;overflow:visible;}
-.architecture-svg text{font-family:inherit;}
+.architecture-svg text:not([font-family]){font-family:inherit;}
 /* --- Architecture diagram editing UI --------------------------------------
    Appears in the DOM only in editing mode (the canvas edit_architecture action /
    ?architectureEdit=1). Normal view, presenter view, and printing do not create
