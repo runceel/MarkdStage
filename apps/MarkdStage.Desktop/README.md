@@ -8,15 +8,15 @@ renderer as the MarkdStage canvas, independently of the GitHub Copilot App.
 ## Features
 
 - Open `.md` and `.markdown` files with the Windows file picker.
-- Preview the current and next slides in 16:9.
-- Show Slidev/Marp-style HTML comments as speaker notes for the current slide.
-- Open the slide overview from the toolbar or with O, then jump to any slide.
+- Open the same full slide-view application as `markdstage <file.md>`.
+- Switch to presenter view for current/next slides and Slidev/Marp-style speaker notes.
+- Open the slide list from the shared controls or with O, then jump to any slide.
 - Navigate with the arrow keys, PageUp/PageDown, Space, Home, and End.
 - On the current slide in the audience and presenter views, left-click or tap a margin to move
   forward and right-click a margin to move back.
 - Reload automatically when the Markdown file is saved while preserving the current slide.
 - Preserve the last valid deck when a reload fails.
-- Open the audience view as a native WinUI 3 window with a full-bleed WebView2 in the same process.
+- Open the audience view as a native WinUI 3 window from the shared MarkdStage controls.
 - Support dark, light, Microsoft, and custom themes; Mermaid; code highlighting; Architecture DSL;
   and local images.
 
@@ -31,7 +31,8 @@ or docking the pen never launches the app or audience window, and pen input neve
 the audience window.
 
 Margin clicks exclude interactive areas such as slide content, links, and images. The next-slide
-preview in the presenter view is display-only.
+preview in presenter view is display-only. Opening a Markdown file starts in the normal slide view;
+presenter view is an explicit transition from the same controls used by the CLI application.
 
 ## Development environment
 
@@ -105,8 +106,10 @@ window built into the app, so a separate Edge, Chrome, or Chromium installation 
   `slide-size` directives are excluded from speaker notes.
 - Reject paths outside the workspace, junction or symlink escapes, and oversized files.
 
-Markdown editing, PDF export, the Architecture editor, and a timer are outside the scope of the
-initial release.
+For a source-backed deck, **More controls → Shape editing** opens the shared Architecture Editor
+in a native window. It edits existing `architecture` fences only and writes changes explicitly on
+**Save**, rejecting stale saves when the Markdown changed externally. General Markdown editing and
+PDF export, and a timer remain outside the scope of the initial release.
 
 ## Desktop v4 package and Store cutover
 

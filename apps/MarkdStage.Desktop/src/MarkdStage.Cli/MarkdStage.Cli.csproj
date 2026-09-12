@@ -23,6 +23,7 @@
     <ProjectReference Include="..\MarkdStage.Core\MarkdStage.Core.csproj" />
     <Compile Include="..\MarkdStage.App\Services\AppStorage.cs" Link="Services\AppStorage.cs" />
     <Compile Include="..\MarkdStage.App\Services\PresentationServer.cs" Link="Services\PresentationServer.cs" />
+    <Compile Include="..\MarkdStage.App\Services\ArchitectureEditorSession.cs" Link="Services\ArchitectureEditorSession.cs" />
     <Compile Include="..\MarkdStage.App\Services\DeckAssetResolver.cs" Link="Services\DeckAssetResolver.cs" />
     <Compile Include="..\MarkdStage.App\Services\PathSecurity.cs" Link="Services\PathSecurity.cs" />
     <Compile Include="..\MarkdStage.App\Services\VendorAssetProvider.cs" Link="Services\VendorAssetProvider.cs" />

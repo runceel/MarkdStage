@@ -4,73 +4,21 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:local="using:MarkdStageApp"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:viewModels="using:MarkdStageApp.ViewModels"
-    KeyDown="OnPageKeyDown"
     AllowDrop="True"
     DragOver="OnDragOver"
     Drop="OnDrop"
-    IsTabStop="True"
     mc:Ignorable="d">
 
-    <Grid Padding="24" RowSpacing="16">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
-
-        <CommandBar
-            x:Name="PresenterCommandBar"
-            DefaultLabelPosition="Right"
-            IsOpen="False">
-            <AppBarButton Click="OnOpenFolderClick" Icon="Folder" Label="Open folder" />
-            <AppBarButton Icon="FontColor" Label="Theme">
-                <AppBarButton.Flyout>
-                    <MenuFlyout>
-                        <MenuFlyoutItem Text="Use deck theme" Tag="" Click="OnThemeClick" />
-                        <MenuFlyoutItem Text="Dark" Tag="dark" Click="OnThemeClick" />
-                        <MenuFlyoutItem Text="Light" Tag="light" Click="OnThemeClick" />
-                        <MenuFlyoutItem Text="Microsoft" Tag="microsoft" Click="OnThemeClick" />
-                        <MenuFlyoutItem Text="Custom" Tag="custom" Click="OnThemeClick" />
-                    </MenuFlyout>
-                </AppBarButton.Flyout>
-            </AppBarButton>
-            <AppBarButton
-                AutomationProperties.AutomationId="OpenMarkdownButton"
-                Command="{x:Bind ViewModel.OpenMarkdownCommand}"
-                Icon="OpenFile"
-                Label="Open Markdown" />
-            <AppBarButton
-                AutomationProperties.AutomationId="SlideOverviewButton"
-                Click="OnSlideOverviewClick"
-                Icon="List"
-                IsEnabled="{x:Bind ViewModel.IsDeckLoaded, Mode=OneWay}"
-                Label="Slide overview"
-                KeyboardAcceleratorPlacementMode="Hidden">
-                <AppBarButton.KeyboardAccelerators>
-                    <KeyboardAccelerator Key="O" />
-                </AppBarButton.KeyboardAccelerators>
-            </AppBarButton>
-            <AppBarButton
-                AutomationProperties.AutomationId="StartPresentationButton"
-                Command="{x:Bind ViewModel.TogglePresentationCommand}"
-                Icon="FullScreen"
-                Label="{x:Bind ViewModel.PresenterButtonText, Mode=OneWay}" />
-            <CommandBar.Content>
-                <TextBlock
-                    AutomationProperties.AutomationId="SourceFileNameText"
-                    MaxWidth="720"
-                    Text="{x:Bind ViewModel.SourceDisplayName, Mode=OneWay}"
-                    TextTrimming="CharacterEllipsis"
-                    VerticalAlignment="Center" />
-            </CommandBar.Content>
-        </CommandBar>
+    <Grid>
+        <WebView2
+            x:Name="StageWebView"
+            AutomationProperties.AutomationId="StageWebView" />
 
         <InfoBar
-            Grid.Row="1"
+            x:Name="PresentationErrorInfoBar"
+            Margin="24"
+            VerticalAlignment="Top"
             AutomationProperties.AutomationId="PresentationErrorInfoBar"
             IsClosable="True"
             IsOpen="{x:Bind ViewModel.IsErrorOpen, Mode=TwoWay}"
@@ -78,282 +26,72 @@
             Severity="Error"
             Title="Couldn't update the display" />
 
-        <Grid
-            x:Name="PreviewGrid"
-            Grid.Row="2"
-            ColumnSpacing="16"
-            RowSpacing="16">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="2*" />
-                <ColumnDefinition Width="16" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-            <Grid.RowDefinitions>
-                <RowDefinition x:Name="CurrentPreviewRow" Height="*" />
-                <RowDefinition x:Name="NextPreviewRow" Height="*" />
-                <RowDefinition x:Name="NotesPreviewRow" Height="0" />
-            </Grid.RowDefinitions>
-
-            <Border
-                x:Name="CurrentPreviewBorder"
-                Grid.Column="0"
-                Grid.RowSpan="2"
-                SizeChanged="OnPreviewBorderSizeChanged"
-                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                BorderThickness="1"
-                CornerRadius="{ThemeResource ControlCornerRadius}">
-                <Grid>
-                    <Grid
-                        x:Name="CurrentAspectHost"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center">
-                        <WebView2
-                            x:Name="CurrentSlideWebView"
-                            AutomationProperties.AutomationId="CurrentSlideWebView"
-                            IsTabStop="False" />
-                    </Grid>
-                    <Border
-                        Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
-                        Visibility="{x:Bind local:MainPage.InvertVisibility(ViewModel.IsDeckLoaded), Mode=OneWay}">
-                        <StackPanel
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            Spacing="8">
-                            <FontIcon
-                                FontSize="40"
-                                Glyph="&#xE8A5;" />
-                            <TextBlock
-                                Style="{StaticResource SubtitleTextBlockStyle}"
-                                Text="Open a Markdown file to show a preview" />
-                        </StackPanel>
-                    </Border>
-                </Grid>
-            </Border>
-
-            <Border
-                x:Name="NextPreviewBorder"
-                Grid.Column="2"
-                Grid.Row="0"
-                SizeChanged="OnPreviewBorderSizeChanged"
-                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                BorderThickness="1"
-                CornerRadius="{ThemeResource ControlCornerRadius}">
-                <Grid>
-                    <Grid
-                        x:Name="NextAspectHost"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center">
-                        <WebView2
-                            x:Name="NextSlideWebView"
-                            AutomationProperties.AutomationId="NextSlideWebView"
-                            IsHitTestVisible="False"
-                            IsTabStop="False" />
-                    </Grid>
-                    <Border
-                        Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
-                        Visibility="{x:Bind local:MainPage.NextPlaceholderVisibility(ViewModel.IsDeckLoaded, ViewModel.HasNextSlide), Mode=OneWay}">
-                        <TextBlock
-                            HorizontalAlignment="Center"
-                            Style="{StaticResource BodyStrongTextBlockStyle}"
-                            Text="There is no next slide"
-                            VerticalAlignment="Center" />
-                    </Border>
-                    <Border
-                        HorizontalAlignment="Left"
-                        VerticalAlignment="Top"
-                        Margin="12"
-                        Padding="8,4"
-                        Background="{ThemeResource SystemControlBackgroundAccentBrush}"
-                        CornerRadius="{ThemeResource ControlCornerRadius}"
-                        Visibility="{x:Bind local:MainPage.BoolToVisibility(ViewModel.IsDeckLoaded), Mode=OneWay}">
-                        <TextBlock
-                            Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
-                            Style="{StaticResource CaptionTextBlockStyle}"
-                            Text="Next slide" />
-                    </Border>
-                </Grid>
-            </Border>
-
-            <Border
-                x:Name="SpeakerNotesBorder"
-                Grid.Column="2"
-                Grid.Row="1"
-                Padding="16"
-                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                BorderThickness="1"
-                CornerRadius="{ThemeResource ControlCornerRadius}">
-                <Grid RowSpacing="8">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-                    <TextBlock
-                        Style="{StaticResource SubtitleTextBlockStyle}"
-                        Text="Speaker notes" />
-                    <ScrollViewer
-                        Grid.Row="1"
-                        AutomationProperties.AutomationId="SpeakerNotesScrollViewer"
-                        HorizontalScrollBarVisibility="Disabled"
-                        VerticalScrollBarVisibility="Auto">
-                        <TextBlock
-                            AutomationProperties.AutomationId="SpeakerNotesText"
-                            IsTextSelectionEnabled="True"
-                            Text="{x:Bind ViewModel.CurrentSpeakerNotes, Mode=OneWay}"
-                            TextWrapping="Wrap" />
-                    </ScrollViewer>
-                </Grid>
-            </Border>
-
-            <VisualStateManager.VisualStateGroups>
-                <VisualStateGroup>
-                    <VisualState x:Name="Wide">
-                        <VisualState.StateTriggers>
-                            <AdaptiveTrigger MinWindowWidth="1100" />
-                        </VisualState.StateTriggers>
-                    </VisualState>
-                    <VisualState x:Name="Compact">
-                        <VisualState.StateTriggers>
-                            <AdaptiveTrigger MinWindowWidth="0" />
-                        </VisualState.StateTriggers>
-                        <VisualState.Setters>
-                            <Setter Target="CurrentPreviewBorder.(Grid.ColumnSpan)" Value="3" />
-                            <Setter Target="CurrentPreviewBorder.(Grid.RowSpan)" Value="1" />
-                            <Setter Target="NextPreviewBorder.(Grid.Column)" Value="0" />
-                            <Setter Target="NextPreviewBorder.(Grid.ColumnSpan)" Value="3" />
-                            <Setter Target="NextPreviewBorder.(Grid.Row)" Value="1" />
-                            <Setter Target="SpeakerNotesBorder.(Grid.Column)" Value="0" />
-                            <Setter Target="SpeakerNotesBorder.(Grid.ColumnSpan)" Value="3" />
-                            <Setter Target="SpeakerNotesBorder.(Grid.Row)" Value="2" />
-                            <Setter Target="CurrentPreviewRow.Height" Value="2*" />
-                            <Setter Target="NextPreviewRow.Height" Value="*" />
-                            <Setter Target="NotesPreviewRow.Height" Value="*" />
-                        </VisualState.Setters>
-                    </VisualState>
-                </VisualStateGroup>
-            </VisualStateManager.VisualStateGroups>
-        </Grid>
-
-        <Grid Grid.Row="3">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-            <Button
-                Grid.Column="0"
-                HorizontalAlignment="Right"
-                AutomationProperties.AutomationId="PreviousSlideButton"
-                Command="{x:Bind ViewModel.PreviousCommand}"
-                Content="Previous"
-                KeyboardAcceleratorPlacementMode="Hidden">
-                <Button.KeyboardAccelerators>
-                    <KeyboardAccelerator Key="Left" />
-                    <KeyboardAccelerator Key="PageUp" />
-                </Button.KeyboardAccelerators>
-            </Button>
-            <TextBlock
-                Grid.Column="1"
-                Margin="24,0"
-                AutomationProperties.AutomationId="PageCounterText"
-                Style="{StaticResource BodyStrongTextBlockStyle}"
-                Text="{x:Bind ViewModel.PageCounter, Mode=OneWay}"
-                VerticalAlignment="Center" />
-            <Button
-                Grid.Column="2"
-                HorizontalAlignment="Left"
-                AutomationProperties.AutomationId="NextSlideButton"
-                Command="{x:Bind ViewModel.NextCommand}"
-                Content="Next"
-                KeyboardAcceleratorPlacementMode="Hidden">
-                <Button.KeyboardAccelerators>
-                    <KeyboardAccelerator Key="Right" />
-                    <KeyboardAccelerator Key="PageDown" />
-                    <KeyboardAccelerator Key="Space" />
-                </Button.KeyboardAccelerators>
-            </Button>
-        </Grid>
-
-        <Border x:Name="WorkspaceStartScreen" Grid.Row="2"
-                Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
-            <StackPanel MaxWidth="760" HorizontalAlignment="Stretch" Spacing="16">
-                <TextBlock x:Name="WorkspaceHeading" Text="Open a workspace"
-                           Style="{StaticResource TitleTextBlockStyle}" TextWrapping="Wrap" />
+        <Border
+            x:Name="WorkspaceStartScreen"
+            Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
+            <StackPanel
+                MaxWidth="760"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Center"
+                Spacing="16">
+                <TextBlock
+                    x:Name="WorkspaceHeading"
+                    Text="Open a workspace"
+                    Style="{StaticResource TitleTextBlockStyle}"
+                    TextWrapping="Wrap" />
                 <StackPanel Orientation="Horizontal" Spacing="12">
                     <Button Content="Open folder…" Click="OnOpenFolderClick" />
-                    <Button Content="Open Markdown file…" Command="{x:Bind ViewModel.OpenMarkdownCommand}" />
-                    <Button x:Name="RefreshWorkspaceButton" Content="Refresh" Click="OnRefreshWorkspaceClick" Visibility="Collapsed" />
+                    <Button
+                        AutomationProperties.AutomationId="OpenMarkdownButton"
+                        Content="Open Markdown file…"
+                        Command="{x:Bind ViewModel.OpenMarkdownCommand}" />
+                    <Button
+                        x:Name="RefreshWorkspaceButton"
+                        Content="Refresh"
+                        Click="OnRefreshWorkspaceClick"
+                        Visibility="Collapsed" />
                 </StackPanel>
-                <ListView x:Name="WorkspaceItems" IsItemClickEnabled="True" ItemClick="OnWorkspaceItemClick"
-                          MaxHeight="500" SelectionMode="None" />
+                <ListView
+                    x:Name="WorkspaceItems"
+                    MaxHeight="500"
+                    IsItemClickEnabled="True"
+                    ItemClick="OnWorkspaceItemClick"
+                    SelectionMode="None" />
             </StackPanel>
         </Border>
-        <WebView2 x:Name="RuntimeWebView" Width="1" Height="1" Opacity="0"
-                  IsHitTestVisible="False" IsTabStop="False" />
-        <Border x:Name="RuntimeMissingScreen" Grid.RowSpan="4" Visibility="Collapsed"
-                Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
-            <StackPanel MaxWidth="620" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="20">
-                <TextBlock Text="MarkdStage can't start" Style="{StaticResource TitleTextBlockStyle}"
-                           IsTextSelectionEnabled="True" />
-                <TextBlock Text="MarkdStage needs the Microsoft Edge WebView2 Runtime, which isn't installed on this PC. Most Windows PCs already have it; on this one it's missing or its data folder isn't accessible."
-                           IsTextSelectionEnabled="True" TextWrapping="Wrap" />
+
+        <WebView2
+            x:Name="RuntimeWebView"
+            Width="1"
+            Height="1"
+            Opacity="0"
+            IsHitTestVisible="False"
+            IsTabStop="False" />
+
+        <Border
+            x:Name="RuntimeMissingScreen"
+            Visibility="Collapsed"
+            Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
+            <StackPanel
+                MaxWidth="620"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Spacing="20">
+                <TextBlock
+                    Text="MarkdStage can't start"
+                    Style="{StaticResource TitleTextBlockStyle}"
+                    IsTextSelectionEnabled="True" />
+                <TextBlock
+                    Text="MarkdStage needs the Microsoft Edge WebView2 Runtime, which isn't installed on this PC. Most Windows PCs already have it; on this one it's missing or its data folder isn't accessible."
+                    IsTextSelectionEnabled="True"
+                    TextWrapping="Wrap" />
                 <StackPanel Orientation="Horizontal" Spacing="12">
-                    <HyperlinkButton Content="Get the runtime"
+                    <HyperlinkButton
+                        Content="Get the runtime"
                         NavigateUri="https://developer.microsoft.com/microsoft-edge/webview2/" />
                     <Button Content="Try again" Click="OnRetryRuntimeClick" />
                 </StackPanel>
             </StackPanel>
         </Border>
-
-        <ContentDialog
-            x:Name="SlideOverviewDialog"
-            Grid.RowSpan="4"
-            AutomationProperties.AutomationId="SlideOverviewDialog"
-            CloseButtonText="Close"
-            Opened="OnSlideOverviewDialogOpened"
-            Title="Slide overview">
-            <ListView
-                x:Name="SlideOverviewListView"
-                MinWidth="480"
-                MaxHeight="520"
-                AutomationProperties.AutomationId="SlideOverviewList"
-                AutomationProperties.Name="Slide overview. Page number and title."
-                IsItemClickEnabled="True"
-                ItemClick="OnSlideOverviewItemClick"
-                ItemsSource="{x:Bind ViewModel.SlideOverviews, Mode=OneWay}"
-                SelectedIndex="{x:Bind ViewModel.CurrentSlideIndex, Mode=OneWay}"
-                SelectionMode="Single">
-                <ListView.ItemContainerStyle>
-                    <Style TargetType="ListViewItem">
-                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                    </Style>
-                </ListView.ItemContainerStyle>
-                <ListView.ItemTemplate>
-                    <DataTemplate x:DataType="viewModels:SlideOverviewItem">
-                        <Grid
-                            Padding="4,8"
-                            ColumnSpacing="16"
-                            AutomationProperties.Name="{x:Bind AccessibleName}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="40" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock
-                                HorizontalAlignment="Right"
-                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                Text="{x:Bind PageNumber}"
-                                VerticalAlignment="Center" />
-                            <TextBlock
-                                Grid.Column="1"
-                                Text="{x:Bind Title}"
-                                TextTrimming="CharacterEllipsis"
-                                VerticalAlignment="Center" />
-                        </Grid>
-                    </DataTemplate>
-                </ListView.ItemTemplate>
-            </ListView>
-        </ContentDialog>
     </Grid>
 </Page>

@@ -29,6 +29,8 @@ public sealed class PresentationSession
         return snapshot;
     }
 
+    public void NotifyChanged() => Changed?.Invoke(this, GetSnapshot());
+
     public Task<bool> NavigateByAsync(int delta) => Navigate?.Invoke(null, delta) ?? Task.FromResult(false);
     public Task<bool> NavigateToAsync(int index) => Navigate?.Invoke(index, null) ?? Task.FromResult(false);
     public void NavigateBy(int delta) => _ = NavigateByAsync(delta);

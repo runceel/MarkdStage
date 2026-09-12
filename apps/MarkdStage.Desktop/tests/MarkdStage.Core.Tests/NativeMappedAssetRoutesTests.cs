@@ -35,8 +35,8 @@ public sealed class NativeMappedAssetRoutesTests
             }
             using (var response = await client.GetAsync("vendor/vendor-assets.lock.json"))
             {
-                Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-                Assert.Equal("web.markdstage.invalid", response.Headers.Location?.Host);
+                Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+                Assert.Equal("application/json", response.Content.Headers.ContentType?.MediaType);
             }
             using (var oversized = File.OpenWrite(file)) oversized.SetLength(SlideBackgrounds.MaxBytes + 1);
             using (var response = await client.GetAsync("background-assets/photo%20space.png"))

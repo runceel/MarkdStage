@@ -196,7 +196,6 @@ $required = @(
     "CliData\host.html",
     "CliData\host.mjs",
     "Shared\runtime\host-bootstrap.mjs",
-    "Shared\runtime\desktop-host.mjs",
     "Shared\runtime\portable-output.mjs",
     "Shared\runtime\io-host.mjs",
     "Shared\markdown-deck.mjs",

@@ -2,12 +2,11 @@ using System.ComponentModel;
 using System.Runtime.InteropServices;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Input;
 using Microsoft.Web.WebView2.Core;
 using MarkdStage.Core;
+using MarkdStage.Cli;
 using MarkdStageApp.Services;
 using MarkdStageApp.ViewModels;
-using Windows.System;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
 using System.Text.Json;
@@ -17,15 +16,17 @@ namespace MarkdStageApp;
 public sealed partial class MainPage : Page
 {
     private readonly PresenterWindowService _presenterWindowService;
+    private readonly PresentationServer _server;
+    private readonly NativeBrowserHost _browserHost = new();
     private CoreWebView2Environment? _webViewEnvironment;
     private bool _shutdownStarted;
-    private bool _isSlideOverviewDialogOpen;
     private readonly MainWindow _window;
     private readonly PresentationSession _session;
     private readonly TaskCompletionSource _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private NativeRuntimeHost? _runtime;
     private WorkspaceIoService? _io;
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _workspaceTimer;
+    private readonly List<ArchitectureEditorWindow> _architectureEditorWindows = [];
     private bool _recoveryOpen;
     private string _themePreference = App.StateStore.State.Theme;
     public string? WorkspaceRoot { get; private set; }
@@ -42,10 +43,19 @@ public sealed partial class MainPage : Page
         {
             session.NavigateBy(delta);
         });
-        var server = new PresentationServer(session, () => _presenterWindowService.IsRunning, mapAssets: true);
+        _server = new PresentationServer(
+            session,
+            () => _presenterWindowService.IsRunning,
+            mapAssets: true,
+            openPresenter: OpenPresenterAsync,
+            closePresenter: _presenterWindowService.StopAsync,
+            reloadSource: ReloadAfterArchitectureSaveAsync,
+            exportDeck: ExportDeckAsync,
+            exportData: GetExportDataAsync,
+            exportStatus: ReportExportStatusAsync);
         ViewModel = new MainPageViewModel(
             session,
-            server,
+            _server,
             LoadRuntimePathAsync,
             new DeckWatcher(),
             _presenterWindowService,
@@ -53,7 +63,7 @@ public sealed partial class MainPage : Page
             () => WinRT.Interop.WindowNative.GetWindowHandle(_window));
         ViewModel.OpenRequested = path => App.OpenAsync(file: path, requestingWindow: _window);
         ViewModel.WorkspaceUnavailable = () => _ = RecoverWorkspaceAsync();
-        ViewModel.PropertyChanged += OnViewModelPropertyChanged;
+        _presenterWindowService.StatusChanged += (_, _) => _session.NotifyChanged();
         Loaded += OnLoaded;
         _workspaceTimer = DispatcherQueue.CreateTimer();
         _workspaceTimer.Interval = TimeSpan.FromSeconds(3);
@@ -74,6 +84,41 @@ public sealed partial class MainPage : Page
     public static Visibility NextPlaceholderVisibility(bool deckLoaded, bool hasNext) =>
         deckLoaded && hasNext ? Visibility.Collapsed : Visibility.Visible;
 
+    private async Task<bool> OpenPresenterAsync()
+    {
+        var alreadyRunning = _presenterWindowService.IsRunning;
+        await _presenterWindowService.OpenAsync(
+            _server.BaseUri ?? throw new InvalidOperationException("The presentation server is not ready."));
+        return alreadyRunning;
+    }
+
+    private async Task ReloadAfterArchitectureSaveAsync()
+    {
+        var source = _session.GetSnapshot().SourcePath;
+        if (!string.IsNullOrWhiteSpace(source))
+            await ViewModel.LoadPathAsync(source, startWatching: false);
+    }
+
+    private Task<JsonElement> ExportDeckAsync(
+        string format,
+        bool mermaidImageFallback,
+        CancellationToken cancellationToken) =>
+        (_runtime ?? throw new DeckLoadException("The shared runtime is not ready.", "runtime_unavailable"))
+            .ExportAsync(format, mermaidImageFallback, cancellationToken);
+
+    private Task<JsonElement> GetExportDataAsync(
+        string token,
+        CancellationToken cancellationToken) =>
+        (_runtime ?? throw new DeckLoadException("The shared runtime is not ready.", "runtime_unavailable"))
+            .GetExportDataAsync(token, cancellationToken);
+
+    private Task ReportExportStatusAsync(
+        string token,
+        JsonElement body,
+        CancellationToken cancellationToken) =>
+        (_runtime ?? throw new DeckLoadException("The shared runtime is not ready.", "runtime_unavailable"))
+            .ReportExportStatusAsync(token, body, cancellationToken);
+
     public async ValueTask ShutdownAsync()
     {
         if (_shutdownStarted)
@@ -85,17 +130,13 @@ public sealed partial class MainPage : Page
         _workspaceTimer.Stop();
         _ready.TrySetCanceled();
         Loaded -= OnLoaded;
-        ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
-        if (_isSlideOverviewDialogOpen)
-        {
-            SlideOverviewDialog.Hide();
-        }
-
-        CurrentSlideWebView.Close();
-        NextSlideWebView.Close();
+        StageWebView.Close();
+        foreach (var editor in _architectureEditorWindows.ToArray()) editor.Close();
+        _architectureEditorWindows.Clear();
         if (_runtime is not null) await _runtime.DisposeAsync();
         RuntimeWebView.Close();
         if (_io is not null) await _io.DisposeAsync();
+        await _browserHost.DisposeAsync();
         await ViewModel.DisposeAsync();
     }
 
@@ -122,15 +163,14 @@ public sealed partial class MainPage : Page
             await ViewModel.InitializeAsync();
             _presenterWindowService.SetEnvironment(_webViewEnvironment);
             await InitializeWebViewAsync(
-                CurrentSlideWebView,
-                ViewModel.CurrentPreviewUri,
+                StageWebView,
+                _server.BaseUri,
                 _webViewEnvironment);
-            await InitializeWebViewAsync(
-                NextSlideWebView,
-                ViewModel.NextPreviewUri,
-                _webViewEnvironment);
-            _runtime = new NativeRuntimeHost(RuntimeWebView, _session);
-            await _runtime.InitializeAsync(_webViewEnvironment);
+            _browserHost.AllowedBaseUri = _server.BaseUri;
+            _runtime = new NativeRuntimeHost(RuntimeWebView, _session, _browserHost);
+            await _runtime.InitializeAsync(
+                _webViewEnvironment,
+                _server.BaseUri ?? throw new InvalidOperationException("The presentation server is not ready."));
             _ready.TrySetResult();
             Focus(FocusState.Programmatic);
         }
@@ -171,10 +211,9 @@ public sealed partial class MainPage : Page
         await _ready.Task;
         if (_io is null)
         {
-            _io = new WorkspaceIoService(root, AppStorage.TransientRoot);
+            _io = new WorkspaceIoService(root, AppStorage.TransientRoot, _browserHost);
             _runtime!.BindWorkspace(_io);
-            NativeAssetMappings.ConfigureWorkspace(CurrentSlideWebView, root);
-            NativeAssetMappings.ConfigureWorkspace(NextSlideWebView, root);
+            NativeAssetMappings.ConfigureWorkspace(StageWebView, root);
             _presenterWindowService.SetWorkspaceRoot(root);
             _workspaceTimer.Start();
         }
@@ -342,7 +381,7 @@ public sealed partial class MainPage : Page
                 return;
             }
 
-            WebViewPolicy.Configure(webView, () => ViewModel.CurrentPreviewUri);
+            WebViewPolicy.Configure(webView, () => _server.BaseUri, OnNewWindowRequested);
             NativeAssetMappings.ConfigurePackage(webView);
             if (source is not null)
             {
@@ -363,123 +402,53 @@ public sealed partial class MainPage : Page
         }
     }
 
-    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs args)
+    private async void OnNewWindowRequested(
+        CoreWebView2 sender,
+        CoreWebView2NewWindowRequestedEventArgs args)
     {
-        if (args.PropertyName == nameof(MainPageViewModel.CurrentPreviewUri) &&
-            ViewModel.CurrentPreviewUri is not null &&
-            CurrentSlideWebView.CoreWebView2 is not null)
-        {
-            CurrentSlideWebView.Source = ViewModel.CurrentPreviewUri;
-        }
-        else if (args.PropertyName == nameof(MainPageViewModel.NextPreviewUri) &&
-                 ViewModel.NextPreviewUri is not null &&
-                 NextSlideWebView.CoreWebView2 is not null)
-        {
-            NextSlideWebView.Source = ViewModel.NextPreviewUri;
-        }
-    }
-
-    private void OnPageKeyDown(object sender, KeyRoutedEventArgs args)
-    {
-        if (args.Handled || args.KeyStatus.IsMenuKeyDown || _isSlideOverviewDialogOpen)
-        {
-            return;
-        }
-
-        switch (args.Key)
-        {
-            case VirtualKey.Home:
-                ViewModel.GoHome();
-                args.Handled = true;
-                break;
-            case VirtualKey.End:
-                ViewModel.GoEnd();
-                args.Handled = true;
-                break;
-        }
-    }
-
-    private async void OnSlideOverviewClick(object sender, RoutedEventArgs args)
-    {
-        if (_isSlideOverviewDialogOpen || !ViewModel.IsDeckLoaded)
-        {
-            return;
-        }
-
-        _isSlideOverviewDialogOpen = true;
-        SlideOverviewDialog.XamlRoot = XamlRoot;
+        var deferral = args.GetDeferral();
         try
         {
-            await SlideOverviewDialog.ShowAsync();
+            if (_shutdownStarted || _webViewEnvironment is null)
+            {
+                args.Handled = true;
+                return;
+            }
+            if (!string.IsNullOrWhiteSpace(args.Uri) &&
+                !args.Uri.Equals("about:blank", StringComparison.OrdinalIgnoreCase) &&
+                (!Uri.TryCreate(args.Uri, UriKind.Absolute, out var requested) ||
+                 _server.BaseUri is null ||
+                 !requested.GetLeftPart(UriPartial.Authority).Equals(
+                     _server.BaseUri.GetLeftPart(UriPartial.Authority),
+                     StringComparison.OrdinalIgnoreCase)))
+            {
+                args.Handled = true;
+                return;
+            }
+            var editor = new ArchitectureEditorWindow(
+                _webViewEnvironment, () => _server.BaseUri, WorkspaceRoot);
+            await editor.InitializeAsync();
+            if (editor.CoreWebView is null)
+            {
+                editor.Close();
+                args.Handled = true;
+                return;
+            }
+            editor.Closed += (_, _) => _architectureEditorWindows.Remove(editor);
+            _architectureEditorWindows.Add(editor);
+            args.NewWindow = editor.CoreWebView;
+            args.Handled = true;
+            editor.Activate();
+        }
+        catch (Exception error) when (error is InvalidOperationException or COMException)
+        {
+            args.Handled = true;
+            ShowOpenError("The Architecture Editor window could not be opened.");
         }
         finally
         {
-            _isSlideOverviewDialogOpen = false;
-            if (!_shutdownStarted)
-            {
-                Focus(FocusState.Programmatic);
-            }
+            deferral.Complete();
         }
     }
 
-    private void OnSlideOverviewDialogOpened(
-        ContentDialog sender,
-        ContentDialogOpenedEventArgs args) =>
-        DispatcherQueue.TryEnqueue(FocusCurrentSlideOverview);
-
-    private void OnSlideOverviewItemClick(object sender, ItemClickEventArgs args)
-    {
-        if (args.ClickedItem is not SlideOverviewItem item)
-        {
-            return;
-        }
-
-        ViewModel.NavigateToSlide(item.Index);
-        SlideOverviewDialog.Hide();
-    }
-
-    private void FocusCurrentSlideOverview()
-    {
-        var index = ViewModel.CurrentSlideIndex;
-        if (index < 0 || index >= ViewModel.SlideOverviews.Count)
-        {
-            SlideOverviewListView.Focus(FocusState.Programmatic);
-            return;
-        }
-
-        var currentItem = ViewModel.SlideOverviews[index];
-        SlideOverviewListView.SelectedItem = currentItem;
-        SlideOverviewListView.ScrollIntoView(currentItem, ScrollIntoViewAlignment.Leading);
-        SlideOverviewListView.UpdateLayout();
-
-        if (SlideOverviewListView.ContainerFromItem(currentItem) is ListViewItem container)
-        {
-            container.Focus(FocusState.Programmatic);
-        }
-        else
-        {
-            SlideOverviewListView.Focus(FocusState.Programmatic);
-        }
-    }
-
-    private void OnPreviewBorderSizeChanged(object sender, SizeChangedEventArgs args)
-    {
-        const double ratio = 16d / 9d;
-        var width = Math.Max(0, args.NewSize.Width - 2);
-        var height = Math.Max(0, args.NewSize.Height - 2);
-        if (height > 0 && width / height > ratio)
-        {
-            width = height * ratio;
-        }
-        else if (width > 0)
-        {
-            height = width / ratio;
-        }
-
-        var host = ReferenceEquals(sender, CurrentPreviewBorder)
-            ? CurrentAspectHost
-            : NextAspectHost;
-        host.Width = width;
-        host.Height = height;
-    }
 }

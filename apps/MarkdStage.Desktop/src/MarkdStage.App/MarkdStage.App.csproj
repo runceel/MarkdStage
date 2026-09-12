@@ -70,6 +70,11 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
+    <Content Include="$(RepositoryRoot)\.github\extensions\markdstage\architecture-editor\**\*">
+      <Link>Web\architecture-editor\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
     <Content Include="$(RepositoryRoot)\.github\extensions\markdstage\vendor\**\*">
       <Link>Web\vendor\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -117,6 +122,11 @@
   <ItemGroup>
     <ProjectReference Include="..\MarkdStage.Core\MarkdStage.Core.csproj" />
     <ProjectReference Include="..\MarkdStage.Cli\MarkdStage.Cli.csproj" ReferenceOutputAssembly="false" />
+    <Compile Include="..\MarkdStage.Cli\BrowserAutomation.cs" Link="NativeOutput\BrowserAutomation.cs" />
+    <Compile Include="..\MarkdStage.Cli\BrowserProcess.cs" Link="NativeOutput\BrowserProcess.cs" />
+    <Compile Include="..\MarkdStage.Cli\CdpConnection.cs" Link="NativeOutput\CdpConnection.cs" />
+    <Compile Include="..\MarkdStage.Cli\CliArguments.cs" Link="NativeOutput\CliArguments.cs" />
+    <Compile Include="..\MarkdStage.Cli\NativeBrowserHost.cs" Link="NativeOutput\NativeBrowserHost.cs" />
   </ItemGroup>
 
   <!--

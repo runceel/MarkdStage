@@ -7,7 +7,7 @@ const source = resolve(repository, ".github/extensions/markdstage");
 const output = resolve(process.argv[2] ?? "");
 if (!process.argv[2] || output === repository || output === source)
   throw new Error("Pass a dedicated native package assets directory.");
-const roots = ["runtime/host-bootstrap.mjs", "runtime/desktop-host.mjs", "runtime/portable-output.mjs", "renderer/speaker-notes.mjs"];
+const roots = ["runtime/host-bootstrap.mjs", "runtime/portable-output.mjs", "renderer/speaker-notes.mjs"];
 const seen = new Set();
 const dependencies = /(?:\b(?:import|export)\s+(?:[^;"']*?\s+from\s*)?|\bimport\s*\()\s*["']([^"']+)["']/gu;
 

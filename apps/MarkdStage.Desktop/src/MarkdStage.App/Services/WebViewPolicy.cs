@@ -1,11 +1,12 @@
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.Web.WebView2.Core;
+using Windows.Foundation;
 
 namespace MarkdStageApp.Services;
 
 /// <summary>
 /// Applies the app's safe-browsing policy to a <see cref="WebView2"/> instance: same-origin
-/// navigation only, no new-window popups, no DevTools, no context menu. Shared by the
+/// navigation only, controlled new-window handling, no DevTools, no context menu. Shared by the
 /// preview panes in <c>MainPage</c> and the audience-facing <c>PresenterWindow</c> so the
 /// policy is defined once instead of being duplicated (and risking drift) per host.
 /// </summary>
@@ -21,20 +22,27 @@ internal static class WebViewPolicy
     // Configure is required (and, in this codebase, verified) to await EnsureCoreWebView2Async
     // before calling this method, so the WebView2 is always initialized here.
 #pragma warning disable WUI4001
-    public static void Configure(WebView2 webView, Func<Uri?> allowedOriginProvider)
+    public static void Configure(
+        WebView2 webView,
+        Func<Uri?> allowedOriginProvider,
+        TypedEventHandler<CoreWebView2, CoreWebView2NewWindowRequestedEventArgs>? newWindowRequested = null)
     {
-        Configure(webView.CoreWebView2, allowedOriginProvider);
+        Configure(webView.CoreWebView2, allowedOriginProvider, newWindowRequested);
     }
 
     public static void Configure(
         CoreWebView2 webView,
-        Func<Uri?> allowedOriginProvider)
+        Func<Uri?> allowedOriginProvider,
+        TypedEventHandler<CoreWebView2, CoreWebView2NewWindowRequestedEventArgs>? newWindowRequested = null)
     {
         webView.Settings.AreDefaultContextMenusEnabled = false;
         webView.Settings.AreDevToolsEnabled = false;
         webView.Settings.IsZoomControlEnabled = false;
         webView.NavigationStarting += (_, args) => EnforceSameOrigin(args, allowedOriginProvider());
-        webView.NewWindowRequested += (_, args) => args.Handled = true;
+        if (newWindowRequested is null)
+            webView.NewWindowRequested += (_, args) => args.Handled = true;
+        else
+            webView.NewWindowRequested += newWindowRequested;
     }
 #pragma warning restore WUI4001
 

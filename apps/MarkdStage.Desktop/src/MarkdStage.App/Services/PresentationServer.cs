@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Channels;
 using Microsoft.AspNetCore.Builder;
@@ -17,7 +18,13 @@ internal sealed class PresentationServer(
     PresentationSession session,
     Func<bool> presenterRunning,
     Action<WebApplication, string>? configureRoutes = null,
-    bool mapAssets = false) : IAsyncDisposable
+    bool mapAssets = false,
+    Func<Task<bool>>? openPresenter = null,
+    Func<Task>? closePresenter = null,
+    Func<Task>? reloadSource = null,
+    Func<string, bool, CancellationToken, Task<JsonElement>>? exportDeck = null,
+    Func<string, CancellationToken, Task<JsonElement>>? exportData = null,
+    Func<string, JsonElement, CancellationToken, Task>? exportStatus = null) : IAsyncDisposable
 {
     private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(2);
 
@@ -27,6 +34,8 @@ internal sealed class PresentationServer(
     private WebApplication? _application;
     private string _webRoot = string.Empty;
     private VendorAssetProvider? _vendorAssets;
+    private readonly Dictionary<string, ArchitectureEditorSession> _architectureEditors = [];
+    private readonly Dictionary<string, ArchitectureEditorSession> _architectureEditorsById = [];
 
     public Uri? BaseUri { get; private set; }
 
@@ -207,8 +216,20 @@ internal sealed class PresentationServer(
                 sourceWatchStatus = "watching",
                 sourceWatchError = "",
                 presenterRunning = presenterRunning(),
+                presenterWindowAvailable = openPresenter is not null && closePresenter is not null,
+                presenterViewAvailable = true,
+                pdfExportAvailable = exportDeck is not null &&
+                    !string.IsNullOrWhiteSpace(snapshot.SourcePath),
+                pptxExportAvailable = exportDeck is not null &&
+                    !string.IsNullOrWhiteSpace(snapshot.SourcePath),
+                markdownImportAvailable = false,
+                sourceModeAvailable = false,
+                architectureEditAvailable = !string.IsNullOrWhiteSpace(snapshot.SourcePath),
                 architectureEdit = false,
-                architectureDetailedEdit = false,
+                architectureDetailedEdit = !string.IsNullOrWhiteSpace(snapshot.SourcePath),
+                architectureDetailedEditTarget = !string.IsNullOrWhiteSpace(snapshot.SourcePath)
+                    ? "window"
+                    : "",
             });
         });
 
@@ -256,6 +277,155 @@ internal sealed class PresentationServer(
                 mode = "deck",
             });
         });
+
+        application.MapPost($"{prefix}/present", async () =>
+        {
+            if (openPresenter is null)
+                return Results.Json(new { ok = false, error = "not_available" }, statusCode: 501);
+            if (session.GetSnapshot().Total == 0)
+                return Results.Json(new { ok = false, error = "no_deck" }, statusCode: 409);
+            try
+            {
+                var alreadyRunning = await openPresenter();
+                return Results.Json(new { ok = true, alreadyRunning });
+            }
+            catch (Exception error) when (error is InvalidOperationException or IOException)
+            {
+                return Results.Json(new
+                {
+                    ok = false,
+                    error = "presenter_launch_failed",
+                    message = error.Message,
+                }, statusCode: 500);
+            }
+        });
+
+        application.MapDelete($"{prefix}/present", async () =>
+        {
+            if (closePresenter is null)
+                return Results.Json(new { ok = false, error = "not_available" }, statusCode: 501);
+            await closePresenter();
+            return Results.Json(new { ok = true });
+        });
+
+        application.MapGet(
+            $"{prefix}/export-data",
+            async Task<IResult> (HttpContext context) =>
+            {
+                if (exportData is null)
+                    return Results.Json(new { ok = false, error = "not_available" }, statusCode: 501);
+                var token = context.Request.Query["token"].ToString();
+                if (string.IsNullOrWhiteSpace(token))
+                    return Results.Json(new { ok = false, error = "invalid_token" }, statusCode: 400);
+                try
+                {
+                    return Results.Json(await exportData(token, context.RequestAborted));
+                }
+                catch (DeckLoadException error)
+                {
+                    return Results.Json(new
+                    {
+                        ok = false,
+                        error = error.Code,
+                        message = error.Message,
+                    }, statusCode: 400);
+                }
+            });
+
+        application.MapPost(
+            $"{prefix}/export-status",
+            async Task<IResult> (HttpContext context) =>
+            {
+                if (exportStatus is null)
+                    return Results.Json(new { ok = false, error = "not_available" }, statusCode: 501);
+                var token = context.Request.Query["token"].ToString();
+                var body = await ReadJsonElementAsync(context, 256 * 1024);
+                if (string.IsNullOrWhiteSpace(token) || body is null)
+                    return Results.Json(new { ok = false, error = "bad_request" }, statusCode: 400);
+                try
+                {
+                    await exportStatus(token, body.Value, context.RequestAborted);
+                    return Results.NoContent();
+                }
+                catch (DeckLoadException error)
+                {
+                    return Results.Json(new
+                    {
+                        ok = false,
+                        error = error.Code,
+                        message = error.Message,
+                    }, statusCode: 400);
+                }
+            });
+
+        application.MapPost(
+            $"{prefix}/export",
+            async Task<IResult> (HttpContext context) =>
+                await ExportAsync(context, "pdf", mermaidImageFallback: false));
+
+        application.MapPost(
+            $"{prefix}/export-pptx",
+            async Task<IResult> (HttpContext context) =>
+            {
+                var request = context.Request.ContentLength == 0
+                    ? new PptxExportRequest(false)
+                    : await ReadJsonAsync<PptxExportRequest>(context, 4096);
+                if (request is null)
+                    return Results.Json(new { ok = false, error = "bad_request" }, statusCode: 400);
+                return await ExportAsync(context, "pptx", request.MermaidImageFallback);
+            });
+
+        application.MapPost($"{prefix}/architecture-editor/open", async (HttpContext context) =>
+        {
+            var request = await context.Request.ReadFromJsonAsync<ArchitectureOpenRequest>(
+                cancellationToken: context.RequestAborted);
+            var snapshot = session.GetSnapshot();
+            if (request is null || snapshot.Total == 0 || string.IsNullOrWhiteSpace(snapshot.SourcePath))
+                return Results.Json(new { ok = false, error = "source_not_available" }, statusCode: 409);
+            var slideIndex = request.Index ?? snapshot.Index;
+            var blockIndex = request.Block ?? 0;
+            var globalBlock = ArchitectureEditorSession.ImportedBlockIndex(
+                snapshot.Slides, slideIndex, blockIndex);
+            if (globalBlock is null)
+                return Results.Json(new { ok = false, error = "block_not_found" }, statusCode: 404);
+
+            var key = $"{snapshot.SourcePath}\0{globalBlock.Value}";
+            try
+            {
+                if (!_architectureEditors.TryGetValue(key, out var editor))
+                {
+                    editor = await ArchitectureEditorSession.CreateAsync(
+                        snapshot, globalBlock.Value, reloadSource);
+                    _architectureEditors[key] = editor;
+                    _architectureEditorsById[editor.Id] = editor;
+                }
+                else
+                {
+                    editor.SetTheme(snapshot.Theme.Name);
+                    if (!editor.Dirty)
+                    {
+                        var reloaded = await editor.ReloadAsync(discard: true);
+                        if (reloaded.StatusCode >= 400)
+                            return Results.Json(reloaded.Body, statusCode: reloaded.StatusCode);
+                    }
+                }
+                return Results.Json(new
+                {
+                    ok = true,
+                    url = new Uri(BaseUri!, $"architecture-editor/{editor.Id}/").AbsoluteUri,
+                });
+            }
+            catch (ArchitectureEditorException error)
+            {
+                return Results.Json(new { ok = false, error = error.Code, message = error.Message }, statusCode: 409);
+            }
+        });
+
+        application.MapMethods(
+            $"{prefix}/architecture-editor/{{editorId}}/{{**route}}",
+            new[] { "GET", "POST" },
+            (HttpContext context, string editorId, string? route) =>
+                HandleArchitectureEditorAsync(context, editorId, route ?? string.Empty));
 
         application.MapGet($"{prefix}/events", async context =>
         {
@@ -306,6 +476,196 @@ internal sealed class PresentationServer(
             HttpContext context,
             string path) => SendThemeAssetAsync(context, path));
         configureRoutes?.Invoke(application, prefix);
+    }
+
+    private async Task<IResult> ExportAsync(
+        HttpContext context,
+        string format,
+        bool mermaidImageFallback)
+    {
+        if (exportDeck is null)
+            return Results.Json(new { ok = false, error = "not_available" }, statusCode: 501);
+        var snapshot = session.GetSnapshot();
+        if (snapshot.Total == 0 ||
+            string.IsNullOrWhiteSpace(snapshot.SourcePath) ||
+            string.IsNullOrWhiteSpace(snapshot.WorkspaceRoot))
+            return Results.Json(new { ok = false, error = "no_deck" }, statusCode: 409);
+
+        try
+        {
+            var result = await exportDeck(format, mermaidImageFallback, context.RequestAborted);
+            return Results.Json(result);
+        }
+        catch (DeckLoadException error)
+        {
+            var statusCode = error.Code switch
+            {
+                "no_deck" or "export_in_progress" => StatusCodes.Status409Conflict,
+                _ => StatusCodes.Status500InternalServerError,
+            };
+            return Results.Json(new
+            {
+                ok = false,
+                error = error.Code,
+                message = error.Message,
+            }, statusCode: statusCode);
+        }
+    }
+
+    private async Task<IResult> HandleArchitectureEditorAsync(
+        HttpContext context,
+        string editorId,
+        string route)
+    {
+        if (!_architectureEditorsById.TryGetValue(editorId, out var editor))
+            return Results.NotFound();
+        route = route.Trim('/');
+        if (route.Length == 0 || route == "index.html")
+            return FileResult(Path.Combine(_webRoot, "architecture-editor", "index.html"), "text/html; charset=utf-8");
+        if (route == "state" && HttpMethods.IsGet(context.Request.Method))
+            return Results.Json(editor.GetState());
+        if (route == "events" && HttpMethods.IsGet(context.Request.Method))
+        {
+            await SendEditorEventsAsync(context, editor);
+            return Results.Empty;
+        }
+        if (route == "asset-library" && HttpMethods.IsGet(context.Request.Method))
+            return Results.Json(new { ok = true, assets = editor.ListAssets() });
+        if (route.StartsWith("assets/", StringComparison.Ordinal) && HttpMethods.IsGet(context.Request.Method))
+        {
+            var asset = editor.ResolveAsset(route["assets/".Length..]);
+            return asset is null
+                ? Results.NotFound()
+                : FileResult(asset, MimeFor(asset));
+        }
+        if (route == "asset-upload" && HttpMethods.IsPost(context.Request.Method))
+        {
+            var result = await editor.ImportAssetAsync(
+                context.Request.Query["name"].ToString(),
+                context.Request.ContentType,
+                context.Request.Body,
+                context.Request.ContentLength);
+            return Results.Json(result.Body, statusCode: result.StatusCode);
+        }
+        if (route == "draft" && HttpMethods.IsPost(context.Request.Method))
+        {
+            var request = await ReadJsonAsync<ArchitectureDraftRequest>(
+                context, ArchitectureEditorSession.MaxDraftBytes);
+            if (request is null)
+                return Results.Json(new { ok = false, error = "invalid_draft" }, statusCode: 400);
+            var result = await editor.UpdateDraftAsync(
+                request.Source ?? string.Empty, request.Generation, request.Revision);
+            return Results.Json(result.Body, statusCode: result.StatusCode);
+        }
+        if (route == "save" && HttpMethods.IsPost(context.Request.Method))
+        {
+            var request = await ReadJsonAsync<ArchitectureSaveRequest>(context, 4096);
+            if (request is null)
+                return Results.Json(new { ok = false, error = "bad_request" }, statusCode: 400);
+            var result = await editor.SaveAsync(request.Generation, request.Revision);
+            return Results.Json(result.Body, statusCode: result.StatusCode);
+        }
+        if (route == "reload" && HttpMethods.IsPost(context.Request.Method))
+        {
+            var request = await ReadJsonAsync<ArchitectureReloadRequest>(context, 4096);
+            if (request is null)
+                return Results.Json(new { ok = false, error = "invalid_reload" }, statusCode: 400);
+            var result = await editor.ReloadAsync(request.Discard);
+            return Results.Json(result.Body, statusCode: result.StatusCode);
+        }
+        if (route == "editor/editor.js")
+            return FileResult(Path.Combine(_webRoot, "architecture-editor", "editor.js"), "text/javascript; charset=utf-8");
+        if (route == "editor/editor.css")
+            return FileResult(Path.Combine(_webRoot, "architecture-editor", "editor.css"), "text/css; charset=utf-8");
+        if (route.StartsWith("renderer/", StringComparison.Ordinal))
+        {
+            var file = PathSecurity.ResolveFileInside(
+                Path.Combine(_webRoot, "renderer"), route["renderer/".Length..]);
+            return file is null ? Results.NotFound() : FileResult(file, MimeFor(file));
+        }
+        return Results.NotFound();
+    }
+
+    private async Task SendEditorEventsAsync(HttpContext context, ArchitectureEditorSession editor)
+    {
+        context.Response.ContentType = "text/event-stream";
+        context.Response.Headers.CacheControl = "no-store";
+        context.Response.Headers.Connection = "keep-alive";
+        var channel = Channel.CreateBounded<long>(new BoundedChannelOptions(1)
+        {
+            SingleReader = true,
+            SingleWriter = false,
+            FullMode = BoundedChannelFullMode.DropOldest,
+        });
+        EventHandler<long> handler = (_, version) => channel.Writer.TryWrite(version);
+        editor.Changed += handler;
+        using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(
+            context.RequestAborted, _shutdown.Token);
+        try
+        {
+            await context.Response.WriteAsync($"data: {editor.Version}\n\n", lifetime.Token);
+            await context.Response.Body.FlushAsync(lifetime.Token);
+            await foreach (var version in channel.Reader.ReadAllAsync(lifetime.Token))
+            {
+                await context.Response.WriteAsync($"data: {version}\n\n", lifetime.Token);
+                await context.Response.Body.FlushAsync(lifetime.Token);
+            }
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            editor.Changed -= handler;
+            channel.Writer.TryComplete();
+        }
+    }
+
+    private static IResult FileResult(string path, string contentType) =>
+        File.Exists(path)
+            ? Results.File(path, contentType, enableRangeProcessing: false)
+            : Results.NotFound();
+
+    private static async Task<JsonElement?> ReadJsonElementAsync(
+        HttpContext context,
+        int maxBytes)
+    {
+        if (context.Request.ContentLength is > 0 &&
+            context.Request.ContentLength > maxBytes)
+            return null;
+        using var memory = new MemoryStream();
+        await context.Request.Body.CopyToAsync(memory, context.RequestAborted);
+        if (memory.Length == 0 || memory.Length > maxBytes) return null;
+        try
+        {
+            using var document = JsonDocument.Parse(memory.ToArray());
+            return document.RootElement.Clone();
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static async Task<T?> ReadJsonAsync<T>(HttpContext context, int maxBytes)
+    {
+        if (context.Request.ContentLength is > 0 &&
+            context.Request.ContentLength > maxBytes)
+            return default;
+        using var memory = new MemoryStream();
+        await context.Request.Body.CopyToAsync(memory, context.RequestAborted);
+        if (memory.Length > maxBytes) return default;
+        try
+        {
+            return JsonSerializer.Deserialize<T>(memory.ToArray(), new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+            });
+        }
+        catch (JsonException)
+        {
+            return default;
+        }
     }
 
     private async Task SendDeckAssetAsync(HttpContext context, string relativePath)
@@ -378,11 +738,6 @@ internal sealed class PresentationServer(
             return Task.CompletedTask;
         }
 
-        if (mapAssets)
-        {
-            context.Response.Redirect(MappedUrl("web.markdstage.invalid", Path.GetRelativePath(_webRoot, resolved)));
-            return Task.CompletedTask;
-        }
         return SendFileAsync(context, resolved, MimeFor(resolved));
     }
 
@@ -440,4 +795,9 @@ internal sealed class PresentationServer(
         };
 
     private sealed record NavigationRequest(int? Index, int? Delta);
+    private sealed record ArchitectureOpenRequest(int? Index, int? Block);
+    private sealed record ArchitectureDraftRequest(string? Source, int Generation, int Revision);
+    private sealed record ArchitectureSaveRequest(int Generation, int Revision);
+    private sealed record ArchitectureReloadRequest(bool Discard);
+    private sealed record PptxExportRequest(bool MermaidImageFallback);
 }

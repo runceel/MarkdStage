@@ -39,8 +39,9 @@ internal sealed class NativeBrowserHost : IBrowserHost, IAsyncDisposable
     {
         if (!automation.TryGetValue(handle, out var browser)) throw new InvalidOperationException("Unknown browser handle.");
         if (method is not ("Runtime.evaluate" or "Page.printToPDF" or "Page.captureScreenshot" or
-            "Page.enable" or "Runtime.enable" or "Emulation.setDeviceMetricsOverride"))
-            throw new UnauthorizedAccessException("Unsupported browser operation.");
+            "Page.enable" or "Runtime.enable" or "Emulation.setDeviceMetricsOverride" or
+            "Emulation.setDefaultBackgroundColorOverride"))
+            throw new UnauthorizedAccessException($"Unsupported browser operation: {method}.");
         return await browser.CallAsync(method, parameters, cancellationToken);
     }
 
