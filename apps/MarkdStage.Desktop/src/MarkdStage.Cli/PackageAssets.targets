@@ -7,13 +7,6 @@
           Condition="'$(DesignTimeBuild)' != 'true'">
     <Exec Command="node &quot;$(NativeAssetGenerator)package-assets.mjs&quot; &quot;$(NativePackageAssetsDirectory)&quot;" />
     <Exec Command="node &quot;$(NativeAssetGenerator)package-data.mjs&quot; &quot;$(NativePackageAssetsDirectory)&quot;" />
-    <ItemGroup>
-      <Content Include="$(NativePackageAssetsDirectory)\**\*">
-        <Link>%(RecursiveDir)%(Filename)%(Extension)</Link>
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-      </Content>
-    </ItemGroup>
   </Target>
   <Target Name="CopyNativePackageAssetsToOutput" AfterTargets="Build"
           Condition="'$(DesignTimeBuild)' != 'true'">

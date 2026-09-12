@@ -270,7 +270,7 @@ foreach ($script in Get-ChildItem -LiteralPath (Join-Path $output "Shared") -Rec
     }
 }
 
-$packageArguments = @("pack", $output, "--output", $msix, "--executable", "MarkdStageApp.exe", "--self-contained")
+$packageArguments = @("pack", $output, "--output", $msix, "--executable", "MarkdStageApp.exe")
 if (-not $Unsigned) {
     $packageArguments += @("--cert", (Resolve-Path -LiteralPath $CertificatePath).Path)
     if ($CertificatePassword) { $packageArguments += @("--cert-password", $CertificatePassword) }

@@ -33,6 +33,7 @@
   <Applications>
     <Application Id="App"
       Executable="MarkdStageApp.exe"
+      desktop4:SupportsMultipleInstances="true"
       EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
         DisplayName="MarkdStage"

@@ -213,7 +213,7 @@ jobs:
             package/bin/markdstage.mjs \
             package/src/cli.mjs \
             package/shared/markdown-deck.mjs \
-            package/shared/runtime/presentation-server.mjs \
+            package/shared/hosts/node/presentation-server.mjs \
             package/shared/renderer/index.html \
             package/shared/schema/architecture-v1.schema.json \
             package/shared/vendor/marked.min.js; do
@@ -301,6 +301,15 @@ jobs:
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.x
+
+      - name: WinApp CLI
+        shell: pwsh
+        run: |
+          if (-not (Get-Command winapp -ErrorAction SilentlyContinue)) {
+            winget install --id Microsoft.WinAppCli --version 0.6.1 --exact --silent --accept-package-agreements --accept-source-agreements
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          winapp --version
 
       - name: Core tests
         run: dotnet test apps\MarkdStage.Desktop\tests\MarkdStage.Core.Tests\MarkdStage.Core.Tests.csproj -c Release

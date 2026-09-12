@@ -121,7 +121,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\MarkdStage.Core\MarkdStage.Core.csproj" />
-    <ProjectReference Include="..\MarkdStage.Cli\MarkdStage.Cli.csproj" ReferenceOutputAssembly="false" />
     <Compile Include="..\MarkdStage.Cli\BrowserAutomation.cs" Link="NativeOutput\BrowserAutomation.cs" />
     <Compile Include="..\MarkdStage.Cli\BrowserProcess.cs" Link="NativeOutput\BrowserProcess.cs" />
     <Compile Include="..\MarkdStage.Cli\CdpConnection.cs" Link="NativeOutput\CdpConnection.cs" />
