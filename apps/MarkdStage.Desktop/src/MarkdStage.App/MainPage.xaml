@@ -87,6 +87,7 @@
                             Orientation="Horizontal"
                             Spacing="12">
                             <Button
+                                x:Name="OpenFolderButton"
                                 AutomationProperties.Name="Open folder"
                                 Click="OnOpenFolderClick"
                                 Content="Open folder…"

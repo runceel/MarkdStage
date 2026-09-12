@@ -37,6 +37,22 @@ public sealed partial class MainWindow : Window
 
     public Task OpenWorkspaceAsync(string root, string? file) => Page.OpenWorkspaceAsync(root, file);
 
+    /// <summary>
+    /// Shown only once a deck is on screen, because until then the start screen is the window.
+    /// </summary>
+    public void SetBackToFilesVisible(bool visible) =>
+        BackToFilesButton.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+
+    private void OnBackToFilesClick(object sender, RoutedEventArgs args) => Page.ShowLibrary();
+
+    private void OnEscapeAccelerator(
+        Microsoft.UI.Xaml.Input.KeyboardAccelerator sender,
+        Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
+    {
+        args.Handled = true;
+        Page.ShowLibrary();
+    }
+
     private async void OnClosing(AppWindow sender, AppWindowClosingEventArgs args)
     {
         if (_shutdownComplete)

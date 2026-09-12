@@ -225,8 +225,31 @@ public sealed partial class MainPage : Page
         else
         {
             await ViewModel.LoadPathAsync(file, startWatching: true);
-            if (ViewModel.IsDeckLoaded) WorkspaceStartScreen.Visibility = Visibility.Collapsed;
+            if (ViewModel.IsDeckLoaded) HideLibrary();
         }
+    }
+
+    /// <summary>
+    /// The start screen doubles as the workspace file list, so hiding it on load used to leave the
+    /// window with no way to reach another deck short of a drag and drop or a restart.
+    /// </summary>
+    public async void ShowLibrary()
+    {
+        if (!ViewModel.IsDeckLoaded || WorkspaceStartScreen.Visibility == Visibility.Visible) return;
+        WorkspaceStartScreen.Visibility = Visibility.Visible;
+        _window.SetBackToFilesVisible(false);
+        // Focus has to leave the WebView, otherwise the Escape accelerator never fires.
+        if (WorkspaceItems.Items.Count > 0) WorkspaceItems.Focus(FocusState.Programmatic);
+        else OpenFolderButton.Focus(FocusState.Programmatic);
+        // The folder may have gained or lost decks while the current one was on screen.
+        if (WorkspaceRoot is not null) await RefreshWorkspaceFilesAsync();
+    }
+
+    private void HideLibrary()
+    {
+        if (!ViewModel.IsDeckLoaded) return;
+        WorkspaceStartScreen.Visibility = Visibility.Collapsed;
+        _window.SetBackToFilesVisible(true);
     }
 
     private async Task LoadRuntimePathAsync(string path, CancellationToken cancellationToken)
@@ -439,6 +462,35 @@ public sealed partial class MainPage : Page
         var file = (await args.DataView.GetStorageItemsAsync()).OfType<StorageFile>().FirstOrDefault(item => App.IsMarkdown(item.Path));
         if (file is not null) await App.OpenAsync(file: file.Path, requestingWindow: _window);
     }
+    /// <summary>
+    /// The renderer owns Escape for its own overlays (import, overview, more controls) and calls
+    /// preventDefault when it consumes one. Listening on window means this runs after that
+    /// document-level handler, so only an Escape nothing else wanted reaches the shell.
+    /// </summary>
+    private const string StageEscapeScript = """
+        window.addEventListener("keydown", (event) => {
+          if (event.key !== "Escape" || event.defaultPrevented) return;
+          if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
+          const target = event.target;
+          if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
+          window.chrome.webview.postMessage({ type: "shell:escape" });
+        });
+        """;
+
+    private void OnStageWebMessageReceived(CoreWebView2 sender, CoreWebView2WebMessageReceivedEventArgs args)
+    {
+        if (_shutdownStarted) return;
+        try
+        {
+            using var document = JsonDocument.Parse(args.WebMessageAsJson);
+            if (document.RootElement.ValueKind != JsonValueKind.Object) return;
+            if (!document.RootElement.TryGetProperty("type", out var type)) return;
+            if (type.GetString() != "shell:escape") return;
+        }
+        catch (JsonException) { return; }
+        ShowLibrary();
+    }
+
     private async Task InitializeWebViewAsync(
         WebView2 webView,
         Uri? source,
@@ -455,6 +507,11 @@ public sealed partial class MainPage : Page
 
             WebViewPolicy.Configure(webView, () => _server.BaseUri, OnNewWindowRequested);
             NativeAssetMappings.ConfigurePackage(webView);
+            if (webView == StageWebView)
+            {
+                await webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(StageEscapeScript);
+                webView.CoreWebView2.WebMessageReceived += OnStageWebMessageReceived;
+            }
             if (source is not null)
             {
                 webView.Source = source;
