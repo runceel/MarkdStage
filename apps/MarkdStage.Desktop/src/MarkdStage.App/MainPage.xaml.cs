@@ -257,13 +257,70 @@ public sealed partial class MainPage : Page
         foreach (var root in App.StateStore.State.RecentWorkspaces)
         {
             var available = Directory.Exists(root);
-            WorkspaceItems.Items.Add(new ListViewItem
+            var card = BuildEntryRow(
+                "\uE8B7",
+                Path.GetFileName(root) is { Length: > 0 } name ? name : root,
+                available ? root : $"{root} — Unavailable");
+            card.Tag = root;
+            card.Opacity = available ? 1 : 0.5;
+            WorkspaceItems.Items.Add(card);
+        }
+
+        WorkspaceListHeader.Text = "RECENT WORKSPACES";
+        WorkspaceListHeader.Visibility = WorkspaceItems.Items.Count > 0
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        BrandHero.Visibility = Visibility.Visible;
+    }
+
+    /// <summary>
+    /// Two-line card so the list reads as a chooser rather than a dump of raw paths.
+    /// The card is built here rather than in the item container style because
+    /// ListViewItemPresenter owns its own state brushes and ignores a local Background.
+    /// </summary>
+    private static Border BuildEntryRow(string glyph, string title, string? subtitle)
+    {
+        var row = new Grid { ColumnSpacing = 12 };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var icon = new FontIcon
+        {
+            FontSize = 16,
+            Glyph = glyph,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        icon.SetValue(Grid.ColumnProperty, 0);
+        icon.SetValue(Microsoft.UI.Xaml.Automation.AutomationProperties.AccessibilityViewProperty, Microsoft.UI.Xaml.Automation.Peers.AccessibilityView.Raw);
+        row.Children.Add(icon);
+
+        var text = new StackPanel { Spacing = 1, VerticalAlignment = VerticalAlignment.Center };
+        text.SetValue(Grid.ColumnProperty, 1);
+        text.Children.Add(new TextBlock
+        {
+            Text = title,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            TextWrapping = TextWrapping.NoWrap,
+        });
+        if (!string.IsNullOrEmpty(subtitle))
+        {
+            text.Children.Add(new TextBlock
             {
-                Tag = root,
-                Content = $"{Path.GetFileName(root)}{(available ? "" : " — Unavailable")}\n{root}",
-                Opacity = available ? 1 : 0.5,
+                Text = subtitle,
+                FontSize = 12,
+                Opacity = 0.7,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                TextWrapping = TextWrapping.NoWrap,
             });
         }
+        row.Children.Add(text);
+
+        return new Border
+        {
+            Child = row,
+            Style = (Style)Application.Current.Resources["BrandEntryCardStyle"],
+        };
     }
 
     private async Task RefreshWorkspaceFilesAsync()
@@ -281,8 +338,21 @@ public sealed partial class MainPage : Page
         {
             if (item.GetProperty("kind").GetString() != "file") continue;
             var path = item.GetProperty("path").GetString()!;
-            WorkspaceItems.Items.Add(new ListViewItem { Tag = path, Content = path });
+            var folder = Path.GetDirectoryName(path);
+            var card = BuildEntryRow(
+                "\uE8A5",
+                Path.GetFileName(path),
+                string.IsNullOrEmpty(folder) ? null : folder.Replace('\\', '/'));
+            card.Tag = path;
+            WorkspaceItems.Items.Add(card);
         }
+
+        WorkspaceListHeader.Text = WorkspaceItems.Items.Count > 0
+            ? "MARKDOWN FILES"
+            : "NO MARKDOWN FILES IN THIS FOLDER";
+        WorkspaceListHeader.Visibility = Visibility.Visible;
+        // The lockup would push the file list below the fold once a workspace is open.
+        BrandHero.Visibility = Visibility.Collapsed;
     }
 
     private async void OnRefreshWorkspaceClick(object sender, RoutedEventArgs args) => await RefreshWorkspaceFilesAsync();
@@ -295,7 +365,9 @@ public sealed partial class MainPage : Page
 
     private async void OnWorkspaceItemClick(object sender, ItemClickEventArgs args)
     {
-        if (args.ClickedItem is not ListViewItem { Tag: string path }) return;
+        // Items are plain FrameworkElements, not ListViewItem containers: a ListView does not
+        // raise ItemClick for containers that were added to Items already realized.
+        if (args.ClickedItem is not FrameworkElement { Tag: string path }) return;
         if (WorkspaceRoot is not null)
             await App.OpenAsync(workspace: WorkspaceRoot, file: Path.Combine(WorkspaceRoot, path), requestingWindow: _window);
         else if (Directory.Exists(path))
