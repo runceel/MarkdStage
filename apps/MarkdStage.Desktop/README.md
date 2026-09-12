@@ -58,12 +58,6 @@ dotnet test tests\MarkdStage.Core.Tests\MarkdStage.Core.Tests.csproj
 npm run test:unit
 ```
 
-Run the UI Automation tests while the app is running.
-
-```powershell
-tests\MarkdStage.UiTests\ui-tests.ps1 -AppPid <PID>
-```
-
 ## MSIX build
 
 Publish the GUI and console launcher into one package, including Windows App SDK,
