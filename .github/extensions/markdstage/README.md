@@ -70,9 +70,10 @@ The themed slide is displayed and updates automatically
   topics `custom-themes` and `theme-schema`. `schema/theme-v1.json` describes
   standard custom properties, and `schema/theme-metadata-v1.schema.json`
   describes `theme.json`.
-- Content size has four levels: **auto (default), normal, large, and xlarge**.
-  `auto` measures standard slides without code, tables, images, or Mermaid and
-  enlarges only when ample space remains.
+- Content size has five levels: **auto (default), compact, normal, large, and
+  xlarge**. `auto` measures standard slides without code, tables, images, or
+  Mermaid and enlarges only when ample space remains; `compact` makes room for
+  dense slides.
 - Put **speaker notes** in top-level HTML comments on each slide. Presenter view
   renders notes as Markdown and follows navigation. PowerPoint export includes
   readable plain-text notes. Notes are absent from regular slides, the external
@@ -305,7 +306,7 @@ delimited by `---`, followed by GFM-compatible content.
 | `page` / `total` | One-based current page / total page count |
 | `title` | Browser-tab title |
 | `layout` | `title` for a cover, `section` for a section divider, `backcover` for the back cover, or `center` to vertically center heading and body together. Standard slides omit it and align heading and body to the top. |
-| `size` | `auto` (default), `normal`, `large`, or `xlarge` |
+| `size` | `auto` (default), `compact`, `normal`, `large`, or `xlarge` |
 | `theme` | Per-slide override; normally use the deck theme |
 | `theme-file` | CSS for `custom`, resolved beside the Markdown before workspace root |
 | `background-image` | Per-slide decorative image, e.g. `/assets/background.png`; overrides every layout and theme |
@@ -1123,8 +1124,8 @@ size: xlarge
 ## Emphasized slide
 ```
 
-Accepted values are `auto`, `normal`, `large`, and `xlarge`. Front matter wins
-over the comment. `title`, `section`, and `backcover` layouts retain their
+Accepted values are `auto`, `compact`, `normal`, `large`, and `xlarge`. Front
+matter wins over the comment. `title`, `section`, and `backcover` layouts retain their
 special layout and are never auto-enlarged.
 
 ## Surface Pen controls

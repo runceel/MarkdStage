@@ -1,6 +1,16 @@
+/* ===== Cascade layers =====
+   Sizing and spacing tokens are declared in `markdstage.base`, custom themes are
+   injected into `markdstage.theme` (renderer.js applyCustomThemeCss), and the
+   `size` presets live in `markdstage.size`. Layer order, not selector
+   specificity, decides the winner, so a theme token such as --slide-body-size
+   applies in responsive view and in the fixed 1280x720 output surface alike,
+   while an explicit front-matter `size` still overrides the theme. */
+@layer markdstage.base, markdstage.theme, markdstage.size;
+
 /* ===== Themes =====
    Default (and explicit dark) live on :root; light/microsoft override.
    data-theme is set on <html> and each .deck so print pages can vary themes. */
+@layer markdstage.base{
 :root,
 :root[data-theme="dark"],
 .deck[data-theme="dark"]{
@@ -103,6 +113,7 @@
   --markdstage-ui-accent-soft:#eff6fc;
   --markdstage-ui-border:#e1dfdd; --markdstage-ui-code:#f3f2f1;
 }
+}
 *{box-sizing:border-box}
 /* The canvas viewport itself never scrolls: a slide always fills exactly one
    screen. Sizing the deck with % (not 100vh/100vw, which include the scrollbar
@@ -137,6 +148,7 @@ body.markdstage-empty{
   --accent-line:rgba(255,181,71,.46);--surface:#151b2f;--border:#303953;
   --glow-1:rgba(255,181,71,.08);--glow-2:rgba(255,215,122,.04);
 }
+@layer markdstage.base{
 .deck{position:relative;height:100%;width:100%;display:flex;flex-direction:column;
       --deck-pad-y:clamp(30px,5.5vh,68px); --deck-pad-x:clamp(40px,6.5vw,104px);
       --slide-h1-size:clamp(32px,6.6vh,72px);
@@ -146,6 +158,14 @@ body.markdstage-empty{
       --slide-code-size:clamp(14px,2.1vh,22px);
       padding:var(--deck-pad-y) var(--deck-pad-x);
       animation:fade .35s ease both;}
+}
+@layer markdstage.size{
+.deck.size-compact{
+      --slide-h1-size:clamp(27px,5.6vh,60px);
+      --slide-h2-size:clamp(21px,4.2vh,42px);
+      --slide-h3-size:clamp(17px,2.9vh,27px);
+      --slide-body-size:clamp(15px,2.5vh,25px);
+      --slide-code-size:clamp(12px,1.8vh,19px);}
 .deck.size-large{
       --slide-h1-size:clamp(38px,7.4vh,84px);
       --slide-h2-size:clamp(30px,5.8vh,60px);
@@ -158,6 +178,7 @@ body.markdstage-empty{
       --slide-h3-size:clamp(26px,4.6vh,44px);
       --slide-body-size:clamp(24px,3.9vh,40px);
       --slide-code-size:clamp(18px,2.65vh,28px);}
+}
 .deck::before{content:"";position:fixed;top:0;left:0;right:0;height:6px;z-index:2;
   background:var(--topbar);}
 @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
@@ -166,7 +187,8 @@ body.markdstage-empty{
 .deck>header:empty{display:none;}
 .kicker{display:inline-flex;align-items:center;gap:.55em;
         color:var(--accent-strong);font-weight:700;letter-spacing:.08em;
-        text-transform:uppercase;font-size:clamp(12px,1.6vh,16px);margin-bottom:.55em;}
+        text-transform:uppercase;font-size:var(--kicker-size,clamp(12px,1.6vh,16px));
+        margin-bottom:.55em;}
 .kicker::before{content:"";flex:0 0 auto;width:1.05em;height:1.05em;border-radius:3px;
   background:var(--kicker-mark);}
 .deck[data-theme="microsoft"] .kicker::before{border-radius:0;
@@ -175,6 +197,9 @@ body.markdstage-empty{
     linear-gradient(var(--ms-green),var(--ms-green)) right top/47% 47% no-repeat,
     linear-gradient(var(--ms-blue),var(--ms-blue)) left bottom/47% 47% no-repeat,
     linear-gradient(var(--ms-yellow),var(--ms-yellow)) right bottom/47% 47% no-repeat;}
+/* Slide headings only: the product UI keeps the built-in font so a theme cannot
+   restyle navigation, dialogs, or the slide list. */
+.deck :is(h1,h2,h3,h4,h5,h6){font-family:var(--heading-font,inherit);}
 h1{font-size:var(--slide-h1-size);line-height:1.08;margin:.1em 0 .25em;
    font-weight:700;letter-spacing:-.01em;color:var(--fg);}
 h2{font-size:var(--slide-h2-size);line-height:1.14;margin:.1em 0 .45em;
@@ -197,7 +222,8 @@ h3{font-size:var(--slide-h3-size);margin:.25em 0 .3em;font-weight:600;color:var(
 strong{color:var(--fg);font-weight:700;}
 em{color:var(--accent-strong);font-style:normal;font-weight:600;}
 a{color:var(--accent);text-underline-offset:3px;}
-code{font-family:"Cascadia Code","Cascadia Mono",Consolas,monospace;background:var(--code);
+code{font-family:var(--code-font,"Cascadia Code","Cascadia Mono",Consolas,monospace);
+     background:var(--code);
      border:1px solid var(--border);border-radius:5px;padding:.08em .38em;font-size:.9em;color:var(--code-fg);}
 pre{background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--accent);
     border-radius:8px;padding:1em 1.2em;overflow:auto;font-size:var(--slide-code-size);line-height:1.5;
@@ -230,20 +256,22 @@ pre code.hljs{display:block;overflow-x:auto;color:var(--code-fg);}
 .hljs-deletion{color:var(--syntax-deletion);background:var(--syntax-deletion-bg);}
 blockquote{margin:.3em 0;padding:.5em 1.1em;border-left:4px solid var(--accent);
            color:var(--muted);background:var(--accent-soft);border-radius:0 8px 8px 0;}
-table{border-collapse:collapse;width:100%;font-size:.9em;
+table{border-collapse:collapse;width:100%;font-size:var(--table-font-size,.9em);
       box-shadow:0 1px 6px rgba(0,0,0,.05);border-radius:8px;overflow:hidden;}
-th,td{border:1px solid var(--border);padding:.55em .8em;text-align:left;}
+th,td{border:var(--table-border-width,1px) solid var(--border);
+      padding:var(--table-cell-padding,.55em .8em);text-align:left;}
 th{background:var(--accent-soft);color:var(--accent-strong);font-weight:600;}
-img{max-width:100%;max-height:48vh;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.1);}
+img{max-width:100%;max-height:var(--slide-image-max-height,48vh);border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.1);}
 .body img{display:block;margin:.4em auto;}
 pre.mermaid{background:none;border:0;border-left:0;border-radius:0;box-shadow:none;
     padding:0;margin:.4em 0;font-family:inherit;font-size:inherit;line-height:1.3;
     text-align:center;overflow:auto;}
-pre.mermaid svg{max-width:100%;height:auto;max-height:44vh;}
+pre.mermaid svg{max-width:100%;height:auto;max-height:var(--mermaid-max-height,44vh);}
 body.mermaid-loading .mermaid{visibility:hidden;}
 .architecture-diagram{width:100%;min-height:0;margin:.35em 0;display:flex;
      align-items:center;justify-content:center;}
-.architecture-svg{display:block;width:100%;height:auto;max-height:56vh;
+.architecture-svg{display:block;width:100%;height:auto;
+     max-height:var(--architecture-max-height,56vh);
      color:var(--body);font-family:inherit;overflow:visible;}
 .architecture-svg text:not([font-family]){font-family:inherit;}
 /* --- Architecture diagram editing UI --------------------------------------
@@ -297,7 +325,8 @@ body.mermaid-loading .mermaid{visibility:hidden;}
 .architecture-routing-warning strong{color:#b26a00;}
 .architecture-routing-warning span{font-family:"Cascadia Code","Cascadia Mono",Consolas,monospace;
      font-size:.85em;overflow-wrap:anywhere;}
-hr{border:0;border-top:1px solid var(--border);margin:.7em 0;}
+hr{border:0;border-top:var(--rule-width,1px) solid var(--rule-color,var(--border));
+   margin:.7em 0;}
 /* Flex item margins do not collapse, so regular slide bodies use their gap as
    the single source of vertical spacing. Nested component spacing is unchanged. */
 .deck:not(.title-slide):not(.section-slide):not(.backcover-slide)>.body>:where(p,h1,h2,h3,h4,h5,h6,ul,ol,blockquote,pre,table):has(+:where(p,h1,h2,h3,h4,h5,h6,ul,ol,blockquote,pre,table)),
@@ -666,6 +695,7 @@ body.presenter-view-mode .layout-warning{display:none;}
 /* ===== Fixed 16:9 output surface ===== */
 /* PDF, PNG capture, and all fixed slide viewports share these rules. At the
    CSS reference pixel density, 1280x720 equals the PDF's 13.333333in x 7.5in. */
+@layer markdstage.base{
 body.fixed-output-mode .deck{
   width:1280px;height:720px;min-width:1280px;max-width:1280px;
   min-height:720px;max-height:720px;
@@ -674,6 +704,12 @@ body.fixed-output-mode .deck{
   --slide-body-size:22px;--slide-code-size:15px;
   overflow:hidden;animation:none;
 }
+}
+@layer markdstage.size{
+body.fixed-output-mode .deck.size-compact{
+  --slide-h1-size:40px;--slide-h2-size:30px;--slide-h3-size:20px;
+  --slide-body-size:18px;--slide-code-size:13px;
+}
 body.fixed-output-mode .deck.size-large{
   --slide-h1-size:53px;--slide-h2-size:42px;--slide-h3-size:29px;
   --slide-body-size:25px;--slide-code-size:17px;
@@ -681,6 +717,7 @@ body.fixed-output-mode .deck.size-large{
 body.fixed-output-mode .deck.size-xlarge{
   --slide-h1-size:60px;--slide-h2-size:48px;--slide-h3-size:33px;
   --slide-body-size:28px;--slide-code-size:19px;
+}
 }
 body.fixed-output-mode .deck:not(.title-slide):not(.section-slide):not(.backcover-slide){
   background:var(--print-slide-bg,var(--bg));
@@ -692,10 +729,11 @@ body.fixed-output-mode .deck.section-slide{
 body.fixed-output-mode .deck.backcover-slide{background:var(--backcover-bg,var(--accent));}
 body.fixed-output-mode .deck::before{position:absolute;}
 body.fixed-output-mode .body{overflow:hidden;}
-body.fixed-output-mode .kicker{font-size:12px;}
-body.fixed-output-mode img:not(.slide-background){max-height:346px;}
-body.fixed-output-mode pre.mermaid svg{max-height:317px;}
-body.fixed-output-mode .architecture-svg{max-height:504px;}
+body.fixed-output-mode .kicker{font-size:var(--kicker-size,12px);}
+body.fixed-output-mode img:not(.slide-background){
+  max-height:var(--slide-image-max-height,346px);}
+body.fixed-output-mode pre.mermaid svg{max-height:var(--mermaid-max-height,317px);}
+body.fixed-output-mode .architecture-svg{max-height:var(--architecture-max-height,504px);}
 body.fixed-output-mode footer{gap:.65em;font-size:11px;margin-top:16px;}
 body.fixed-output-mode .theme-cover-logo,
 body.fixed-output-mode .theme-backcover-logo{width:var(--cover-logo-width,205px);}

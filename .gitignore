@@ -15,3 +15,8 @@ packages/markdstage-cli/shared/
 
 # Generated GitHub Pages site
 _site/
+
+# Generated visual verification reports and export artifacts
+docs/verification/*.html
+docs/verification/output/
+docs/verification/output-ja/

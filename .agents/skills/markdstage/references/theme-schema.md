@@ -52,7 +52,9 @@ Custom properties available for theme authoring, extracted from the bundled `sch
     "--print-slide-bg": "Standard PDF page background",
     "--print-cover-bg": "PDF cover background",
     "--print-section-bg": "PDF section-divider background",
-    "--ms-font": "Font for Microsoft-style themes",
+    "--ms-font": "Slide body font for every theme",
+    "--heading-font": "Slide heading font (defaults to the body font)",
+    "--code-font": "Inline and block code font",
     "--ms-red": "Microsoft red",
     "--ms-green": "Microsoft green",
     "--ms-blue": "Microsoft blue",
@@ -63,7 +65,16 @@ Custom properties available for theme authoring, extracted from the bundled `sch
     "--slide-h2-size": "H2 size",
     "--slide-h3-size": "H3 size",
     "--slide-body-size": "Body text size",
-    "--slide-code-size": "Code text size"
+    "--slide-code-size": "Code text size",
+    "--kicker-size": "Kicker text size",
+    "--slide-image-max-height": "Maximum height of body images",
+    "--mermaid-max-height": "Maximum height of Mermaid diagrams",
+    "--architecture-max-height": "Maximum height of Architecture diagrams",
+    "--rule-width": "Horizontal rule thickness",
+    "--rule-color": "Horizontal rule color",
+    "--table-font-size": "Table text size",
+    "--table-cell-padding": "Table cell padding",
+    "--table-border-width": "Table border width"
   }
 }
 ```

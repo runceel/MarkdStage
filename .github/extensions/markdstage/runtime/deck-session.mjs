@@ -147,6 +147,7 @@ export async function createDeckSession({
     customThemeDir: "",
     customThemeMeta: null,
     customThemeAssets: new Set(),
+    customThemeWarnings: [],
     exportJobs: new Map(),
     exporting: false,
     clients: new Set(),
@@ -185,6 +186,7 @@ export async function createDeckSession({
     session.customThemeDir = custom.dir;
     session.customThemeMeta = custom.metadata;
     session.customThemeAssets = new Set(custom.assets);
+    session.customThemeWarnings = custom.warnings ?? [];
     session.sourceMarkdown = markdown;
     session.slides = ensureBackCover(slides.slice());
     session.index = clampIndex(preserveIndex ? session.index : 0, session.slides.length);

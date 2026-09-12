@@ -66,9 +66,10 @@ The themed slide is displayed and updates automatically
   topics `custom-themes` and `theme-schema`. `schema/theme-v1.json` describes
   standard custom properties, and `schema/theme-metadata-v1.schema.json`
   describes `theme.json`.
-- Content size has four levels: **auto (default), normal, large, and xlarge**.
-  `auto` measures standard slides without code, tables, images, or Mermaid and
-  enlarges only when ample space remains.
+- Content size has five levels: **auto (default), compact, normal, large, and
+  xlarge**. `auto` measures standard slides without code, tables, images, or
+  Mermaid and enlarges only when ample space remains; `compact` makes room for
+  dense slides.
 - Put **speaker notes** in top-level HTML comments on each slide. Presenter view
   renders notes as Markdown and follows navigation. PowerPoint export includes
   readable plain-text notes. Notes are absent from regular slides, the external

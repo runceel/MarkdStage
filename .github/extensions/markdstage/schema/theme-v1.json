@@ -57,7 +57,9 @@
         "--print-slide-bg": { "type": "string", "description": "Standard PDF page background" },
         "--print-cover-bg": { "type": "string", "description": "PDF cover background" },
         "--print-section-bg": { "type": "string", "description": "PDF section-divider background" },
-        "--ms-font": { "type": "string", "description": "Font for Microsoft-style themes" },
+        "--ms-font": { "type": "string", "description": "Slide body font for every theme" },
+        "--heading-font": { "type": "string", "description": "Slide heading font (defaults to the body font)" },
+        "--code-font": { "type": "string", "description": "Inline and block code font" },
         "--ms-red": { "type": "string", "description": "Microsoft red" },
         "--ms-green": { "type": "string", "description": "Microsoft green" },
         "--ms-blue": { "type": "string", "description": "Microsoft blue" },
@@ -68,7 +70,16 @@
         "--slide-h2-size": { "type": "string", "description": "H2 size" },
         "--slide-h3-size": { "type": "string", "description": "H3 size" },
         "--slide-body-size": { "type": "string", "description": "Body text size" },
-        "--slide-code-size": { "type": "string", "description": "Code text size" }
+        "--slide-code-size": { "type": "string", "description": "Code text size" },
+        "--kicker-size": { "type": "string", "description": "Kicker text size" },
+        "--slide-image-max-height": { "type": "string", "description": "Maximum height of body images" },
+        "--mermaid-max-height": { "type": "string", "description": "Maximum height of Mermaid diagrams" },
+        "--architecture-max-height": { "type": "string", "description": "Maximum height of Architecture diagrams" },
+        "--rule-width": { "type": "string", "description": "Horizontal rule thickness" },
+        "--rule-color": { "type": "string", "description": "Horizontal rule color" },
+        "--table-font-size": { "type": "string", "description": "Table text size" },
+        "--table-cell-padding": { "type": "string", "description": "Table cell padding" },
+        "--table-border-width": { "type": "string", "description": "Table border width" }
       },
       "patternProperties": {
         "^--[A-Za-z0-9_-]+$": { "type": "string" }

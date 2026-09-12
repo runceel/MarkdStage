@@ -283,7 +283,7 @@ followed by GFM-compatible Markdown.
 | `total` | Total page count |
 | `title` | Browser-tab title; defaults to `deck` |
 | `layout` | `title` for the cover, `section` for a section divider, `backcover` for the back cover, or `center` to vertically center heading and body together. Omit for top-aligned standard slides. |
-| `size` | `auto` (default), `normal`, `large`, or `xlarge`. `auto` safely enlarges only spacious standard slides. |
+| `size` | `auto` (default), `compact`, `normal`, `large`, or `xlarge`. `auto` safely enlarges only spacious standard slides; `compact` shrinks dense ones. |
 | `theme` | Per-slide override: `dark`, `light`, `microsoft`, or `custom`. An explicit canvas theme has precedence. |
 | `theme-file` | CSS custom-property file for `custom`, resolved first beside the source Markdown and then from the workspace root. A sibling `theme.json` loads automatically. |
 | `background-image` | Per-slide decorative image, e.g. `/assets/background.png`, overriding all layouts and themes. Never inherited by later slides, including from initial front matter. |
@@ -451,7 +451,8 @@ Derive the path from the request. If none is specified, use workspace-root
 - Ignore `---` inside fenced code.
 - Treat an initial `---` YAML block as deck configuration, not a slide.
 - Convert a leading `<!-- slide-size: large -->` directive into front-matter
-  `size: large`; accepted values are `auto`, `normal`, `large`, and `xlarge`.
+  `size: large`; accepted values are `auto`, `compact`, `normal`, `large`, and
+  `xlarge`.
 - Trim pages and discard empty pages.
 - Derive each slide-list title from its first heading, or the first 40
   characters of its first non-empty line.
@@ -549,6 +550,7 @@ Sizing:
 
 - `auto`: default; safely enlarge spacious standard slides without code, tables,
   images, or Mermaid.
+- `compact`: one step smaller, for information-dense slides.
 - `normal`: disable enlargement.
 - `large`: one step larger.
 - `xlarge`: two steps larger.
