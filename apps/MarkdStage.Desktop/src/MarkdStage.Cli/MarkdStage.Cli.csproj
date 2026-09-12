@@ -53,7 +53,7 @@
     </Content>
   </ItemGroup>
   <Import Project="PackageAssets.targets" />
-  <Target Name="GetNativeLauncherFiles" DependsOnTargets="Build" Returns="@(_NativeLauncherFiles)">
+  <Target Name="GetNativeLauncherFiles" Returns="@(_NativeLauncherFiles)">
     <ItemGroup>
       <_NativeLauncherFiles Include="$(TargetDir)MarkdStageCli.*" />
     </ItemGroup>

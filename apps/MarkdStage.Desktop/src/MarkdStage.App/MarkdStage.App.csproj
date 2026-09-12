@@ -163,6 +163,7 @@
       SkipUnchangedFiles="true" />
   </Target>
   <Target Name="CopyNativeCliToAppOutput" AfterTargets="Build">
+    <Exec Command="dotnet build &quot;$(MSBuildThisFileDirectory)..\MarkdStage.Cli\MarkdStage.Cli.csproj&quot; --configuration &quot;$(Configuration)&quot; --runtime &quot;$(RuntimeIdentifier)&quot; --property:Platform=&quot;$(Platform)&quot; --property:SelfContained=&quot;$(SelfContained)&quot; --property:WindowsAppSDKSelfContained=&quot;$(WindowsAppSDKSelfContained)&quot;" />
     <MSBuild Projects="..\MarkdStage.Cli\MarkdStage.Cli.csproj"
              Targets="GetNativeLauncherFiles"
              Properties="Configuration=$(Configuration);Platform=$(Platform);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=$(SelfContained);WindowsAppSDKSelfContained=$(WindowsAppSDKSelfContained)">
