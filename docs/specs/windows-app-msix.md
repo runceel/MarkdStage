@@ -399,8 +399,8 @@ One package, one application entry, per ADR 0001.
 
 ```
 MarkdStage/
-  MarkdStage.exe          Windows-subsystem app. The single <Application> entry.
-  markdstage.exe          Console-subsystem launcher. The alias target.
+  MarkdStageApp.exe       Windows-subsystem app. The single <Application> entry.
+  MarkdStageCli.exe       Console-subsystem launcher. The alias target.
   Web/                    Renderer, styles, vendor bundles. Virtual host mapping root.
   Shared/                 The shared JavaScript runtime.
   Assets/                 Package logos and tiles.
@@ -408,11 +408,22 @@ MarkdStage/
 
 The console entry point is published through the app execution alias extension on
 the single application entry, naming its own executable and declaring the console
-subsystem. The alias is `markdstage.exe`, matching the npm package's `markdstage`
+subsystem. The alias the user types is `markdstage`, matching the npm package's
 command so documentation and muscle memory carry over. A second `<Application>`
 entry must not be added: the manifest schema warns that packages with multiple
 application entries may not pass Store certification, and the alias extension
 makes one unnecessary.
+
+Two naming rules that are easy to get wrong:
+
+- **The alias name and the file name are independent.** The alias extension's
+  `Name` is what appears on `PATH` (`markdstage.exe`); its `Executable` is the
+  file inside the package (`MarkdStageCli.exe`). They do not have to match, and
+  here they deliberately do not.
+- **No two file names in the package may differ only by case.** The Windows
+  filesystem is case-insensitive, so `MarkdStage.exe` and `markdstage.exe` cannot
+  coexist in one folder. The GUI keeps the assembly name it already has,
+  `MarkdStageApp.exe`, and the launcher is `MarkdStageCli.exe`.
 
 **The launcher is not thin.** It owns, and is tested for:
 
