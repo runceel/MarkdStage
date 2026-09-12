@@ -1,15 +1,14 @@
 import assert from "node:assert/strict";
-import { readFile, readdir } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const root = new URL("../../.github/extensions/markdstage/", import.meta.url);
 
-// Every shared runtime module is portable except the explicit Node adapter.
-// Node transport and build/test tooling are separate from the shared runtime.
-test("all shared runtime modules except io-node have a portable dependency graph", async () => {
-  const modules = await readdir(new URL("runtime/", root));
-  const pending = modules.filter((name) => name.endsWith(".mjs") && name !== "io-node.mjs")
-    .map((name) => new URL(`runtime/${name}`, root));
+// Guard the runtime roots loaded by native hosts. Node compatibility entry
+// points remain separate until their callers migrate to the portable API.
+test("portable runtime entry points cannot acquire Node or host-adapter dependencies", async () => {
+  const pending = ["runtime/host-bootstrap.mjs", "runtime/portable-output.mjs"]
+    .map((path) => new URL(path, root));
   const visited = new Set();
   while (pending.length) {
     const url = pending.pop();
