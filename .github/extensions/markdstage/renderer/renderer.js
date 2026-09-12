@@ -1334,7 +1334,7 @@ function paragraphFor(element, options = {}) {
   const lineSpacing = roundedMetric(Number.parseFloat(style.lineHeight));
   return {
     alignment: pptxAlignment(style.textAlign),
-    runs,
+    runs: runs.length ? runs : [{ text: "", ...runStyle(element) }],
     ...(lineSpacing > 0 ? { lineSpacing } : {}),
     ...(options.level !== undefined ? { level: options.level } : {}),
     ...(options.bullet ? { bullet: options.bullet } : {}),
