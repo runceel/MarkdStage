@@ -325,6 +325,7 @@ PowerPoint notes pane. They remain absent from regular slides, the audience wind
 - [Custom theme authoring](./.github/extensions/markdstage/docs/custom-theme-authoring.md)
 - [Product principles](./PRODUCT.md)
 - [Brand and design system](./DESIGN.md)
+- [Architecture decision records](./docs/adr/README.md)
 - [Release process](./.github/RELEASING.md)
 - [Third-party notices](./.github/extensions/markdstage/THIRD-PARTY-NOTICES.md)
 - [MIT License](./LICENSE)

@@ -340,6 +340,7 @@ layout: title
 - [カスタムテーマ作成](./.github/extensions/markdstage/docs/custom-theme-authoring.md)
 - [プロダクト原則](./PRODUCT.md)
 - [ブランドとデザインシステム](./DESIGN.md)
+- [アーキテクチャ決定記録 (ADR)](./docs/adr/README.md)
 - [リリース手順](./.github/RELEASING.md)
 - [サードパーティ通知](./.github/extensions/markdstage/THIRD-PARTY-NOTICES.md)
 - [MIT ライセンス](./LICENSE)
