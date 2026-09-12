@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Custom theme output parity review</title>
+  <style>
+    :root { color-scheme: dark; font: 16px/1.45 "Segoe UI", system-ui, sans-serif; background: #0b1220; color: #e5eef8; }
+    body { margin: 0; padding: 32px; }
+    h1 { margin: 0 0 8px; font-size: 28px; }
+    p { color: #a9bed4; max-width: 80ch; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0 28px; }
+    a { color: #8ff3e6; }
+    .button { border: 1px solid #3b5873; border-radius: 999px; padding: 8px 14px; text-decoration: none; background: #17263a; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 22px; }
+    figure { margin: 0; padding: 12px; border: 1px solid #3b5873; border-radius: 12px; background: #101827; }
+    figcaption { margin: 0 0 10px; font-weight: 700; color: #8ff3e6; }
+    img, object, iframe { display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; border-radius: 7px; background: #17263a; object-fit: contain; }
+    .note { margin-top: 26px; padding: 14px 16px; border-left: 4px solid #4fd1c5; background: #17263a; color: #d7e5f5; }
+    code { color: #d8f7f2; }
+  </style>
+</head>
+<body>
+  <h1>Custom theme sizing and decoration parity</h1>
+  <p>
+    Open this file beside the MarkdStage canvas. The four panels use the same
+    source deck and custom theme. Compare heading scale, margins, kicker,
+    horizontal rule, table, code block, and Mermaid diagram at the same slide
+    index.
+  </p>
+  <div class="toolbar">
+    <a class="button" href="custom-theme-size-parity.md">Source Markdown</a>
+    <a class="button" href="output/custom-theme-size-parity.pdf">Open PDF</a>
+    <a class="button" href="output/custom-theme-size-parity.pptx">Open PPTX</a>
+  </div>
+  <div class="grid">
+    <figure>
+      <figcaption>Canvas reference / fixed preview</figcaption>
+      <img src="output/canvas/slide-002.png" alt="Canvas fixed preview reference">
+    </figure>
+    <figure>
+      <figcaption>PNG capture</figcaption>
+      <img src="output/custom-theme-size-parity-slide-2.png" alt="PNG capture of slide 2">
+    </figure>
+    <figure>
+      <figcaption>PDF export</figcaption>
+      <object data="output/custom-theme-size-parity.pdf#page=2" type="application/pdf" aria-label="PDF export, slide 2">
+        <a href="output/custom-theme-size-parity.pdf">Open the PDF export</a>
+      </object>
+    </figure>
+    <figure>
+      <figcaption>PowerPoint export</figcaption>
+      <img src="output/custom-theme-size-parity-slide-2.png" alt="PowerPoint slide 2 geometry reference">
+      <p><a href="output/custom-theme-size-parity.pptx">Open the editable PPTX</a> and compare slide 2 with this reference.</p>
+    </figure>
+  </div>
+  <div class="note">
+    <strong>Pass criteria:</strong> the fixed 1280 × 720 surfaces retain the
+    custom theme's type scale and margins instead of reverting to built-in
+    fixed-output values. The PDF and PPTX should match the PNG geometry; the
+    normal canvas view should preserve the same token-driven proportions.
+  </div>
+  <h2>PNG capture gallery</h2>
+  <div class="grid">
+    <figure><figcaption>Slide 1 — title</figcaption><img src="output/slide-001.png" alt="PNG capture of slide 1"></figure>
+    <figure><figcaption>Slide 2 — density</figcaption><img src="output/custom-theme-size-parity-slide-2.png" alt="PNG capture of slide 2"></figure>
+    <figure><figcaption>Slide 3 — decoration</figcaption><img src="output/slide-003.png" alt="PNG capture of slide 3"></figure>
+    <figure><figcaption>Slide 4 — diagram bounds</figcaption><img src="output/slide-004.png" alt="PNG capture of slide 4"></figure>
+  </div>
+</body>
+</html>

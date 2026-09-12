@@ -1,0 +1,34 @@
+:root {
+  --bg: #101827;
+  --fg: #f8fbff;
+  --body: #d7e5f5;
+  --muted: #9fb4ca;
+  --accent: #4fd1c5;
+  --accent-strong: #8ff3e6;
+  --accent-soft: rgba(79, 209, 197, 0.18);
+  --accent-line: rgba(143, 243, 230, 0.75);
+  --surface: #17263a;
+  --code: #0b1220;
+  --code-fg: #d8f7f2;
+  --border: #3b5873;
+  --topbar: #4fd1c5;
+  --rule-color: #4fd1c5;
+  --rule-width: 3px;
+  --heading-font: "Segoe UI";
+  --ms-font: "Segoe UI";
+  --code-font: "Cascadia Code", Consolas, monospace;
+  --deck-pad-x: 72px;
+  --deck-pad-y: 44px;
+  --slide-h1-size: 42px;
+  --slide-h2-size: 31px;
+  --slide-h3-size: 23px;
+  --slide-body-size: 19px;
+  --slide-code-size: 15px;
+  --kicker-size: 14px;
+  --table-font-size: 17px;
+  --table-cell-padding: 8px 12px;
+  --table-border-width: 2px;
+  --slide-image-max-height: 300px;
+  --mermaid-max-height: 270px;
+  --architecture-max-height: 440px;
+}

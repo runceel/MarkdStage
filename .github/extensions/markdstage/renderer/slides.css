@@ -10,6 +10,7 @@
 /* ===== Themes =====
    Default (and explicit dark) live on :root; light/microsoft override.
    data-theme is set on <html> and each .deck so print pages can vary themes. */
+@layer markdstage.base{
 :root,
 :root[data-theme="dark"],
 .deck[data-theme="dark"]{
@@ -111,6 +112,7 @@
   --markdstage-ui-accent:#0078d4; --markdstage-ui-accent-strong:#106ebe;
   --markdstage-ui-accent-soft:#eff6fc;
   --markdstage-ui-border:#e1dfdd; --markdstage-ui-code:#f3f2f1;
+}
 }
 *{box-sizing:border-box}
 /* The canvas viewport itself never scrolls: a slide always fills exactly one
