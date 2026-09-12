@@ -257,40 +257,50 @@ no re-save. Decks that open in the archive build open in v4.
 
 The shipped app is distributed as standalone x64 and arm64 archives attached to
 releases, installed and updated by hand. The store package is installed and
-updated by a different mechanism, and neither can update the other. Both will
-exist on users' machines at the same time, and the same machine can carry both.
+updated by a different mechanism, and neither can update the other. Copies of the
+archive build that are already installed keep working, so the two can sit on the
+same machine until the user removes the archive copy.
 
-**Parallel publication.** Both distributions are published for at least the first
-two releases after v4 reaches the store, and for at least three months, whichever
-is longer. This gives users who install by hand, and users on machines where the
-store is unavailable, a supported path across at least one ordinary update cycle.
-During the overlap the archive build receives fixes but no new features.
+**The store release is the cutover.** There is no parallel publication period.
+The release that puts v4 in the store is the release in which the archive build
+ends: the archive is not published again alongside it, and no time-boxed overlap
+is kept open. The store package is the only distribution from that release
+onward. A staged overlap would mean maintaining two update mechanisms and two
+sets of release artifacts for a build that is already superseded, and it would
+leave users on a copy that silently stops improving without telling them when.
 
-**Detection in the archive build.** The archive build checks at startup whether
-the store package is registered on the machine. When it is, it shows a dismissible
-bar at the top of the main window:
+**The last archive release announces the end.** The final archive release is the
+one immediately before the store release. Its notes state that it is the last
+one, that the archive build receives no further updates of any kind, and where to
+get the store version. When the store release ships, the archive build's notes
+are not amended retroactively; the announcement lives in that final release, in
+the installation guide, and in this component's README, all updated in the same
+change that publishes the store version.
 
-> MarkdStage is also installed from the Microsoft Store on this PC. This portable
-> copy won't update itself. [What's changing]
+**No detection is built into the archive build.** Making the archive build notice
+that a store version exists would require publishing another archive after the
+cutover, which is exactly what is being stopped. Users keep whatever archive
+copy they have; it continues to work offline and unchanged until they install the
+store version and delete the folder.
 
-The bar is dismissible per version and never blocks the app. The archive build
-does not launch, install, uninstall, or import from the store version; it states
-the situation and stays out of the way.
+**Switching is a manual, immediate step.** The user installs the store version
+and then deletes the extracted archive folder. Both can be installed at the same
+time without conflict — they are separate installations with separate storage —
+but keeping both is not a supported configuration and the installation guide says
+so, because only one of them will ever be updated again.
 
 **User state does not transfer.** The store version starts with an empty recent
 workspace list and default window state. Nothing is imported and nothing is
 migrated, because the archive build's state is per-installation and the store
 package's storage is per-package. The user loses no content: decks, assets, and
 themes are files in folders the user owns, and the store version reaches them by
-opening the same folder. This is stated in the installation guide, in the release
-notes of the first store release, and behind the bar's *What's changing* link.
+opening the same folder. This is stated in the installation guide and in the
+release notes of the first store release, next to the statement that the archive
+build has ended.
 
-**End of life.** The end of the archive build is announced in three places: the
-release notes of the release that starts the overlap period, the installation
-guide, and this component's README. The final archive release says in its notes
-that it is the last one and repeats where to get the store version. Existing
-archives stay downloadable from their releases after the end of life; they are
-simply no longer updated.
+**Existing archives stay downloadable.** Previously published archives remain
+attached to their releases so that an install already in use can be reproduced.
+They are frozen: no fixes, no new architectures, no new releases.
 
 ## 5. Prerequisites as the user experiences them
 
@@ -312,9 +322,10 @@ statements in three places, and they must agree with each other.
 > itself does not.
 
 **The installation guide.** `docs/user-guide/installation.md` states the same two
-prerequisites for the store package, keeps the existing statement for the archive
-build, and says which commands the browser prerequisite applies to. The CLI guide
-keeps its own statement of the browser prerequisite.
+prerequisites for the store package and says which commands the browser
+prerequisite applies to. Its archive-build section is replaced by the store
+instructions in the same change, keeping only the note that the archive build has
+ended. The CLI guide keeps its own statement of the browser prerequisite.
 
 **In the app.** The only in-app statement is the missing-runtime message in 3.1.
 The app does not warn about the browser prerequisite, because the graphical app
@@ -323,8 +334,10 @@ need one.
 
 ## Open points
 
-- The exact overlap window in section 4 is a release-planning decision. The rule
-  stated there is the floor, not the schedule.
+- Section 4 removes the overlap period that ADR 0001's follow-up assumes. The
+  end-of-life announcement that follow-up also requires is kept. If the immediate
+  cutover needs to be binding at the architecture level, it is recorded in a new
+  ADR that supersedes 0001 rather than by editing that record.
 - The final store listing copy is subject to store editorial limits on length;
   the text in section 5 is the content that must survive editing, not the exact
   characters.
