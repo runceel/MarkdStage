@@ -120,6 +120,7 @@ $cliProject = Join-Path $appRoot "src\MarkdStage.Cli\MarkdStage.Cli.csproj"
 $runtime = "win-$Architecture"
 $platform = if ($Architecture -eq "arm64") { "ARM64" } else { "x64" }
 $output = Join-Path $appRoot "artifacts\$runtime"
+$packageBuild = Join-Path $appRoot "artifacts\msix-build\$runtime"
 $msix = Join-Path $appRoot "artifacts\MarkdStage-$runtime.msix"
 $archive = Join-Path $appRoot "artifacts\MarkdStage-$runtime.zip"
 
@@ -152,37 +153,72 @@ else {
 if (Test-Path $output) {
     Remove-Item $output -Recurse -Force
 }
+if (Test-Path $packageBuild) {
+    Remove-Item $packageBuild -Recurse -Force
+}
 $artifact = if ($Format -eq "Archive") { $archive } else { $msix }
 if (Test-Path $artifact) {
     Remove-Item $artifact -Force
 }
 
-dotnet publish $project `
-    -c $Configuration `
-    -r $runtime `
-    -p:Platform=$platform `
-    -p:SelfContained=true `
-    -p:WindowsAppSDKSelfContained=true `
-    -p:PublishSingleFile=false `
-    -p:PublishTrimmed=false `
-    -p:PublishReadyToRun=false `
-    -o $output
-if ($LASTEXITCODE -ne 0) {
-    exit $LASTEXITCODE
-}
+if ($Format -eq "Archive") {
+    dotnet publish $project `
+        -c $Configuration `
+        -r $runtime `
+        -p:Platform=$platform `
+        -p:SelfContained=true `
+        -p:WindowsAppSDKSelfContained=true `
+        -p:PublishSingleFile=false `
+        -p:PublishTrimmed=false `
+        -p:PublishReadyToRun=false `
+        -o $output
+    if ($LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
+    }
 
-dotnet publish $cliProject `
-    -c $Configuration `
-    -r $runtime `
-    -p:Platform=$platform `
-    -p:SelfContained=true `
-    -p:WindowsAppSDKSelfContained=true `
-    -p:PublishSingleFile=false `
-    -p:PublishTrimmed=false `
-    -p:PublishReadyToRun=false `
-    -o $output
-if ($LASTEXITCODE -ne 0) {
-    exit $LASTEXITCODE
+    dotnet publish $cliProject `
+        -c $Configuration `
+        -r $runtime `
+        -p:Platform=$platform `
+        -p:SelfContained=true `
+        -p:WindowsAppSDKSelfContained=true `
+        -p:PublishSingleFile=false `
+        -p:PublishTrimmed=false `
+        -p:PublishReadyToRun=false `
+        -o $output
+    if ($LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
+    }
+}
+else {
+    dotnet publish $project `
+        -c $Configuration `
+        -r $runtime `
+        -p:Platform=$platform `
+        -p:SelfContained=true `
+        -p:WindowsAppSDKSelfContained=true `
+        -p:PublishSingleFile=false `
+        -p:PublishTrimmed=false `
+        -p:PublishReadyToRun=false `
+        -p:WindowsPackageType=MSIX `
+        -p:AppxPackage=true `
+        -p:EnableMsixTooling=true `
+        -p:GenerateAppxPackageOnBuild=true `
+        -p:AppxPackageSigningEnabled=false `
+        -p:AppxBundle=Never `
+        -p:AppxPackageDir="$packageBuild\"
+    if ($LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
+    }
+
+    $generatedPackages = @(Get-ChildItem -LiteralPath $packageBuild -Recurse -File -Filter *.msix)
+    if ($generatedPackages.Count -ne 1) {
+        throw "The official MSIX build must produce exactly one package."
+    }
+    [IO.Compression.ZipFile]::ExtractToDirectory($generatedPackages[0].FullName, $output)
+    Remove-Item -LiteralPath (Join-Path $output "AppxBlockMap.xml") -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath (Join-Path $output "AppxSignature.p7x") -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath (Join-Path $output "[Content_Types].xml") -Force -ErrorAction SilentlyContinue
 }
 
 $required = @(
@@ -196,15 +232,11 @@ $required = @(
     "CliData\host.html",
     "CliData\host.mjs",
     "Shared\runtime\host-bootstrap.mjs",
+    "Shared\runtime\deck-validation.mjs",
     "Shared\runtime\portable-output.mjs",
     "Shared\runtime\io-host.mjs",
     "Shared\markdown-deck.mjs",
     "Shared\schema\theme-v1.json",
-    "App.xbf",
-    "MainPage.xbf",
-    "MainWindow.xbf",
-    "PresenterWindow.xbf",
-    "MarkdStageApp.pri",
     "Assets\AppIcon.ico",
     "Web\index.html",
     "Web\renderer\renderer.js",
@@ -212,6 +244,19 @@ $required = @(
     "SurfacePen\pen-button-listener.ps1",
     "THIRD-PARTY-NOTICES.md"
 )
+$required += if ($Format -eq "Archive") {
+    @(
+        "App.xbf",
+        "Themes\Brand.xbf",
+        "MainPage.xbf",
+        "MainWindow.xbf",
+        "PresenterWindow.xbf",
+        "MarkdStageApp.pri"
+    )
+}
+else {
+    @("resources.pri")
+}
 foreach ($relative in $required) {
     if (-not (Test-Path (Join-Path $output $relative) -PathType Leaf)) {
         throw "Publish output is missing $relative"
@@ -232,7 +277,7 @@ if ($Format -eq "Archive") {
     return
 }
 
-$manifestPath = Join-Path $output "appxmanifest.xml"
+$manifestPath = Join-Path $output "AppxManifest.xml"
 [xml]$manifest = Get-Content -LiteralPath $manifestPath -Raw
 $identity = $manifest.Package.Identity
 $identity.SetAttribute("ProcessorArchitecture", $Architecture)

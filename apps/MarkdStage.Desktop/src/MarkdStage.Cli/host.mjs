@@ -102,7 +102,10 @@ const methods = {
   async exportData({ token }) { return output.getData(token); },
   async exportStatus({ token, body }) { return output.reportStatus(token, body); },
   async validate(options) {
-    const report = await runtime.validate(options);
+    const report = await runtime.validate({
+      ...options,
+      workspace: settings.workspace,
+    });
     return { report, exitCode: report.ok ? 0 : 2, text: JSON.stringify(report, null, 2) };
   },
   async inspect(options) {

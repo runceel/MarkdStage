@@ -148,15 +148,17 @@
     <PublishTrimmed>False</PublishTrimmed>
   </PropertyGroup>
 
-  <Target Name="CopyWinUIResourcesToPublish" AfterTargets="Publish">
+  <Target Name="CopyWinUIResourcesToPublish"
+          AfterTargets="Publish"
+          Condition="'$(WindowsPackageType)' != 'MSIX'">
     <ItemGroup>
-      <_WinUIXbf Include="$(TargetDir)*.xbf" />
+      <_WinUIXbf Include="$(TargetDir)**\*.xbf" />
       <_WinUIPri Include="$(TargetDir)*.pri" />
       <_WinUIAsset Include="$(TargetDir)Assets\**\*" />
     </ItemGroup>
     <Copy
       SourceFiles="@(_WinUIXbf)"
-      DestinationFolder="$(PublishDir)"
+      DestinationFiles="@(_WinUIXbf->'$(PublishDir)%(RecursiveDir)%(Filename)%(Extension)')"
       SkipUnchangedFiles="true" />
     <Copy
       SourceFiles="@(_WinUIPri)"
@@ -176,8 +178,25 @@
     </MSBuild>
     <Copy SourceFiles="@(_NativeCliFiles)" DestinationFolder="$(TargetDir)" SkipUnchangedFiles="true" />
   </Target>
-  <Target Name="CopyNativeCliToAppPublish" AfterTargets="Publish" DependsOnTargets="CopyNativeCliToAppOutput">
+  <Target Name="CopyNativeCliToAppPublish"
+          AfterTargets="Publish"
+          DependsOnTargets="CopyNativeCliToAppOutput"
+          Condition="'$(WindowsPackageType)' != 'MSIX'">
     <Copy SourceFiles="@(_NativeCliFiles)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="AddNativeCliToMsixPayload"
+          BeforeTargets="_ComputeAppxPackagePayload"
+          DependsOnTargets="CopyNativeCliToAppOutput"
+          Condition="'$(WindowsPackageType)' == 'MSIX'">
+    <ItemGroup>
+      <_NativePackageAssetFiles Include="$(NativePackageAssetsDirectory)\**\*" />
+      <AppxPackagePayload Include="@(_NativeCliFiles)">
+        <TargetPath>%(Filename)%(Extension)</TargetPath>
+      </AppxPackagePayload>
+      <AppxPackagePayload Include="@(_NativePackageAssetFiles)">
+        <TargetPath>%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
+      </AppxPackagePayload>
+    </ItemGroup>
   </Target>
   <Import Project="..\MarkdStage.Cli\PackageAssets.targets" />
 </Project>

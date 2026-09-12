@@ -9,6 +9,7 @@ import {
 import { joinPath, readWorkspaceBytes, resolveWorkspaceAsset } from "./workspace-assets.mjs";
 import { readArchitectureBlock, writeArchitectureSource } from "./architecture-writes.mjs";
 import { importArchitectureAsset, listArchitectureAssets } from "./architecture-assets.mjs";
+import { validateLoadedDeck } from "./deck-validation.mjs";
 
 // The host owns routing and native capabilities. This object alone owns deck
 // state; snapshots are detached transport values, never a writable state mirror.
@@ -129,6 +130,10 @@ export async function createPortableRuntime({ io = getIO(), ...options } = {}) {
     listMarkdown: () => run(async () => unwrapIOResult(await io.list("", {
       extensions: [".md", ".markdown"], recursive: true, maxEntries: 10000,
     }), { operation: "list", path: "" })),
+    validate: (options = {}) => run(() => {
+      requireDeck(session);
+      return validateLoadedDeck(session, options);
+    }),
     listArchitectureAssets: () => run(() => listArchitectureAssets(io, session.sourceName, {
       caseInsensitivePaths: options.caseInsensitivePaths === true,
     })),
