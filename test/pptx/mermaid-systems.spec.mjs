@@ -5,11 +5,13 @@ import { startHarness } from "../harness/server.mjs";
 import { waitForSlideReady } from "../utils/ready.mjs";
 import { validateScene } from "../../.github/extensions/markdstage/renderer/scene-graph.mjs";
 import { sceneToPptxElements } from "../../.github/extensions/markdstage/renderer/scene-pptx.mjs";
-import { buildPptxPackage, inspectPptxPackage } from "../../.github/extensions/markdstage/runtime/pptx-package.mjs";
+import { buildPptxPackage as buildPptxBytes, inspectPptxPackage } from "../../.github/extensions/markdstage/runtime/pptx-package.mjs";
 import { withDeckServer } from "../../packages/markdstage-cli/src/deck.mjs";
 import { exportPptx } from "../../.github/extensions/markdstage/runtime/output.mjs";
 import { runPptxOutputBrowser } from "../../.github/extensions/markdstage/runtime/browser.mjs";
 import { systemsIsolationContract, readSystemsPackage, assertSystemsPackage } from "../utils/systems-fallback-contract.mjs";
+
+const buildPptxPackage = (model) => Buffer.from(buildPptxBytes(model));
 
 const names = ["c4-basic", "c4-hybrid", "architecture-basic", "architecture-hybrid", "eventmodeling-basic", "eventmodeling-hybrid"];
 const counts = [0, 5, 0, 3, 0, 1];

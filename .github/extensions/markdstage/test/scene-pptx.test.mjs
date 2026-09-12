@@ -8,9 +8,11 @@ import {
 } from "../renderer/scene-graph.mjs";
 import { sceneToPptxElements } from "../renderer/scene-pptx.mjs";
 import {
-  buildPptxPackage,
+  buildPptxPackage as buildPptxBytes,
   inspectPptxPackage,
 } from "../runtime/pptx-package.mjs";
+
+const buildPptxPackage = (model) => Buffer.from(buildPptxBytes(model));
 
 test("scene line height becomes exact native PowerPoint paragraph spacing", () => {
   const source = createScene({

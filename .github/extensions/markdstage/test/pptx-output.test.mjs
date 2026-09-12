@@ -171,6 +171,47 @@ test("prepares clipped fallback images, notes, and deduplicated native images", 
   );
 });
 
+test("hashes only visible PNG bytes and shares artwork across layouts and fallbacks", async () => {
+  const input = model([], undefined, [{ type: "mermaid", path: ".diagram" }]);
+  input.layouts.push(
+    { ...input.layouts[0], id: "dark:duplicate" },
+    { ...input.layouts[0], id: "dark:different" },
+  );
+  input.masters[0].layoutIds = input.layouts.map((layout) => layout.id);
+  const backing = new Uint8Array(PNG.length + 8).fill(255);
+  backing.set(PNG, 3);
+  const view = backing.subarray(3, 3 + PNG.length);
+
+  const prepared = await preparePptxPackageModel(
+    { url: "http://127.0.0.1:4321/token/" },
+    input,
+    [PNG, view, new Uint8Array(FALLBACK_PNG)],
+    [[{ fallbackIndex: 0, x: 0, y: 0, width: 100, height: 50, data: new Uint8Array(PNG) }]],
+  );
+
+  assert.equal(prepared.assets.length, 2);
+  assert.deepEqual(prepared.layouts.map((layout) => layout.artworkAssetId),
+    ["markdstage-layout-1", "markdstage-layout-1", "markdstage-layout-3"]);
+  assert.equal(prepared.slides[0].elements[0].assetId, "markdstage-layout-1");
+  assert.deepEqual(prepared.assets.map((asset) => Buffer.from(asset.data)), [PNG, FALLBACK_PNG]);
+});
+
+test("rejects oversized artwork before Web Crypto copies it for hashing", async (t) => {
+  const digest = t.mock.method(crypto.subtle, "digest", () => {
+    throw new Error("Oversized artwork must not be hashed.");
+  });
+  await assert.rejects(
+    preparePptxPackageModel(
+      { url: "http://127.0.0.1:4321/token/" },
+      model([]),
+      [new Uint8Array(MAX_PPTX_ASSET_BYTES + 1)],
+      [[]],
+    ),
+    /PowerPoint artwork for layout dark:default: image is .*limit is 10 MiB/,
+  );
+  assert.equal(digest.mock.callCount(), 0);
+});
+
 test("prepares SVG images on layouts and slides as shared native assets", async () => {
   let requests = 0;
   const image = {

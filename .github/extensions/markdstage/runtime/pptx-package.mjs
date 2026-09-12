@@ -1,4 +1,5 @@
-import { Buffer } from "node:buffer";
+const UTF8_ENCODER = new TextEncoder();
+const UTF8_DECODER = new TextDecoder("utf-8", { ignoreBOM: true });
 
 export const PPTX_DIMENSIONS = Object.freeze({
   widthPx: 1280,
@@ -281,9 +282,7 @@ function dashXml(value, path) {
 function detectContentType(data) {
   if (
     data.length >= 8 &&
-    data.subarray(0, 8).equals(
-      Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
-    )
+    [137, 80, 78, 71, 13, 10, 26, 10].every((byte, index) => data[index] === byte)
   ) {
     return "image/png";
   }
@@ -292,24 +291,23 @@ function detectContentType(data) {
   }
   if (
     data.length >= 6 &&
-    (data.subarray(0, 6).toString("ascii") === "GIF87a" ||
-      data.subarray(0, 6).toString("ascii") === "GIF89a")
+    (String.fromCharCode(...data.subarray(0, 6).map((byte) => byte & 0x7f)) === "GIF87a" ||
+      String.fromCharCode(...data.subarray(0, 6).map((byte) => byte & 0x7f)) === "GIF89a")
   ) {
     return "image/gif";
   }
-  if (/^\s*<svg[\s>]/i.test(data.subarray(0, 512).toString("utf8"))) {
+  if (/^\s*<svg[\s>]/i.test(UTF8_DECODER.decode(data.subarray(0, 512)))) {
     return "image/svg+xml";
   }
   return null;
 }
 
-function bufferOf(value, path) {
-  if (Buffer.isBuffer(value)) return Buffer.from(value);
-  if (value instanceof ArrayBuffer) return Buffer.from(value);
+function bytesOf(value, path) {
+  if (value instanceof ArrayBuffer) return new Uint8Array(value);
   if (ArrayBuffer.isView(value)) {
-    return Buffer.from(value.buffer, value.byteOffset, value.byteLength);
+    return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
   }
-  fail(`${path} must be a Buffer, ArrayBuffer, or typed array`);
+  throw new TypeError(`${path} must be an ArrayBuffer or typed array view`);
 }
 
 function normalizeAssets(assets) {
@@ -326,7 +324,7 @@ function normalizeAssets(assets) {
       fail(`${path}.id must be a non-empty string`);
     }
     if (result.has(asset.id)) fail(`duplicate asset id "${asset.id}"`);
-    const data = bufferOf(asset.data, `${path}.data`);
+    const data = bytesOf(asset.data, `Invalid PowerPoint model: ${path}.data`);
     if (!data.length) fail(`${path}.data must not be empty`);
     const detected = detectContentType(data);
     const contentType = asset.contentType || detected;
@@ -1286,85 +1284,103 @@ function crc32(data) {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
+function concatBytes(parts) {
+  const result = new Uint8Array(parts.reduce((size, part) => size + part.byteLength, 0));
+  let offset = 0;
+  for (const part of parts) {
+    result.set(part, offset);
+    offset += part.byteLength;
+  }
+  return result;
+}
+
 function zipStored(entries) {
   if (entries.length > 0xffff) throw new RangeError("ZIP contains too many entries");
   const localParts = [];
   const centralParts = [];
   let offset = 0;
+  let centralSize = 0;
   for (const entry of entries) {
-    const name = Buffer.from(entry.name, "utf8");
-    const data = Buffer.isBuffer(entry.data)
-      ? entry.data
-      : Buffer.from(entry.data, "utf8");
+    const name = UTF8_ENCODER.encode(entry.name);
+    const data = typeof entry.data === "string"
+      ? UTF8_ENCODER.encode(entry.data)
+      : entry.data;
     if (name.length > 0xffff || data.length > 0xffffffff) {
       throw new RangeError("ZIP entry is too large");
     }
+    const nextOffset = offset + 30 + name.length + data.length;
+    const nextCentralSize = centralSize + 46 + name.length;
+    if (nextOffset > 0xffffffff || nextCentralSize > 0xffffffff) {
+      throw new RangeError("ZIP package exceeds the ZIP32 size limit");
+    }
     const crc = crc32(data);
-    const local = Buffer.alloc(30);
-    local.writeUInt32LE(0x04034b50, 0);
-    local.writeUInt16LE(20, 4);
-    local.writeUInt16LE(0x0800, 6);
-    local.writeUInt16LE(0, 8);
-    local.writeUInt16LE(0, 10);
-    local.writeUInt16LE(0x0021, 12);
-    local.writeUInt32LE(crc, 14);
-    local.writeUInt32LE(data.length, 18);
-    local.writeUInt32LE(data.length, 22);
-    local.writeUInt16LE(name.length, 26);
-    local.writeUInt16LE(0, 28);
+    const local = new Uint8Array(30);
+    const localView = new DataView(local.buffer);
+    localView.setUint32(0, 0x04034b50, true);
+    localView.setUint16(4, 20, true);
+    localView.setUint16(6, 0x0800, true);
+    localView.setUint16(8, 0, true);
+    localView.setUint16(10, 0, true);
+    localView.setUint16(12, 0x0021, true);
+    localView.setUint32(14, crc, true);
+    localView.setUint32(18, data.length, true);
+    localView.setUint32(22, data.length, true);
+    localView.setUint16(26, name.length, true);
+    localView.setUint16(28, 0, true);
     localParts.push(local, name, data);
 
-    const central = Buffer.alloc(46);
-    central.writeUInt32LE(0x02014b50, 0);
-    central.writeUInt16LE(20, 4);
-    central.writeUInt16LE(20, 6);
-    central.writeUInt16LE(0x0800, 8);
-    central.writeUInt16LE(0, 10);
-    central.writeUInt16LE(0, 12);
-    central.writeUInt16LE(0x0021, 14);
-    central.writeUInt32LE(crc, 16);
-    central.writeUInt32LE(data.length, 20);
-    central.writeUInt32LE(data.length, 24);
-    central.writeUInt16LE(name.length, 28);
-    central.writeUInt16LE(0, 30);
-    central.writeUInt16LE(0, 32);
-    central.writeUInt16LE(0, 34);
-    central.writeUInt16LE(0, 36);
-    central.writeUInt32LE(0, 38);
-    central.writeUInt32LE(offset, 42);
+    const central = new Uint8Array(46);
+    const centralView = new DataView(central.buffer);
+    centralView.setUint32(0, 0x02014b50, true);
+    centralView.setUint16(4, 20, true);
+    centralView.setUint16(6, 20, true);
+    centralView.setUint16(8, 0x0800, true);
+    centralView.setUint16(10, 0, true);
+    centralView.setUint16(12, 0, true);
+    centralView.setUint16(14, 0x0021, true);
+    centralView.setUint32(16, crc, true);
+    centralView.setUint32(20, data.length, true);
+    centralView.setUint32(24, data.length, true);
+    centralView.setUint16(28, name.length, true);
+    centralView.setUint16(30, 0, true);
+    centralView.setUint16(32, 0, true);
+    centralView.setUint16(34, 0, true);
+    centralView.setUint16(36, 0, true);
+    centralView.setUint32(38, 0, true);
+    centralView.setUint32(42, offset, true);
     centralParts.push(central, name);
-    offset += local.length + name.length + data.length;
+    offset = nextOffset;
+    centralSize = nextCentralSize;
   }
-  const centralDirectory = Buffer.concat(centralParts);
-  const eocd = Buffer.alloc(22);
-  eocd.writeUInt32LE(0x06054b50, 0);
-  eocd.writeUInt16LE(0, 4);
-  eocd.writeUInt16LE(0, 6);
-  eocd.writeUInt16LE(entries.length, 8);
-  eocd.writeUInt16LE(entries.length, 10);
-  eocd.writeUInt32LE(centralDirectory.length, 12);
-  eocd.writeUInt32LE(offset, 16);
-  eocd.writeUInt16LE(0, 20);
-  return Buffer.concat([...localParts, centralDirectory, eocd]);
+  const centralDirectory = concatBytes(centralParts);
+  const eocd = new Uint8Array(22);
+  const eocdView = new DataView(eocd.buffer);
+  eocdView.setUint32(0, 0x06054b50, true);
+  eocdView.setUint16(4, 0, true);
+  eocdView.setUint16(6, 0, true);
+  eocdView.setUint16(8, entries.length, true);
+  eocdView.setUint16(10, entries.length, true);
+  eocdView.setUint32(12, centralDirectory.length, true);
+  eocdView.setUint32(16, offset, true);
+  eocdView.setUint16(20, 0, true);
+  return concatBytes([...localParts, centralDirectory, eocd]);
 }
 
 function packageEntries(buffer) {
-  if (!Buffer.isBuffer(buffer)) {
-    throw new TypeError("PowerPoint package must be a Buffer");
-  }
+  const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
   let eocdOffset = -1;
   const minimum = Math.max(0, buffer.length - 65557);
   for (let offset = buffer.length - 22; offset >= minimum; offset -= 1) {
-    if (buffer.readUInt32LE(offset) === 0x06054b50) {
+    if (view.getUint32(offset, true) === 0x06054b50) {
       eocdOffset = offset;
       break;
     }
   }
   if (eocdOffset < 0) throw new Error("Invalid ZIP: EOCD record is missing");
-  const count = buffer.readUInt16LE(eocdOffset + 10);
-  const centralSize = buffer.readUInt32LE(eocdOffset + 12);
-  const centralOffset = buffer.readUInt32LE(eocdOffset + 16);
-  const commentLength = buffer.readUInt16LE(eocdOffset + 20);
+  const count = view.getUint16(eocdOffset + 10, true);
+  const centralSize = view.getUint32(eocdOffset + 12, true);
+  const centralOffset = view.getUint32(eocdOffset + 16, true);
+  const commentLength = view.getUint16(eocdOffset + 20, true);
   if (eocdOffset + 22 + commentLength !== buffer.length) {
     throw new Error("Invalid ZIP: EOCD length is inconsistent");
   }
@@ -1374,35 +1390,31 @@ function packageEntries(buffer) {
   const files = new Map();
   let cursor = centralOffset;
   for (let index = 0; index < count; index += 1) {
-    if (cursor + 46 > eocdOffset || buffer.readUInt32LE(cursor) !== 0x02014b50) {
+    if (cursor + 46 > eocdOffset || view.getUint32(cursor, true) !== 0x02014b50) {
       throw new Error("Invalid ZIP: central directory entry is missing");
     }
-    const method = buffer.readUInt16LE(cursor + 10);
-    const crc = buffer.readUInt32LE(cursor + 16);
-    const compressedSize = buffer.readUInt32LE(cursor + 20);
-    const size = buffer.readUInt32LE(cursor + 24);
-    const nameLength = buffer.readUInt16LE(cursor + 28);
-    const extraLength = buffer.readUInt16LE(cursor + 30);
-    const entryCommentLength = buffer.readUInt16LE(cursor + 32);
-    const localOffset = buffer.readUInt32LE(cursor + 42);
-    const name = buffer
-      .subarray(cursor + 46, cursor + 46 + nameLength)
-      .toString("utf8");
+    const method = view.getUint16(cursor + 10, true);
+    const crc = view.getUint32(cursor + 16, true);
+    const compressedSize = view.getUint32(cursor + 20, true);
+    const size = view.getUint32(cursor + 24, true);
+    const nameLength = view.getUint16(cursor + 28, true);
+    const extraLength = view.getUint16(cursor + 30, true);
+    const entryCommentLength = view.getUint16(cursor + 32, true);
+    const localOffset = view.getUint32(cursor + 42, true);
+    const name = UTF8_DECODER.decode(buffer.subarray(cursor + 46, cursor + 46 + nameLength));
     if (files.has(name)) throw new Error(`Invalid ZIP: duplicate entry "${name}"`);
     if (method !== 0 || compressedSize !== size) {
       throw new Error(`Invalid ZIP: "${name}" is not stored`);
     }
     if (
       localOffset + 30 > centralOffset ||
-      buffer.readUInt32LE(localOffset) !== 0x04034b50
+      view.getUint32(localOffset, true) !== 0x04034b50
     ) {
       throw new Error(`Invalid ZIP: local header for "${name}" is missing`);
     }
-    const localNameLength = buffer.readUInt16LE(localOffset + 26);
-    const localExtraLength = buffer.readUInt16LE(localOffset + 28);
-    const localName = buffer
-      .subarray(localOffset + 30, localOffset + 30 + localNameLength)
-      .toString("utf8");
+    const localNameLength = view.getUint16(localOffset + 26, true);
+    const localExtraLength = view.getUint16(localOffset + 28, true);
+    const localName = UTF8_DECODER.decode(buffer.subarray(localOffset + 30, localOffset + 30 + localNameLength));
     const dataOffset = localOffset + 30 + localNameLength + localExtraLength;
     const data = buffer.subarray(dataOffset, dataOffset + size);
     if (localName !== name || data.length !== size || crc32(data) !== crc) {
@@ -1697,8 +1709,9 @@ export function buildPptxPackage({
 }
 
 export function inspectPptxPackage(buffer) {
+  buffer = bytesOf(buffer, "PowerPoint package");
   const files = packageEntries(buffer);
-  const presentation = files.get("ppt/presentation.xml")?.data.toString("utf8");
+  const presentation = UTF8_DECODER.decode(files.get("ppt/presentation.xml")?.data);
   if (!presentation) throw new Error("Invalid PowerPoint package: presentation.xml is missing");
   const dimensions = /<p:sldSz\b[^>]*\bcx="(\d+)"[^>]*\bcy="(\d+)"/.exec(
     presentation,
@@ -1721,9 +1734,8 @@ export function inspectPptxPackage(buffer) {
   );
   const slideLayoutTargets = slideNames.map((name) => {
     const number = Number(/\d+/.exec(name)[0]);
-    const relationships = files
-      .get(`ppt/slides/_rels/slide${number}.xml.rels`)
-      ?.data.toString("utf8");
+    const relationships = UTF8_DECODER.decode(files
+      .get(`ppt/slides/_rels/slide${number}.xml.rels`)?.data);
     const target =
       relationships &&
       /<Relationship\b[^>]*Type="[^"]*\/slideLayout"[^>]*Target="\.\.\/slideLayouts\/(slideLayout\d+\.xml)"/.exec(
@@ -1734,7 +1746,7 @@ export function inspectPptxPackage(buffer) {
     }
     return target;
   });
-  const core = files.get("docProps/core.xml")?.data.toString("utf8") || "";
+  const core = UTF8_DECODER.decode(files.get("docProps/core.xml")?.data);
   const title = /<dc:title>([\s\S]*?)<\/dc:title>/.exec(core);
   return {
     valid: true,

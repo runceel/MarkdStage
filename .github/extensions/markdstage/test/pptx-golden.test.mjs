@@ -19,7 +19,9 @@ for (const [name, input] of Object.entries(cases)) {
       })),
     };
     const expected = await readFile(new URL(`./fixtures/pptx-${name}.golden.pptx`, import.meta.url));
-    const actual = Buffer.from(buildPptxPackage(model));
+    const bytes = buildPptxPackage(model);
+    assert.equal(Object.getPrototypeOf(bytes), Uint8Array.prototype);
+    const actual = Buffer.from(bytes);
 
     assert.deepEqual(actual, expected);
     assert.deepEqual(Buffer.from(buildPptxPackage(model)), expected, "repeated builds stay deterministic");

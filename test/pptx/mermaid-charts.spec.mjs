@@ -4,10 +4,12 @@ import { expect, test, chromium } from "@playwright/test";
 import { startHarness } from "../harness/server.mjs";
 import { MAX_CONNECTOR_POINTS, validateScene } from "../../.github/extensions/markdstage/renderer/scene-graph.mjs";
 import { sceneToPptxElements } from "../../.github/extensions/markdstage/renderer/scene-pptx.mjs";
-import { buildPptxPackage, inspectPptxPackage } from "../../.github/extensions/markdstage/runtime/pptx-package.mjs";
+import { buildPptxPackage as buildPptxBytes, inspectPptxPackage } from "../../.github/extensions/markdstage/runtime/pptx-package.mjs";
 import { withDeckServer } from "../../packages/markdstage-cli/src/deck.mjs";
 import { exportPptx } from "../../.github/extensions/markdstage/runtime/output.mjs";
 import { runPptxOutputBrowser } from "../../.github/extensions/markdstage/runtime/browser.mjs";
+
+const buildPptxPackage = (model) => Buffer.from(buildPptxBytes(model));
 
 // Fixed SVGs: bundled Mermaid 11.15.0, default theme, Arial.
 const fixtures = join(process.cwd(), "test", "fixtures", "mermaid");

@@ -5,10 +5,12 @@ import { startHarness } from "../harness/server.mjs";
 import { waitForSlideReady } from "../utils/ready.mjs";
 import { validateScene } from "../../.github/extensions/markdstage/renderer/scene-graph.mjs";
 import { sceneToPptxElements } from "../../.github/extensions/markdstage/renderer/scene-pptx.mjs";
-import { buildPptxPackage, inspectPptxPackage } from "../../.github/extensions/markdstage/runtime/pptx-package.mjs";
+import { buildPptxPackage as buildPptxBytes, inspectPptxPackage } from "../../.github/extensions/markdstage/runtime/pptx-package.mjs";
 import { withDeckServer } from "../../packages/markdstage-cli/src/deck.mjs";
 import { exportPptx } from "../../.github/extensions/markdstage/runtime/output.mjs";
 import { runPptxOutputBrowser } from "../../.github/extensions/markdstage/runtime/browser.mjs";
+
+const buildPptxPackage = (model) => Buffer.from(buildPptxBytes(model));
 
 const names = ["ishikawa-basic", "ishikawa-multiline", "ishikawa-hybrid", "ishikawa-handdrawn", "ishikawa-native"];
 const counts = [1, 1, 7, 22, 0];

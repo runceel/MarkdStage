@@ -9,7 +9,6 @@
 import { mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
 import { tmpdir } from "node:os";
-import { createHash, randomUUID } from "node:crypto";
 import { getOutputSnapshotSlides } from "../deck-state.mjs";
 import { normalizeTheme } from "../renderer/theme.mjs";
 import { MarkdStageError } from "./errors.mjs";
@@ -157,11 +156,14 @@ export async function preparePptxPackageModel(
   const sourceAssets = new Map();
   const pngAssets = new Map();
   let totalAssetBytes = 0;
-  const addPngAsset = (id, data, label) => {
-    if (!Buffer.isBuffer(data)) {
+  const addPngAsset = async (id, data, label) => {
+    if (!(data instanceof Uint8Array)) {
       throw new Error(`${label} is invalid.`);
     }
-    const key = createHash("sha256").update(data).digest("hex");
+    ensurePptxAssetSize(data, label, 0);
+    const digest = await crypto.subtle.digest("SHA-256", data);
+    const key = Array.from(new Uint8Array(digest), (byte) =>
+      byte.toString(16).padStart(2, "0")).join("");
     const existing = pngAssets.get(key);
     if (existing) return existing;
     ensurePptxAssetSize(data, label, totalAssetBytes);
@@ -222,7 +224,7 @@ export async function preparePptxPackageModel(
     if (layoutById.has(sourceLayout.id)) {
       throw new Error(`PowerPoint layout id is duplicated: ${sourceLayout.id}`);
     }
-    const artworkAssetId = addPngAsset(
+    const artworkAssetId = await addPngAsset(
       `markdstage-layout-${index + 1}`,
       layoutArtworks[index],
       `PowerPoint artwork for layout ${sourceLayout.id}`,
@@ -330,7 +332,7 @@ export async function preparePptxPackageModel(
           `PowerPoint fallback image ${fallbackIndex + 1} for slide ${slideIndex + 1} is missing.`,
         );
       }
-      const assetId = addPngAsset(
+      const assetId = await addPngAsset(
         `markdstage-slide-${slideIndex + 1}-fallback-${fallbackIndex + 1}`,
         capture.data,
         `PowerPoint fallback image ${fallbackIndex + 1} for slide ${slideIndex + 1}`,
@@ -371,7 +373,7 @@ export async function preparePptxPackageModel(
 }
 
 async function runLayoutInspectionJob(inst, snapshot, browser, requestedIndex) {
-  const token = randomUUID();
+  const token = crypto.randomUUID();
   const profileDir = await mkdtemp(join(tmpdir(), "markdstage-inspect-"));
   const job = createOutputJob(snapshot, "inspect");
   inst.exportJobs.set(token, job);
@@ -552,7 +554,7 @@ export async function captureSlides(
     const files = [];
 
     for (const index of indexes) {
-      const token = randomUUID();
+      const token = crypto.randomUUID();
       const pageNumber = String(index + 1).padStart(pageDigits, "0");
       const outputPath = join(outputDirectory, `slide-${pageNumber}.png`);
       const temporaryPath = join(outputDirectory, `.slide-${pageNumber}.${token}.tmp.png`);
@@ -648,7 +650,7 @@ export async function exportPdf(inst, requestedPath, requestedTheme) {
 
     const outputPath = resolvePdfOutputPath(inst.workspaceRoot, requestedPath);
     const outputParent = await preparePdfOutputDirectory(inst.workspaceRoot, outputPath);
-    token = randomUUID();
+    token = crypto.randomUUID();
     profileDir = await mkdtemp(join(tmpdir(), "markdstage-pdf-"));
     const outputBase = basename(outputPath, extname(outputPath)) || "markdstage";
     temporaryOutputPath = join(outputParent, `.${outputBase}.${token}.tmp.pdf`);
@@ -733,7 +735,7 @@ export async function exportPptx(
 
       const outputPath = resolvePptxOutputPath(inst.workspaceRoot, requestedPath);
       const outputParent = await preparePptxOutputDirectory(inst.workspaceRoot, outputPath);
-      token = randomUUID();
+      token = crypto.randomUUID();
       profileDir = await mkdtemp(join(tmpdir(), "markdstage-pptx-"));
       const outputBase = basename(outputPath, extname(outputPath)) || "markdstage";
       temporaryOutputPath = join(outputParent, `.${outputBase}.${token}.tmp.pptx`);
