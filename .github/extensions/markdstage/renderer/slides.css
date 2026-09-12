@@ -274,6 +274,14 @@ body.mermaid-loading .mermaid{visibility:hidden;}
      max-height:var(--architecture-max-height,56vh);
      color:var(--body);font-family:inherit;overflow:visible;}
 .architecture-svg text:not([font-family]){font-family:inherit;}
+/* Diagrams imported from Archify are rendered from the same shared scene graph as
+   the architecture DSL, so they share its sizing rules. */
+.archify-diagram{width:100%;min-height:0;margin:.35em 0;display:flex;
+     align-items:center;justify-content:center;}
+.archify-svg{display:block;width:100%;height:auto;
+     max-height:var(--architecture-max-height,56vh);
+     color:var(--body);font-family:inherit;overflow:visible;}
+.archify-svg text:not([font-family]){font-family:inherit;}
 /* --- Architecture diagram editing UI --------------------------------------
    Appears in the DOM only in editing mode (the canvas edit_architecture action /
    ?architectureEdit=1). Normal view, presenter view, and printing do not create

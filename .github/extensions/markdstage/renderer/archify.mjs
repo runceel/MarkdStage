@@ -231,8 +231,74 @@ function componentKind(element, prefix = "c-") {
  * templates rather than drawn content, so importing them would duplicate every
  * arrowhead and paint a grid the deck theme does not want.
  */
-function isTemplateContent(element) {
-  return Boolean(element.closest?.("defs, marker, pattern, clipPath, mask, symbol"));
+const TEMPLATE_CONTAINERS = new Set(["defs", "marker", "pattern", "clipPath", "mask", "symbol"]);
+
+function childElements(element) {
+  return [...(element.children ?? [])];
+}
+
+/**
+ * Walk the export once and bucket everything the converter needs.
+ *
+ * A single traversal replaces a per-pass `querySelectorAll` plus repeated
+ * `closest` lookups. It is not only cheaper: it makes the inherited facts
+ * explicit. Whether an element is a template, sits inside a sigil, or belongs to
+ * an edge or a node is decided by its ancestors, and carrying that state down the
+ * walk is what lets this module run anywhere an element tree exists rather than
+ * only where a full CSS selector engine does.
+ */
+function indexArchifySvg(svg) {
+  const index = {
+    frames: [],
+    edges: [],
+    rules: [],
+    rects: [],
+    sigils: [],
+    texts: [],
+    redundantMasks: new Set(),
+    title: "",
+    description: "",
+  };
+  const visit = (element, context) => {
+    const name = element.localName;
+    if (TEMPLATE_CONTAINERS.has(name)) return;
+    const names = classList(element);
+    if (name === "title" && !index.title) index.title = (element.textContent || "").trim();
+    if (name === "desc" && !index.description) index.description = (element.textContent || "").trim();
+    const next = {
+      insideSigil: context.insideSigil || names.includes("semantic-sigil"),
+      edgeOwner: element.getAttribute("data-edge-id") ? element : context.edgeOwner,
+      nodeLabel: element.getAttribute("data-node-label") ?? context.nodeLabel,
+    };
+    if (!next.insideSigil) {
+      const entry = { element, ...next };
+      if (element.getAttribute("data-graph-role") === "structural-frame") {
+        index.frames.push(entry);
+      } else if (element.getAttribute("data-composition-points")) {
+        index.edges.push(entry);
+      } else if (name === "path" || name === "line") {
+        index.rules.push(entry);
+      }
+      if (name === "rect") index.rects.push(entry);
+      if (name === "text") index.texts.push(entry);
+    }
+    if (element.getAttribute("data-semantic-sigil")) index.sigils.push({ element, ...next });
+
+    const children = childElements(element);
+    children.forEach((child, position) => {
+      // Fold away the opaque plate Archify paints under a component body; see the
+      // c-mask note in archifySvgToScene.
+      if (!next.insideSigil && child.localName === "rect" && classList(child).includes("c-mask")) {
+        const sibling = children[position + 1];
+        if (sibling?.localName === "rect" && sameBox(child, sibling) && componentKind(sibling)) {
+          index.redundantMasks.add(child);
+        }
+      }
+      visit(child, next);
+    });
+  };
+  visit(svg, { insideSigil: false, edgeOwner: null, nodeLabel: null });
+  return index;
 }
 
 function number(element, name, fallback = 0) {
@@ -314,7 +380,7 @@ function svgDataUrl(markup) {
  * @returns {{scene: object, diagnostics: Array<{reason: string, detail: string}>}}
  */
 export function archifySvgToScene(svg, { palette, fontFace, path = "archify" } = {}) {
-  if (!svg || typeof svg.querySelectorAll !== "function") {
+  if (!svg || typeof svg.getAttribute !== "function") {
     throw new ArchifyError("Archify import requires a parsed SVG element");
   }
   if (!palette) throw new ArchifyError("Archify import requires a palette");
@@ -343,17 +409,11 @@ export function archifySvgToScene(svg, { palette, fontFace, path = "archify" } =
   //     count in PowerPoint and avoid a doubled outline;
   //   - behind a connector label, the plate is the label's backplate and must
   //     survive, otherwise the text sits directly on the line it annotates.
-  const redundantMasks = new Set();
-  for (const mask of svg.querySelectorAll("rect.c-mask")) {
-    const sibling = mask.nextElementSibling;
-    if (sibling?.localName === "rect" && sameBox(mask, sibling) && componentKind(sibling)) {
-      redundantMasks.add(mask);
-    }
-  }
+  const index = indexArchifySvg(svg);
 
   // 1. Structural frames first: regions, trust boundaries, lanes, stages and
   //    segments all sit behind the components they contain.
-  for (const frame of svg.querySelectorAll('[data-graph-role="structural-frame"]')) {
+  for (const { element: frame } of index.frames) {
     const role = firstClass(frame, FRAME_ROLES);
     if (!role) {
       report("unsupported-frame-class", frame.getAttribute("class"));
@@ -379,8 +439,7 @@ export function archifySvgToScene(svg, { palette, fontFace, path = "archify" } =
   // 2. Connections. Every Archify renderer publishes the authored polyline on the
   //    element carrying the geometry, while the edge identity may live on an
   //    enclosing group, so the identity is looked up from the nearest ancestor.
-  for (const edge of svg.querySelectorAll("[data-composition-points]")) {
-    if (isTemplateContent(edge)) continue;
+  for (const { element: edge, edgeOwner } of index.edges) {
     const role = firstClass(edge, ARROW_ROLES);
     if (!role) {
       report("unsupported-edge-class", edge.getAttribute("class"));
@@ -391,13 +450,13 @@ export function archifySvgToScene(svg, { palette, fontFace, path = "archify" } =
       report("unreadable-edge-points", edge.getAttribute("data-composition-points"));
       continue;
     }
-    const owner = edge.closest?.("[data-edge-id]") || edge;
+    const owner = edgeOwner || edge;
     push({
       kind: "connector",
       sourcePath: `edges[${owner.getAttribute("data-edge-key") ?? nodes.length}]`,
       points,
       arrowStart: "none",
-      arrowEnd: edge.hasAttribute("marker-end") ? "triangle" : "none",
+      arrowEnd: edge.getAttribute("marker-end") ? "triangle" : "none",
       style: {
         stroke: colour(role.stroke),
         strokeWidth: number(edge, "stroke-width", 1.4),
@@ -409,8 +468,7 @@ export function archifySvgToScene(svg, { palette, fontFace, path = "archify" } =
   }
 
   // 3. Rules drawn without edge identity: sequence lifelines and legend keys.
-  for (const rule of svg.querySelectorAll("path:not([data-composition-points]), line:not([data-composition-points])")) {
-    if (rule.closest?.(".semantic-sigil") || isTemplateContent(rule)) continue;
+  for (const { element: rule } of index.rules) {
     if (classList(rule).some((name) => IGNORED_CLASSES.has(name))) continue;
     const role = firstClass(rule, ARROW_ROLES);
     if (!role) {
@@ -432,7 +490,7 @@ export function archifySvgToScene(svg, { palette, fontFace, path = "archify" } =
       sourcePath: `rules[${nodes.length}]`,
       points,
       arrowStart: "none",
-      arrowEnd: rule.hasAttribute("marker-end") ? "triangle" : "none",
+      arrowEnd: rule.getAttribute("marker-end") ? "triangle" : "none",
       style: {
         stroke: colour(role.stroke),
         strokeWidth: number(rule, "stroke-width", 1),
@@ -443,9 +501,8 @@ export function archifySvgToScene(svg, { palette, fontFace, path = "archify" } =
   }
 
   // 4. Component bodies, legend swatches and the surviving label backplates.
-  for (const rect of svg.querySelectorAll("rect")) {
-    if (rect.hasAttribute("data-graph-role") || redundantMasks.has(rect)) continue;
-    if (rect.closest?.(".semantic-sigil") || isTemplateContent(rect)) continue;
+  for (const { element: rect, nodeLabel } of index.rects) {
+    if (rect.getAttribute("data-graph-role") || index.redundantMasks.has(rect)) continue;
     const names = classList(rect);
     if (names.some((name) => IGNORED_CLASSES.has(name))) continue;
     // Archify's canvas wash is a percentage-sized rect painted with the grid
@@ -469,7 +526,7 @@ export function archifySvgToScene(svg, { palette, fontFace, path = "archify" } =
         strokeWidth: isLabelPlate ? 0 : number(rect, "stroke-width", 1.2),
         cornerRadius: number(rect, "rx", 0),
       },
-      accessibility: { title: rect.closest?.("[data-node-label]")?.getAttribute("data-node-label") || "" },
+      accessibility: { title: nodeLabel || "" },
     });
   }
 
@@ -477,7 +534,7 @@ export function archifySvgToScene(svg, { palette, fontFace, path = "archify" } =
   //    contract, so only the published `data-semantic-sigil` kind is consumed and
   //    the artwork is replaced with MarkdStage's own icon for that role. That keeps
   //    the role marker visible without importing shapes this file cannot theme.
-  for (const sigil of svg.querySelectorAll("[data-semantic-sigil]")) {
+  for (const { element: sigil } of index.sigils) {
     const iconName = SIGIL_ICONS[sigil.getAttribute("data-semantic-sigil")];
     if (!iconName) {
       report("unsupported-sigil-kind", sigil.getAttribute("data-semantic-sigil"));
@@ -505,8 +562,7 @@ export function archifySvgToScene(svg, { palette, fontFace, path = "archify" } =
   }
 
   // 6. Labels last so they are never covered by artwork.
-  for (const text of svg.querySelectorAll("text")) {
-    if (isTemplateContent(text)) continue;
+  for (const { element: text } of index.texts) {
     const content = (text.textContent || "").trim();
     if (!content) continue;
     // `t-primary` / `t-muted` / `t-dim` are tone names; `t-<kind>` borrows a
@@ -557,8 +613,8 @@ export function archifySvgToScene(svg, { palette, fontFace, path = "archify" } =
     height,
     source: { kind: "architecture", path },
     accessibility: {
-      title: svg.querySelector("title")?.textContent?.trim() || "Imported diagram",
-      description: svg.querySelector("desc")?.textContent?.trim() || "",
+      title: index.title || "Imported diagram",
+      description: index.description,
     },
     nodes,
   });

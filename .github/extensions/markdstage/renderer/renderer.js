@@ -7,6 +7,14 @@ import { sceneToPptxElements } from "./scene-pptx.mjs";
 import { SceneGraphError } from "./scene-graph.mjs";
 import { attachArchitectureEditor } from "./architecture-editor.mjs";
 import {
+  ArchifyError,
+  archifySvgToScene,
+  derivePalette,
+  MAX_ARCHIFY_SVG_BYTES,
+  parseArchifySource,
+  parseArchifySvg,
+} from "./archify.mjs";
+import {
   DEFAULT_THEME,
   mermaidC4ThemeVariables,
   mermaidThemeVariables,
@@ -577,7 +585,11 @@ function codeBlocksForLanguage(root, language) {
 function applySyntaxHighlighting(root) {
   if (!window.hljs) return;
   root.querySelectorAll("pre code").forEach((code) => {
-    if (hasCodeLanguage(code, "mermaid") || hasCodeLanguage(code, "architecture")) {
+    if (
+      hasCodeLanguage(code, "mermaid") ||
+      hasCodeLanguage(code, "architecture") ||
+      hasCodeLanguage(code, "archify")
+    ) {
       return;
     }
     try {
@@ -586,6 +598,101 @@ function applySyntaxHighlighting(root) {
       console.error("Syntax highlighting failed", e);
     }
   });
+}
+
+// --- archify ---------------------------------------------------------------
+// Import a diagram exported by Archify (https://github.com/tt-a1i/archify).
+//
+// The fence names an SVG file; this pass reads it, converts it through
+// archify.mjs into a shared scene, and renders that scene with the same
+// scene -> SVG path the architecture DSL uses. Because the result is a scene and
+// not a pasted picture, it repaints with the deck theme and exports to PowerPoint
+// as native shapes.
+
+function archifyErrorElement(error, documentRef = document) {
+  const wrapper = documentRef.createElement("div");
+  wrapper.className = "architecture-error";
+  wrapper.setAttribute("role", "alert");
+  const heading = documentRef.createElement("strong");
+  heading.textContent = "Archify diagram error";
+  const detail = documentRef.createElement("span");
+  detail.textContent = error?.message || "The diagram could not be imported.";
+  wrapper.appendChild(heading);
+  wrapper.appendChild(detail);
+  return wrapper;
+}
+
+// The palette is derived from the deck's own custom properties, so a custom theme
+// drives imported diagrams exactly as it drives the built-in ones.
+function archifyThemeTokens(deckEl) {
+  const style = getComputedStyle(deckEl);
+  const read = (name) => resolveModelColor(style.getPropertyValue(name).trim(), deckEl);
+  return {
+    accent: read("--accent"),
+    accentStrong: read("--accent-strong"),
+    surface: read("--surface"),
+    fg: read("--fg"),
+    muted: read("--muted"),
+    border: read("--border"),
+  };
+}
+
+async function readArchifySvg(src) {
+  const response = await fetch(localAssetUrl(src));
+  if (!response.ok) {
+    throw new ArchifyError(`"${src}" could not be read (HTTP ${response.status})`);
+  }
+  const markup = await response.text();
+  // Guard after reading rather than trusting Content-Length: the check must hold
+  // for every transport, including the file-backed harness used by the tests.
+  if (markup.length > MAX_ARCHIFY_SVG_BYTES) {
+    throw new ArchifyError(`"${src}" is larger than the ${MAX_ARCHIFY_SVG_BYTES} byte import limit`);
+  }
+  return markup;
+}
+
+async function renderArchifyBlock(host, deckEl) {
+  const src = host.dataset.archifySrc;
+  const scene = archifySvgToScene(parseArchifySvg(await readArchifySvg(src)), {
+    palette: derivePalette(archifyThemeTokens(deckEl)),
+    path: src,
+  }).scene;
+  const svg = sceneToSvg(scene, {
+    attributes: {
+      class: "archify-svg",
+      role: "img",
+      "aria-label": scene.accessibility?.title || "Imported diagram",
+      preserveAspectRatio: "xMidYMid meet",
+    },
+  });
+  host.replaceChildren(svg);
+  // The PowerPoint pass reuses this scene instead of converting a second time, so
+  // the exported deck and the rendered slide can never disagree.
+  host.__archifyScene = scene;
+}
+
+function renderArchifyBlocks(scope, deckEl, token) {
+  const hosts = [...scope.querySelectorAll(".archify-diagram[data-archify-src]")];
+  return Promise.all(
+    hosts.map((host) =>
+      renderArchifyBlock(host, deckEl).catch((error) => {
+        if (token !== renderToken) return;
+        console.error("Archify import failed", error);
+        host.replaceWith(archifyErrorElement(error));
+      }),
+    ),
+  );
+}
+
+/**
+ * Run every diagram pass that cannot finish synchronously.
+ *
+ * Archify runs first: it inserts real geometry, and auto-sizing and layout
+ * diagnostics must measure that geometry rather than an empty placeholder.
+ */
+async function renderDeferredDiagrams(scope, deckEl, token, revealWhenDone = true) {
+  await renderArchifyBlocks(scope, deckEl, token);
+  return runMermaid(scope, deckEl, token, revealWhenDone);
 }
 
 // --- mermaid ---------------------------------------------------------------
@@ -928,6 +1035,24 @@ function createSlide(
     }
     architectureEditors.push(editor);
   });
+  // Archify fences name an SVG exported by https://github.com/tt-a1i/archify.
+  // Reading the file is asynchronous, so only a placeholder is produced here and
+  // renderArchifyBlocks fills it in during the same deferred pass as Mermaid.
+  codeBlocksForLanguage(bodyEl, "archify").forEach((code, blockIndex) => {
+    const target = code.closest("pre") || code;
+    let src;
+    try {
+      ({ src } = parseArchifySource(code.textContent));
+    } catch (error) {
+      target.replaceWith(archifyErrorElement(error));
+      return;
+    }
+    const host = document.createElement("div");
+    host.className = "archify-diagram";
+    host.dataset.archifyBlock = String(blockIndex);
+    host.dataset.archifySrc = src;
+    target.replaceWith(host);
+  });
   applySyntaxHighlighting(bodyEl);
   deck.appendChild(bodyEl);
 
@@ -1043,7 +1168,7 @@ function renderSlide(markdown) {
       }
     });
   const mermaid = Promise.resolve(document.fonts?.ready).then(() => {
-    if (token === renderToken) return runMermaid(slide.bodyEl, slide.deck, token, false);
+    if (token === renderToken) return renderDeferredDiagrams(slide.bodyEl, slide.deck, token, false);
   }).finally(() => {
     if (token === renderToken) scheduleLayoutRefresh();
   });
@@ -2211,6 +2336,54 @@ function mermaidWholeElementFallbackRequired(scene, diagnostics) {
   );
 }
 
+/**
+ * Map an imported Archify diagram onto native PowerPoint objects.
+ *
+ * The scene was already built when the slide rendered, so this only has to place
+ * it: scene units are converted to deck coordinates through the rendered SVG's
+ * box, exactly as the architecture collector does.
+ */
+function collectArchifyObjects(host, deck, blockIndex) {
+  const scene = host.__archifyScene;
+  const svg = host.querySelector("svg.archify-svg");
+  if (!scene || !svg) {
+    return {
+      elements: [],
+      fallbacks: [pptxFallback("archify", host, deck, "archify-diagram-unavailable")],
+    };
+  }
+  const svgRect = svg.getBoundingClientRect();
+  const deckRect = deck.getBoundingClientRect();
+  const scale = Math.min(svgRect.width / scene.width, svgRect.height / scene.height);
+  if (!(scale > 0)) {
+    return {
+      elements: [],
+      fallbacks: [pptxFallback("archify", host, deck, "archify-diagram-unavailable")],
+    };
+  }
+  // preserveAspectRatio="xMidYMid meet" centres the scene inside the SVG box.
+  const originX = svgRect.left - deckRect.left + (svgRect.width - scene.width * scale) / 2;
+  const originY = svgRect.top - deckRect.top + (svgRect.height - scene.height * scale) / 2;
+  const pathPrefix = `archify[${blockIndex}]`;
+  const mapped = sceneToPptxElements(scene, {
+    pathPrefix,
+    zOrderBase: Number(host.dataset.pptxZOrder),
+  });
+  const place = (object) => ({
+    ...object,
+    x: roundedMetric(originX + object.x * scale),
+    y: roundedMetric(originY + object.y * scale),
+    width: roundedMetric(object.width * scale),
+    height: roundedMetric(object.height * scale),
+  });
+  return {
+    elements: mapped.elements.map(place),
+    fallbacks: mapped.fallbacks.map((fallback) =>
+      pptxFallback("archify", svg, deck, fallback.reason, { artwork: fallback.artwork }),
+    ),
+  };
+}
+
 function collectMermaidObjects(element, deck, blockIndex) {
   const svg = element.querySelector("svg");
   if (!svg) {
@@ -2380,13 +2553,13 @@ async function collectPptxSlide(slide, index, options = {}) {
   );
   deck
     .querySelectorAll(
-      ".body div:not(.architecture-diagram):not(.architecture-error):not(.architecture-routing-warning), .body section, .body article, .body aside, .body details, .body video, .body audio, .body iframe, .body canvas, .body object, .body embed",
+      ".body div:not(.architecture-diagram):not(.architecture-error):not(.architecture-routing-warning):not(.archify-diagram), .body section, .body article, .body aside, .body details, .body video, .body audio, .body iframe, .body canvas, .body object, .body embed",
     )
     .forEach((element) => {
       const covered = [...fallbackRoots].some(
         (root) => root === element || root.contains(element),
       );
-      if (!element.closest("pre, .architecture-diagram") && !covered) {
+      if (!element.closest("pre, .architecture-diagram, .archify-diagram") && !covered) {
         addFallback("html", element, "arbitrary-html-rendered-as-artwork", {
           includeDescendants: true,
           padding: subtreeEffectPaintPadding(element),
@@ -2421,6 +2594,7 @@ async function collectPptxSlide(slide, index, options = {}) {
     (element) =>
       !insideFallback(element) &&
       !element.closest(".architecture-diagram") &&
+      !element.closest(".archify-diagram") &&
       !element.closest("pre.mermaid, .mermaid") &&
       !element.closest("table") &&
       !(element.matches("p") && element.closest("blockquote, li")),
@@ -2742,6 +2916,17 @@ async function collectPptxSlide(slide, index, options = {}) {
     fallbacks.push(...architecture.fallbacks);
   }
 
+  for (const [blockIndex, host] of [...deck.querySelectorAll(".archify-diagram")].entries()) {
+    if (insideFallback(host)) continue;
+    try {
+      const archify = collectArchifyObjects(host, deck, blockIndex);
+      elements.push(...archify.elements);
+      fallbacks.push(...archify.fallbacks);
+    } catch (_) {
+      fallbacks.push(pptxFallback("archify", host, deck, "archify-rendered-as-artwork"));
+    }
+  }
+
   const layout = slide.titleSlide
     ? "title"
     : slide.sectionSlide
@@ -2819,7 +3004,7 @@ async function renderPptxDeck(
   }
   const token = ++renderToken;
   for (const slide of rendered) {
-    await runMermaid(slide.bodyEl, slide.deck, token, false);
+    await renderDeferredDiagrams(slide.bodyEl, slide.deck, token, false);
   }
   await waitForImages(stage);
   await afterLayout();
@@ -2961,7 +3146,7 @@ async function renderPrintDeck(
     }
   }
   for (const slide of rendered) {
-    await runMermaid(slide.bodyEl, slide.deck, renderToken, false);
+    await renderDeferredDiagrams(slide.bodyEl, slide.deck, renderToken, false);
   }
   await waitForImages(stage);
   await afterLayout();
@@ -3042,7 +3227,7 @@ async function renderCaptureSlide(
   }
 
   const token = ++renderToken;
-  await runMermaid(slide.bodyEl, slide.deck, token, false);
+  await renderDeferredDiagrams(slide.bodyEl, slide.deck, token, false);
   await waitForImages(stage);
   await afterLayout();
 
