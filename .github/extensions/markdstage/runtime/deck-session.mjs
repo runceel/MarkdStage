@@ -5,17 +5,19 @@
 // output runtime (PDF export, PNG capture, layout inspection) expects, so the
 // CLI and the Canvas Extension drive the same implementation.
 
-import { readFile, realpath, stat } from "node:fs/promises";
+import { realpath } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
-import { buildDeckSlides } from "../markdown-deck.mjs";
 import { ensureBackCover } from "../deck-state.mjs";
-import { MARKDOWN_MAX_BYTES, isMarkdownPath } from "../scripts/markdown-files.mjs";
+import { MARKDOWN_MAX_BYTES, isMarkdownPath } from "../scripts/markdown-path.mjs";
 import { resolveWorkspaceRoot } from "../scripts/workspace-root.mjs";
 import { DEFAULT_THEME, normalizeTheme, resolveFrontMatterTheme } from "../renderer/theme.mjs";
 import { MarkdStageError } from "./errors.mjs";
 import { loadCustomTheme } from "./custom-theme.mjs";
 import { loadSlideBackgrounds } from "./slide-backgrounds.mjs";
 import { isPathInside } from "./output-paths.mjs";
+import { createNodeIO } from "./io-node.mjs";
+import { unwrapIOResult } from "./io.mjs";
+import { readMarkdownDeck } from "./deck-reader.mjs";
 
 export function clampIndex(value, total) {
   let index = Number(value);
@@ -41,7 +43,7 @@ export function resolveDeckTheme({ slides, explicitTheme, explicitThemeFile }) {
   };
 }
 
-export async function resolveDeckFile(file, workspaceRoot) {
+export async function resolveDeckFile(file, workspaceRoot, io) {
   if (typeof file !== "string" || !file.trim()) {
     throw new MarkdStageError("invalid_input", "A Markdown file path is required.");
   }
@@ -52,24 +54,17 @@ export async function resolveDeckFile(file, workspaceRoot) {
       `Only .md and .markdown files can be presented: ${file}`,
     );
   }
-  let canonicalFile;
-  let canonicalRoot;
-  try {
-    [canonicalFile, canonicalRoot] = await Promise.all([
-      realpath(absolute),
-      realpath(workspaceRoot),
-    ]);
-  } catch (_) {
-    throw new MarkdStageError("file_not_found", `Could not read Markdown file: ${file}`);
-  }
-  if (!isPathInside(canonicalRoot, canonicalFile)) {
+  const root = resolve(workspaceRoot);
+  if (!isPathInside(root, absolute)) {
     throw new MarkdStageError(
       "path_outside_workspace",
-      `Markdown files must stay inside the workspace (${canonicalRoot}).`,
+      "Markdown files must stay inside the workspace.",
     );
   }
-  const info = await stat(canonicalFile);
-  if (!info.isFile()) {
+  const sourceName = workspaceRelative(root, absolute);
+  const adapter = io ?? await createNodeIO({ workspaceRoot: root });
+  const info = unwrapIOResult(await adapter.stat(sourceName), { operation: "stat", path: sourceName });
+  if (info.kind !== "file") {
     throw new MarkdStageError("file_not_found", `Not a file: ${file}`);
   }
   if (info.size > MARKDOWN_MAX_BYTES) {
@@ -78,16 +73,15 @@ export async function resolveDeckFile(file, workspaceRoot) {
       `Markdown files must be ${MARKDOWN_MAX_BYTES} bytes or smaller: ${file}`,
     );
   }
-  return { path: canonicalFile, workspaceRoot: canonicalRoot };
+  return { path: absolute, workspaceRoot: root };
 }
 
-export async function readDeckSlides(path) {
-  const markdown = await readFile(path, "utf8");
-  const slides = buildDeckSlides(markdown);
-  if (!slides.length) {
-    throw new MarkdStageError("empty_markdown", `The Markdown file has no slides: ${path}`);
-  }
-  return { markdown, slides };
+export async function readDeckSlides(path, { io, sourceName } = {}) {
+  if (io) return readMarkdownDeck(sourceName ?? path, io);
+  const absolute = resolve(path);
+  const root = resolve(absolute, "..");
+  const adapter = await createNodeIO({ workspaceRoot: root });
+  return readMarkdownDeck(sourceName ?? workspaceRelative(root, absolute), adapter);
 }
 
 function workspaceRelative(root, path) {
@@ -109,6 +103,7 @@ export async function createDeckSession({
   themeFile,
   assetUrlPrefix = "/theme-assets/",
   log,
+  io,
 } = {}) {
   // An explicit --workspace wins; otherwise confine the deck to its Git
   // repository root (or the folder holding the Markdown file).
@@ -117,15 +112,25 @@ export async function createDeckSession({
     ? resolve(workspaceRoot)
     : resolveWorkspaceRoot(deckDirectory, deckDirectory);
   let root;
+  let adapter;
   try {
     root = await realpath(requestedRoot);
+    adapter = io ?? await createNodeIO({ workspaceRoot: root });
   } catch (_) {
     throw new MarkdStageError(
       "workspace_not_found",
       `Could not read workspace directory: ${requestedRoot}`,
     );
   }
-  const resolved = file ? await resolveDeckFile(file, root) : null;
+  // Canonicalize the selected workspace without resolving away links inside it.
+  const sourceArgument = (value) => {
+    if (typeof value !== "string" || !value.trim()) return value;
+    const absolute = resolve(value);
+    return isPathInside(requestedRoot, absolute)
+      ? resolve(root, relative(requestedRoot, absolute))
+      : absolute;
+  };
+  const resolved = file ? await resolveDeckFile(sourceArgument(file), root, adapter) : null;
   const session = {
     file: resolved?.path ?? "",
     workspaceRoot: resolved?.workspaceRoot ?? root,
@@ -161,7 +166,7 @@ export async function createDeckSession({
     if (!file) {
       throw new MarkdStageError("no_deck", "Open a Markdown file first.");
     }
-    const { markdown, slides } = await readDeckSlides(file);
+    const { markdown, slides } = await readMarkdownDeck(sourceName, adapter);
     await loadSlideBackgrounds(session.workspaceRoot, sourceName, slides);
     const selection = resolveDeckTheme({
       slides,
@@ -200,7 +205,7 @@ export async function createDeckSession({
     loadFile(session.file, session.sourceName, preserveIndex);
 
   session.openFile = async (nextFile, { preserveIndex = false } = {}) => {
-    const next = await resolveDeckFile(nextFile, session.workspaceRoot);
+    const next = await resolveDeckFile(sourceArgument(nextFile), session.workspaceRoot, adapter);
     return loadFile(next.path, workspaceRelative(next.workspaceRoot, next.path), preserveIndex);
   };
 

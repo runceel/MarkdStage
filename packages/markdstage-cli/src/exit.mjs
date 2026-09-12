@@ -24,6 +24,7 @@ const DECK_ERROR_CODES = new Set([
   "invalid_markdown_path",
   "invalid_output_path",
   "invalid_theme_file",
+  "io_failed",
   "no_deck",
   "path_outside_workspace",
   "slide_out_of_range",

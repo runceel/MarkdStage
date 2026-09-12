@@ -97,6 +97,8 @@ import {
 import { loadCustomTheme as runtimeLoadCustomTheme } from "./runtime/custom-theme.mjs";
 import { loadSlideBackgrounds, resolveSlideBackgroundFile } from "./runtime/slide-backgrounds.mjs";
 import { clampIndex, resolveDeckTheme } from "./runtime/deck-session.mjs";
+import { createNodeIO } from "./runtime/io-node.mjs";
+import { readMarkdownDeck } from "./runtime/deck-reader.mjs";
 import {
   safeJoin,
   sendChunkedVendorAsset as sendRuntimeChunkedVendorAsset,
@@ -822,24 +824,20 @@ function stopSourceWatcher(inst) {
 }
 
 async function readImportedSource(inst) {
-  const canonicalRoot = await realpath(resolve(inst.workspaceRoot));
-  const candidate = inst.sourceWritebackPath
-    ? safeJoin(canonicalRoot, inst.sourceWritebackPath)
-    : null;
-  if (!candidate || !isPathInside(canonicalRoot, candidate) || !isMarkdownPath(candidate)) {
-    const error = new Error("source_file_unavailable");
-    error.code = "SOURCE_FILE_UNAVAILABLE";
+  try {
+    return await readMarkdownDeck(inst.sourceWritebackPath.split(sep).join("/"), inst.io);
+  } catch (cause) {
+    const error = new Error(cause.message);
+    error.code = {
+      file_too_large: "SOURCE_FILE_TOO_LARGE",
+      path_outside_workspace: "SOURCE_FILE_UNAVAILABLE",
+      invalid_input: "SOURCE_FILE_UNAVAILABLE",
+      invalid_markdown_path: "SOURCE_FILE_UNAVAILABLE",
+      empty_markdown: "EMPTY_MARKDOWN",
+      file_not_found: "ENOENT",
+    }[cause.code] ?? "SOURCE_RELOAD_FAILED";
     throw error;
   }
-  const target = await resolveImportedSourceTarget(canonicalRoot, candidate);
-  const markdown = await readFile(target.path, "utf8");
-  const slides = buildDeckSlides(markdown);
-  if (!slides.length) {
-    const error = new Error("empty_markdown");
-    error.code = "EMPTY_MARKDOWN";
-    throw error;
-  }
-  return { markdown, slides };
 }
 
 async function refreshImportedSourceNow(inst, token) {
@@ -991,7 +989,9 @@ async function applyArchitectureEdit(inst, { index, block, source, deckVersion }
           index,
           block,
           source,
-          inst.sourceWritebackSnapshot,
+          // Port reads strip the UTF-8 BOM; the legacy write path preserves it.
+          (sourceMarkdown.startsWith("\uFEFF") ? "\uFEFF" : "") +
+            inst.sourceWritebackSnapshot.replace(/^\uFEFF/, ""),
         );
         if (!fileEdit.ok) {
           return {
@@ -1738,39 +1738,18 @@ async function startServer(inst) {
         return;
       }
       let text;
+      let slides;
       let sourceWritebackPath;
       try {
-        const [canonicalRoot, canonicalSource] = await Promise.all([
-          realpath(root),
-          realpath(abs),
-        ]);
-        if (!isPathInside(canonicalRoot, canonicalSource)) {
-          res.statusCode = 400;
-          res.setHeader("Content-Type", "application/json; charset=utf-8");
-          res.end(JSON.stringify({ ok: false, error: "path_outside_workspace" }));
-          return;
-        }
-        const info = await stat(canonicalSource);
-        if (!info.isFile()) throw new Error("not_a_file");
-        if (info.size > MARKDOWN_MAX_BYTES) {
-          res.statusCode = 413;
-          res.setHeader("Content-Type", "application/json; charset=utf-8");
-          res.end(JSON.stringify({ ok: false, error: "file_too_large" }));
-          return;
-        }
-        text = await readFile(canonicalSource, "utf8");
-        sourceWritebackPath = relative(canonicalRoot, canonicalSource);
-      } catch (_) {
-        res.statusCode = 404;
+        const loaded = await readMarkdownDeck(rel, inst.io);
+        text = loaded.markdown;
+        slides = loaded.slides;
+        sourceWritebackPath = rel;
+      } catch (error) {
+        res.statusCode = error.code === "file_too_large" ? 413
+          : error.code === "file_not_found" ? 404 : 400;
         res.setHeader("Content-Type", "application/json; charset=utf-8");
-        res.end(JSON.stringify({ ok: false, error: "file_not_found" }));
-        return;
-      }
-      const slides = buildDeckSlides(text);
-      if (!slides.length) {
-        res.statusCode = 400;
-        res.setHeader("Content-Type", "application/json; charset=utf-8");
-        res.end(JSON.stringify({ ok: false, error: "empty_markdown" }));
+        res.end(JSON.stringify({ ok: false, error: error.code || "io_failed" }));
         return;
       }
       const sourceName = relative(root, abs).split(sep).join("/");
@@ -1995,6 +1974,7 @@ async function ensureInstance(ctx) {
       sourceWatcherToken: 0,
       clients: new Set(),
       workspaceRoot,
+      io: await createNodeIO({ workspaceRoot }),
       dataFile: dataFileFor(key),
       theme: DEFAULT_THEME,
       themeLocked: false,

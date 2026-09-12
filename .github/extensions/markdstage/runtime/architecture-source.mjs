@@ -147,7 +147,9 @@ export function saveArchitectureSource({
         message: "The source Markdown file no longer exists.",
       };
     }
-    if (markdown !== expectedMarkdown) {
+    // Port snapshots omit the BOM; keep the disk text intact for atomic saving.
+    if (markdown !== expectedMarkdown &&
+        (!markdown.startsWith("\uFEFF") || markdown.slice(1) !== expectedMarkdown)) {
       return {
         ok: false,
         error: "source_changed",
