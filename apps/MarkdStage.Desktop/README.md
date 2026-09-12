@@ -102,3 +102,9 @@ window built into the app, so a separate Edge, Chrome, or Chromium installation 
 
 Markdown editing, PDF export, the Architecture editor, and a timer are outside the scope of the
 initial release.
+
+## Planned behaviour
+
+This file documents what the app does today. The user-facing behaviour planned for the MSIX /
+Microsoft Store version is specified in
+[docs/desktop-behaviour-msix.md](docs/desktop-behaviour-msix.md) until that version ships.
