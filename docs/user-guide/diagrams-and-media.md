@@ -2,8 +2,8 @@
 
 > 日本語版: [日本語](ja/diagrams-and-media.md)
 
-MarkdStage supports Markdown images, Mermaid for automatic layout, and Architecture DSL for stable
-placement and routing.
+MarkdStage supports Markdown images, Mermaid for automatic layout, Architecture DSL for stable
+placement and routing, and imported Archify diagrams.
 
 ## Use Mermaid for automatic layout
 
@@ -220,6 +220,35 @@ and an existing `architecture` block. An empty block is valid and can be populat
 ```architecture
 ```
 ````
+
+## Import an Archify diagram
+
+[Archify](https://github.com/tt-a1i/archify) draws architecture diagrams in the browser and exports
+them as SVG. Save that export under `assets/` and name it in an `archify` fence:
+
+````markdown
+```archify
+assets/checkout-architecture.svg
+```
+````
+
+The block holds one path and nothing else. Lines starting with `#` are comments.
+
+The diagram is not pasted in as a picture. MarkdStage reads the structure Archify records in the
+export - which shapes are components, which lines are connections, which labels belong to what - and
+redraws it. Two things follow from that:
+
+- **It matches your deck.** Archify's own colours are discarded and the diagram is repainted from
+  your theme, so it looks the same on `dark`, `light`, `microsoft` and any custom theme, and it
+  changes when you change themes. Its role markers are redrawn with MarkdStage's own icons.
+- **PowerPoint gets real shapes.** Export produces editable rectangles, connectors and text boxes,
+  not a flat image, so a reviewer can move a box or fix a typo in PowerPoint.
+
+Whichever Archify preset you exported with - Classic, Blueprint, Editorial or any other - makes no
+difference, because only the structure is read.
+
+Re-export from Archify and refresh to pick up changes; MarkdStage reads the file each time the slide
+renders.
 
 ## Add images
 
