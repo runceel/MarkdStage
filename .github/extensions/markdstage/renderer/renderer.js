@@ -22,6 +22,7 @@ import {
   stripSpeakerNotes,
 } from "./speaker-notes.mjs";
 import { splitImportPath } from "./import-path.mjs";
+import { deriveTitle, splitFrontMatter } from "./slide-title.mjs";
 import { createSlideViewport, OUTPUT_WIDTH, OUTPUT_HEIGHT } from "./slide-viewport.mjs";
 
 // Client-side slide renderer for the MarkdStage canvas.
@@ -46,26 +47,6 @@ const PLACEHOLDER = [
 // --- front matter ----------------------------------------------------------
 // Split a leading `---` fenced block of `key: value` deck metadata from the
 // body; everything after the closing `---` is the body.
-function splitFrontMatter(md) {
-  const meta = {};
-  const text = md.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  const trimmed = text.replace(/^[\n \t\uFEFF]+/, "");
-  if (!trimmed.startsWith("---\n") && trimmed !== "---") {
-    return { meta, body: md };
-  }
-  const lines = trimmed.split("\n");
-  let end = -1;
-  for (let i = 1; i < lines.length; i++) {
-    if (lines[i].trim() === "---") {
-      end = i;
-      break;
-    }
-  }
-  if (end < 0) return { meta, body: md };
-  Object.assign(meta, parseFrontMatter(lines.slice(0, end + 1).join("\n")));
-  return { meta, body: lines.slice(end + 1).join("\n") };
-}
-
 function nonEmpty(value) {
   return typeof value === "string" && value.trim().length > 0;
 }
@@ -3170,31 +3151,9 @@ let exportNotificationStarted = 0;
 
 // Derive a short overview title from a slide fragment: first heading, else first
 // non-empty body line, trimmed. Mirrors the skill's title rule.
-function deriveTitle(md) {
-  const { body } = splitFrontMatter(typeof md === "string" ? md : "");
-  const lines = stripSpeakerNotes(body).split("\n");
-  let fallback = "";
-  for (const raw of lines) {
-    const line = raw.trim();
-    if (!line) continue;
-    const heading = line.match(/^#{1,6}\s+(.*\S)\s*$/);
-    if (heading) return trimTitle(heading[1]);
-    if (!fallback) fallback = line;
-  }
-  return fallback ? trimTitle(fallback) : "(Untitled)";
-}
-
 function deriveLayout(md) {
   const { meta } = splitFrontMatter(typeof md === "string" ? md : "");
   return typeof meta.layout === "string" ? meta.layout.trim().toLowerCase() : "";
-}
-
-function trimTitle(text) {
-  const stripped = text
-    .replace(/[*_`>#~]/g, "")
-    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
-    .trim();
-  return stripped.length > 40 ? stripped.slice(0, 40) + "…" : stripped || "(Untitled)";
 }
 
 async function fetchDeck() {

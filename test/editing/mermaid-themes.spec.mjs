@@ -5,7 +5,7 @@ import { chromium, expect, test } from "@playwright/test";
 import { startHarness } from "../harness/server.mjs";
 import { waitForPrintReady, waitForSlideReady } from "../utils/ready.mjs";
 import { createDeckSession } from "../../.github/extensions/markdstage/runtime/deck-session.mjs";
-import { startPresentationServer } from "../../.github/extensions/markdstage/runtime/presentation-server.mjs";
+import { startPresentationServer } from "../../.github/extensions/markdstage/hosts/node/presentation-server.mjs";
 import { createOutputJob, createOutputSnapshot } from "../../.github/extensions/markdstage/runtime/output.mjs";
 
 test.use({ launchOptions: { executablePath: chromium.executablePath() } });

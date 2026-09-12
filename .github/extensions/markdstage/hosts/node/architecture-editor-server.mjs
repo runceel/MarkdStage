@@ -1,18 +1,20 @@
+// Node host for the standalone editor: transport and window-session lifecycle.
+// Parsing, source writes, and asset policy remain shared runtime behaviours.
 import { randomBytes } from "node:crypto";
 import { createServer } from "node:http";
 import { join, resolve, sep } from "node:path";
 
-import { parseArchitecture } from "../renderer/architecture.mjs";
+import { parseArchitecture } from "../../renderer/architecture.mjs";
 import {
   ARCHITECTURE_ASSET_MAX_BYTES,
   importArchitectureAsset,
   listArchitectureAssets,
-} from "../scripts/architecture-assets.mjs";
-import { resolveAssetFile } from "../scripts/asset-paths.mjs";
+} from "../../scripts/architecture-assets.mjs";
+import { resolveAssetFile } from "../../scripts/asset-paths.mjs";
 import {
   readArchitectureSourceTarget,
   saveArchitectureSource,
-} from "./architecture-source.mjs";
+} from "../../runtime/architecture-source.mjs";
 import { sendFile } from "./static-files.mjs";
 
 const MAX_DRAFT_BYTES = 256 * 1024;

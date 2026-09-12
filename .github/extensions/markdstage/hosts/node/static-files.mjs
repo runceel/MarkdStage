@@ -1,9 +1,8 @@
-// Static file helpers shared by the Canvas Extension presentation server and the
-// MarkdStage CLI presentation server.
+// Node HTTP response and bundled-static-file adapter for Canvas and npm hosts.
 
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize, resolve, sep } from "node:path";
-import { reconstructAsset } from "../scripts/vendor-assets.mjs";
+import { reconstructAsset } from "../../scripts/vendor-assets.mjs";
 
 export const MIME = {
   ".html": "text/html; charset=utf-8",

@@ -13,7 +13,7 @@ const extensionRoot = fileURLToPath(new URL("..", import.meta.url));
 test("canvas exposes layout, PNG, PDF, and editable PowerPoint output", async () => {
   const source = await readFile(join(extensionRoot, "extension.mjs"), "utf8");
   // The headless browser flags live in the runtime shared with the CLI.
-  const browser = await readFile(join(extensionRoot, "runtime", "browser.mjs"), "utf8");
+  const browser = await readFile(join(extensionRoot, "hosts", "node", "browser.mjs"), "utf8");
   const html = await readFile(join(extensionRoot, "renderer", "index.html"), "utf8");
 
   assert.match(source, /name: "inspect_layout"/);

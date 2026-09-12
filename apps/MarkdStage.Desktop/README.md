@@ -63,19 +63,24 @@ Run the UI Automation tests while the app is running.
 tests\MarkdStage.UiTests\ui-tests.ps1 -AppPid <PID>
 ```
 
-## Portable build
+## MSIX build
 
-Create an unpackaged folder containing the Windows App SDK and .NET runtime, then package it as a
-ZIP file.
+Publish the GUI and console launcher into one package, including Windows App SDK,
+.NET, and the shared JavaScript/renderer assets. Use a publisher matching your
+development signing certificate:
 
 ```powershell
-scripts\Publish.ps1 -Architecture x64
-scripts\Publish.ps1 -Architecture arm64
+scripts\Publish.ps1 -Architecture x64 -CertificatePath <certificate.pfx> -Publisher <certificate-subject>
+scripts\Publish.ps1 -Architecture arm64 -CertificatePath <certificate.pfx> -Publisher <certificate-subject>
 ```
 
-The output is `artifacts\MarkdStage-win-<architecture>.zip`, and the entry point is
-`MarkdStageApp.exe`. This is a folder-based distribution rather than a single executable; it
-includes the renderer, native DLLs, and third-party notices.
+The output is `artifacts\MarkdStage-win-<architecture>.msix` and a SHA-256 checksum.
+The single application entry is `MarkdStageApp.exe`; the `markdstage.exe` execution
+alias targets `MarkdStageCli.exe`. For unsigned Store submission artifacts use
+`-Unsigned -PackageName <Partner-Center-name> -Publisher <Partner-Center-publisher>`.
+Unsigned output is not an installable public release. Supply `-Version <major.minor.patch.0>`
+when preparing the product release; use the actual Store identity, not the checked-in
+development placeholder.
 
 Microsoft Edge WebView2 Runtime is required on the target system. The audience view uses a native
 window built into the app, so a separate Edge, Chrome, or Chromium installation is not required.
@@ -103,7 +108,74 @@ window built into the app, so a separate Edge, Chrome, or Chromium installation 
 Markdown editing, PDF export, the Architecture editor, and a timer are outside the scope of the
 initial release.
 
-## Planned behaviour
+## Desktop v4 package and Store cutover
+
+The v4 implementation targets MSIX; it has not been released to the Store by this
+change. Package identity/publisher values must match Partner Center before Store
+submission. The existing [MSIX specification](docs/desktop-behaviour-msix.md) stays
+in place until v4 ships.
+
+The first Store release ends archive distribution immediately: no new archive
+builds or updates of any kind follow it. Install the Store version and remove the
+old extracted app folder; retaining both is not supported. There is no archive
+detection or state migration. Recent workspaces and window/theme settings start
+fresh, but decks, assets, and themes are unchanged. Uninstall removes package-owned
+settings and temporary data, never workspace files.
+
+The packaged CLI uses the alias `markdstage` and does not bundle or acquire Node.
+Pass a Markdown file or `--workspace`; a process working directory alone is not a
+workspace. Relative shell arguments are made absolute before the common resolution
+rule. A file chooses its nearest `.git` ancestor or its containing folder, without
+requiring Git.
+
+For packaged skill installation, specify the target root explicitly, for example
+`markdstage skill install --target codex --root C:\decks`. `help` and `guide`
+need no workspace or browser.
+
+### Store listing prerequisite disclosure
+
+**MarkdStage — Markdown, ready for the stage.** Present Markdown decks with a
+current/next-slide presenter view, speaker notes, a synchronized audience window,
+and Surface Pen navigation. Open your own workspace folders; your content stays
+in your files. The graphical app is a presenter, not a PDF/PowerPoint exporter.
+PDF and PowerPoint exports are available through the included command-line tool.
+
+Microsoft Edge WebView2 Runtime is required. The command-line presentation,
+inspection, capture, and export commands additionally require an installed
+Microsoft Edge, Google Chrome, or Chromium browser. Organization policy disabling
+remote debugging prevents inspection, capture, and export. No browser or runtime
+is downloaded or installed by MarkdStage.
+
+### Windows acceptance before submission
+
+Run these checks on a locally registered package for both supported architectures;
+a successful source build is not a substitute for package activation tests.
+
+- Verify the package has one application entry, Start-menu activation opens the
+  native window, and `markdstage` resolves to the console launcher. Run from a
+  different directory, with Unicode/spaced filenames and redirected UTF-8 output.
+- Test every CLI command, large JSON output, stdin/stdout pipelines, exact exit
+  codes, Ctrl+C/Ctrl+Break, and browser/profile cleanup after cancellation and crash.
+- Test `validate` with no external browser installed. Test layout/export commands
+  with no browser and with remote debugging disabled by policy.
+- Confirm external Chromium can write the package temporary profile and produce
+  inspection, PNG, PDF, and editable PowerPoint output. Repeat with the
+  Store-distributed package before submission approval; this remains a release
+  blocker until measured.
+- Test folder/file picker, file association, drag-and-drop, `.git` worktree files,
+  explicit workspace containment, symlinks/junctions/mount points, and size limits.
+- Test recent-folder order/limit, unavailable-folder locate/remove, loss of an
+  open workspace, one window per canonical root, and independent navigation across
+  different workspaces. Failed reloads must retain the displayed deck.
+- Test current/next previews, notes, audience open/close, F11/Esc, overview, pointer
+  navigation, Surface Pen, custom themes, and existing representative decks.
+- Test missing WebView2/inaccessible data storage: selectable full-window
+  recovery text, vendor link, retry, and a still movable/closable window.
+- Verify restart persists only recent workspaces, window geometry, and chosen
+  theme; uninstall leaves workspace content intact. Check that no GUI export
+  controls or archive detection/migration appear.
+
+## Specification lifetime
 
 This file documents what the app does today. The user-facing behaviour planned for the MSIX /
 Microsoft Store version is specified in

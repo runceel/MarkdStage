@@ -8,7 +8,7 @@ import { sceneToPptxElements } from "../../.github/extensions/markdstage/rendere
 import { buildPptxPackage as buildPptxBytes, inspectPptxPackage } from "../../.github/extensions/markdstage/runtime/pptx-package.mjs";
 import { withDeckServer } from "../../packages/markdstage-cli/src/deck.mjs";
 import { exportPptx } from "../../.github/extensions/markdstage/runtime/output.mjs";
-import { runPptxOutputBrowser } from "../../.github/extensions/markdstage/runtime/browser.mjs";
+import { runPptxOutputBrowser } from "../../.github/extensions/markdstage/hosts/node/browser.mjs";
 
 const buildPptxPackage = (model) => Buffer.from(buildPptxBytes(model));
 

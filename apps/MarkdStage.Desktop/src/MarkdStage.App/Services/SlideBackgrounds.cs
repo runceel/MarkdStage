@@ -53,24 +53,4 @@ internal static class SlideBackgrounds
         }
     }
 
-    public static void Validate(DeckDocument document, string sourcePath, string workspaceRoot)
-    {
-        for (var index = 0; index < document.Slides.Count; index++)
-        {
-            var metadata = MarkdownDeckParser.GetFragmentMetadata(document.Slides[index]);
-            if (!metadata.TryGetValue("background-image", out var value))
-            {
-                continue;
-            }
-
-            try
-            {
-                Resolve(sourcePath, workspaceRoot, value);
-            }
-            catch (DeckLoadException error)
-            {
-                throw new DeckLoadException($"Slide {index + 1}: {error.Message}", error);
-            }
-        }
-    }
 }

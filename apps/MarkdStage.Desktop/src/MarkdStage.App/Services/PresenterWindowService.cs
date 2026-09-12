@@ -13,6 +13,7 @@ internal sealed class PresenterWindowService : IAsyncDisposable
 {
     private readonly SurfacePenListener _surfacePenListener;
     private CoreWebView2Environment? _environment;
+    private string? _workspaceRoot;
     private PresenterWindow? _window;
     private TaskCompletionSource<object?>? _windowClosed;
     private Task _surfacePenStopTask = Task.CompletedTask;
@@ -36,6 +37,7 @@ internal sealed class PresenterWindowService : IAsyncDisposable
     /// creating its own.
     /// </summary>
     public void SetEnvironment(CoreWebView2Environment environment) => _environment = environment;
+    public void SetWorkspaceRoot(string root) => _workspaceRoot = root;
 
     public async Task OpenAsync(Uri baseUri)
     {
@@ -51,7 +53,7 @@ internal sealed class PresenterWindowService : IAsyncDisposable
                 "Microsoft Edge WebView2 Runtime is still initializing. Try again in a moment.");
 
         var presenterUri = new UriBuilder(baseUri) { Query = "present=1" }.Uri;
-        var window = new PresenterWindow(environment, presenterUri);
+        var window = new PresenterWindow(environment, presenterUri, _workspaceRoot);
         window.Closed += OnWindowClosed;
         window.WebViewInitializationFailed += OnWebViewInitializationFailed;
         _window = window;

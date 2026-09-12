@@ -18,12 +18,15 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <Compile Include="..\..\src\MarkdStage.Cli\CliArguments.cs" Link="Cli\CliArguments.cs" />
+    <Compile Include="..\..\src\MarkdStage.Cli\HostCommands.cs" Link="Cli\HostCommands.cs" />
+    <Compile Include="..\..\src\MarkdStage.Cli\BrowserProcess.cs" Link="Cli\BrowserProcess.cs" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\MarkdStage.Core\MarkdStage.Core.csproj" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <Compile Include="..\..\src\MarkdStage.App\Services\DeckLoader.cs" Link="Services\DeckLoader.cs" />
+    <Compile Include="..\..\src\MarkdStage.App\Services\DeckLoadException.cs" Link="Services\DeckLoadException.cs" />
     <Compile Include="..\..\src\MarkdStage.App\Services\DeckAssetResolver.cs" Link="Services\DeckAssetResolver.cs" />
     <Compile Include="..\..\src\MarkdStage.App\Services\SlideBackgrounds.cs" Link="Services\SlideBackgrounds.cs" />
     <Compile Include="..\..\src\MarkdStage.App\Services\PathSecurity.cs" Link="Services\PathSecurity.cs" />

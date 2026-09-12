@@ -1,11 +1,12 @@
 import { constants, watch as watchDirectory } from "node:fs";
 import { lstat, realpath, open, opendir, mkdir, mkdtemp, rename, link, unlink, rm } from "node:fs/promises";
-import { basename, extname, isAbsolute, join, relative, sep } from "node:path";
+import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { IO_LIMITS, isWorkspacePath } from "./io.mjs";
-import { findChromiumBrowser, terminateProcessTree, delay } from "./browser.mjs";
+import { MarkdStageError } from "./errors.mjs";
+import { findChromiumBrowser, terminateProcessTree, delay } from "../hosts/node/browser.mjs";
 
 const MESSAGES = Object.freeze({
   denied: "The operation is not permitted.",
@@ -18,6 +19,62 @@ const MESSAGES = Object.freeze({
 const MAX_ENTRIES = 10_000;
 const MAX_DEPTH = 64;
 const PURPOSES = new Set(["inspect", "capture", "pdf", "pptx", "present"]);
+
+// Argument resolution belongs to the entry point; no arguments means no workspace.
+export async function resolveNodeWorkspace({ workspaceRoot, file } = {}) {
+  for (const value of [workspaceRoot, file]) {
+    if (value !== undefined && (typeof value !== "string" || !value || !isAbsolute(value))) {
+      throw new MarkdStageError("invalid_input", "Workspace resolution requires absolute arguments.");
+    }
+  }
+  if (!workspaceRoot && !file) {
+    throw new MarkdStageError("invalid_input", "Specify --workspace or a Markdown file.");
+  }
+  let requestedRoot = workspaceRoot;
+  if (!requestedRoot) {
+    const containingDirectory = dirname(file);
+    requestedRoot = containingDirectory;
+    for (let candidate = containingDirectory; ; candidate = dirname(candidate)) {
+      try {
+        await lstat(join(candidate, ".git"));
+        requestedRoot = candidate;
+        break;
+      } catch (error) {
+        if (error.code !== "ENOENT" && error.code !== "ENOTDIR") {
+          throw new MarkdStageError("io_failed", "Could not resolve the workspace.");
+        }
+      }
+      if (dirname(candidate) === candidate) break;
+    }
+  }
+  let root;
+  try {
+    root = await realpath(requestedRoot);
+    if (!(await lstat(root)).isDirectory()) throw new Error();
+  } catch {
+    throw new MarkdStageError("workspace_not_found", "The workspace directory is unavailable.");
+  }
+  let source;
+  if (file) {
+    const normalizedRoot = resolve(requestedRoot);
+    if (!inside(normalizedRoot, file)) {
+      throw new MarkdStageError("path_outside_workspace", "Markdown files must stay inside the workspace.");
+    }
+    const path = relative(normalizedRoot, file).split(sep).join("/");
+    const io = await createNodeIO({ workspaceRoot: root });
+    const result = await io.stat(path);
+    if (!result.ok) {
+      const code = result.code === "denied" ? "path_outside_workspace"
+        : result.code === "missing" ? "file_not_found" : "io_failed";
+      throw new MarkdStageError(code, "The Markdown file is unavailable within the workspace.");
+    }
+    if (result.value.kind !== "file") {
+      throw new MarkdStageError("file_not_found", "The Markdown file is unavailable.");
+    }
+    source = join(root, ...path.split("/"));
+  }
+  return { workspaceRoot: root, file: source };
+}
 
 class PortError extends Error {
   constructor(code, message = MESSAGES[code]) {

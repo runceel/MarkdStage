@@ -1,0 +1,60 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <AssemblyName>MarkdStageCli</AssemblyName>
+    <RootNamespace>MarkdStage.Cli</RootNamespace>
+    <Platforms>x64;ARM64</Platforms>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSdkBootstrapInitialize>false</WindowsAppSdkBootstrapInitialize>
+    <PublishTrimmed>false</PublishTrimmed>
+    <PublishSingleFile>false</PublishSingleFile>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.4.0" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\MarkdStage.Core\MarkdStage.Core.csproj" />
+    <Compile Include="..\MarkdStage.App\Services\AppStorage.cs" Link="Services\AppStorage.cs" />
+    <Compile Include="..\MarkdStage.App\Services\PresentationServer.cs" Link="Services\PresentationServer.cs" />
+    <Compile Include="..\MarkdStage.App\Services\DeckAssetResolver.cs" Link="Services\DeckAssetResolver.cs" />
+    <Compile Include="..\MarkdStage.App\Services\PathSecurity.cs" Link="Services\PathSecurity.cs" />
+    <Compile Include="..\MarkdStage.App\Services\VendorAssetProvider.cs" Link="Services\VendorAssetProvider.cs" />
+    <Compile Include="..\MarkdStage.App\Services\ThemeService.cs" Link="Services\ThemeService.cs" />
+    <Compile Include="..\MarkdStage.App\Services\SlideBackgrounds.cs" Link="Services\SlideBackgrounds.cs" />
+    <Compile Include="..\MarkdStage.App\Services\DeckLoadException.cs" Link="Services\DeckLoadException.cs" />
+  </ItemGroup>
+  <PropertyGroup>
+    <RepositoryRoot>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\..\..\..'))</RepositoryRoot>
+  </PropertyGroup>
+  <ItemGroup>
+    <Content Include="$(RepositoryRoot)\.github\extensions\markdstage\renderer\index.html">
+      <Link>Web\index.html</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="$(RepositoryRoot)\.github\extensions\markdstage\renderer\**\*"
+             Exclude="$(RepositoryRoot)\.github\extensions\markdstage\renderer\index.html">
+      <Link>Web\renderer\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="$(RepositoryRoot)\.github\extensions\markdstage\vendor\**\*">
+      <Link>Web\vendor\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+  <Import Project="PackageAssets.targets" />
+  <Target Name="GetNativeLauncherFiles" DependsOnTargets="Build" Returns="@(_NativeLauncherFiles)">
+    <ItemGroup>
+      <_NativeLauncherFiles Include="$(TargetDir)MarkdStageCli.*" />
+    </ItemGroup>
+  </Target>
+</Project>

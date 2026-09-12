@@ -17,7 +17,7 @@ CLI は Canvas Extension と同じ Markdown パーサー、レンダラー、テ
 ## コマンド
 
 ```console
-markdstage
+markdstage --workspace .
 markdstage slides.md
 markdstage present slides.md
 markdstage preview slides.md --watch
@@ -31,7 +31,7 @@ markdstage guide architecture-dsl
 markdstage skill install --target codex
 ```
 
-`markdstage` は、現在のワークスペースを対象に Canvas と同等の空の UI を開きます。
+`markdstage --workspace .` は、明示したワークスペースを対象に Canvas と同等の空の UI を開きます。
 **Open Markdown** からデッキを選びます。`markdstage slides.md` は同じ UI にそのファイルを
 読み込み、自動更新を有効にしてスライド表示で起動します。
 
@@ -50,6 +50,11 @@ markdstage skill install --target codex
 アプリケーションのオプションは `--workspace <dir>`、`--theme <name>`、
 `--theme-file <path>`、`--no-open`、`--json` です。ヘルプとバージョンは
 `--help`、`--version` で表示します。
+
+ファイルまたは `--workspace` を指定してください。引数なしでは作業ディレクトリから
+ワークスペースを推測しません。ファイルだけを指定した場合、最も近い `.git` エントリーのある
+親フォルダーを使用し、なければファイルのフォルダーを使用します。相対引数はこの処理の前に
+呼び出し元のディレクトリを基準として絶対パスに変換します。
 
 ```console
 markdstage help

@@ -38,6 +38,7 @@ public sealed partial class PresenterWindow : Window
 
     private readonly CoreWebView2Environment _environment;
     private readonly Uri _presenterUri;
+    private readonly string? _workspaceRoot;
     private readonly CancellationTokenSource _lifetime = new();
     private Task? _initializationTask;
     private bool _closed;
@@ -49,11 +50,12 @@ public sealed partial class PresenterWindow : Window
     /// </summary>
     public event EventHandler<string>? WebViewInitializationFailed;
 
-    public PresenterWindow(CoreWebView2Environment environment, Uri presenterUri)
+    public PresenterWindow(CoreWebView2Environment environment, Uri presenterUri, string? workspaceRoot = null)
     {
         InitializeComponent();
         _environment = environment;
         _presenterUri = presenterUri;
+        _workspaceRoot = workspaceRoot;
 
         AppWindow.SetIcon("Assets/AppIcon.ico");
         WindowSizing.ResizeToDips(AppWindow, InitialWidthDip, InitialHeightDip);
@@ -82,6 +84,8 @@ public sealed partial class PresenterWindow : Window
             }
 
             WebViewPolicy.Configure(PresenterWebView, () => _presenterUri);
+            NativeAssetMappings.ConfigurePackage(PresenterWebView);
+            if (_workspaceRoot is not null) NativeAssetMappings.ConfigureWorkspace(PresenterWebView, _workspaceRoot);
             var webView = PresenterWebView.CoreWebView2;
             webView.Settings.AreBrowserAcceleratorKeysEnabled = false;
             webView.WebMessageReceived += OnWebMessageReceived;

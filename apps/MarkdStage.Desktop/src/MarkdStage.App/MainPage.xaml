@@ -8,6 +8,9 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:viewModels="using:MarkdStageApp.ViewModels"
     KeyDown="OnPageKeyDown"
+    AllowDrop="True"
+    DragOver="OnDragOver"
+    Drop="OnDrop"
     IsTabStop="True"
     mc:Ignorable="d">
 
@@ -23,6 +26,18 @@
             x:Name="PresenterCommandBar"
             DefaultLabelPosition="Right"
             IsOpen="False">
+            <AppBarButton Click="OnOpenFolderClick" Icon="Folder" Label="Open folder" />
+            <AppBarButton Icon="FontColor" Label="Theme">
+                <AppBarButton.Flyout>
+                    <MenuFlyout>
+                        <MenuFlyoutItem Text="Use deck theme" Tag="" Click="OnThemeClick" />
+                        <MenuFlyoutItem Text="Dark" Tag="dark" Click="OnThemeClick" />
+                        <MenuFlyoutItem Text="Light" Tag="light" Click="OnThemeClick" />
+                        <MenuFlyoutItem Text="Microsoft" Tag="microsoft" Click="OnThemeClick" />
+                        <MenuFlyoutItem Text="Custom" Tag="custom" Click="OnThemeClick" />
+                    </MenuFlyout>
+                </AppBarButton.Flyout>
+            </AppBarButton>
             <AppBarButton
                 AutomationProperties.AutomationId="OpenMarkdownButton"
                 Command="{x:Bind ViewModel.OpenMarkdownCommand}"
@@ -260,6 +275,37 @@
                 </Button.KeyboardAccelerators>
             </Button>
         </Grid>
+
+        <Border x:Name="WorkspaceStartScreen" Grid.Row="2"
+                Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
+            <StackPanel MaxWidth="760" HorizontalAlignment="Stretch" Spacing="16">
+                <TextBlock x:Name="WorkspaceHeading" Text="Open a workspace"
+                           Style="{StaticResource TitleTextBlockStyle}" TextWrapping="Wrap" />
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <Button Content="Open folder…" Click="OnOpenFolderClick" />
+                    <Button Content="Open Markdown file…" Command="{x:Bind ViewModel.OpenMarkdownCommand}" />
+                    <Button x:Name="RefreshWorkspaceButton" Content="Refresh" Click="OnRefreshWorkspaceClick" Visibility="Collapsed" />
+                </StackPanel>
+                <ListView x:Name="WorkspaceItems" IsItemClickEnabled="True" ItemClick="OnWorkspaceItemClick"
+                          MaxHeight="500" SelectionMode="None" />
+            </StackPanel>
+        </Border>
+        <WebView2 x:Name="RuntimeWebView" Width="1" Height="1" Opacity="0"
+                  IsHitTestVisible="False" IsTabStop="False" />
+        <Border x:Name="RuntimeMissingScreen" Grid.RowSpan="4" Visibility="Collapsed"
+                Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
+            <StackPanel MaxWidth="620" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="20">
+                <TextBlock Text="MarkdStage can't start" Style="{StaticResource TitleTextBlockStyle}"
+                           IsTextSelectionEnabled="True" />
+                <TextBlock Text="MarkdStage needs the Microsoft Edge WebView2 Runtime, which isn't installed on this PC. Most Windows PCs already have it; on this one it's missing or its data folder isn't accessible."
+                           IsTextSelectionEnabled="True" TextWrapping="Wrap" />
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <HyperlinkButton Content="Get the runtime"
+                        NavigateUri="https://developer.microsoft.com/microsoft-edge/webview2/" />
+                    <Button Content="Try again" Click="OnRetryRuntimeClick" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
 
         <ContentDialog
             x:Name="SlideOverviewDialog"

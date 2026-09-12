@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { expect, test, chromium } from "@playwright/test";
 import { withDeckServer } from "../../packages/markdstage-cli/src/deck.mjs";
 import { exportPptx } from "../../.github/extensions/markdstage/runtime/output.mjs";
-import { runPptxOutputBrowser } from "../../.github/extensions/markdstage/runtime/browser.mjs";
+import { runPptxOutputBrowser } from "../../.github/extensions/markdstage/hosts/node/browser.mjs";
 import { inspectPptxPackage } from "../../.github/extensions/markdstage/runtime/pptx-package.mjs";
 import { clickMoreControl } from "../utils/nav.mjs";
 import { waitForSlideReady } from "../utils/ready.mjs";

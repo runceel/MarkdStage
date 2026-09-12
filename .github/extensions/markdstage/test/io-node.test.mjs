@@ -10,7 +10,7 @@ import { dirname, join } from "node:path";
 import { createNodeIO } from "../runtime/io-node.mjs";
 import { createHostIO } from "../runtime/io-host.mjs";
 import { IO_LIMITS, IO_OPERATIONS } from "../runtime/io.mjs";
-import { findChromiumBrowser } from "../runtime/browser.mjs";
+import { findChromiumBrowser } from "../hosts/node/browser.mjs";
 
 async function fixture(t) {
   const directory = await fs.mkdtemp(join(tmpdir(), ".io-node-test-"));

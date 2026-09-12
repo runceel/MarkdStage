@@ -33,12 +33,12 @@ reproducible installation.
 Run directly with `npx`, or install globally:
 
 ```console
-npx @markdstage/markdstage
+npx @markdstage/markdstage --workspace .
 npx @markdstage/markdstage slides.md
 npm install --global @markdstage/markdstage
 ```
 
-The first command opens an empty UI for the current workspace. The second opens
+The first command explicitly selects the current folder and opens an empty UI. The second opens
 `slides.md` in live slide view.
 
 For offline installation, download the versioned `markdstage-markdstage-<version>.tgz` asset and
@@ -67,3 +67,30 @@ The portable package already includes the required .NET and Windows App SDK comp
 3. Run `MarkdStageApp.exe`.
 
 See [MarkdStage Desktop](desktop.md) for presenting and navigation instructions.
+
+### Desktop v4 / Microsoft Store transition
+
+The MSIX conversion is in development; the instructions above remain for the
+published archive release. Store availability must be announced only after package
+acceptance. The v4 package includes the `markdstage` console alias and does not
+require Node.js. The desktop app is a **presenter**, with no PDF or PowerPoint
+export buttons; exports remain CLI-only.
+
+WebView2 Runtime is required for the app and the packaged CLI's script execution.
+Present/preview and layout inspection, capture, PDF, and PowerPoint export also
+require an installed Chromium-based browser. Remote debugging disabled by enterprise
+policy prevents inspection/capture/export; installing MarkdStage does not change
+that policy. `help`, `guide`, and skill installation do not require a browser.
+The app links to Microsoft's runtime download page and never downloads or installs
+third-party runtimes itself.
+
+The packaged CLI requires explicit paths: use a Markdown file or `--workspace`
+for deck commands, and `--root` (or `--workspace`) for `skill install` / `skill check`.
+
+The first Store release is the archive cutover: **no further archive updates of any
+kind will be published after it**. Install the Store version, open the same workspace,
+then delete the old extracted application folder. Keeping both installations is not
+a supported configuration. There is no archive detection or automatic migration:
+recent folders and window/theme preferences start fresh. Your Markdown, assets,
+and themes remain unchanged. Uninstalling the package removes its private settings
+and temporary data, not files in your workspaces.

@@ -4,6 +4,14 @@ namespace MarkdStageApp.Services;
 
 internal sealed class FilePickerService
 {
+    public async Task<string?> PickFolderAsync(nint windowHandle)
+    {
+        var picker = new FolderPicker { SuggestedStartLocation = PickerLocationId.DocumentsLibrary };
+        picker.FileTypeFilter.Add("*");
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, windowHandle);
+        return (await picker.PickSingleFolderAsync())?.Path;
+    }
+
     public async Task<string?> PickMarkdownAsync(nint windowHandle)
     {
         var picker = new FileOpenPicker

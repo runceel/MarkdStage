@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { chromium, expect, test } from "@playwright/test";
 import { exportPptx } from "../../.github/extensions/markdstage/runtime/output.mjs";
-import { runPptxOutputBrowser } from "../../.github/extensions/markdstage/runtime/browser.mjs";
+import { runPptxOutputBrowser } from "../../.github/extensions/markdstage/hosts/node/browser.mjs";
 import { inspectPptxPackage } from "../../.github/extensions/markdstage/runtime/pptx-package.mjs";
 import {
   BACKGROUND_COLORS,

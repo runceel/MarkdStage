@@ -30,6 +30,7 @@ const DECK_ERROR_CODES = new Set([
   "slide_out_of_range",
   "theme_file_not_found",
   "too_many_slides",
+  "workspace_not_found",
 ]);
 
 export class UsageError extends Error {

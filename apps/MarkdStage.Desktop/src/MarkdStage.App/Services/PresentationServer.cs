@@ -15,7 +15,9 @@ namespace MarkdStageApp.Services;
 
 internal sealed class PresentationServer(
     PresentationSession session,
-    Func<bool> presenterRunning) : IAsyncDisposable
+    Func<bool> presenterRunning,
+    Action<WebApplication, string>? configureRoutes = null,
+    bool mapAssets = false) : IAsyncDisposable
 {
     private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(2);
 
@@ -122,7 +124,8 @@ internal sealed class PresentationServer(
     {
         application.Use(async (context, next) =>
         {
-            if (!context.Request.Host.Host.Equals("127.0.0.1", StringComparison.Ordinal))
+            if (!context.Request.Host.Host.Equals("127.0.0.1", StringComparison.Ordinal) ||
+                BaseUri is not null && context.Request.Host.Port != BaseUri.Port)
             {
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;
                 return;
@@ -141,8 +144,11 @@ internal sealed class PresentationServer(
 
             context.Response.Headers.CacheControl = "no-store";
             context.Response.Headers.ContentSecurityPolicy =
-                "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; " +
-                "script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'";
+                "default-src 'self'; img-src 'self' data: https://workspace.markdstage.invalid https://web.markdstage.invalid; " +
+                "style-src 'self' 'unsafe-inline' https://web.markdstage.invalid https://workspace.markdstage.invalid; " +
+                "font-src 'self' https://workspace.markdstage.invalid https://web.markdstage.invalid; " +
+                "media-src 'self' https://workspace.markdstage.invalid; " +
+                "script-src 'self' https://web.markdstage.invalid; connect-src 'self'; object-src 'none'; base-uri 'none'";
             context.Response.Headers.XContentTypeOptions = "nosniff";
             await next();
         });
@@ -236,8 +242,8 @@ internal sealed class PresentationServer(
             }
 
             var changed = request.Index.HasValue
-                ? session.NavigateTo(request.Index.Value)
-                : session.NavigateBy(request.Delta!.Value);
+                ? await session.NavigateToAsync(request.Index.Value)
+                : await session.NavigateByAsync(request.Delta!.Value);
             snapshot = session.GetSnapshot();
 
             return Results.Json(new
@@ -257,10 +263,11 @@ internal sealed class PresentationServer(
             context.Response.Headers.CacheControl = "no-cache";
             context.Response.Headers.Connection = "keep-alive";
 
-            var channel = Channel.CreateUnbounded<long>(new UnboundedChannelOptions
+            var channel = Channel.CreateBounded<long>(new BoundedChannelOptions(1)
             {
                 SingleReader = true,
                 SingleWriter = false,
+                FullMode = BoundedChannelFullMode.DropOldest,
             });
             EventHandler<PresentationSnapshot> handler = (_, snapshot) =>
                 channel.Writer.TryWrite(snapshot.Version);
@@ -298,6 +305,7 @@ internal sealed class PresentationServer(
         application.MapGet($"{prefix}/theme-assets/{{**path}}", (
             HttpContext context,
             string path) => SendThemeAssetAsync(context, path));
+        configureRoutes?.Invoke(application, prefix);
     }
 
     private async Task SendDeckAssetAsync(HttpContext context, string relativePath)
@@ -313,7 +321,8 @@ internal sealed class PresentationServer(
         var resolved = DeckAssetResolver.Resolve(snapshot.SourcePath, snapshot.WorkspaceRoot, relativePath);
         if (resolved is not null)
         {
-            await SendFileAsync(context, resolved, MimeFor(resolved));
+            if (mapAssets) { RedirectWorkspaceAsset(context, snapshot.WorkspaceRoot, resolved); return; }
+            await SendFileAsync(context, resolved, MimeFor(resolved), 10 * 1024 * 1024);
             return;
         }
 
@@ -327,7 +336,8 @@ internal sealed class PresentationServer(
         {
             var resolved = SlideBackgrounds.Resolve(
                 snapshot.SourcePath, snapshot.WorkspaceRoot, "/assets/" + relativePath);
-            await SendFileAsync(context, resolved, MimeFor(resolved));
+            if (mapAssets) { RedirectWorkspaceAsset(context, snapshot.WorkspaceRoot, resolved); return; }
+            await SendFileAsync(context, resolved, MimeFor(resolved), SlideBackgrounds.MaxBytes);
         }
         catch (Exception error) when (error is DeckLoadException or IOException or UnauthorizedAccessException)
         {
@@ -347,7 +357,8 @@ internal sealed class PresentationServer(
         try
         {
             var resolved = ThemeService.ResolveAsset(root, relativePath);
-            await SendFileAsync(context, resolved, MimeFor(resolved));
+            if (mapAssets) { RedirectWorkspaceAsset(context, session.GetSnapshot().WorkspaceRoot, resolved); return; }
+            await SendFileAsync(context, resolved, MimeFor(resolved), 2 * 1024 * 1024);
         }
         catch (Exception error) when (error is DeckLoadException or IOException or UnauthorizedAccessException)
         {
@@ -355,7 +366,7 @@ internal sealed class PresentationServer(
         }
     }
 
-    private static Task SendStaticAsync(
+    private Task SendStaticAsync(
         HttpContext context,
         string root,
         string relativePath)
@@ -367,17 +378,44 @@ internal sealed class PresentationServer(
             return Task.CompletedTask;
         }
 
+        if (mapAssets)
+        {
+            context.Response.Redirect(MappedUrl("web.markdstage.invalid", Path.GetRelativePath(_webRoot, resolved)));
+            return Task.CompletedTask;
+        }
         return SendFileAsync(context, resolved, MimeFor(resolved));
     }
+
+    private static void RedirectWorkspaceAsset(HttpContext context, string root, string path) =>
+        context.Response.Redirect(MappedUrl("workspace.markdstage.invalid", Path.GetRelativePath(root, path)));
+
+    private static string MappedUrl(string host, string relative) =>
+        $"https://{host}/" + string.Join('/', relative.Replace('\\', '/').Split('/').Select(Uri.EscapeDataString));
 
     private static async Task SendFileAsync(
         HttpContext context,
         string path,
-        string contentType)
+        string contentType,
+        long maxBytes = long.MaxValue)
     {
-        context.Response.ContentType = contentType;
-        context.Response.ContentLength = new FileInfo(path).Length;
-        await context.Response.SendFileAsync(path, context.RequestAborted);
+        try
+        {
+            using var lease = WorkspacePathLease.Acquire(path, includeFile: true);
+            await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read,
+                65536, FileOptions.Asynchronous | FileOptions.SequentialScan);
+            if (stream.Length > maxBytes)
+            {
+                context.Response.StatusCode = StatusCodes.Status404NotFound;
+                return;
+            }
+            context.Response.ContentType = contentType;
+            context.Response.ContentLength = stream.Length;
+            await stream.CopyToAsync(context.Response.Body, context.RequestAborted);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            if (!context.Response.HasStarted) context.Response.StatusCode = StatusCodes.Status404NotFound;
+        }
     }
 
     private static string MimeFor(string path) =>
@@ -394,6 +432,10 @@ internal sealed class PresentationServer(
             ".webp" => "image/webp",
             ".avif" => "image/avif",
             ".ico" => "image/x-icon",
+            ".woff" => "font/woff",
+            ".woff2" => "font/woff2",
+            ".mp4" => "video/mp4",
+            ".webm" => "video/webm",
             _ => "application/octet-stream",
         };
 

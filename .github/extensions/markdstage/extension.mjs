@@ -80,7 +80,7 @@ import {
   findChromiumBrowser,
   isProcessRunning,
   terminateProcessTree,
-} from "./runtime/browser.mjs";
+} from "./hosts/node/browser.mjs";
 import {
   isPathInside,
   outputPathForSource,
@@ -103,7 +103,7 @@ import {
   safeJoin,
   sendChunkedVendorAsset as sendRuntimeChunkedVendorAsset,
   sendFile,
-} from "./runtime/static-files.mjs";
+} from "./hosts/node/static-files.mjs";
 
 const EXT_DIR = dirname(fileURLToPath(import.meta.url));
 const PEN_LISTENER_SCRIPT = join(EXT_DIR, "windows", "pen-button-listener.ps1");

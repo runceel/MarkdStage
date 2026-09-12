@@ -192,7 +192,7 @@ Markdown を自分で書くか、[最小の記述例](#markdown-format)や
 次のように実行できます。
 
 ```console
-npx @markdstage/markdstage
+npx @markdstage/markdstage --workspace .
 npx @markdstage/markdstage slides.md
 npx @markdstage/markdstage present slides.md
 ```

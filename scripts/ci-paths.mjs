@@ -68,6 +68,8 @@ function classifyExtensionPath(path, selection) {
   if (
     relative === "README.md" ||
     relative === "THIRD-PARTY-NOTICES.md" ||
+    relative === "architecture-reference.mjs" ||
+    relative === "architecture-validation.mjs" ||
     relative === "deck-state.mjs" ||
     relative === "markdown-deck.mjs" ||
     relative === "markdstage-guide.mjs" ||
@@ -85,7 +87,17 @@ function classifyExtensionPath(path, selection) {
 
   if (
     relative === "THIRD-PARTY-NOTICES.md" ||
+    relative === "architecture-reference.mjs" ||
+    relative === "architecture-validation.mjs" ||
+    relative === "deck-state.mjs" ||
+    relative === "markdown-deck.mjs" ||
+    relative === "markdstage-guide.mjs" ||
+    relative.startsWith("architecture-editor/") ||
+    relative.startsWith("docs/") ||
     relative.startsWith("renderer/") ||
+    relative.startsWith("runtime/") ||
+    relative.startsWith("schema/") ||
+    relative.startsWith("scripts/") ||
     relative.startsWith("vendor/") ||
     relative.startsWith("windows/")
   ) {

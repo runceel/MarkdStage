@@ -4,7 +4,7 @@ import { chromium, expect, test } from "@playwright/test";
 
 import { withDeckServer } from "../../packages/markdstage-cli/src/deck.mjs";
 import { createOutputJob, createOutputSnapshot, exportPptx } from "../../.github/extensions/markdstage/runtime/output.mjs";
-import { runPptxOutputBrowser } from "../../.github/extensions/markdstage/runtime/browser.mjs";
+import { runPptxOutputBrowser } from "../../.github/extensions/markdstage/hosts/node/browser.mjs";
 import { inspectPptxPackage } from "../../.github/extensions/markdstage/runtime/pptx-package.mjs";
 import { REPO_ROOT, startHarness } from "../harness/server.mjs";
 import { readSystemsPackage } from "../utils/systems-fallback-contract.mjs";

@@ -26,6 +26,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Include="Assets\*.html">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
     <Content Include="Assets\SplashScreen.scale-200.png" />
     <Content Include="Assets\LockScreenLogo.scale-200.png" />
     <Content Include="Assets\Square150x150Logo.scale-200.png" />
@@ -43,6 +47,11 @@
 
   <ItemGroup>
     <Manifest Include="$(ApplicationManifest)" />
+    <Content Include="Package.appxmanifest">
+      <Link>appxmanifest.xml</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
   </ItemGroup>
 
   <PropertyGroup>
@@ -107,6 +116,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\MarkdStage.Core\MarkdStage.Core.csproj" />
+    <ProjectReference Include="..\MarkdStage.Cli\MarkdStage.Cli.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <!--
@@ -143,4 +153,16 @@
       DestinationFiles="@(_WinUIAsset->'$(PublishDir)Assets\%(RecursiveDir)%(Filename)%(Extension)')"
       SkipUnchangedFiles="true" />
   </Target>
+  <Target Name="CopyNativeCliToAppOutput" AfterTargets="Build">
+    <MSBuild Projects="..\MarkdStage.Cli\MarkdStage.Cli.csproj"
+             Targets="GetNativeLauncherFiles"
+             Properties="Configuration=$(Configuration);Platform=$(Platform);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=$(SelfContained);WindowsAppSDKSelfContained=$(WindowsAppSDKSelfContained)">
+      <Output TaskParameter="TargetOutputs" ItemName="_NativeCliFiles" />
+    </MSBuild>
+    <Copy SourceFiles="@(_NativeCliFiles)" DestinationFolder="$(TargetDir)" SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="CopyNativeCliToAppPublish" AfterTargets="Publish" DependsOnTargets="CopyNativeCliToAppOutput">
+    <Copy SourceFiles="@(_NativeCliFiles)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" />
+  </Target>
+  <Import Project="..\MarkdStage.Cli\PackageAssets.targets" />
 </Project>

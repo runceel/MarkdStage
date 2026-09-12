@@ -34,6 +34,11 @@ jobs:
 
       - name: Verify version, tag, and release links
         shell: bash
+        env:
+          STORE_ACCEPTED_SHA: ${{ vars.MARKDSTAGE_STORE_ACCEPTED_SHA }}
+          STORE_URL: ${{ vars.MARKDSTAGE_STORE_URL }}
+          PACKAGE_NAME: ${{ vars.MARKDSTAGE_PACKAGE_NAME }}
+          PACKAGE_PUBLISHER: ${{ vars.MARKDSTAGE_PACKAGE_PUBLISHER }}
         run: |
           set -euo pipefail
           version=$(node -p "require('./packages/markdstage-cli/package.json').version")
@@ -43,6 +48,16 @@ jobs:
             exit 1
           fi
           expected="v${version}"
+          if [ "${version%%.*}" -lt 4 ]; then
+            echo "This source implements the v4 Store cutover; do not publish it as an archive-era release."
+            exit 1
+          fi
+          if [ "$STORE_ACCEPTED_SHA" != "$GITHUB_SHA" ] ||
+             [[ ! "$STORE_URL" =~ ^https://apps\.microsoft\.com/detail/[A-Za-z0-9]+$ ]] ||
+             [ -z "$PACKAGE_NAME" ] || [ -z "$PACKAGE_PUBLISHER" ]; then
+            echo "Complete Windows/Store acceptance for this commit and configure the documented Store release variables."
+            exit 1
+          fi
           if [ "$GITHUB_REF_NAME" != "$expected" ]; then
             echo "Tag $GITHUB_REF_NAME does not match the unified product version $version."
             echo "Expected tag: $expected"
@@ -56,13 +71,12 @@ jobs:
           }
           for readme in README.md README.ja.md; do
             release_link_count=$(grep -Fc "releases/tag/${GITHUB_REF_NAME}" "$readme")
-            test "$release_link_count" -eq 2 || {
-              echo "$readme must contain exactly two current-release links for $GITHUB_REF_NAME."
+            test "$release_link_count" -ge 1 || {
+              echo "$readme must link to the current release $GITHUB_REF_NAME."
               exit 1
             }
             grep -F "tree/${GITHUB_REF_NAME}/.github/extensions/markdstage" "$readme"
-            grep -F "releases/download/${GITHUB_REF_NAME}/MarkdStage-win-x64.zip" "$readme"
-            grep -F "releases/download/${GITHUB_REF_NAME}/MarkdStage-win-arm64.zip" "$readme"
+            grep -F "$STORE_URL" "$readme"
           done
           notes=".github/release-notes/${GITHUB_REF_NAME}.md"
           test -f "$notes" || {
@@ -177,29 +191,35 @@ jobs:
       - name: WinUI build
         run: dotnet build apps\MarkdStage.Desktop\src\MarkdStage.App\MarkdStage.App.csproj -c Release -r win-x64 -p:Platform=x64
 
-      - name: x64 portable publish
+      - name: x64 Store package
         shell: pwsh
-        run: apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture x64
+        env:
+          PACKAGE_NAME: ${{ vars.MARKDSTAGE_PACKAGE_NAME }}
+          PACKAGE_PUBLISHER: ${{ vars.MARKDSTAGE_PACKAGE_PUBLISHER }}
+        run: apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture x64 -Unsigned -PackageName $env:PACKAGE_NAME -Publisher $env:PACKAGE_PUBLISHER -Version "$($env:GITHUB_REF_NAME.TrimStart('v')).0"
 
-      - name: ARM64 portable publish
+      - name: ARM64 Store package
         shell: pwsh
-        run: apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture arm64
+        env:
+          PACKAGE_NAME: ${{ vars.MARKDSTAGE_PACKAGE_NAME }}
+          PACKAGE_PUBLISHER: ${{ vars.MARKDSTAGE_PACKAGE_PUBLISHER }}
+        run: apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture arm64 -Unsigned -PackageName $env:PACKAGE_NAME -Publisher $env:PACKAGE_PUBLISHER -Version "$($env:GITHUB_REF_NAME.TrimStart('v')).0"
 
       - name: Upload Desktop artifacts
         uses: actions/upload-artifact@v5
         with:
           name: markdstage-desktop-release
           path: |
-            apps/MarkdStage.Desktop/artifacts/MarkdStage-win-x64.zip
-            apps/MarkdStage.Desktop/artifacts/MarkdStage-win-x64.zip.sha256
-            apps/MarkdStage.Desktop/artifacts/MarkdStage-win-arm64.zip
-            apps/MarkdStage.Desktop/artifacts/MarkdStage-win-arm64.zip.sha256
+            apps/MarkdStage.Desktop/artifacts/MarkdStage-win-x64.msix
+            apps/MarkdStage.Desktop/artifacts/MarkdStage-win-x64.msix.sha256
+            apps/MarkdStage.Desktop/artifacts/MarkdStage-win-arm64.msix
+            apps/MarkdStage.Desktop/artifacts/MarkdStage-win-arm64.msix.sha256
           retention-days: 7
           if-no-files-found: error
 
   npm:
     name: Publish npm package
-    needs: validate
+    needs: [validate, desktop]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -299,24 +319,23 @@ jobs:
         run: |
           set -euo pipefail
           cd release-assets
-          sed -i 's/\r$//' MarkdStage-win-x64.zip.sha256 MarkdStage-win-arm64.zip.sha256
+          sed -i 's/\r$//' MarkdStage-win-x64.msix.sha256 MarkdStage-win-arm64.msix.sha256
           sed -i 's/\r$//' markdstage-markdstage-*.tgz.sha256
           sha256sum -c "markdstage-${GITHUB_REF_NAME}.zip.sha256"
           sha256sum -c markdstage-markdstage-*.tgz.sha256
-          sha256sum -c MarkdStage-win-x64.zip.sha256
-          sha256sum -c MarkdStage-win-arm64.zip.sha256
+          sha256sum -c MarkdStage-win-x64.msix.sha256
+          sha256sum -c MarkdStage-win-arm64.msix.sha256
 
       - name: Generate release notes
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          STORE_URL: ${{ vars.MARKDSTAGE_STORE_URL }}
         run: |
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
           extension_sha=$(awk '{print $1}' "release-assets/markdstage-${GITHUB_REF_NAME}.zip.sha256")
           cli_sha=$(awk '{print $1}' release-assets/markdstage-markdstage-*.tgz.sha256)
-          x64_sha=$(awk '{print $1}' release-assets/MarkdStage-win-x64.zip.sha256)
-          arm64_sha=$(awk '{print $1}' release-assets/MarkdStage-win-arm64.zip.sha256)
           gh api --method POST "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
             -f tag_name="$GITHUB_REF_NAME" --jq .body > generated-notes.md
           cp ".github/release-notes/${GITHUB_REF_NAME}.md" release-notes.md
@@ -332,10 +351,16 @@ jobs:
 
           ## Requirements
 
-          - CLI: Node.js 24 or later and Microsoft Edge, Google Chrome, or Chromium
+          - npm CLI: Node.js 24 or later and Microsoft Edge, Google Chrome, or Chromium
           - Desktop: Windows 10 or Windows 11, x64 or ARM64, and Microsoft Edge WebView2 Runtime
+          - Packaged CLI: WebView2 for script execution; installed Chromium for presentation, inspection, capture, and export. Remote-debugging policy can disable inspection, capture, and export.
 
-          Desktop ZIP files are self-contained and include Windows App SDK and the .NET runtime.
+          Install Desktop from Microsoft Store: ${STORE_URL}
+          The package includes the command-line alias and requires no Node runtime.
+          PDF/PowerPoint export remains CLI-only; the graphical app is a presenter.
+          Archive builds receive no further updates. Install the Store version, then remove the
+          old extracted app folder. Recent workspaces and window/theme settings do not migrate.
+          Your decks, assets, and themes are unchanged, and uninstall never removes workspace content.
           Third-party license information is included in each distribution.
 
           Install the version-pinned Extension from:
@@ -348,8 +373,6 @@ jobs:
           | --- | --- |
           | \`markdstage-${GITHUB_REF_NAME}.zip\` | \`${extension_sha}\` |
           | \`markdstage-markdstage-${version}.tgz\` | \`${cli_sha}\` |
-          | \`MarkdStage-win-x64.zip\` | \`${x64_sha}\` |
-          | \`MarkdStage-win-arm64.zip\` | \`${arm64_sha}\` |
 
           Verified commit: \`${GITHUB_SHA}\`
 
@@ -369,10 +392,6 @@ jobs:
             "release-assets/markdstage-${GITHUB_REF_NAME}.zip.sha256"
             release-assets/markdstage-markdstage-*.tgz
             release-assets/markdstage-markdstage-*.tgz.sha256
-            "release-assets/MarkdStage-win-x64.zip"
-            "release-assets/MarkdStage-win-x64.zip.sha256"
-            "release-assets/MarkdStage-win-arm64.zip"
-            "release-assets/MarkdStage-win-arm64.zip.sha256"
           )
           if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release edit "$GITHUB_REF_NAME" \
@@ -394,6 +413,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          STORE_URL: ${{ vars.MARKDSTAGE_STORE_URL }}
         run: |
           set -euo pipefail
           assets=$(gh release view "$GITHUB_REF_NAME" \
@@ -404,11 +424,7 @@ jobs:
             "markdstage-${GITHUB_REF_NAME}.zip" \
             "markdstage-${GITHUB_REF_NAME}.zip.sha256" \
             "markdstage-markdstage-${version}.tgz" \
-            "markdstage-markdstage-${version}.tgz.sha256" \
-            MarkdStage-win-x64.zip \
-            MarkdStage-win-x64.zip.sha256 \
-            MarkdStage-win-arm64.zip \
-            MarkdStage-win-arm64.zip.sha256; do
+            "markdstage-markdstage-${version}.tgz.sha256"; do
             grep -qx "$required" <<<"$assets" || {
               echo "Missing release asset: $required"
               exit 1
@@ -417,9 +433,4 @@ jobs:
           curl -fsSIL \
             "https://github.com/${GITHUB_REPOSITORY}/tree/${GITHUB_REF_NAME}/.github/extensions/markdstage" \
             >/dev/null
-          curl -fsSIL \
-            "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/MarkdStage-win-x64.zip" \
-            >/dev/null
-          curl -fsSIL \
-            "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/MarkdStage-win-arm64.zip" \
-            >/dev/null
+          curl -fsSIL "$STORE_URL" >/dev/null

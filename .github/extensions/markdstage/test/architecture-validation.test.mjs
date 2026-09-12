@@ -404,7 +404,7 @@ test("the registered pure tool separates invocation success from invalid content
 
 test("Canvas renderer uses the generic route and shared static module-serving helper", async () => {
   const extension = await readFile(new URL("../extension.mjs", import.meta.url), "utf8");
-  assert.match(extension, /sendFile,\s*\} from "\.\/runtime\/static-files\.mjs"/);
+  assert.match(extension, /sendFile,\s*\} from "\.\/hosts\/node\/static-files\.mjs"/);
   assert.match(extension, /if \(pathname\.startsWith\("\/renderer\/"\) \|\| pathname\.startsWith\("\/vendor\/"\)\) \{/);
   assert.match(extension, /const abs = safeJoin\(EXT_DIR, pathname\)/);
   assert.match(extension, /await sendFile\(res, abs, \{ cache: pathname\.startsWith\("\/vendor\/"\) \}\)/);

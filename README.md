@@ -186,7 +186,7 @@ Write Markdown yourself, use the [minimal format below](#markdown-format), or do
 No Skill registration is needed. Without a global install, you can run:
 
 ```console
-npx @markdstage/markdstage
+npx @markdstage/markdstage --workspace .
 npx @markdstage/markdstage slides.md
 npx @markdstage/markdstage present slides.md
 ```

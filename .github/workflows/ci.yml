@@ -292,6 +292,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Node.js for shared-runtime conformance tests
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24.x
+
       - name: .NET SDK
         uses: actions/setup-dotnet@v5
         with:
@@ -303,21 +308,21 @@ jobs:
       - name: WinUI build
         run: dotnet build apps\MarkdStage.Desktop\src\MarkdStage.App\MarkdStage.App.csproj -c Release -r win-x64 -p:Platform=x64
 
-      - name: x64 portable publish
+      - name: x64 unsigned MSIX
         shell: pwsh
-        run: apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture x64
+        run: apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture x64 -Unsigned -Publisher "CN=MarkdStageDevelopment"
 
-      - name: ARM64 portable publish
+      - name: ARM64 unsigned MSIX
         if: github.event_name != 'pull_request'
         shell: pwsh
-        run: apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture arm64
+        run: apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture arm64 -Unsigned -Publisher "CN=MarkdStageDevelopment"
 
-      - name: Portable artifacts
+      - name: MSIX validation artifacts
         uses: actions/upload-artifact@v5
         with:
           name: markdstage-desktop
           path: |
-            apps/MarkdStage.Desktop/artifacts/*.zip
+            apps/MarkdStage.Desktop/artifacts/*.msix
             apps/MarkdStage.Desktop/artifacts/*.sha256
           retention-days: 7
           if-no-files-found: error

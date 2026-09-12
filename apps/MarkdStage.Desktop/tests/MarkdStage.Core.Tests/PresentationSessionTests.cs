@@ -5,37 +5,39 @@ namespace MarkdStage.Core.Tests;
 public sealed class PresentationSessionTests
 {
     [Fact]
-    public void Load_PreservesAndClampsCurrentIndex()
+    public void ApplySnapshot_PreservesRuntimeOwnedIndexAndVersions()
     {
         var session = new PresentationSession();
-        session.Load(
-            new DeckDocument(["a", "b", "c"], new Dictionary<string, string>(), "dark", ""),
-            "a.md",
-            "C:\\deck");
-        session.NavigateTo(2);
-
-        var snapshot = session.Load(
-            new DeckDocument(["x", "y"], new Dictionary<string, string>(), "light", ""),
-            "a.md",
-            "C:\\deck");
+        var snapshot = new PresentationSnapshot(["x", "y"], 1, 42, 9, "a.md", "C:\\deck", new ThemeState("light"));
+        session.ApplySnapshot(snapshot);
 
         Assert.Equal(1, snapshot.Index);
         Assert.Equal("y", snapshot.CurrentMarkdown);
-        Assert.Equal(2, snapshot.DeckVersion);
+        Assert.Equal(9, snapshot.DeckVersion);
+        Assert.Equal(42, snapshot.Version);
+        Assert.Same(snapshot, session.GetSnapshot());
     }
 
     [Fact]
-    public void Navigate_ClampsAtDeckEdges()
+    public async Task Navigate_ForwardsIntentWithoutMutatingSnapshot()
     {
         var session = new PresentationSession();
-        session.Load(
-            new DeckDocument(["a", "b"], new Dictionary<string, string>(), "dark", ""),
-            "a.md",
-            "C:\\deck");
-
-        Assert.False(session.NavigateBy(-1));
-        Assert.True(session.NavigateBy(1));
-        Assert.False(session.NavigateBy(1));
-        Assert.Equal(1, session.GetSnapshot().Index);
+        var snapshot = new PresentationSnapshot(["a", "b"], 0, 1, 1, "a.md", "C:\\deck", new ThemeState("dark"));
+        session.ApplySnapshot(snapshot);
+        int? requestedIndex = null;
+        int? requestedDelta = null;
+        session.Navigate = (index, delta) =>
+        {
+            requestedIndex = index;
+            requestedDelta = delta;
+            return Task.FromResult(true);
+        };
+        Assert.True(await session.NavigateByAsync(1));
+        Assert.Null(requestedIndex);
+        Assert.Equal(1, requestedDelta);
+        Assert.True(await session.NavigateToAsync(20));
+        Assert.Equal(20, requestedIndex);
+        Assert.Null(requestedDelta);
+        Assert.Same(snapshot, session.GetSnapshot());
     }
 }

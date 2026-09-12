@@ -5,43 +5,15 @@
 // output runtime (PDF export, PNG capture, layout inspection) expects, so the
 // CLI and the Canvas Extension drive the same implementation.
 
-import { realpath } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
-import { ensureBackCover } from "../deck-state.mjs";
 import { MARKDOWN_MAX_BYTES, isMarkdownPath } from "../scripts/markdown-path.mjs";
-import { resolveWorkspaceRoot } from "../scripts/workspace-root.mjs";
-import { DEFAULT_THEME, normalizeTheme, resolveFrontMatterTheme } from "../renderer/theme.mjs";
 import { MarkdStageError } from "./errors.mjs";
-import { loadCustomTheme } from "./custom-theme.mjs";
-import { loadSlideBackgrounds } from "./slide-backgrounds.mjs";
 import { isPathInside } from "./output-paths.mjs";
-import { createNodeIO } from "./io-node.mjs";
+import { createNodeIO, resolveNodeWorkspace } from "./io-node.mjs";
 import { unwrapIOResult } from "./io.mjs";
 import { readMarkdownDeck } from "./deck-reader.mjs";
-
-export function clampIndex(value, total) {
-  let index = Number(value);
-  if (!Number.isFinite(index)) return 0;
-  index = Math.trunc(index);
-  if (total <= 0) return 0;
-  if (index < 0) return 0;
-  if (index >= total) return total - 1;
-  return index;
-}
-
-// Front matter selects the theme unless the caller passes an explicit one; an
-// explicit theme locks the deck so per-slide front matter cannot override it.
-export function resolveDeckTheme({ slides, explicitTheme, explicitThemeFile }) {
-  const frontMatter = resolveFrontMatterTheme(slides);
-  const hasExplicitTheme = typeof explicitTheme === "string" && explicitTheme.trim().length > 0;
-  const theme = hasExplicitTheme ? normalizeTheme(explicitTheme) : frontMatter.theme;
-  const themeFile = explicitThemeFile?.trim() || frontMatter.themeFile;
-  return {
-    theme: themeFile && (!hasExplicitTheme || theme === "custom") ? "custom" : theme,
-    themeFile,
-    themeLocked: hasExplicitTheme,
-  };
-}
+import { createSessionState, prepareSessionDeck, commitSessionDeck, navigateSession } from "./session-state.mjs";
+export { clampIndex, resolveDeckTheme } from "./session-state.mjs";
 
 export async function resolveDeckFile(file, workspaceRoot, io) {
   if (typeof file !== "string" || !file.trim()) {
@@ -105,60 +77,34 @@ export async function createDeckSession({
   log,
   io,
 } = {}) {
-  // An explicit --workspace wins; otherwise confine the deck to its Git
-  // repository root (or the folder holding the Markdown file).
-  const deckDirectory = file ? resolve(file, "..") : process.cwd();
-  const requestedRoot = workspaceRoot
-    ? resolve(workspaceRoot)
-    : resolveWorkspaceRoot(deckDirectory, deckDirectory);
-  let root;
-  let adapter;
-  try {
-    root = await realpath(requestedRoot);
-    adapter = io ?? await createNodeIO({ workspaceRoot: root });
-  } catch (_) {
-    throw new MarkdStageError(
-      "workspace_not_found",
-      `Could not read workspace directory: ${requestedRoot}`,
-    );
+  if (file !== undefined && (typeof file !== "string" || !isAbsolute(file))) {
+    throw new MarkdStageError("invalid_input", "Workspace resolution requires absolute arguments.");
   }
-  // Canonicalize the selected workspace without resolving away links inside it.
+  // With an explicitly scoped adapter, its stat is authoritative even for a
+  // virtual file. Resolve only the native workspace, not a second disk source.
+  const selected = await resolveNodeWorkspace({ workspaceRoot, file: io && workspaceRoot ? undefined : file });
+  const root = selected.workspaceRoot;
+  const adapter = io ?? await createNodeIO({ workspaceRoot: root });
+  const requestedRoot = workspaceRoot ?? root;
   const sourceArgument = (value) => {
-    if (typeof value !== "string" || !value.trim()) return value;
-    const absolute = resolve(value);
-    return isPathInside(requestedRoot, absolute)
-      ? resolve(root, relative(requestedRoot, absolute))
-      : absolute;
+    if (value === undefined) return value;
+    if (typeof value !== "string" || !isAbsolute(value)) {
+      throw new MarkdStageError("invalid_input", "Workspace resolution requires absolute arguments.");
+    }
+    return isPathInside(requestedRoot, value) ? resolve(root, relative(requestedRoot, value)) : value;
   };
-  const resolved = file ? await resolveDeckFile(sourceArgument(file), root, adapter) : null;
+  const initialFile = selected.file ?? sourceArgument(file);
+  const resolved = initialFile ? await resolveDeckFile(initialFile, root, adapter) : null;
   const session = {
+    ...createSessionState({ theme, themeFile, assetUrlPrefix }),
     file: resolved?.path ?? "",
     workspaceRoot: resolved?.workspaceRoot ?? root,
     sourceName: resolved
       ? workspaceRelative(resolved.workspaceRoot, resolved.path)
       : "",
-    url: "",
-    version: 0,
-    deckVersion: 0,
-    sourceMarkdown: "",
-    markdown: "",
-    slides: [],
-    index: 0,
-    mode: "deck",
-    theme: DEFAULT_THEME,
-    themeLocked: false,
-    customThemeFile: "",
-    customThemeCss: "",
-    customThemeDir: "",
-    customThemeMeta: null,
-    customThemeAssets: new Set(),
-    customThemeWarnings: [],
     exportJobs: new Map(),
     exporting: false,
     clients: new Set(),
-    requestedTheme: theme,
-    requestedThemeFile: themeFile,
-    assetUrlPrefix,
     log,
   };
 
@@ -166,57 +112,23 @@ export async function createDeckSession({
     if (!file) {
       throw new MarkdStageError("no_deck", "Open a Markdown file first.");
     }
-    const { markdown, slides } = await readMarkdownDeck(sourceName, adapter);
-    await loadSlideBackgrounds(session.workspaceRoot, sourceName, slides);
-    const selection = resolveDeckTheme({
-      slides,
-      explicitTheme: session.requestedTheme,
-      explicitThemeFile: session.requestedThemeFile,
-    });
-    const custom =
-      selection.theme === "custom"
-        ? await loadCustomTheme(
-            session.workspaceRoot,
-            sourceName,
-            selection.themeFile,
-            { assetUrlPrefix: session.assetUrlPrefix },
-          )
-        : { file: "", css: "", dir: "", metadata: null, assets: [] };
-    session.file = file;
-    session.sourceName = sourceName;
-    session.theme = selection.theme;
-    session.themeLocked = selection.themeLocked;
-    session.customThemeFile = custom.file;
-    session.customThemeCss = custom.css;
-    session.customThemeDir = custom.dir;
-    session.customThemeMeta = custom.metadata;
-    session.customThemeAssets = new Set(custom.assets);
-    session.customThemeWarnings = custom.warnings ?? [];
-    session.sourceMarkdown = markdown;
-    session.slides = ensureBackCover(slides.slice());
-    session.index = clampIndex(preserveIndex ? session.index : 0, session.slides.length);
-    session.markdown = session.slides[session.index] ?? "";
-    session.deckVersion += 1;
-    session.version += 1;
-    return session.slides.length;
+    const prepared = await prepareSessionDeck(session, adapter, sourceName);
+    return commitSessionDeck(session, prepared, { file, preserveIndex });
   };
 
   session.load = async ({ preserveIndex = false } = {}) =>
     loadFile(session.file, session.sourceName, preserveIndex);
 
   session.openFile = async (nextFile, { preserveIndex = false } = {}) => {
-    const next = await resolveDeckFile(sourceArgument(nextFile), session.workspaceRoot, adapter);
+    const source = sourceArgument(nextFile);
+    const selected = io
+      ? { workspaceRoot: session.workspaceRoot, file: source }
+      : await resolveNodeWorkspace({ workspaceRoot: session.workspaceRoot, file: source });
+    const next = await resolveDeckFile(selected.file, selected.workspaceRoot, adapter);
     return loadFile(next.path, workspaceRelative(next.workspaceRoot, next.path), preserveIndex);
   };
 
-  session.navigate = (target) => {
-    const next = clampIndex(target, session.slides.length);
-    if (next === session.index) return false;
-    session.index = next;
-    session.markdown = session.slides[session.index] ?? "";
-    session.version += 1;
-    return true;
-  };
+  session.navigate = (target) => navigateSession(session, target);
 
   if (session.file) await session.load();
   return session;
