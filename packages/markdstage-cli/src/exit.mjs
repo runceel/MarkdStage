@@ -24,11 +24,13 @@ const DECK_ERROR_CODES = new Set([
   "invalid_markdown_path",
   "invalid_output_path",
   "invalid_theme_file",
+  "io_failed",
   "no_deck",
   "path_outside_workspace",
   "slide_out_of_range",
   "theme_file_not_found",
   "too_many_slides",
+  "workspace_not_found",
 ]);
 
 export class UsageError extends Error {

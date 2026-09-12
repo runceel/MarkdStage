@@ -74,6 +74,7 @@ test("createDeckSession confines the deck to the workspace", async () => {
       (error) => error instanceof MarkdStageError,
     );
   });
+});
 
   test("createDeckSession can start empty and open a source later", async () => {
     await withWorkspace(async ({ dir, file }) => {
@@ -351,7 +352,6 @@ test("createDeckSession confines the deck to the workspace", async () => {
       ]);
     });
   });
-});
 
 test("the presentation server serves the deck only below its token", async () => {
   await withWorkspace(async ({ dir, file }) => {
@@ -398,6 +398,42 @@ test("mutating routes require a same-origin request", async () => {
       });
       assert.equal(allowed.status, 200);
       assert.equal(session.index, 1);
+    });
+  });
+});
+
+test("the Node host serves bundled modules and shared session previews after extraction", async () => {
+  await withWorkspace(async ({ dir, file }) => {
+    await withDeckServer({ file, workspace: dir }, async (session, server) => {
+      for (const [route, type] of [
+        ["renderer/renderer.js", "text/javascript"],
+        ["renderer/slide-title.mjs", "text/javascript"],
+        ["renderer/slides.css", "text/css"],
+        ["vendor/marked.min.js", "text/javascript"],
+        ["vendor/mermaid.min.js", "text/javascript"],
+      ]) {
+        const response = await fetch(new URL(route, server.url));
+        assert.equal(response.status, 200, route);
+        assert.ok(response.headers.get("content-type").startsWith(type), route);
+        assert.ok((await response.text()).length > 0, route);
+      }
+      const deck = await fetch(new URL("deck", server.url)).then((response) => response.json());
+      assert.deepEqual(deck.slides, session.slides);
+      for (const index of [0, session.slides.length - 1]) {
+        assert.equal((await post(server.url, "navigate", { index })).status, 200);
+        for (const offset of [-1, 0, 1]) {
+          const state = await fetch(new URL(`state?offset=${offset}`, server.url))
+            .then((response) => response.json());
+          const target = Math.max(0, Math.min(session.slides.length - 1, index + offset));
+          assert.equal(state.index, target);
+          assert.equal(state.markdown, session.slides[target]);
+          assert.equal(state.version, session.version);
+          assert.equal(state.deckVersion, deck.deckVersion);
+          assert.equal(state.sourceBacked, true);
+          assert.equal(Object.hasOwn(state, "sourceMarkdown"), false);
+          assert.equal(Object.hasOwn(state, "customThemeDir"), false);
+        }
+      }
     });
   });
 });

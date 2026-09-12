@@ -1,4 +1,5 @@
-// Loopback presentation server used by the MarkdStage CLI.
+// Node compatibility host: owns the HTTP listener, routing, SSE, and lifecycle.
+// Native hosts call the transport-free runtime directly, not this module.
 //
 // Security model:
 //   * The listener binds to 127.0.0.1 only.
@@ -17,25 +18,26 @@ import { readFile, realpath, stat } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
-import { resolveAssetFile } from "../scripts/asset-paths.mjs";
-import { loadSlideBackgrounds, resolveSlideBackgroundFile } from "./slide-backgrounds.mjs";
-import { importedArchitectureBlockIndex } from "../scripts/markdown-blocks.mjs";
-import { isMarkdownPath, listMarkdownFiles } from "../scripts/markdown-files.mjs";
-import { createMarkdownWatcher } from "../scripts/markdown-watcher.mjs";
+import { resolveAssetFile } from "../../scripts/asset-paths.mjs";
+import { loadSlideBackgrounds, resolveSlideBackgroundFile } from "../../runtime/slide-backgrounds.mjs";
+import { importedArchitectureBlockIndex } from "../../scripts/markdown-blocks.mjs";
+import { isMarkdownPath, listMarkdownFiles } from "../../scripts/markdown-files.mjs";
+import { createMarkdownWatcher } from "../../scripts/markdown-watcher.mjs";
 import { startArchitectureEditorServer } from "./architecture-editor-server.mjs";
-import { saveArchitectureSource } from "./architecture-source.mjs";
-import { exportPdf, exportPptx } from "./output.mjs";
-import { sanitizeLayoutReport } from "./layout-report.mjs";
+import { saveArchitectureSource } from "../../runtime/architecture-source.mjs";
+import { exportPdf, exportPptx } from "../../runtime/output.mjs";
+import { sanitizeLayoutReport } from "../../runtime/layout-report.mjs";
+import { snapshotSession } from "../../runtime/session-state.mjs";
 import {
   isPathInside,
   outputPathForSource,
   pdfNameForSource,
   pptxNameForSource,
-} from "./output-paths.mjs";
+} from "../../runtime/output-paths.mjs";
 import { safeJoin, sendChunkedVendorAsset, sendFile } from "./static-files.mjs";
 
-const RUNTIME_DIR = dirname(fileURLToPath(import.meta.url));
-const EXT_DIR = resolve(RUNTIME_DIR, "..");
+const HOST_DIR = dirname(fileURLToPath(import.meta.url));
+const EXT_DIR = resolve(HOST_DIR, "..", "..");
 const VENDOR_DIR = join(EXT_DIR, "vendor");
 const VENDOR_MANIFEST = join(VENDOR_DIR, "vendor-assets.lock.json");
 const MAX_BODY_BYTES = 4096;
@@ -279,21 +281,20 @@ export async function startPresentationServer(
         -1,
         Math.min(1, Number.parseInt(requestUrl.searchParams.get("offset") || "0", 10) || 0),
       );
-      const total = session.slides.length;
-      const targetIndex = Math.max(0, Math.min(total - 1, session.index + offset));
+      const state = snapshotSession(session, { offset });
       json(res, 200, {
-        version: session.version,
-        deckVersion: session.deckVersion,
-        markdown: offset && total ? session.slides[targetIndex] : session.markdown,
-        index: offset ? targetIndex : session.index,
-        total,
-        theme: session.theme,
-        themeLocked: session.themeLocked,
-        customThemeFile: session.customThemeFile,
-        customThemeCss: session.customThemeCss,
-        customThemeMeta: session.customThemeMeta,
-        mode: session.mode,
-        sourceBacked: Boolean(session.file),
+        version: state.version,
+        deckVersion: state.deckVersion,
+        markdown: state.markdown,
+        index: state.index,
+        total: state.total,
+        theme: state.theme,
+        themeLocked: state.themeLocked,
+        customThemeFile: state.customThemeFile,
+        customThemeCss: state.customThemeCss,
+        customThemeMeta: state.customThemeMeta,
+        mode: state.mode,
+        sourceBacked: state.sourceBacked,
         sourceModeAvailable: applicationMode && Boolean(session.file),
         sourceMode,
         sourceWatchStatus,

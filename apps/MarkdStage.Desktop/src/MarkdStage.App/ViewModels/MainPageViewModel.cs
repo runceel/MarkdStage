@@ -11,7 +11,7 @@ public sealed partial class MainPageViewModel : ObservableObject, IAsyncDisposab
 {
     private readonly PresentationSession _session;
     private readonly PresentationServer _server;
-    private readonly DeckLoader _loader;
+    private readonly Func<string, CancellationToken, Task> _load;
     private readonly DeckWatcher _watcher;
     private readonly PresenterWindowService _presenterWindow;
     private readonly FilePickerService _filePicker;
@@ -21,11 +21,13 @@ public sealed partial class MainPageViewModel : ObservableObject, IAsyncDisposab
     private readonly ObservableCollection<SlideOverviewItem> _slideOverviews = [];
     private string _currentPath = string.Empty;
     private long _slideOverviewDeckVersion = -1;
+    internal Func<string, Task>? OpenRequested { get; set; }
+    internal Action? WorkspaceUnavailable { get; set; }
 
     internal MainPageViewModel(
         PresentationSession session,
         PresentationServer server,
-        DeckLoader loader,
+        Func<string, CancellationToken, Task> load,
         DeckWatcher watcher,
         PresenterWindowService presenterWindow,
         FilePickerService filePicker,
@@ -33,7 +35,7 @@ public sealed partial class MainPageViewModel : ObservableObject, IAsyncDisposab
     {
         _session = session;
         _server = server;
-        _loader = loader;
+        _load = load;
         _watcher = watcher;
         _presenterWindow = presenterWindow;
         _filePicker = filePicker;
@@ -84,6 +86,7 @@ public sealed partial class MainPageViewModel : ObservableObject, IAsyncDisposab
     public partial string PresenterButtonText { get; set; } = "Start presentation";
 
     public ReadOnlyObservableCollection<SlideOverviewItem> SlideOverviews { get; }
+    internal ValueTask StopWatchingAsync() => _watcher.StopAsync();
 
     public async Task InitializeAsync()
     {
@@ -106,7 +109,7 @@ public sealed partial class MainPageViewModel : ObservableObject, IAsyncDisposab
         var path = await _filePicker.PickMarkdownAsync(_windowHandle());
         if (path is not null)
         {
-            await LoadPathAsync(path, startWatching: true);
+            if (OpenRequested is not null) await OpenRequested(path);
         }
     }
 
@@ -140,7 +143,7 @@ public sealed partial class MainPageViewModel : ObservableObject, IAsyncDisposab
 
     public void GoHome() => _session.NavigateTo(0);
 
-    public bool NavigateToSlide(int index) => _session.NavigateTo(index);
+    public void NavigateToSlide(int index) => _session.NavigateTo(index);
 
     public void GoEnd()
     {
@@ -159,26 +162,23 @@ public sealed partial class MainPageViewModel : ObservableObject, IAsyncDisposab
         await _watcher.DisposeAsync();
         await _presenterWindow.DisposeAsync();
         await _server.DisposeAsync();
-        _loadGate.Dispose();
+        await _loadGate.WaitAsync();
+        _loadGate.Release();
     }
 
-    private async Task LoadPathAsync(string path, bool startWatching)
+    internal async Task LoadPathAsync(string path, bool startWatching)
     {
-        LoadedDeck? loaded = null;
+        var loaded = false;
         await _loadGate.WaitAsync();
         try
         {
-            loaded = await _loader.LoadAsync(path);
-            _session.Load(
-                loaded.Document,
-                loaded.SourcePath,
-                loaded.WorkspaceRoot,
-                loaded.Theme);
-            _currentPath = loaded.SourcePath;
+            await _load(path, CancellationToken.None);
+            loaded = true;
+            _currentPath = path;
 
             PostToUi(() =>
             {
-                SourceDisplayName = Path.GetFileName(loaded.SourcePath);
+                SourceDisplayName = Path.GetFileName(path);
                 IsErrorOpen = false;
                 ErrorMessage = string.Empty;
             });
@@ -191,16 +191,20 @@ public sealed partial class MainPageViewModel : ObservableObject, IAsyncDisposab
         {
             ShowError("You don't have permission to read this Markdown file.");
         }
+        catch (Exception error) when (error is IOException or InvalidOperationException)
+        {
+            ShowError("The Markdown file couldn't be loaded. The last successfully rendered deck is still displayed.");
+        }
         finally
         {
             _loadGate.Release();
         }
 
-        if (startWatching && loaded is not null)
+        if (startWatching && loaded)
         {
             await _watcher.WatchAsync(
-                loaded.SourcePath,
-                cancellationToken => ReloadWatchedFileAsync(loaded.SourcePath, cancellationToken));
+                path,
+                cancellationToken => ReloadWatchedFileAsync(path, cancellationToken));
         }
     }
 
@@ -214,12 +218,12 @@ public sealed partial class MainPageViewModel : ObservableObject, IAsyncDisposab
                 return;
             }
 
-            var loaded = await _loader.LoadAsync(path, cancellationToken);
-            _session.Load(
-                loaded.Document,
-                loaded.SourcePath,
-                loaded.WorkspaceRoot,
-                loaded.Theme);
+            if (!Directory.Exists(_session.GetSnapshot().WorkspaceRoot))
+            {
+                PostToUi(() => WorkspaceUnavailable?.Invoke());
+                return;
+            }
+            await _load(path, cancellationToken);
             PostToUi(() =>
             {
                 IsErrorOpen = false;
@@ -233,6 +237,10 @@ public sealed partial class MainPageViewModel : ObservableObject, IAsyncDisposab
         catch (UnauthorizedAccessException)
         {
             ShowError("The Markdown file couldn't be read. The last successfully rendered deck is still displayed.");
+        }
+        catch (Exception error) when (error is IOException or InvalidOperationException)
+        {
+            ShowError("The Markdown file couldn't be reloaded. The last successfully rendered deck is still displayed.");
         }
         finally
         {
@@ -262,7 +270,7 @@ public sealed partial class MainPageViewModel : ObservableObject, IAsyncDisposab
     }
 
     private void OnSessionChanged(object? sender, PresentationSnapshot snapshot) =>
-        PostToUi(() => ApplySnapshot(snapshot));
+        PostToUi(() => ApplySnapshot(_session.GetSnapshot()));
 
     private void OnPresenterStatusChanged(object? sender, EventArgs args) =>
         PostToUi(UpdatePresenterStatus);
@@ -282,7 +290,7 @@ public sealed partial class MainPageViewModel : ObservableObject, IAsyncDisposab
                 _slideOverviews.Add(new SlideOverviewItem(
                     index,
                     index + 1,
-                    SlideTitleDeriver.Derive(snapshot.Slides[index])));
+                    snapshot.Titles.ElementAtOrDefault(index) ?? string.Empty));
             }
         }
 
@@ -292,7 +300,7 @@ public sealed partial class MainPageViewModel : ObservableObject, IAsyncDisposab
         PageCounter = snapshot.Total == 0
             ? "0 / 0"
             : $"{snapshot.Index + 1} / {snapshot.Total}";
-        var notes = SpeakerNotesExtractor.Extract(snapshot.CurrentMarkdown);
+        var notes = snapshot.Notes.ElementAtOrDefault(snapshot.Index);
         CurrentSpeakerNotes = string.IsNullOrWhiteSpace(notes)
             ? "No speaker notes"
             : notes;

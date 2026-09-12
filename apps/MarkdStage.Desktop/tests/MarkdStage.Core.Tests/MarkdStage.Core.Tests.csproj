@@ -18,23 +18,36 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <Compile Include="..\..\src\MarkdStage.Cli\CliArguments.cs" Link="Cli\CliArguments.cs" />
+    <Compile Include="..\..\src\MarkdStage.Cli\HostCommands.cs" Link="Cli\HostCommands.cs" />
+    <Compile Include="..\..\src\MarkdStage.Cli\BrowserProcess.cs" Link="Cli\BrowserProcess.cs" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\MarkdStage.Core\MarkdStage.Core.csproj" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <Compile Include="..\..\src\MarkdStage.App\Services\DeckLoader.cs" Link="Services\DeckLoader.cs" />
+    <Compile Include="..\..\src\MarkdStage.App\Services\DeckLoadException.cs" Link="Services\DeckLoadException.cs" />
     <Compile Include="..\..\src\MarkdStage.App\Services\DeckAssetResolver.cs" Link="Services\DeckAssetResolver.cs" />
     <Compile Include="..\..\src\MarkdStage.App\Services\SlideBackgrounds.cs" Link="Services\SlideBackgrounds.cs" />
     <Compile Include="..\..\src\MarkdStage.App\Services\PathSecurity.cs" Link="Services\PathSecurity.cs" />
     <Compile Include="..\..\src\MarkdStage.App\Services\ThemeService.cs" Link="Services\ThemeService.cs" />
     <Compile Include="..\..\src\MarkdStage.App\Services\PresentationServer.cs" Link="Services\PresentationServer.cs" />
+    <Compile Include="..\..\src\MarkdStage.App\Services\ArchitectureEditorSession.cs" Link="Services\ArchitectureEditorSession.cs" />
     <Compile Include="..\..\src\MarkdStage.App\Services\VendorAssetProvider.cs" Link="Services\VendorAssetProvider.cs" />
   </ItemGroup>
 
   <ItemGroup>
     <Content Include="..\..\..\..\.github\extensions\markdstage\renderer\index.html">
       <Link>Web\index.html</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\..\..\.github\extensions\markdstage\architecture-editor\**\*">
+      <Link>Web\architecture-editor\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\..\..\.github\extensions\markdstage\renderer\**\*"
+             Exclude="..\..\..\..\.github\extensions\markdstage\renderer\index.html">
+      <Link>Web\renderer\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="..\..\..\..\.github\extensions\markdstage\vendor\mermaid.min.js.part-*;..\..\..\..\.github\extensions\markdstage\vendor\vendor-assets.lock.json">

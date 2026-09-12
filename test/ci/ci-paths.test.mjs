@@ -44,12 +44,25 @@ test("canonical shared files select their real consumers", () => {
   );
   assert.deepEqual(
     classifyCiPaths([".github/extensions/markdstage/runtime/output.mjs"]),
-    expected({ test: true, cli: true }),
+    expected({ test: true, cli: true, desktop: true }),
   );
   assert.deepEqual(
     classifyCiPaths([".github/extensions/markdstage/windows/pen-button-listener.ps1"]),
     expected({ test: true, desktop: true }),
   );
+});
+
+test("desktop hosting selects shared parsing, state, validation and runtime changes", () => {
+  for (const file of [
+    "markdown-deck.mjs", "deck-state.mjs", "architecture-validation.mjs",
+    "runtime/io-host.mjs", "schema/theme-v1.json", "scripts/markdown-path.mjs",
+  ]) {
+    assert.deepEqual(
+      classifyCiPaths([`.github/extensions/markdstage/${file}`]),
+      expected({ test: true, cli: true, desktop: true }),
+      file,
+    );
+  }
 });
 
 test("canonical documentation is not treated as a sample deck", () => {

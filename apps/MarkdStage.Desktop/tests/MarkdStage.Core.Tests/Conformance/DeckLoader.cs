@@ -8,21 +8,9 @@ internal sealed record LoadedDeck(
     string SourcePath,
     string WorkspaceRoot);
 
-internal sealed class DeckLoadException : Exception
-{
-    public DeckLoadException(string message) : base(message)
-    {
-    }
-
-    public DeckLoadException(string message, Exception innerException)
-        : base(message, innerException)
-    {
-    }
-}
-
 internal sealed class DeckLoader(
     MarkdownDeckParser parser,
-    ThemeService themeService)
+    LegacyThemeService themeService)
 {
     private const long MarkdownMaxBytes = 2 * 1024 * 1024;
 
@@ -46,7 +34,7 @@ internal sealed class DeckLoader(
         }
 
         var workspaceRoot = FindWorkspaceRoot(fullPath);
-        SlideBackgrounds.Validate(document, fullPath, workspaceRoot);
+        LegacyBackgroundValidation.Validate(document, fullPath, workspaceRoot);
         var theme = await themeService.LoadAsync(
             document,
             fullPath,

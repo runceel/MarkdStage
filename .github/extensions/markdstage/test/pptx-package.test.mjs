@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  buildPptxPackage,
+  buildPptxPackage as buildPptxBytes,
   inspectPptxPackage,
   PPTX_DIMENSIONS,
 } from "../runtime/pptx-package.mjs";
+
+const buildPptxPackage = (model) => Buffer.from(buildPptxBytes(model));
 
 const PNG = Buffer.from([
   137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82,

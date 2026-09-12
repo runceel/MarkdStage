@@ -26,6 +26,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Include="Assets\*.html">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
     <Content Include="Assets\SplashScreen.scale-200.png" />
     <Content Include="Assets\LockScreenLogo.scale-200.png" />
     <Content Include="Assets\Square150x150Logo.scale-200.png" />
@@ -43,6 +47,11 @@
 
   <ItemGroup>
     <Manifest Include="$(ApplicationManifest)" />
+    <Content Include="Package.appxmanifest">
+      <Link>appxmanifest.xml</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
   </ItemGroup>
 
   <PropertyGroup>
@@ -58,6 +67,11 @@
     <Content Include="$(RepositoryRoot)\.github\extensions\markdstage\renderer\**\*"
              Exclude="$(RepositoryRoot)\.github\extensions\markdstage\renderer\index.html">
       <Link>Web\renderer\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="$(RepositoryRoot)\.github\extensions\markdstage\architecture-editor\**\*">
+      <Link>Web\architecture-editor\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
@@ -107,6 +121,11 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\MarkdStage.Core\MarkdStage.Core.csproj" />
+    <Compile Include="..\MarkdStage.Cli\BrowserAutomation.cs" Link="NativeOutput\BrowserAutomation.cs" />
+    <Compile Include="..\MarkdStage.Cli\BrowserProcess.cs" Link="NativeOutput\BrowserProcess.cs" />
+    <Compile Include="..\MarkdStage.Cli\CdpConnection.cs" Link="NativeOutput\CdpConnection.cs" />
+    <Compile Include="..\MarkdStage.Cli\CliArguments.cs" Link="NativeOutput\CliArguments.cs" />
+    <Compile Include="..\MarkdStage.Cli\NativeBrowserHost.cs" Link="NativeOutput\NativeBrowserHost.cs" />
   </ItemGroup>
 
   <!--
@@ -143,4 +162,17 @@
       DestinationFiles="@(_WinUIAsset->'$(PublishDir)Assets\%(RecursiveDir)%(Filename)%(Extension)')"
       SkipUnchangedFiles="true" />
   </Target>
+  <Target Name="CopyNativeCliToAppOutput" AfterTargets="Build">
+    <Exec Command="dotnet build &quot;$(MSBuildThisFileDirectory)..\MarkdStage.Cli\MarkdStage.Cli.csproj&quot; --configuration &quot;$(Configuration)&quot; --runtime &quot;$(RuntimeIdentifier)&quot; --property:Platform=&quot;$(Platform)&quot; --property:SelfContained=&quot;$(SelfContained)&quot; --property:WindowsAppSDKSelfContained=&quot;$(WindowsAppSDKSelfContained)&quot;" />
+    <MSBuild Projects="..\MarkdStage.Cli\MarkdStage.Cli.csproj"
+             Targets="GetNativeLauncherFiles"
+             Properties="Configuration=$(Configuration);Platform=$(Platform);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=$(SelfContained);WindowsAppSDKSelfContained=$(WindowsAppSDKSelfContained)">
+      <Output TaskParameter="TargetOutputs" ItemName="_NativeCliFiles" />
+    </MSBuild>
+    <Copy SourceFiles="@(_NativeCliFiles)" DestinationFolder="$(TargetDir)" SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="CopyNativeCliToAppPublish" AfterTargets="Publish" DependsOnTargets="CopyNativeCliToAppOutput">
+    <Copy SourceFiles="@(_NativeCliFiles)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" />
+  </Target>
+  <Import Project="..\MarkdStage.Cli\PackageAssets.targets" />
 </Project>

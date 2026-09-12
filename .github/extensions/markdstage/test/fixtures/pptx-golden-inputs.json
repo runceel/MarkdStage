@@ -1,0 +1,139 @@
+{
+  "baselinePackageCommit": "0badff23e7152feb89040f3366731b26cf5b2889",
+  "cases": {
+    "image": {
+      "title": "画像 & Презентация 🖼️",
+      "assets": [
+        {
+          "id": "capture",
+          "contentType": "image/png",
+          "dataBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNQaPj/HwAFAgKfdqhGyQAAAABJRU5ErkJggg=="
+        }
+      ],
+      "slides": [
+        {
+          "backgroundAssetId": "capture",
+          "notes": "画像の説明 & <注記> \"引用\".\n\n  Привет — مرحبا 🌍",
+          "elements": []
+        },
+        {
+          "backgroundAssetId": "capture",
+          "elements": []
+        }
+      ]
+    },
+    "editable": {
+      "title": "編集可能 & Ελληνικά 🚀",
+      "assets": [
+        {
+          "id": "logo",
+          "contentType": "image/png",
+          "dataBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNQaPj/HwAFAgKfdqhGyQAAAABJRU5ErkJggg=="
+        }
+      ],
+      "masters": [
+        { "id": "dark", "theme": "dark", "layoutIds": ["dark:default"] }
+      ],
+      "layouts": [
+        {
+          "id": "dark:default",
+          "name": "日本語レイアウト",
+          "theme": "dark",
+          "elements": [
+            { "type": "image", "assetId": "logo", "x": 1200, "y": 20, "width": 48, "height": 48 }
+          ]
+        }
+      ],
+      "slides": [
+        {
+          "layoutId": "dark:default",
+          "notes": "発表者ノート & <詳細>.\n\n  Кириллица — العربية 🧪",
+          "elements": [
+            {
+              "type": "text",
+              "x": 40.25,
+              "y": 30.5,
+              "width": 600,
+              "height": 90,
+              "textInsets": { "left": 5, "top": 3, "right": 7, "bottom": 4 },
+              "textWrap": "none",
+              "paragraphs": [
+                {
+                  "alignment": "center",
+                  "bullet": "•",
+                  "level": 1,
+                  "runs": [
+                    {
+                      "text": "日本語 & <編集> — Ελληνικά 🚀",
+                      "fontFace": "Yu Gothic",
+                      "fontSize": "32px",
+                      "bold": true,
+                      "italic": true,
+                      "underline": true,
+                      "color": "rgb(12, 34, 56)",
+                      "href": "https://example.com/?a=1&b=2"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "table",
+              "x": 40,
+              "y": 150,
+              "width": 500,
+              "height": 160,
+              "rows": [
+                { "cells": [
+                  { "text": "項目", "fill": "#ffeecc", "stroke": "#112233" },
+                  { "text": "値", "fill": null, "stroke": "#112233" }
+                ] },
+                { "cells": [
+                  { "text": "Δ", "fill": "#ffffff", "stroke": "#112233" },
+                  { "text": "42 & <43>", "fill": "#ffffff", "stroke": "#112233" }
+                ] }
+              ]
+            },
+            {
+              "type": "image",
+              "assetId": "logo",
+              "x": 600,
+              "y": 150,
+              "width": 240,
+              "height": 160,
+              "shape": "roundedRect"
+            },
+            {
+              "type": "shape",
+              "shape": "roundedRect",
+              "x": 40,
+              "y": 360,
+              "width": 260,
+              "height": 90,
+              "fill": "rgba(0, 128, 255, 0.5)",
+              "stroke": "#002244",
+              "strokeWidth": 2,
+              "opacity": 0.8,
+              "rotation": -30,
+              "text": "編集可能"
+            },
+            {
+              "type": "connector",
+              "points": [{ "x": 320, "y": 405 }, { "x": 440, "y": 405 }, { "x": 500, "y": 480 }],
+              "stroke": "#cc0000",
+              "strokeWidth": 3,
+              "dash": "dash",
+              "arrowEnd": "triangle",
+              "label": "流れ",
+              "labelBounds": { "x": 360, "y": 370, "width": 100, "height": 30 }
+            }
+          ]
+        },
+        {
+          "layoutId": "dark:default",
+          "elements": []
+        }
+      ]
+    }
+  }
+}

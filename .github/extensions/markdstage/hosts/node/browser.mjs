@@ -1,5 +1,5 @@
-// Chromium discovery, process lifetime, and CDP helpers shared by the Canvas
-// Extension and the MarkdStage CLI.
+// Node browser adapter: Chromium discovery, process lifetime, and CDP for the
+// Canvas Extension and npm CLI. Native hosts supply their own browser adapter.
 //
 // MarkdStage never downloads a browser: it drives an installed Microsoft Edge,
 // Google Chrome, or Chromium. Keep this module free of runtime npm dependencies

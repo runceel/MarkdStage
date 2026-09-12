@@ -42,7 +42,7 @@ public sealed class DesktopBackgroundTests
         using var fixture = new AssetFixture();
         fixture.Write("assets/photo.png", "background");
         fixture.Write("theme.css", ":root { --bg: #fff; }");
-        var loader = new DeckLoader(new MarkdownDeckParser(), new ThemeService());
+        var loader = new DeckLoader(new MarkdownDeckParser(), new LegacyThemeService());
         var session = new PresentationSession();
         foreach (var theme in new[] { "dark", "light", "microsoft", "custom" })
         {
@@ -51,7 +51,8 @@ public sealed class DesktopBackgroundTests
                 fixture.Write("slides.md",
                     $"---\ntheme: {theme}\ntheme-file: theme.css\nlayout: {layout}\nbackground-image: /assets/photo.png\n---\n# Slide");
                 var loaded = await loader.LoadAsync(fixture.Source);
-                var snapshot = session.Load(loaded.Document, loaded.SourcePath, loaded.WorkspaceRoot, loaded.Theme);
+                var snapshot = session.ApplySnapshot(new PresentationSnapshot(
+                    loaded.Document.Slides, 0, 1, 1, loaded.SourcePath, loaded.WorkspaceRoot, loaded.Theme));
                 fixture.Write("slides.md",
                     $"---\ntheme: {theme}\nlayout: {layout}\nbackground-image:\n---\n# Invalid");
                 var error = await Assert.ThrowsAsync<DeckLoadException>(() => loader.LoadAsync(fixture.Source));
@@ -128,7 +129,7 @@ public sealed class DesktopBackgroundTests
         fixture.Write("theme.css", "--bg: #fff;");
         fixture.Write("assets/image.png", "image");
         var document = new MarkdownDeckParser().Parse("---\ntheme: custom\ntheme-file: theme.css\n---\n# Slide");
-        var service = new ThemeService();
+        var service = new LegacyThemeService();
         const string image = """{"image":"assets/image.png"}""";
         fixture.Write("theme.json", """
             {"version":1,"background":IMAGE,"layouts":{"default":{"background":IMAGE},"center":{"background":IMAGE}},"cover":{"background":IMAGE,"logo":{"image":"assets/image.png","alt":"Brand"}},"backcover":{"logo":{"image":"assets/image.png","alt":"Brand"},"copyright":"Copyright"}}
@@ -179,8 +180,8 @@ public sealed class DesktopBackgroundTests
     {
         using var fixture = new AssetFixture();
         var session = new PresentationSession();
-        session.Load(new MarkdownDeckParser().Parse("# Slide"), fixture.Source, fixture.Root,
-            new ThemeState("custom", AssetRoot: fixture.Root));
+        session.ApplySnapshot(new PresentationSnapshot(new MarkdownDeckParser().Parse("# Slide").Slides, 0, 1, 1,
+            fixture.Source, fixture.Root, new ThemeState("custom", AssetRoot: fixture.Root)));
         await using var server = new PresentationServer(session, () => false);
         await server.StartAsync();
         using var client = new HttpClient { BaseAddress = server.BaseUri };

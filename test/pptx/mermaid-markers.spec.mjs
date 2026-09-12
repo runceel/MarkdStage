@@ -2,8 +2,10 @@ import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { validateScene } from "../../.github/extensions/markdstage/renderer/scene-graph.mjs";
 import { sceneToPptxElements } from "../../.github/extensions/markdstage/renderer/scene-pptx.mjs";
-import { buildPptxPackage, inspectPptxPackage } from "../../.github/extensions/markdstage/runtime/pptx-package.mjs";
+import { buildPptxPackage as buildPptxBytes, inspectPptxPackage } from "../../.github/extensions/markdstage/runtime/pptx-package.mjs";
 import { startHarness } from "../harness/server.mjs";
+
+const buildPptxPackage = (model) => Buffer.from(buildPptxBytes(model));
 
 const fixture = (name, extension = "svg") => readFile(new URL(`../fixtures/mermaid/${name}.${extension}`, import.meta.url), "utf8");
 const cases = [

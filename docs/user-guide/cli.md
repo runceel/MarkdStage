@@ -17,7 +17,7 @@ tarball installation.
 ## Commands
 
 ```console
-markdstage
+markdstage --workspace .
 markdstage slides.md
 markdstage present slides.md
 markdstage preview slides.md --watch
@@ -31,7 +31,7 @@ markdstage guide architecture-dsl
 markdstage skill install --target codex
 ```
 
-`markdstage` opens an empty Canvas-equivalent UI for the current workspace. Use
+`markdstage --workspace .` opens an empty Canvas-equivalent UI for the chosen workspace. Use
 **Open Markdown** to choose a deck. `markdstage slides.md` opens the same UI with
 that source loaded, automatic refresh enabled, and slide view selected.
 
@@ -50,6 +50,11 @@ that source loaded, automatic refresh enabled, and slide view selected.
 Application options include `--workspace <dir>`, `--theme <name>`,
 `--theme-file <path>`, `--no-open`, and `--json`. Global help and version
 options are `--help` and `--version`.
+
+Supply a file or `--workspace`; a bare invocation does not infer a workspace from
+the current directory. A file without `--workspace` selects its nearest ancestor
+with a `.git` entry, otherwise its containing directory. Relative arguments are
+resolved against the caller's directory before this rule is applied.
 
 ```console
 markdstage help

@@ -55,13 +55,36 @@ const VALID_DECK = [
   "",
 ].join("\n");
 
-test("bare invocation opens an empty application", async () => {
+test("bare invocation requires an explicit workspace", async () => {
   const io = capture();
-  io.open = false;
-  io.until = Promise.resolve();
-  assert.equal(await run([], io), EXIT_OK);
-  assert.match(io.stdout(), /MarkdStage is ready in the workspace/);
-  assert.match(io.stdout(), /slides:\s+0/);
+  assert.equal(await run([], io), EXIT_DECK);
+  assert.match(io.stderr(), /--workspace/);
+});
+
+test("blank workspace arguments are not silently discarded", async () => {
+  const io = capture();
+  assert.equal(await run(["validate", "slides.md", "--workspace", "  "], io), EXIT_DECK);
+  assert.match(io.stderr(), /--workspace/);
+});
+
+test("missing workspace errors retain the shared JSON error code", async () => {
+  const io = capture();
+  assert.equal(await run(["--json"], io), EXIT_DECK);
+  assert.equal(JSON.parse(io.stdout()).error, "invalid_input");
+});
+
+test("an explicit workspace opens an empty application", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "markdstage-empty-cli-"));
+  try {
+    const io = capture();
+    io.open = false;
+    io.until = Promise.resolve();
+    assert.equal(await run(["--workspace", dir], io), EXIT_OK);
+    assert.match(io.stdout(), /MarkdStage is ready in the workspace/);
+    assert.match(io.stdout(), /slides:\s+0/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
 test("unknown commands and options fail with the usage exit code", async () => {
@@ -261,7 +284,7 @@ test("preview --json writes only one machine-readable document", async () => {
     assert.equal(report.total, 3);
   });
 
-  test("direct Markdown invocation starts live slide view", async () => {
+  await test("direct Markdown invocation starts live slide view", async () => {
     await withDeck(VALID_DECK, async ({ file }) => {
       const io = capture();
       io.open = false;
@@ -274,18 +297,20 @@ test("preview --json writes only one machine-readable document", async () => {
     });
   });
 
-  test("bare invocation can report the empty application as JSON", async () => {
-    const io = capture();
-    io.open = false;
-    io.until = Promise.resolve();
-    assert.equal(await run(["--json"], io), EXIT_OK);
-    const report = JSON.parse(io.stdout());
-    assert.equal(report.ok, true);
-    assert.equal(report.total, 0);
-    assert.equal(report.sourceMode, "snapshot");
+  await test("an explicit workspace can report the empty application as JSON", async () => {
+    await withDeck(VALID_DECK, async ({ dir }) => {
+      const io = capture();
+      io.open = false;
+      io.until = Promise.resolve();
+      assert.equal(await run(["--workspace", dir, "--json"], io), EXIT_OK);
+      const report = JSON.parse(io.stdout());
+      assert.equal(report.ok, true);
+      assert.equal(report.total, 0);
+      assert.equal(report.sourceMode, "snapshot");
+    });
   });
 
-  test("application reports the source mode selected before exit", async () => {
+  await test("application reports the source mode selected before exit", async () => {
     await withDeck(VALID_DECK, async ({ dir, file }) => {
       let stop;
       let publishUrl;
@@ -293,7 +318,7 @@ test("preview --json writes only one machine-readable document", async () => {
         stop = resolve;
       });
 
-      test("concurrent audience requests launch only one browser process", async () => {
+      await test("concurrent audience requests launch only one browser process", async () => {
         await withDeck(VALID_DECK, async ({ dir, file }) => {
           let stop;
           let publishUrl;
@@ -415,7 +440,7 @@ test("present starts at the presenter view URL", async () => {
     assert.equal(new URL(JSON.parse(io.stdout()).url).searchParams.get("presenter"), "1");
   });
 
-  test("preview starts at slide view with snapshot refresh by default", async () => {
+  await test("preview starts at slide view with snapshot refresh by default", async () => {
     await withDeck(VALID_DECK, async ({ file }) => {
       const io = capture();
       io.until = Promise.resolve();

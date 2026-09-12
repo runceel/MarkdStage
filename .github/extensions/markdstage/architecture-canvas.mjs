@@ -4,7 +4,7 @@ import { basename, normalize, resolve, sep } from "node:path";
 import { CanvasError, createCanvas } from "@github/copilot-sdk/extension";
 
 import { importedArchitectureBlockIndex } from "./scripts/markdown-blocks.mjs";
-import { startArchitectureEditorServer } from "./runtime/architecture-editor-server.mjs";
+import { startArchitectureEditorServer } from "./hosts/node/architecture-editor-server.mjs";
 
 const THEMES = new Set(["dark", "light", "microsoft"]);
 

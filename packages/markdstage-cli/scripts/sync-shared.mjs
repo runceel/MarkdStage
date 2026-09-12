@@ -34,6 +34,7 @@ const ENTRIES = [
   "markdstage-guide.mjs",
   "presenter-window.mjs",
   "docs",
+  "hosts",
   "renderer",
   "runtime",
   "schema",

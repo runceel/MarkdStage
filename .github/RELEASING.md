@@ -53,25 +53,53 @@ user-facing JSON Schemas. Also include the split Mermaid assets and their manife
 
 ## MarkdStage Desktop
 
-The tag-triggered release workflow generates unpackaged, self-contained portable ZIP files for x64
-and ARM64. Run the same commands locally during release validation:
+Starting with v4, Desktop ships through Microsoft Store only. The workflow builds
+unsigned MSIX validation artifacts for x64 and ARM64; it does not publish those
+unsigned packages or desktop ZIPs in the GitHub Release. Run local package validation
+with your development certificate and matching publisher:
 
 ```powershell
-apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture x64
-apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture arm64
+apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture x64 -CertificatePath <certificate.pfx> -Publisher <certificate-subject> -Version <major.minor.patch.0>
+apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture arm64 -CertificatePath <certificate.pfx> -Publisher <certificate-subject> -Version <major.minor.patch.0>
 ```
 
 Attach the following files to the release:
 
 - `markdstage-markdstage-<version>.tgz`
 - `markdstage-markdstage-<version>.tgz.sha256`
-- `MarkdStage-win-x64.zip`
-- `MarkdStage-win-x64.zip.sha256`
-- `MarkdStage-win-arm64.zip`
-- `MarkdStage-win-arm64.zip.sha256`
+- `markdstage-v<version>.zip` (Canvas Extension, not Desktop)
+- `markdstage-v<version>.zip.sha256`
 
-Bundle Windows App SDK and the .NET runtime. Document WebView2 Runtime as an environment
-prerequisite in the release notes.
+Bundle Windows App SDK and .NET, but no Node runtime. Document WebView2 Runtime and
+the packaged CLI's installed-Chromium/remote-debugging requirements in the listing,
+installation guide, and release notes. The desktop GUI is a presenter; exports are
+CLI-only.
+
+Before the first Store submission, complete the Windows checklist in
+`apps/MarkdStage.Desktop/README.md`. Record the external browser's ability to use the
+package temporary profile under Store distribution, and verify the embedded
+WebView2 script-only `validate` path with no external browser installed. These
+measurements cannot be replaced by Linux source tests.
+
+The release workflow is deliberately blocked until these repository variables are
+configured for the verified release:
+
+- `MARKDSTAGE_PACKAGE_NAME` and `MARKDSTAGE_PACKAGE_PUBLISHER`: the Partner Center identity.
+- `MARKDSTAGE_STORE_URL`: the published `https://apps.microsoft.com/detail/<product-id>` URL.
+- `MARKDSTAGE_STORE_ACCEPTED_SHA`: the exact release commit that passed Windows/Store
+  acceptance. Do not set it merely because compilation or CI passed.
+
+Update both README files to the real Store URL in release preparation, then set the
+acceptance SHA after the final release commit is verified. The tag workflow does not
+submit to Partner Center automatically and does not acquire signing credentials.
+
+The first Store release is the immediate archive cutover, with no parallel archive
+publication. The last archive release must announce that it receives no further
+updates of any kind; do not amend its notes retroactively after cutover. The first
+Store notes and installation guide tell users to install Store, open the same
+workspace, and remove the extracted archive folder. State does not migrate; user
+Markdown, assets, and themes remain untouched. List parser/title/notes corrections
+and the CLI's new explicit-workspace requirement in the compatibility section.
 
 ## Validation
 
@@ -84,8 +112,8 @@ npm pack --dry-run
 cd ..\..
 dotnet test apps\MarkdStage.Desktop\tests\MarkdStage.Core.Tests\MarkdStage.Core.Tests.csproj -c Release
 dotnet build apps\MarkdStage.Desktop\src\MarkdStage.App\MarkdStage.App.csproj -c Release -r win-x64 -p:Platform=x64
-apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture x64
-apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture arm64
+apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture x64 -Unsigned -Publisher <package-publisher> -PackageName <package-name>
+apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture arm64 -Unsigned -Publisher <package-publisher> -PackageName <package-name>
 ```
 
 Then reload the Extension and verify that `MarkdStage` appears in the canvas list,
@@ -123,7 +151,7 @@ The tag starts `.github/workflows/npm-publish.yml`. The workflow:
 1. Verifies the stable SemVer tag, package version, `main` ancestry, and README links.
 2. Runs the complete JavaScript, browser, CLI, accessibility, performance, and PDF test suite.
 3. Builds and checksums the Extension ZIP.
-4. Tests and publishes the x64 and ARM64 Desktop ZIPs.
+4. Tests and builds x64 and ARM64 MSIX artifacts for package validation; Desktop is distributed by Store.
 5. Publishes `@markdstage/markdstage` with npm provenance.
 6. Packs and checksums the CLI tarball for offline installation.
 7. Generates release notes, creates the GitHub Release, uploads every asset, and verifies the
@@ -140,13 +168,14 @@ The workflow creates the GitHub Release and includes:
 - Shared Canvas Extension, Skill, npm CLI, and Desktop version
 - Breaking changes and migration table
 - Supported Windows architectures and the WebView2 Runtime prerequisite
-- SHA-256 for each ZIP
+- SHA-256 for the Extension ZIP and CLI tarball
 - Updated third-party notices when bundled open-source software changes
 
 ## Post-release verification
 
 After the workflow succeeds:
 
-1. Confirm the GitHub Release is marked latest and contains all eight files.
+1. Confirm the GitHub Release is marked latest and contains the four Extension/CLI
+   files, links to Store, and contains no desktop archives or unsigned MSIX packages.
 2. Confirm npm shows the matching `@markdstage/markdstage` version and provenance.
 3. Install the version-pinned Extension folder and verify the user-scoped Extension when applicable.

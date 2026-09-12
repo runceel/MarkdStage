@@ -1,11 +1,5 @@
 namespace MarkdStage.Core;
 
-public sealed record DeckDocument(
-    IReadOnlyList<string> Slides,
-    IReadOnlyDictionary<string, string> Metadata,
-    string Theme,
-    string ThemeFile);
-
 public sealed record ThemeState(
     string Name,
     string Css = "",
@@ -21,6 +15,8 @@ public sealed record PresentationSnapshot(
     string WorkspaceRoot,
     ThemeState Theme)
 {
+    public IReadOnlyList<string> Titles { get; init; } = [];
+    public IReadOnlyList<string> Notes { get; init; } = [];
     public int Total => Slides.Count;
 
     public string CurrentMarkdown =>

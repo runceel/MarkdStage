@@ -52,9 +52,9 @@ const [
 ] = await Promise.all([
   load("runtime/errors.mjs"),
   load("runtime/deck-session.mjs"),
-  load("runtime/presentation-server.mjs"),
+  load("hosts/node/presentation-server.mjs"),
   load("runtime/output.mjs"),
-  load("runtime/browser.mjs"),
+  load("hosts/node/browser.mjs"),
   load("runtime/output-paths.mjs"),
   load("markdstage-guide.mjs"),
   load("presenter-window.mjs"),

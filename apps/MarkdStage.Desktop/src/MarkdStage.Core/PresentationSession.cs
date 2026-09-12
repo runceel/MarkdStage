@@ -16,61 +16,23 @@ public sealed class PresentationSession
         }
     }
 
-    public PresentationSnapshot Load(
-        DeckDocument document,
-        string sourcePath,
-        string workspaceRoot,
-        ThemeState? theme = null)
+    public Func<int?, int?, Task<bool>>? Navigate { get; set; }
+
+    public PresentationSnapshot ApplySnapshot(PresentationSnapshot snapshot)
     {
-        PresentationSnapshot next;
         lock (_gate)
         {
-            var index = document.Slides.Count == 0
-                ? 0
-                : Math.Clamp(_snapshot.Index, 0, document.Slides.Count - 1);
-
-            next = new PresentationSnapshot(
-                document.Slides.ToArray(),
-                index,
-                _snapshot.Version + 1,
-                _snapshot.DeckVersion + 1,
-                sourcePath,
-                workspaceRoot,
-                theme ?? new ThemeState(document.Theme));
-            _snapshot = next;
+            if (snapshot.Version < _snapshot.Version) return _snapshot;
+            _snapshot = snapshot;
         }
-
-        Changed?.Invoke(this, next);
-        return next;
+        Changed?.Invoke(this, snapshot);
+        return snapshot;
     }
 
-    public bool NavigateBy(int delta) => NavigateTo(GetSnapshot().Index + delta);
+    public void NotifyChanged() => Changed?.Invoke(this, GetSnapshot());
 
-    public bool NavigateTo(int index)
-    {
-        PresentationSnapshot? next = null;
-        lock (_gate)
-        {
-            if (_snapshot.Total == 0)
-            {
-                return false;
-            }
-
-            var target = Math.Clamp(index, 0, _snapshot.Total - 1);
-            if (target == _snapshot.Index)
-            {
-                return false;
-            }
-
-            next = _snapshot with
-            {
-                Index = target,
-                Version = _snapshot.Version + 1,
-            };
-            _snapshot = next;
-        }
-
-        Changed?.Invoke(this, next);
-        return true;
-    }
+    public Task<bool> NavigateByAsync(int delta) => Navigate?.Invoke(null, delta) ?? Task.FromResult(false);
+    public Task<bool> NavigateToAsync(int index) => Navigate?.Invoke(index, null) ?? Task.FromResult(false);
+    public void NavigateBy(int delta) => _ = NavigateByAsync(delta);
+    public void NavigateTo(int index) => _ = NavigateToAsync(index);
 }

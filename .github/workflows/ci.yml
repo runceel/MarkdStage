@@ -213,7 +213,7 @@ jobs:
             package/bin/markdstage.mjs \
             package/src/cli.mjs \
             package/shared/markdown-deck.mjs \
-            package/shared/runtime/presentation-server.mjs \
+            package/shared/hosts/node/presentation-server.mjs \
             package/shared/renderer/index.html \
             package/shared/schema/architecture-v1.schema.json \
             package/shared/vendor/marked.min.js; do
@@ -292,10 +292,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Node.js for shared-runtime conformance tests
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24.x
+
       - name: .NET SDK
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.x
+
+      - name: WinApp CLI
+        shell: pwsh
+        run: |
+          if (-not (Get-Command winapp -ErrorAction SilentlyContinue)) {
+            winget install --id Microsoft.WinAppCli --version 0.6.1 --exact --silent --accept-package-agreements --accept-source-agreements
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          winapp --version
 
       - name: Core tests
         run: dotnet test apps\MarkdStage.Desktop\tests\MarkdStage.Core.Tests\MarkdStage.Core.Tests.csproj -c Release
@@ -303,21 +317,21 @@ jobs:
       - name: WinUI build
         run: dotnet build apps\MarkdStage.Desktop\src\MarkdStage.App\MarkdStage.App.csproj -c Release -r win-x64 -p:Platform=x64
 
-      - name: x64 portable publish
+      - name: x64 unsigned MSIX
         shell: pwsh
-        run: apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture x64
+        run: apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture x64 -Unsigned -Publisher "CN=MarkdStageDevelopment"
 
-      - name: ARM64 portable publish
+      - name: ARM64 unsigned MSIX
         if: github.event_name != 'pull_request'
         shell: pwsh
-        run: apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture arm64
+        run: apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture arm64 -Unsigned -Publisher "CN=MarkdStageDevelopment"
 
-      - name: Portable artifacts
+      - name: MSIX validation artifacts
         uses: actions/upload-artifact@v5
         with:
           name: markdstage-desktop
           path: |
-            apps/MarkdStage.Desktop/artifacts/*.zip
+            apps/MarkdStage.Desktop/artifacts/*.msix
             apps/MarkdStage.Desktop/artifacts/*.sha256
           retention-days: 7
           if-no-files-found: error

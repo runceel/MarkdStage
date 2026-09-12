@@ -10,7 +10,9 @@ import {
 import { architectureSnapshotToScene } from "../renderer/architecture-scene.mjs";
 import { sceneToPptxElements } from "../renderer/scene-pptx.mjs";
 import { sceneToSvg } from "../renderer/scene-svg.mjs";
-import { buildPptxPackage } from "../runtime/pptx-package.mjs";
+import { buildPptxPackage as buildPptxBytes } from "../runtime/pptx-package.mjs";
+
+const buildPptxPackage = (model) => Buffer.from(buildPptxBytes(model));
 
 class Element {
   constructor(tagName, namespaceURI = "") {

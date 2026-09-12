@@ -5,20 +5,16 @@
 // harness can import them.
 
 import { readdir } from "node:fs/promises";
-import { extname, join, relative, resolve, sep } from "node:path";
+import { join, relative, resolve, sep } from "node:path";
+import { isMarkdownPath } from "./markdown-path.mjs";
 
-export const MARKDOWN_EXTENSIONS = new Set([".md", ".markdown"]);
+export { isMarkdownPath, MARKDOWN_EXTENSIONS, MARKDOWN_MAX_BYTES } from "./markdown-path.mjs";
 export const MARKDOWN_SCAN_MAX_FILES = 500;
 export const MARKDOWN_SCAN_MAX_DEPTH = 6;
-export const MARKDOWN_MAX_BYTES = 2 * 1024 * 1024;
 
 // Directories that commonly accumulate generated output and rarely contain slide sources.
 // Dot-prefixed names such as .git are excluded as a group and are not listed here.
 const SKIP_DIRS = new Set(["node_modules", "vendor", "out", "dist", "build"]);
-
-export function isMarkdownPath(path) {
-  return MARKDOWN_EXTENSIONS.has(extname(path).toLowerCase());
-}
 
 /**
  * Recursively collect Markdown files under rootDir and return `/`-separated relative paths.

@@ -1,0 +1,31 @@
+<Project>
+  <PropertyGroup>
+    <NativeAssetGenerator>$(MSBuildThisFileDirectory)</NativeAssetGenerator>
+    <NativePackageAssetsDirectory>$(MSBuildProjectDirectory)\obj\NativePackageAssets</NativePackageAssetsDirectory>
+  </PropertyGroup>
+  <Target Name="GenerateNativePackageAssets" BeforeTargets="AssignTargetPaths"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <Exec Command="node &quot;$(NativeAssetGenerator)package-assets.mjs&quot; &quot;$(NativePackageAssetsDirectory)&quot;" />
+    <Exec Command="node &quot;$(NativeAssetGenerator)package-data.mjs&quot; &quot;$(NativePackageAssetsDirectory)&quot;" />
+  </Target>
+  <Target Name="CopyNativePackageAssetsToOutput" AfterTargets="Build"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <ItemGroup>
+      <_NativePackageAssetFiles Include="$(NativePackageAssetsDirectory)\**\*" />
+    </ItemGroup>
+    <Copy
+      SourceFiles="@(_NativePackageAssetFiles)"
+      DestinationFiles="@(_NativePackageAssetFiles->'$(TargetDir)%(RecursiveDir)%(Filename)%(Extension)')"
+      SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="CopyNativePackageAssetsToPublish" AfterTargets="Publish"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <ItemGroup>
+      <_NativePackageAssetFiles Include="$(NativePackageAssetsDirectory)\**\*" />
+    </ItemGroup>
+    <Copy
+      SourceFiles="@(_NativePackageAssetFiles)"
+      DestinationFiles="@(_NativePackageAssetFiles->'$(PublishDir)%(RecursiveDir)%(Filename)%(Extension)')"
+      SkipUnchangedFiles="true" />
+  </Target>
+</Project>

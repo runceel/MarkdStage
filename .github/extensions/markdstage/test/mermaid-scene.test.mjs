@@ -34,7 +34,9 @@ import {
   validateScene,
 } from "../renderer/scene-graph.mjs";
 import { sceneToPptxElements } from "../renderer/scene-pptx.mjs";
-import { buildPptxPackage } from "../runtime/pptx-package.mjs";
+import { buildPptxPackage as buildPptxBytes } from "../runtime/pptx-package.mjs";
+
+const buildPptxPackage = (model) => Buffer.from(buildPptxBytes(model));
 
 test("classifies measured Mermaid polygon signatures", () => {
   assert.equal(

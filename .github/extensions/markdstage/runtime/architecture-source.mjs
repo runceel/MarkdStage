@@ -1,16 +1,12 @@
 import { readFile, realpath, stat } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 
-import { parseArchitecture } from "../renderer/architecture.mjs";
-import { ArchitectureError } from "../renderer/architecture-diagnostics.mjs";
-import {
-  findArchitectureBlocks,
-  replaceArchitectureBlock,
-} from "../scripts/markdown-blocks.mjs";
 import { isMarkdownPath, MARKDOWN_MAX_BYTES } from "../scripts/markdown-files.mjs";
 import { serializeMarkdownSave } from "../scripts/markdown-save-coordinator.mjs";
 import { atomicReplaceMarkdown } from "../scripts/atomic-markdown-replace.mjs";
 import { isPathInside } from "./output-paths.mjs";
+import { prepareArchitectureReplacement, readArchitectureBlock, validateArchitectureSource } from "./architecture-writes.mjs";
+import { createNodeIO } from "./io-node.mjs";
 
 function sourceError(code, message) {
   const error = new Error(message);
@@ -75,24 +71,9 @@ export async function readArchitectureSourceTarget(workspaceRoot, sourcePath, bl
     throw sourceError("invalid_block_index", "blockIndex must be a non-negative integer.");
   }
   const target = await resolveArchitectureSourceTarget(workspaceRoot, sourcePath);
-  const markdown = await readFile(target.path, "utf8");
-  const block = findArchitectureBlocks(markdown)[blockIndex];
-  if (!block) {
-    throw sourceError(
-      "block_not_found",
-      `Architecture block ${blockIndex} was not found in ${sourcePath}.`,
-    );
-  }
-  try {
-    parseArchitecture(block.body);
-  } catch (error) {
-    if (!(error instanceof ArchitectureError)) throw error;
-    throw Object.assign(
-      sourceError("invalid_architecture", error.message || "Invalid Architecture DSL."),
-      { diagnostic: error.diagnostic, validation: error.validation },
-    );
-  }
-  return { ...target, markdown, source: block.body };
+  const io = await createNodeIO({ workspaceRoot: target.root });
+  const block = await readArchitectureBlock(io, target.relativePath.split(sep).join("/"), blockIndex);
+  return { ...target, markdown: block.bom ? `\uFEFF${block.markdown}` : block.markdown, source: block.source };
 }
 
 export function saveArchitectureSource({
@@ -105,18 +86,8 @@ export function saveArchitectureSource({
 }) {
   const queuePath = sourceFile || resolve(workspaceRoot, sourcePath);
   return serializeMarkdownSave(queuePath, async () => {
-    try {
-      parseArchitecture(source);
-    } catch (error) {
-      if (!(error instanceof ArchitectureError)) throw error;
-      return {
-        ok: false,
-        error: "invalid_architecture",
-        message: error?.message || "The diagram is invalid.",
-        diagnostic: error.diagnostic,
-        validation: error.validation,
-      };
-    }
+    const invalid = validateArchitectureSource(source);
+    if (invalid) return invalid;
 
     let target;
     try {
@@ -147,22 +118,9 @@ export function saveArchitectureSource({
         message: "The source Markdown file no longer exists.",
       };
     }
-    if (markdown !== expectedMarkdown) {
-      return {
-        ok: false,
-        error: "source_changed",
-        message: "The source Markdown changed outside the editor. Reload before saving.",
-      };
-    }
-
-    const next = replaceArchitectureBlock(markdown, blockIndex, source);
-    if (next === null) {
-      return {
-        ok: false,
-        error: "block_not_found",
-        message: "The Architecture block no longer exists.",
-      };
-    }
+    const replacement = prepareArchitectureReplacement({ markdown, expectedMarkdown, blockIndex, source });
+    if (!replacement.ok) return replacement;
+    const next = replacement.markdown;
     try {
       await atomicReplaceMarkdown({
         path: target.path,

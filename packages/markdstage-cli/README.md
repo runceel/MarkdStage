@@ -16,7 +16,7 @@ exported PDF, or hybrid editable PowerPoint deck.
 ## Install
 
 ```console
-npx @markdstage/markdstage
+npx @markdstage/markdstage --workspace .
 npx @markdstage/markdstage slides.md
 npm install --global @markdstage/markdstage
 ```
@@ -31,7 +31,7 @@ npm install --global .\markdstage-markdstage-<version>.tgz
 ## Commands
 
 ```console
-markdstage
+markdstage --workspace .
 markdstage slides.md
 markdstage present slides.md
 markdstage preview slides.md --watch
@@ -46,7 +46,7 @@ markdstage skill install --target codex
 markdstage skill install --target claude
 ```
 
-`markdstage` opens an empty Canvas-equivalent UI for the current workspace.
+`markdstage --workspace .` opens an empty Canvas-equivalent UI for the explicitly chosen workspace.
 Choose **Open Markdown** to load a deck. `markdstage slides.md` opens the same UI
 in slide view with automatic refresh enabled.
 
@@ -65,6 +65,13 @@ in slide view with automatic refresh enabled.
 Application options: `--workspace <dir>`, `--theme <name>`,
 `--theme-file <path>`, `--no-open`, and `--json`. Use `--help` and `--version`
 for global information.
+
+Workspace resolution never defaults to the process working directory. Supply
+`--workspace` or a Markdown file. Without `--workspace`, a file selects its nearest
+ancestor containing a `.git` entry, or its containing directory if there is none;
+Git need not be installed. Relative command-line arguments are first made absolute
+against the caller's directory. Files outside an explicit workspace are rejected.
+This is an intentional change from the archive-era bare invocation.
 
 ## Architecture editing
 

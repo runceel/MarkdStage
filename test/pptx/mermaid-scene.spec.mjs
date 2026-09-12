@@ -6,10 +6,12 @@ import { expect, test } from "@playwright/test";
 import { validateScene } from "../../.github/extensions/markdstage/renderer/scene-graph.mjs";
 import { sceneToPptxElements } from "../../.github/extensions/markdstage/renderer/scene-pptx.mjs";
 import {
-  buildPptxPackage,
+  buildPptxPackage as buildPptxBytes,
   inspectPptxPackage,
 } from "../../.github/extensions/markdstage/runtime/pptx-package.mjs";
 import { startHarness } from "../harness/server.mjs";
+
+const buildPptxPackage = (model) => Buffer.from(buildPptxBytes(model));
 
 const FIXTURE_DIR = join(process.cwd(), "test", "fixtures", "mermaid");
 

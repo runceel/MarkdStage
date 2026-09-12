@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.Win32.SafeHandles;
+using MarkdStage.Core;
 
 namespace MarkdStageApp.Services;
 
@@ -10,6 +11,12 @@ internal static class PathSecurity
 
     public static string CanonicalizeExisting(string path)
     {
+        WorkspaceResolver.RejectLinks(path);
+        if (!OperatingSystem.IsWindows())
+        {
+            if (!File.Exists(path) && !Directory.Exists(path)) throw new IOException("The path is unavailable.");
+            return Path.GetFullPath(path);
+        }
         using var handle = CreateFile(
             Path.GetFullPath(path),
             0,
@@ -59,29 +66,15 @@ internal static class PathSecurity
 
     public static string? ResolveFileInside(string root, string relativePath)
     {
-        if (string.IsNullOrWhiteSpace(relativePath) ||
-            Path.IsPathRooted(relativePath) ||
-            relativePath.Contains('\0'))
+        try
+        {
+            var confined = WorkspaceResolver.ResolveRelative(root, relativePath.Replace(Path.DirectorySeparatorChar, '/'));
+            return File.Exists(confined) ? CanonicalizeExisting(confined) : null;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException)
         {
             return null;
         }
-
-        var candidate = Path.GetFullPath(Path.Combine(root, relativePath));
-        var fullRoot = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar);
-        if (!candidate.Equals(fullRoot, StringComparison.OrdinalIgnoreCase) &&
-            !candidate.StartsWith(
-                fullRoot + Path.DirectorySeparatorChar,
-                StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        if (!File.Exists(candidate) || !IsInside(root, candidate))
-        {
-            return null;
-        }
-
-        return CanonicalizeExisting(candidate);
     }
 
     private static string NormalizeDevicePath(string path)

@@ -21,6 +21,7 @@ import {
   exitCodeFor,
 } from "./exit.mjs";
 import { parsePageList } from "./deck.mjs";
+import { MarkdStageError } from "./runtime.mjs";
 import { applicationCommand } from "./commands/present.mjs";
 import { validateCommand, formatValidateReport } from "./commands/validate.mjs";
 import { inspectCommand, formatInspectReport } from "./commands/inspect.mjs";
@@ -87,7 +88,7 @@ function usage(command) {
       "  markdstage <command> [options]",
       "",
       "Application:",
-      "  With no file, open an empty UI and choose Markdown from the workspace.",
+      "  With --workspace and no file, open an empty UI and choose Markdown.",
       "  With a Markdown file, open it in live slide view and refresh it on save.",
       "",
       "Commands:",
@@ -211,9 +212,15 @@ function requireFile(positionals, command) {
 }
 
 function deckOptions(file, values) {
+  if (values.workspace !== undefined && !values.workspace.trim()) {
+    throw new MarkdStageError("invalid_input", "--workspace requires a nonempty directory path.");
+  }
+  if (!file && !values.workspace) {
+    throw new MarkdStageError("invalid_input", "Specify --workspace or a Markdown file; no workspace is derived from the working directory.");
+  }
   return {
-    file,
-    workspace: values.workspace,
+    file: file ? resolve(file) : undefined,
+    workspace: values.workspace ? resolve(values.workspace) : undefined,
     theme: values.theme,
     themeFile: values["theme-file"],
   };
