@@ -69,7 +69,7 @@ test("all port errors map to stable safe runtime errors", () => {
   const expected = {
     denied: "path_outside_workspace", unsupported: "invalid_markdown_path",
     missing: "file_not_found", too_large: "file_too_large", exists: "invalid_output_path",
-    conflict: "source_changed", io_failed: "io_failed",
+    conflict: "source_changed", locked: "file_locked", io_failed: "io_failed",
   };
   for (const [port, code] of Object.entries(expected)) {
     assertMapped(failure(port), { operation: "readText", path: "deck.md" }, code);
@@ -90,12 +90,14 @@ test("theme and background error mappings follow the port specification", () => 
     theme: {
       denied: "path_outside_workspace", unsupported: "invalid_markdown_path",
       missing: "theme_file_not_found", too_large: "file_too_large",
-      exists: "invalid_output_path", conflict: "source_changed", io_failed: "io_failed",
+      exists: "invalid_output_path", conflict: "source_changed", locked: "file_locked",
+      io_failed: "io_failed",
     },
     "slide-background": {
       denied: "path_outside_workspace", unsupported: "invalid_markdown_path",
       missing: "file_not_found", too_large: "slide_background_too_large",
-      exists: "invalid_output_path", conflict: "source_changed", io_failed: "io_failed",
+      exists: "invalid_output_path", conflict: "source_changed", locked: "file_locked",
+      io_failed: "io_failed",
     },
   };
   for (const [kind, expected] of Object.entries(mappings)) {
@@ -103,6 +105,18 @@ test("theme and background error mappings follow the port specification", () => 
       assertMapped(failure(port), { operation: "readBytes", path: "assets/file", kind }, code);
     }
   }
+});
+
+test("a locked destination names the output file and explains the recovery", () => {
+  assert.throws(
+    () => unwrapIOResult(failure("locked"), { operation: "writeBytes", path: "decks/slides.pptx" }),
+    (error) => {
+      assert.equal(error.code, "file_locked");
+      assert.match(error.message, /open in another application/u);
+      assert.match(error.message, /\(decks\/slides\.pptx\)$/u);
+      return true;
+    },
+  );
 });
 
 test("unwrapping malformed values and hostile getters never exposes host errors", () => {
@@ -147,7 +161,7 @@ test("host rejects invalid paths before calling the bridge", async () => {
 });
 
 test("host sanitizes every failure, rejection, and malformed envelope", async () => {
-  for (const code of ["denied", "unsupported", "missing", "too_large", "exists", "conflict", "io_failed"]) {
+  for (const code of ["denied", "unsupported", "missing", "too_large", "exists", "conflict", "locked", "io_failed"]) {
     const result = await createHostIO(bridgeWith({ readText: async () => failure(code) })).readText("deck.md");
     assert.equal(result.code, code);
     assert.doesNotMatch(result.message, /private|EACCES|errno/u);

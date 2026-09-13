@@ -151,7 +151,7 @@ internal sealed class ScriptHost : IAsyncDisposable
     public static int ExitCodeFor(string code) => code switch
     {
         "usage_error" => 1,
-        "empty_markdown" or "file_not_found" or "file_too_large" or "invalid_input" or "invalid_markdown_path"
+        "empty_markdown" or "file_locked" or "file_not_found" or "file_too_large" or "invalid_input" or "invalid_markdown_path"
             or "invalid_output_path" or "invalid_theme_file" or "io_failed" or "no_deck" or "path_outside_workspace"
             or "slide_out_of_range" or "theme_file_not_found" or "too_many_slides" => 2,
         "browser_not_found" or "browser_automation_unavailable" or "webview2_unavailable" => 3,

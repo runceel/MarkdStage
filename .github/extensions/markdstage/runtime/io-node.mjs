@@ -14,11 +14,17 @@ const MESSAGES = Object.freeze({
   too_large: "The operation exceeds its size or enumeration limit.",
   exists: "The destination already exists.",
   conflict: "The source changed before it could be saved.",
+  locked: "The file is open in another application. Close it and try again.",
   io_failed: "The I/O operation failed.",
 });
 const MAX_ENTRIES = 10_000;
 const MAX_DEPTH = 64;
 const PURPOSES = new Set(["inspect", "capture", "pdf", "pptx", "present"]);
+// Replacing an output file fails while another application holds it open. Such
+// locks are usually short lived, so the replacement is retried before the port
+// reports a distinguishable "locked" failure.
+const MAX_REPLACE_ATTEMPTS = 5;
+const LOCK_ERRORS = new Set(process.platform === "win32" ? ["EBUSY", "EPERM"] : ["EBUSY", "ETXTBSY"]);
 
 // Argument resolution belongs to the entry point; no arguments means no workspace.
 export async function resolveNodeWorkspace({ workspaceRoot, file } = {}) {
@@ -91,6 +97,7 @@ function failure(error) {
   const code = error instanceof PortError ? error.portCode : ({
     ENOENT: "missing", ENOTDIR: "missing", EEXIST: "exists",
     ELOOP: "denied", EACCES: "denied", EPERM: "denied",
+    EBUSY: "locked", ETXTBSY: "locked",
   })[error?.code] || "io_failed";
   return { ok: false, code, message: error instanceof PortError ? error.message : MESSAGES[code] };
 }
@@ -288,6 +295,18 @@ export async function createNodeIO({ workspaceRoot, transientRoot = tmpdir() } =
     return entries;
   }
 
+  async function replaceWithRetry(operation) {
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await operation();
+      } catch (error) {
+        if (!LOCK_ERRORS.has(error?.code)) throw error;
+        if (attempt >= MAX_REPLACE_ATTEMPTS) fail("locked");
+        await delay(60 * attempt);
+      }
+    }
+  }
+
   async function atomicWrite(path, bytes, { overwrite, expectedModifiedAt, replace = false }) {
     syntax(path);
     if (!(bytes instanceof Uint8Array) || typeof overwrite !== "boolean" ||
@@ -327,7 +346,7 @@ export async function createNodeIO({ workspaceRoot, transientRoot = tmpdir() } =
       const checkedStage = await resolvePath(temporaryPath);
       if (!sameVersion(stagedInfo, checkedStage.info)) fail("denied");
       if (overwrite) {
-        await rename(temporary, target.absolute);
+        await replaceWithRetry(() => rename(temporary, target.absolute));
         staged = false;
       } else {
         // Linking the flushed sibling gives atomic no-clobber semantics;

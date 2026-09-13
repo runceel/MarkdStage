@@ -343,6 +343,32 @@ test("staging and commit failures return scrubbed errors and leave no temporary 
   assert.deepEqual(await fs.readdir(workspaceRoot), []);
 });
 
+test("a busy destination is retried and reported as locked when the lock persists", async (t) => {
+  const { io, workspaceRoot } = await fixture(t);
+  const target = join(workspaceRoot, "deck.pptx");
+  const busy = () => Object.assign(new Error("EBUSY: resource busy or locked"), { code: "EBUSY" });
+  await fs.writeFile(target, "previous");
+  const originalRename = fs.rename;
+  let attempts = 0;
+  await withFsMock(t, "rename", async (...args) => {
+    attempts += 1;
+    if (attempts === 1) throw busy();
+    return originalRename(...args);
+  }, async () => value(await io.writeBytes("deck.pptx", new TextEncoder().encode("retried"), { overwrite: true })));
+  assert.equal(attempts, 2);
+  assert.equal(await fs.readFile(target, "utf8"), "retried");
+  await withFsMock(t, "rename", async () => { throw busy(); }, async () => {
+    const failed = await io.writeBytes("deck.pptx", new TextEncoder().encode("locked out"), { overwrite: true });
+    code(failed, "locked");
+    assert.match(failed.message, /open in another application/u);
+    assert.equal(JSON.stringify(failed).includes("EBUSY"), false);
+  });
+  assert.equal(await fs.readFile(target, "utf8"), "retried");
+  assert.deepEqual(await fs.readdir(workspaceRoot), ["deck.pptx"]);
+  value(await io.writeBytes("deck.pptx", new TextEncoder().encode("recovered"), { overwrite: true }));
+  assert.equal(await fs.readFile(target, "utf8"), "recovered");
+});
+
 test("watch events are relative, filtered, resilient to replacement, and stop after unwatch", async (t) => {
   const { io, workspaceRoot, transientRoot } = await fixture(t);
   const another = await createNodeIO({ workspaceRoot, transientRoot });

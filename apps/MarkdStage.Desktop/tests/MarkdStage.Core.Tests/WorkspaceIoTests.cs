@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 
 namespace MarkdStage.Core.Tests;
@@ -163,6 +164,37 @@ public sealed class WorkspaceIoTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task RepeatedExportsReplaceTheOutputWithoutLeavingStagingFiles()
+    {
+        for (var pass = 0; pass < 3; pass++)
+        {
+            var payload = Convert.ToBase64String(Encoding.UTF8.GetBytes($"pptx-{pass}"));
+            Assert.True((await Call("writeBytes", "deck.pptx", new { base64 = payload }, new { overwrite = true })).Ok);
+            Assert.Equal($"pptx-{pass}", await File.ReadAllTextAsync(Path.Combine(Root, "deck.pptx")));
+        }
+        Assert.Equal(new[] { "deck.pptx" }, Directory.GetFiles(Root).Select(Path.GetFileName).ToArray());
+    }
+
+    [WorkspaceIoWindowsFact]
+    public async Task LockedOutputReportsAnActionableFailureAndRecoversWhenReleased()
+    {
+        var target = Path.Combine(Root, "deck.pptx");
+        await File.WriteAllTextAsync(target, "previous");
+        var payload = Convert.ToBase64String(Encoding.UTF8.GetBytes("next"));
+        using (new FileStream(target, FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            var result = await Call("writeBytes", "deck.pptx", new { base64 = payload }, new { overwrite = true });
+            Assert.Equal("locked", result.Code);
+            Assert.Contains("another application", result.Message!);
+            Assert.DoesNotContain(_directory, result.Message!);
+            Assert.Equal("previous", await File.ReadAllTextAsync(target));
+        }
+        Assert.True((await Call("writeBytes", "deck.pptx", new { base64 = payload }, new { overwrite = true })).Ok);
+        Assert.Equal("next", await File.ReadAllTextAsync(target));
+        Assert.Equal(new[] { "deck.pptx" }, Directory.GetFiles(Root).Select(Path.GetFileName).ToArray());
+    }
+
+    [Fact]
     public void ResolutionAndStateDoNotDependOnWorkingDirectory()
     {
         Directory.CreateDirectory(Path.Combine(Root, ".git"));
@@ -179,5 +211,16 @@ public sealed class WorkspaceIoTests : IAsyncLifetime
         var restored = new DesktopStateStore(Path.Combine(_directory, "state")).State;
         Assert.Equal(store.State.RecentWorkspaces, restored.RecentWorkspaces);
         Assert.Equal(store.State.Theme, restored.Theme);
+    }
+}
+
+internal sealed class WorkspaceIoWindowsFactAttribute : FactAttribute
+{
+    public WorkspaceIoWindowsFactAttribute()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Skip = "Only Windows refuses to replace a file that another handle holds open.";
+        }
     }
 }

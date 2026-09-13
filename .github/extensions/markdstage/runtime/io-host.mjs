@@ -10,6 +10,7 @@ const errorMessages = Object.freeze({
   too_large: "The file exceeds its size limit.",
   exists: "The output already exists.",
   conflict: "The source changed before it could be saved.",
+  locked: "The file is open in another application. Close it and try again.",
   io_failed: "The I/O operation failed.",
 });
 const eventKinds = new Set(["change", "changed", "rename", "create", "modify", "delete", "created", "modified", "deleted"]);

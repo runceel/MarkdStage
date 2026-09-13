@@ -8,4 +8,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="MarkdStage.Core.Tests" />
+  </ItemGroup>
+
 </Project>

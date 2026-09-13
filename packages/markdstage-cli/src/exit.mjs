@@ -18,6 +18,7 @@ export const EXIT_CODES = {
 
 const DECK_ERROR_CODES = new Set([
   "empty_markdown",
+  "file_locked",
   "file_not_found",
   "file_too_large",
   "invalid_input",

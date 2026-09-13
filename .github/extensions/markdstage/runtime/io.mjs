@@ -59,7 +59,7 @@ export function getIO() {
   return installedIO;
 }
 
-const portCodes = new Set(["denied", "unsupported", "missing", "too_large", "exists", "conflict", "io_failed"]);
+const portCodes = new Set(["denied", "unsupported", "missing", "too_large", "exists", "conflict", "locked", "io_failed"]);
 const writes = new Set(["writeBytes", "replaceText", "makeDirectory"]);
 const rootOperations = new Set(["stat", "list", "watch"]);
 const messages = {
@@ -72,6 +72,7 @@ const messages = {
   theme_file_not_found: "The theme file was not found.",
   slide_background_too_large: "The slide background exceeds its size limit.",
   source_changed: "The source changed before it could be saved.",
+  file_locked: "The file is open in another application. Close it and try again.",
   io_failed: "The I/O operation failed.",
 };
 
@@ -99,6 +100,7 @@ export function unwrapIOResult(result, { operation, path, kind } = {}) {
     too_large: "file_too_large",
     exists: "invalid_output_path",
     conflict: "source_changed",
+    locked: "file_locked",
     io_failed: "io_failed",
   }[portCode];
   if (kind === "theme" && portCode === "missing") code = "theme_file_not_found";

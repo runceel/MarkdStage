@@ -157,11 +157,18 @@ do not change.
 | File exceeds the limit for its kind | `too_large` | `file_too_large`; for a slide background, `slide_background_too_large` |
 | Target exists and `overwrite` is false | `exists` | `invalid_output_path` |
 | `replaceText` lost a race with an external edit | `conflict` | the existing `source_changed` save result |
+| The destination is held open by another application | `locked` | `file_locked` |
 | Anything else | `io_failed` | `io_failed` |
 
 The right-hand column is the set of codes the CLI already classifies today. Only
-`io_failed` is new, and it is added to the CLI's deck-error classification in the
-same change, so no port failure can produce an unclassified exit code.
+`io_failed` and `file_locked` are new, and they are added to the CLI's deck-error
+classification in the same change, so no port failure can produce an unclassified
+exit code.
+
+A `locked` result is reported only after the host retried the atomic replacement a
+bounded number of times, because sharing violations from PowerPoint, preview
+handlers, sync clients, or security software are usually short lived. The staged
+file is discarded when every attempt fails, so the previous output stays intact.
 
 Two rules make this boundary safe to surface to users:
 

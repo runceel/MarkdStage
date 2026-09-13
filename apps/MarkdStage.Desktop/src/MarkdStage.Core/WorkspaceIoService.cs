@@ -161,7 +161,7 @@ public sealed class WorkspaceIoService : IAsyncDisposable
                             WorkspaceResolver.RejectLinks(target);
                             if (expected.HasValue && (!File.Exists(target) || ModifiedAt(target) != expected.Value))
                                 return Failure("conflict");
-                            File.Move(staging, target, overwrite);
+                            await WorkspaceFileReplacer.ReplaceAsync(staging, target, overwrite, cancellationToken);
                         }
                         finally { if (File.Exists(staging)) File.Delete(staging); }
                         value = path;
@@ -220,6 +220,7 @@ public sealed class WorkspaceIoService : IAsyncDisposable
         catch (DirectoryNotFoundException) { return Failure("missing"); }
         catch (Exception error) when (error is ArgumentException or JsonException or InvalidOperationException or FormatException or OverflowException or IndexOutOfRangeException or KeyNotFoundException)
         { return Failure("denied"); }
+        catch (Exception error) when (WorkspaceFileReplacer.IsSharingViolation(error)) { return Failure("locked"); }
         catch (Exception error) when (error is IOException or OperationCanceledException or System.ComponentModel.Win32Exception or NotSupportedException)
         { return Failure("io_failed"); }
         catch (Exception) { return Failure("io_failed"); }
@@ -232,6 +233,7 @@ public sealed class WorkspaceIoService : IAsyncDisposable
         "too_large" => "The file exceeds the allowed size.",
         "exists" => "The output file already exists.",
         "conflict" => "The source changed since it was read.",
+        "locked" => "The file is open in another application. Close it and try again.",
         "unsupported" => "The operation or file type is not supported.",
         _ => "The workspace operation could not be completed.",
     });
