@@ -8,6 +8,12 @@ namespace MarkdStage.Cli;
 
 internal sealed class BrowserProcess : IAsyncDisposable
 {
+    private const uint CreateNoWindow = 0x08000000;
+    private const uint CreateSuspended = 0x00000004;
+    private const uint ExtendedStartupInfoPresent = 0x00080000;
+    private const nuint ProcThreadAttributeDesktopAppPolicy = 0x00020012;
+    private const nuint ProcThreadAttributeHandleList = 0x00020002;
+    private const int ProcessCreationDesktopAppBreakawayEnableProcessTree = 0x01;
     private readonly SafeFileHandle job;
     private readonly Process process;
     private readonly Task stdoutPump;
@@ -37,7 +43,7 @@ internal sealed class BrowserProcess : IAsyncDisposable
         if (!Native.SetInformationJobObject(job, 9, ref limits, (uint)Marshal.SizeOf<Native.ExtendedLimit>()))
         { job.Dispose(); throw new Win32Exception(); }
         SafeFileHandle? stdoutRead = null, stdoutWrite = null, stderrRead = null, stderrWrite = null, input = null;
-        nint attributeList = 0, handleList = 0;
+        nint attributeList = 0, handleList = 0, desktopAppPolicy = 0;
         var attributesInitialized = false;
         Native.ProcessInfo info = default;
         try
@@ -50,18 +56,30 @@ internal sealed class BrowserProcess : IAsyncDisposable
                 throw new Win32Exception();
             input = Native.CreateFileW("NUL", 0x80000000, 3, ref security, 3, 0, 0);
             if (input.IsInvalid) throw new Win32Exception();
+            var packaged = Native.IsCurrentProcessPackaged();
             nuint attributeSize = 0;
-            Native.InitializeProcThreadAttributeList(0, 1, 0, ref attributeSize);
+            Native.InitializeProcThreadAttributeList(0, packaged ? 2 : 1, 0, ref attributeSize);
             attributeList = Marshal.AllocHGlobal(checked((int)attributeSize));
-            if (!Native.InitializeProcThreadAttributeList(attributeList, 1, 0, ref attributeSize))
+            if (!Native.InitializeProcThreadAttributeList(attributeList, packaged ? 2 : 1, 0, ref attributeSize))
                 throw new Win32Exception();
             attributesInitialized = true;
             handleList = Marshal.AllocHGlobal(3 * nint.Size);
             Marshal.WriteIntPtr(handleList, input.DangerousGetHandle());
             Marshal.WriteIntPtr(handleList, nint.Size, stdoutWrite.DangerousGetHandle());
             Marshal.WriteIntPtr(handleList, 2 * nint.Size, stderrWrite.DangerousGetHandle());
-            if (!Native.UpdateProcThreadAttribute(attributeList, 0, 0x20002, handleList, (nuint)(3 * nint.Size), 0, 0))
+            if (!Native.UpdateProcThreadAttribute(
+                    attributeList, 0, ProcThreadAttributeHandleList,
+                    handleList, (nuint)(3 * nint.Size), 0, 0))
                 throw new Win32Exception();
+            if (packaged)
+            {
+                desktopAppPolicy = Marshal.AllocHGlobal(sizeof(int));
+                Marshal.WriteInt32(desktopAppPolicy, ProcessCreationDesktopAppBreakawayEnableProcessTree);
+                if (!Native.UpdateProcThreadAttribute(
+                        attributeList, 0, ProcThreadAttributeDesktopAppPolicy,
+                        desktopAppPolicy, (nuint)sizeof(int), 0, 0))
+                    throw new Win32Exception();
+            }
             var startup = new Native.StartupInfoEx
             {
                 Startup = new Native.StartupInfo
@@ -72,8 +90,10 @@ internal sealed class BrowserProcess : IAsyncDisposable
                 Attributes = attributeList
             };
             var command = new StringBuilder(string.Join(" ", new[] { executable }.Concat(arguments).Select(Quote)));
-            // Assign while suspended: no browser subprocess can escape before the job owns it.
-            if (!Native.CreateProcessW(executable, command, 0, 0, true, 0x00080004 | 0x08000000,
+            // Remove package identity from the browser process tree, then assign the suspended root
+            // to our own kill-on-close job before Chromium can create subprocesses.
+            var creationFlags = ExtendedStartupInfoPresent | CreateSuspended | CreateNoWindow;
+            if (!Native.CreateProcessW(executable, command, 0, 0, true, creationFlags,
                     0, Path.GetDirectoryName(executable), ref startup, out info))
                 throw new Win32Exception();
             if (!Native.AssignProcessToJobObject(job, info.Process)) throw new Win32Exception();
@@ -96,6 +116,7 @@ internal sealed class BrowserProcess : IAsyncDisposable
             if (attributesInitialized) Native.DeleteProcThreadAttributeList(attributeList);
             if (attributeList != 0) Marshal.FreeHGlobal(attributeList);
             if (handleList != 0) Marshal.FreeHGlobal(handleList);
+            if (desktopAppPolicy != 0) Marshal.FreeHGlobal(desktopAppPolicy);
             input?.Dispose();
             stdoutWrite?.Dispose();
             stderrWrite?.Dispose();
@@ -157,10 +178,17 @@ internal sealed class BrowserProcess : IAsyncDisposable
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)] internal static extern SafeFileHandle CreateFileW(string name, uint access, uint share, ref SecurityAttributes attributes, uint creation, uint flags, nint template);
         [DllImport("kernel32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool InitializeProcThreadAttributeList(nint list, int count, int flags, ref nuint size);
         [DllImport("kernel32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool UpdateProcThreadAttribute(nint list, uint flags, nuint attribute, nint value, nuint size, nint previous, nint returnedSize);
+        [DllImport("kernel32.dll")] internal static extern int GetCurrentPackageFullName(ref uint packageFullNameLength, StringBuilder? packageFullName);
         [DllImport("kernel32.dll")] internal static extern void DeleteProcThreadAttributeList(nint list);
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool CreateProcessW(string executable, StringBuilder command, nint processAttributes, nint threadAttributes, [MarshalAs(UnmanagedType.Bool)] bool inherit, uint flags, nint environment, string? directory, ref StartupInfoEx startup, out ProcessInfo info);
         [DllImport("kernel32.dll", SetLastError = true)] internal static extern uint ResumeThread(nint thread);
         [DllImport("kernel32.dll")] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool CloseHandle(nint handle);
         [DllImport("kernel32.dll")] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool TerminateProcess(nint process, uint code);
+
+        internal static bool IsCurrentProcessPackaged()
+        {
+            uint length = 0;
+            return GetCurrentPackageFullName(ref length, null) == 122;
+        }
     }
 }

@@ -17,12 +17,23 @@ public interface IBrowserHost
     Task CloseAsync(string handle, CancellationToken cancellationToken);
 }
 
+public class BrowserHostException(string code, string message) : Exception(message)
+{
+    public string Code { get; } = code;
+}
+
 public sealed record WorkspaceChange(string Handle, string Path, string Kind);
 
 public sealed class WorkspaceIoService : IAsyncDisposable
 {
     private const int MaxReadBytes = 10 * 1024 * 1024;
     private const int MaxWriteBytes = 256 * 1024 * 1024;
+    private const int AtomicReplaceAttempts = 5;
+    private const int AtomicReplaceRetryDelayMilliseconds = 75;
+    private const int TransientDeleteAttempts = 20;
+    private const int TransientDeleteRetryDelayMilliseconds = 100;
+    private const int ErrorSharingViolation = 32;
+    private const int ErrorLockViolation = 33;
     private readonly string _transientRoot;
     private readonly IBrowserHost? _browser;
     private readonly ConcurrentDictionary<string, FileSystemWatcher> _watchers = new();
@@ -161,7 +172,8 @@ public sealed class WorkspaceIoService : IAsyncDisposable
                             WorkspaceResolver.RejectLinks(target);
                             if (expected.HasValue && (!File.Exists(target) || ModifiedAt(target) != expected.Value))
                                 return Failure("conflict");
-                            File.Move(staging, target, overwrite);
+                            if (!await CommitStagingAsync(staging, target, overwrite, cancellationToken))
+                                return Failure("destination_locked");
                         }
                         finally { if (File.Exists(staging)) File.Delete(staging); }
                         value = path;
@@ -189,7 +201,7 @@ public sealed class WorkspaceIoService : IAsyncDisposable
                     value = CreateTransient(path);
                     break;
                 case "removeTransientDirectory":
-                    RemoveTransient(path);
+                    await RemoveTransientAsync(path, cancellationToken);
                     value = null;
                     break;
                 case "launchBrowser":
@@ -220,9 +232,72 @@ public sealed class WorkspaceIoService : IAsyncDisposable
         catch (DirectoryNotFoundException) { return Failure("missing"); }
         catch (Exception error) when (error is ArgumentException or JsonException or InvalidOperationException or FormatException or OverflowException or IndexOutOfRangeException or KeyNotFoundException)
         { return Failure("denied"); }
+        catch (BrowserHostException error)
+        { return Failure(error.Code); }
         catch (Exception error) when (error is IOException or OperationCanceledException or System.ComponentModel.Win32Exception or NotSupportedException)
         { return Failure("io_failed"); }
         catch (Exception) { return Failure("io_failed"); }
+    }
+
+    private static async Task<bool> CommitStagingAsync(
+        string staging,
+        string target,
+        bool overwrite,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; attempt <= AtomicReplaceAttempts; attempt++)
+        {
+            try
+            {
+                File.Move(staging, target, overwrite);
+                return true;
+            }
+            catch (IOException error) when (
+                overwrite &&
+                IsSharingViolation(error) &&
+                attempt < AtomicReplaceAttempts)
+            {
+                await Task.Delay(AtomicReplaceRetryDelayMilliseconds, cancellationToken);
+            }
+            catch (IOException error) when (overwrite && IsSharingViolation(error))
+            {
+                return false;
+            }
+            catch (UnauthorizedAccessException) when (
+                overwrite &&
+                IsDestinationLocked(target) &&
+                attempt < AtomicReplaceAttempts)
+            {
+                await Task.Delay(AtomicReplaceRetryDelayMilliseconds, cancellationToken);
+            }
+            catch (UnauthorizedAccessException) when (overwrite && IsDestinationLocked(target))
+            {
+                return false;
+            }
+        }
+        return false;
+    }
+
+    private static bool IsSharingViolation(IOException error) =>
+        OperatingSystem.IsWindows() &&
+        (error.HResult & 0xFFFF) is ErrorSharingViolation or ErrorLockViolation;
+
+    private static bool IsDestinationLocked(string target)
+    {
+        if (!OperatingSystem.IsWindows() || !File.Exists(target)) return false;
+        try
+        {
+            using var stream = new FileStream(target, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+            return false;
+        }
+        catch (IOException error) when (IsSharingViolation(error))
+        {
+            return true;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 
     private static PortResult Failure(string code) => new(false, Code: code, Message: code switch
@@ -232,6 +307,9 @@ public sealed class WorkspaceIoService : IAsyncDisposable
         "too_large" => "The file exceeds the allowed size.",
         "exists" => "The output file already exists.",
         "conflict" => "The source changed since it was read.",
+        "destination_locked" => "The destination file is in use.",
+        "browser_not_found" => "No installed Chromium-based browser was found.",
+        "browser_automation_unavailable" => "Chromium automation could not start. Enterprise policy may disable remote debugging.",
         "unsupported" => "The operation or file type is not supported.",
         _ => "The workspace operation could not be completed.",
     });
@@ -346,11 +424,23 @@ public sealed class WorkspaceIoService : IAsyncDisposable
         }
     }
 
-    private void RemoveTransient(string handle)
+    private async Task RemoveTransientAsync(string handle, CancellationToken cancellationToken)
     {
         if (!_transients.TryGetValue(handle, out var directory)) return;
         WorkspaceResolver.RejectLinks(directory);
-        if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        for (var attempt = 1; Directory.Exists(directory); attempt++)
+        {
+            try
+            {
+                Directory.Delete(directory, true);
+            }
+            catch (Exception error) when (
+                (error is IOException or UnauthorizedAccessException) &&
+                attempt < TransientDeleteAttempts)
+            {
+                await Task.Delay(TransientDeleteRetryDelayMilliseconds, cancellationToken);
+            }
+        }
         _transients.TryRemove(handle, out _);
         if (_transientLocks.TryRemove(handle, out var ownership)) ownership.Dispose();
         TryDeleteOwnershipFile(OwnershipFile(directory));
@@ -431,7 +521,7 @@ public sealed class WorkspaceIoService : IAsyncDisposable
                     try { await _browser.CloseAsync(handle, CancellationToken.None); }
                     catch (Exception) { }
             foreach (var handle in _transients.Keys)
-                try { RemoveTransient(handle); }
+                try { await RemoveTransientAsync(handle, CancellationToken.None); }
                 catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
             foreach (var ownership in _transientLocks.Values) ownership.Dispose();
             _transientLocks.Clear();

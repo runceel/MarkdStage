@@ -59,7 +59,10 @@ export function getIO() {
   return installedIO;
 }
 
-const portCodes = new Set(["denied", "unsupported", "missing", "too_large", "exists", "conflict", "io_failed"]);
+const portCodes = new Set([
+  "denied", "unsupported", "missing", "too_large", "exists", "conflict", "destination_locked",
+  "browser_not_found", "browser_automation_unavailable", "io_failed",
+]);
 const writes = new Set(["writeBytes", "replaceText", "makeDirectory"]);
 const rootOperations = new Set(["stat", "list", "watch"]);
 const messages = {
@@ -72,6 +75,9 @@ const messages = {
   theme_file_not_found: "The theme file was not found.",
   slide_background_too_large: "The slide background exceeds its size limit.",
   source_changed: "The source changed before it could be saved.",
+  output_locked: "The output file may be open in another application.",
+  browser_not_found: "No installed Chromium-based browser was found.",
+  browser_automation_unavailable: "Chromium automation could not start. Enterprise policy may disable remote debugging.",
   io_failed: "The I/O operation failed.",
 };
 
@@ -99,10 +105,18 @@ export function unwrapIOResult(result, { operation, path, kind } = {}) {
     too_large: "file_too_large",
     exists: "invalid_output_path",
     conflict: "source_changed",
+    destination_locked: "output_locked",
+    browser_not_found: "browser_not_found",
+    browser_automation_unavailable: "browser_automation_unavailable",
     io_failed: "io_failed",
   }[portCode];
   if (kind === "theme" && portCode === "missing") code = "theme_file_not_found";
   if (kind === "slide-background" && portCode === "too_large") code = "slide_background_too_large";
+  if (code === "output_locked") {
+    const filename = validPath && path !== "" ? path.split("/").at(-1) : "";
+    throw new MarkdStageError(code,
+      filename ? `${messages[code]} Close ${filename} and retry.` : `${messages[code]} Close it and retry.`);
+  }
   const suffix = validPath && path !== "" ? ` (${path})` : "";
   throw new MarkdStageError(code, `${messages[code]}${suffix}`);
 }

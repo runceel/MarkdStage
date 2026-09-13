@@ -176,6 +176,21 @@ test("portable PPTX reads native image bytes through frozen workspace source roo
   assert.equal(inspectPptxPackage(h.writes.get(report.path)).mediaCount, 2);
 });
 
+test("portable PPTX preserves actionable locked-destination errors", async () => {
+  const h = harness({ write: () => ({
+    ok: false,
+    code: "destination_locked",
+    message: "private host details",
+  }) });
+  await assert.rejects(
+    h.output.exportPptx({ output: "decks/final.pptx" }),
+    {
+      code: "output_locked",
+      message: "The output file may be open in another application. Close final.pptx and retry.",
+    },
+  );
+});
+
 test("failed rendering releases browser then transient handle and resets exclusivity", async () => {
   let fail = true;
   const h = harness({ launch: ({ output, token, ok, layout }) => {

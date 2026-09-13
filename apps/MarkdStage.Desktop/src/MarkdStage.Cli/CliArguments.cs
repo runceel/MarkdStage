@@ -1,8 +1,9 @@
+using MarkdStage.Core;
+
 namespace MarkdStage.Cli;
 
-internal sealed class CliException(string code, string message, int exitCode = 1) : Exception(message)
+internal sealed class CliException(string code, string message, int exitCode = 1) : BrowserHostException(code, message)
 {
-    public string Code { get; } = code;
     public int ExitCode { get; } = exitCode;
 }
 
