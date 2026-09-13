@@ -12,6 +12,12 @@ import {
 } from "../renderer/archify.mjs";
 import { contrastRatio, parseRgb } from "../renderer/oklch.mjs";
 import { ICONS } from "../renderer/architecture.mjs";
+import { placePptxElement } from "../renderer/pptx-placement.mjs";
+import { sceneToPptxElements } from "../renderer/scene-pptx.mjs";
+import {
+  buildPptxPackage,
+  inspectPptxPackage,
+} from "../runtime/pptx-package.mjs";
 
 const THEMES = {
   dark: {
@@ -254,6 +260,52 @@ test("an edge uses the authored point list and the identity from its group", () 
   assert.equal(connector.arrowStart, "none");
   assert.equal(connector.sourcePath, "edges[web->api]");
   assert.equal(connector.accessibility.title, "REST");
+});
+
+test("Archify connector coordinates are placed into the editable PowerPoint output", () => {
+  const { scene } = convert(
+    svg([
+      element("rect", { class: "c-frontend", x: 20, y: 30, width: 80, height: 40 }),
+      element("g", { "data-edge-id": "e1", "data-edge-key": "web->api" }, [
+        element("path", {
+          class: "a-emphasis",
+          "data-composition-points": "10,10;10,50;90,50",
+          "marker-end": "url(#arrow)",
+          d: "M 10 10 L 10 50 L 90 50",
+        }),
+      ]),
+    ]),
+  );
+  const mapped = sceneToPptxElements(scene, { pathPrefix: "archify[0]" });
+  const elements = mapped.elements.map((entry) =>
+    placePptxElement(entry, { originX: 100, originY: 50, scale: 2 }));
+  const connector = elements.find((entry) => entry.type === "connector");
+
+  assert.deepEqual(mapped.fallbacks, []);
+  assert.deepEqual(connector.points, [
+    { x: 120, y: 70 },
+    { x: 120, y: 150 },
+    { x: 280, y: 150 },
+  ]);
+  assert.deepEqual(
+    { x: connector.x, y: connector.y, width: connector.width, height: connector.height },
+    { x: 120, y: 70, width: 160, height: 80 },
+  );
+
+  const pptx = buildPptxPackage({
+    title: "Archify connector placement",
+    slides: [{ elements }],
+  });
+  assert.equal(inspectPptxPackage(pptx).valid, true);
+  const packageXml = Buffer.from(pptx).toString("utf8");
+  assert.match(
+    packageXml,
+    /<a:off x="1143000" y="666750"\/><a:ext cx="0" cy="762000"\/>/,
+  );
+  assert.match(
+    packageXml,
+    /<a:off x="1143000" y="1428750"\/><a:ext cx="1524000" cy="0"\/>/,
+  );
 });
 
 test("a plain rule without edge identity still imports", () => {

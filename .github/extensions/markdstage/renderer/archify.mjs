@@ -302,7 +302,9 @@ function indexArchifySvg(svg) {
 }
 
 function number(element, name, fallback = 0) {
-  const value = Number(element.getAttribute?.(name));
+  const raw = element.getAttribute?.(name);
+  if (raw === null || String(raw).trim() === "") return fallback;
+  const value = Number(raw);
   return Number.isFinite(value) ? value : fallback;
 }
 

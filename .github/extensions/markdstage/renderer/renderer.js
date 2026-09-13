@@ -4,6 +4,7 @@ import { collectArchitectureLayout, ARCHITECTURE_LAYOUT_ELEMENT_LIMIT } from "./
 import { mermaidSvgToScene } from "./mermaid-scene.mjs";
 import { captureSvgTree, sceneToSvg } from "./scene-svg.mjs";
 import { sceneToPptxElements } from "./scene-pptx.mjs";
+import { placePptxElement } from "./pptx-placement.mjs";
 import { SceneGraphError } from "./scene-graph.mjs";
 import { attachArchitectureEditor } from "./architecture-editor.mjs";
 import {
@@ -2369,15 +2370,9 @@ function collectArchifyObjects(host, deck, blockIndex) {
     pathPrefix,
     zOrderBase: Number(host.dataset.pptxZOrder),
   });
-  const place = (object) => ({
-    ...object,
-    x: roundedMetric(originX + object.x * scale),
-    y: roundedMetric(originY + object.y * scale),
-    width: roundedMetric(object.width * scale),
-    height: roundedMetric(object.height * scale),
-  });
   return {
-    elements: mapped.elements.map(place),
+    elements: mapped.elements.map((element) =>
+      placePptxElement(element, { originX, originY, scale })),
     fallbacks: mapped.fallbacks.map((fallback) =>
       pptxFallback("archify", svg, deck, fallback.reason, { artwork: fallback.artwork }),
     ),
