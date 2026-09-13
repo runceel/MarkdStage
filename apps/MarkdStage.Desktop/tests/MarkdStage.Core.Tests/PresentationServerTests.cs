@@ -25,7 +25,7 @@ public sealed class PresentationServerTests
         Assert.DoesNotContain("*", directives["img-src"]);
         Assert.DoesNotContain("blob:", directives["script-src"]);
         Assert.DoesNotContain("'unsafe-inline'", directives["script-src"]);
-        Assert.Equal(["'self'"], directives["connect-src"]);
+        Assert.Equal(["'self'", "https://workspace.markdstage.invalid"], directives["connect-src"]);
         Assert.Equal(["'none'"], directives["object-src"]);
     }
 
