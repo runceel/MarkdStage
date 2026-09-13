@@ -1,6 +1,6 @@
 ---
 name: "markdstage"
-description: "Turn Markdown into 16:9 slides with the MarkdStage CLI. Use when the user asks to create, refine, present, preview, validate, inspect, screenshot, or export a Markdown deck (\"present slides.md\", \"turn this file into slides\", \"export the deck to PDF or PowerPoint\", \"check whether my slides fit\"). Provides a deterministic create-review-deliver workflow, browser-based Architecture DSL editing, theme validation, 1280x720 clipping diagnostics, targeted PNG capture, and PDF/PowerPoint export."
+description: "Turn Markdown into 16:9 slides with the MarkdStage CLI. Use when the user asks to create, refine, present, preview, validate, inspect, screenshot, or export a Markdown deck (\"present slides.md\", \"turn this file into slides\", \"export the deck to PDF or PowerPoint\", \"check whether my slides fit\", \"import an Archify SVG\"). Provides a deterministic create-review-deliver workflow, browser-based Architecture DSL editing, theme validation, 1280x720 clipping diagnostics, targeted PNG capture, and PDF/PowerPoint export."
 license: "MIT"
 ---
 
@@ -57,6 +57,25 @@ Never hand-write HTML or CSS for a slide. Fix layout problems by shortening the
 content or by changing the layout in front matter. Prefer structured validation
 and layout diagnostics over capturing every slide.
 
+## Archify imports
+
+Use an `archify` fence to import an SVG exported by Archify:
+
+````markdown
+```archify
+assets/checkout-architecture.svg
+```
+````
+
+The fence contains one local `.svg` path, not JSON or inline SVG. Save the file
+under Markdown-adjacent or workspace-root `assets/` and omit the leading slash.
+MarkdStage preserves geometry, applies the deck theme, and exports supported
+shapes, connectors, and text as editable PowerPoint objects. Re-export in Archify
+and refresh to update it; the Architecture Editor does not edit imported SVGs.
+Preview to check import errors; `validate` does not validate imported Archify SVGs.
+Read `references/slide-format.md` or `markdstage guide slide-format` for
+the complete path rules and import behavior.
+
 ## Commands
 
 | Command | Purpose |
@@ -78,7 +97,7 @@ Chromium-based browser, `4` rendering failure, `5` issues found with `--fail-on-
 
 Read the reference that matches the task before writing Markdown:
 
-- `references/slide-format.md` — slide fragments, front matter, layouts.
+- `references/slide-format.md` — slide fragments, front matter, layouts, Archify SVG imports.
 - `references/themes.md` — built-in themes.
 - `references/custom-themes.md` — custom theme authoring and `theme-file`.
 - `references/theme-schema.md` — custom theme properties.

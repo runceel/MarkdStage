@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { parseArchifySource } from "../renderer/archify.mjs";
 import {
   architectureValidationErrors,
   architectureValidationReport,
@@ -70,6 +71,29 @@ test("readGuide returns every document-backed topic", async () => {
   assert.match(await readGuide("architecture-dsl"), /dedicated Architecture Editor/);
   assert.match(await readGuide("architecture-dsl"), /explicitly saved/);
   assert.match(await readGuide("architecture-dsl"), /`labelLayer`/);
+});
+
+test("overview and slide-format explain usable Archify imports", async () => {
+  const overview = await readGuide("overview");
+  assert.match(overview, /`archify` fence/);
+  assert.match(overview, /assets\/checkout-architecture\.svg/);
+  assert.match(overview, /markdstage guide slide-format/);
+
+  const guide = await readGuide("slide-format");
+  const example = /```archify\n([\s\S]*?)\n```/.exec(guide);
+  assert.ok(example, "slide-format must include an Archify fence example");
+  assert.deepEqual(parseArchifySource(example[1]), {
+    src: "assets/checkout-architecture.svg",
+  });
+  assert.match(guide, /exactly one `\.svg` asset path/);
+  assert.match(guide, /without a leading slash/);
+  assert.match(guide, /Markdown-adjacent `assets\/` before\s+workspace-root `assets\/`/);
+  assert.match(guide, /Pass `sourceName`/);
+  assert.match(guide, /deck theme/);
+  assert.match(guide, /editable\s+PowerPoint objects/);
+  assert.match(guide, /cannot be\s+edited in the Architecture Editor/);
+  assert.match(guide, /do not validate imported Archify\s+SVGs/);
+  assert.match(guide, /Re-export in Archify and refresh/);
 });
 
 test("architecture guide explains text fitting and coordinate connectors", async () => {

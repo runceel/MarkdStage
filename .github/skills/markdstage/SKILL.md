@@ -1,6 +1,6 @@
 ---
 name: markdstage
-description: 'Turn Markdown files into slides and present them in the MarkdStage canvas, or use the MarkdStage CLI to create, validate, inspect, capture, present, and export source-backed decks. Use for requests such as "present slides.md," "present this Markdown," "present @name.md," "use a Microsoft style," "turn this file into slides," "check whether my slides fit," or "export the deck to PDF or PowerPoint." When the source is prose-heavy, summarize and restructure each page as a heading with bullets. Generate the complete deck once at startup and pass every slide to the open input of canvas ID MarkdStage. Navigation then stays inside the canvas through buttons, arrow keys, the slide list, and Surface Pen on supported Windows systems.'
+description: 'Turn Markdown files into slides and present them in the MarkdStage canvas, or use the MarkdStage CLI to create, validate, inspect, capture, present, and export source-backed decks. Use for requests such as "present slides.md," "present this Markdown," "present @name.md," "use a Microsoft style," "turn this file into slides," "check whether my slides fit," "import an Archify SVG," or "export the deck to PDF or PowerPoint." When the source is prose-heavy, summarize and restructure each page as a heading with bullets. Generate the complete deck once at startup and pass every slide to the open input of canvas ID MarkdStage. Navigation then stays inside the canvas through buttons, arrow keys, the slide list, and Surface Pen on supported Windows systems.'
 ---
 
 # MarkdStage skill
@@ -308,7 +308,7 @@ common image. Only absent settings fall back; invalid values, missing files,
 and oversized images are errors. Existing covers and logos are otherwise unchanged.
 
 Use normal Markdown: headings, lists, emphasis, inline and fenced code, block
-quotes, tables, links, images, `mermaid`, `architecture`, and emoji. Write raw
+quotes, tables, links, images, `mermaid`, `architecture`, `archify`, and emoji. Write raw
 Markdown; do not generate HTML or pre-escape it.
 
 Put Slidev / Marp-style speaker notes in a top-level HTML comment at the end of
@@ -388,6 +388,25 @@ same slides and current index plus the new theme.
 Use a `mermaid` fence for automatically laid-out flowcharts, sequence diagrams,
 class diagrams, pie charts, and related diagrams. Mermaid is bundled and works
 offline. Syntax errors render an error while preserving other slide content.
+
+Use an `archify` fence for an existing SVG export from Archify:
+
+````markdown
+```archify
+assets/checkout-architecture.svg
+```
+````
+
+The fence contains one local `.svg` path, not JSON or inline SVG; blank lines
+and `#` comment lines are allowed. Put the file in Markdown-adjacent or
+workspace-root `assets/`, omit the leading slash, and pass `sourceName` so
+adjacent assets resolve. MarkdStage preserves the geometry, repaints it with
+the deck theme, and exports supported shapes, connectors, and text as editable
+PowerPoint objects. Re-export in Archify and refresh to update it; the
+Architecture Editor does not edit imported SVGs. Preview to check import errors;
+`markdstage_validate` and CLI `validate` do not validate imported Archify SVGs.
+Read `markdstage_guide` topic `slide-format` (CLI:
+`markdstage guide slide-format`) for the complete path rules and import behavior.
 
 Before writing Architecture DSL, request `markdstage_guide` topic
 `architecture-schema`. This compact, schema-derived authoring contract includes

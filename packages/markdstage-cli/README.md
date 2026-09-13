@@ -41,6 +41,8 @@ markdstage capture slides.md --pages 2,4
 markdstage export slides.md --output slides.pdf
 markdstage export slides.md --output slides.pptx
 markdstage export slides.md --output slides.pptx --mermaid-image-fallback
+markdstage guide overview
+markdstage guide slide-format
 markdstage guide architecture-dsl
 markdstage skill install --target codex
 markdstage skill install --target claude
@@ -72,6 +74,16 @@ its containing directory if there is none; Git need not be installed. Relative
 command-line arguments are first made absolute against the caller's directory.
 Files outside an explicit workspace are rejected. `skill install` and `skill check`
 also use the current directory when neither `--root` nor `--workspace` is supplied.
+
+## Archify imports
+
+An `archify` fence can reference an Archify SVG export such as
+`assets/checkout-architecture.svg`. The shared renderer preserves its geometry,
+applies the deck theme, and exports supported shapes, connectors, and text as
+editable PowerPoint objects. Run `markdstage guide overview` to discover this
+workflow and `markdstage guide slide-format` for the fence example, asset rules,
+and limitations. Re-export in Archify and refresh to update the diagram;
+Architecture editing applies only to `architecture` fences.
 
 ## Architecture editing
 
