@@ -58,6 +58,23 @@ dotnet test tests\MarkdStage.Core.Tests\MarkdStage.Core.Tests.csproj
 npm run test:unit
 ```
 
+The Windows-only CLI tests exercise the native message layout, STA message pump,
+and WebView2 event delivery after forced garbage collection. Run them natively on
+both x64 and ARM64 (CI uses separate runners):
+
+```powershell
+dotnet test tests\MarkdStage.Cli.Tests\MarkdStage.Cli.Tests.csproj -c Release -r win-arm64 -p:Platform=ARM64
+dotnet build src\MarkdStage.Cli\MarkdStage.Cli.csproj -c Release -r win-arm64 -p:Platform=ARM64
+$env:MARKDSTAGE_NATIVE_CLI = (Resolve-Path "src\MarkdStage.Cli\bin\ARM64\Release\net10.0-windows10.0.26100.0\win-arm64\MarkdStageCli.exe").Path
+node --test tests\native-cli.test.mjs
+```
+
+Use `win-x64` and `Platform=x64` for x64. The command smoke tests require WebView2
+and an installed Chromium browser, bound each command to 120 seconds, and verify
+inspection results and actual PNG/PDF/PowerPoint files. For installed-MSIX
+acceptance, set `MARKDSTAGE_NATIVE_CLI` to the installed `markdstage.exe` alias
+instead; source-build smoke tests do not replace package activation checks.
+
 ## MSIX build
 
 Publish the GUI and console launcher into one package, including Windows App SDK,

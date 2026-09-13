@@ -336,6 +336,48 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
+  native-cli:
+    name: Native CLI (${{ matrix.architecture }})
+    needs: changes
+    if: needs.changes.outputs.desktop == 'true'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-2025
+            architecture: x64
+            platform: x64
+          - runner: windows-11-arm
+            architecture: arm64
+            platform: ARM64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24.x
+
+      - name: .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Native message loop and WebView2 lifetime tests
+        run: dotnet test apps\MarkdStage.Desktop\tests\MarkdStage.Cli.Tests\MarkdStage.Cli.Tests.csproj -c Release -r win-${{ matrix.architecture }} -p:Platform=${{ matrix.platform }}
+
+      - name: Build native CLI
+        run: dotnet build apps\MarkdStage.Desktop\src\MarkdStage.Cli\MarkdStage.Cli.csproj -c Release -r win-${{ matrix.architecture }} -p:Platform=${{ matrix.platform }}
+
+      - name: Native inspect, capture, PDF, and PowerPoint smoke tests
+        shell: pwsh
+        run: |
+          $env:MARKDSTAGE_NATIVE_CLI = (Resolve-Path "apps\MarkdStage.Desktop\src\MarkdStage.Cli\bin\${{ matrix.platform }}\Release\net10.0-windows10.0.26100.0\win-${{ matrix.architecture }}\MarkdStageCli.exe").Path
+          node --test apps\MarkdStage.Desktop\tests\native-cli.test.mjs
+
   gate:
     name: CI
     if: always()
@@ -345,6 +387,7 @@ jobs:
       - test
       - cli
       - desktop
+      - native-cli
       - samples
     runs-on: ubuntu-24.04
 
@@ -361,6 +404,7 @@ jobs:
           CLI_RESULT: ${{ needs.cli.result }}
           DESKTOP_SELECTED: ${{ needs.changes.outputs.desktop }}
           DESKTOP_RESULT: ${{ needs.desktop.result }}
+          NATIVE_CLI_RESULT: ${{ needs.native-cli.result }}
           SAMPLES_SELECTED: ${{ needs.changes.outputs.samples }}
           SAMPLES_RESULT: ${{ needs.samples.result }}
         run: |
@@ -389,5 +433,6 @@ jobs:
           check_job "Test" "$TEST_SELECTED" "$TEST_RESULT"
           check_job "MarkdStage CLI" "$CLI_SELECTED" "$CLI_RESULT"
           check_job "MarkdStage Desktop" "$DESKTOP_SELECTED" "$DESKTOP_RESULT"
+          check_job "Native CLI" "$DESKTOP_SELECTED" "$NATIVE_CLI_RESULT"
           check_job "Sample decks" "$SAMPLES_SELECTED" "$SAMPLES_RESULT"
           echo "All selected CI jobs passed."

@@ -14,6 +14,8 @@ internal sealed class ScriptHost : IAsyncDisposable
     private readonly SynchronizationContext dispatcher = SynchronizationContext.Current
         ?? throw new InvalidOperationException("The script host requires an STA dispatcher.");
     private CoreWebView2Controller? controller;
+    // Keep the WinRT event source alive for as long as its native callbacks are registered.
+    private CoreWebView2? core;
     private string trustedUrl = "";
     private bool disposed;
     public event Action<JsonElement>? SnapshotChanged;
@@ -35,7 +37,7 @@ internal sealed class ScriptHost : IAsyncDisposable
                 CoreWebView2ControllerWindowReference.CreateFromWindowHandle((ulong)window));
             controller.IsVisible = false;
             controller.Bounds = new Windows.Foundation.Rect(0, 0, 1, 1);
-            var core = controller.CoreWebView2;
+            core = controller.CoreWebView2;
             core.Settings.AreDevToolsEnabled = false;
             core.Settings.AreDefaultContextMenusEnabled = false;
             core.Settings.AreHostObjectsAllowed = false;
@@ -105,7 +107,7 @@ internal sealed class ScriptHost : IAsyncDisposable
                 object result;
                 try { result = await handleRequest(operation, args); }
                 catch { result = new { ok = false, code = "io_failed", message = "The I/O operation failed." }; }
-                if (!disposed) controller!.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(new { type = "io-result", id, result }));
+                if (!disposed) core!.PostWebMessageAsJson(JsonSerializer.Serialize(new { type = "io-result", id, result }));
             }
         }
         catch (Exception error)
@@ -127,7 +129,7 @@ internal sealed class ScriptHost : IAsyncDisposable
                 try
                 {
                     if (disposed) { completion.TrySetCanceled(); return; }
-                    await controller!.CoreWebView2.ExecuteScriptAsync(
+                    await core!.ExecuteScriptAsync(
                         $"window.markdstageInvoke({JsonSerializer.Serialize(id)},{JsonSerializer.Serialize(method)},{JsonSerializer.Serialize(arguments)});");
                 }
                 catch (Exception error) { completion.TrySetException(error); }
@@ -141,7 +143,7 @@ internal sealed class ScriptHost : IAsyncDisposable
 
     public void NotifyWatch(WorkspaceChange change) => dispatcher.Post(_ =>
     {
-        if (!disposed) controller!.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(new
+        if (!disposed) core!.PostWebMessageAsJson(JsonSerializer.Serialize(new
         {
             type = "io-watch", handle = change.Handle,
             @event = new { path = change.Path, kind = change.Kind }
@@ -164,6 +166,7 @@ internal sealed class ScriptHost : IAsyncDisposable
         foreach (var completion in pending.Values) completion.TrySetCanceled();
         controller?.Close();
         controller = null;
+        core = null;
         return ValueTask.CompletedTask;
     }
 }
