@@ -1,11 +1,32 @@
 <Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="ARM64" />
+  </Configurations>
   <Folder Name="/src/">
-    <Project Path="src/MarkdStage.App/MarkdStage.App.csproj" />
-    <Project Path="src/MarkdStage.Cli/MarkdStage.Cli.csproj" />
-    <Project Path="src/MarkdStage.Core/MarkdStage.Core.csproj" />
+    <Project Path="src/MarkdStage.App/MarkdStage.App.csproj">
+      <Platform Solution="*|x64" Project="x64" />
+      <Platform Solution="*|ARM64" Project="ARM64" />
+      <Deploy Solution="*|x64" Project="true" />
+      <Deploy Solution="*|ARM64" Project="true" />
+    </Project>
+    <Project Path="src/MarkdStage.Cli/MarkdStage.Cli.csproj">
+      <Platform Solution="*|x64" Project="x64" />
+      <Platform Solution="*|ARM64" Project="ARM64" />
+    </Project>
+    <Project Path="src/MarkdStage.Core/MarkdStage.Core.csproj">
+      <Platform Solution="*|x64" Project="x64" />
+      <Platform Solution="*|ARM64" Project="ARM64" />
+    </Project>
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/MarkdStage.Cli.Tests/MarkdStage.Cli.Tests.csproj" />
-    <Project Path="tests/MarkdStage.Core.Tests/MarkdStage.Core.Tests.csproj" />
+    <Project Path="tests/MarkdStage.Cli.Tests/MarkdStage.Cli.Tests.csproj">
+      <Platform Solution="*|x64" Project="x64" />
+      <Platform Solution="*|ARM64" Project="ARM64" />
+    </Project>
+    <Project Path="tests/MarkdStage.Core.Tests/MarkdStage.Core.Tests.csproj">
+      <Platform Solution="*|x64" Project="x64" />
+      <Platform Solution="*|ARM64" Project="ARM64" />
+    </Project>
   </Folder>
 </Solution>

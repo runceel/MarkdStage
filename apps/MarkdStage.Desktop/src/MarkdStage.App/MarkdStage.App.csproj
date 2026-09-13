@@ -10,16 +10,18 @@
     <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Platforms>x64;ARM64</Platforms>
-    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString().ToLowerInvariant())</RuntimeIdentifier>
+    <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' and '$(Platform)' == 'ARM64'">win-arm64</RuntimeIdentifier>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
     <PublishProfile Condition="Exists('Properties\PublishProfiles\win-$(Platform).pubxml')">win-$(Platform).pubxml</PublishProfile>
     <UseWinUI>true</UseWinUI>
     <WinUISDKReferences>false</WinUISDKReferences>
-    <EnableMsixTooling>false</EnableMsixTooling>
+    <EnableMsixTooling>true</EnableMsixTooling>
     <EnableWinAppRunSupport>false</EnableWinAppRunSupport>
-    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsPackageType>MSIX</WindowsPackageType>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <SelfContained>true</SelfContained>
-    <AppxPackage>false</AppxPackage>
+    <AppxPackage>true</AppxPackage>
     <AppxPackageSigningEnabled>false</AppxPackageSigningEnabled>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
@@ -47,11 +49,7 @@
 
   <ItemGroup>
     <Manifest Include="$(ApplicationManifest)" />
-    <Content Include="Package.appxmanifest">
-      <Link>appxmanifest.xml</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-    </Content>
+    <AppxManifest Include="Package.appxmanifest" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -64,8 +62,7 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
-    <Content Include="$(RepositoryRoot)\.github\extensions\markdstage\renderer\**\*"
-             Exclude="$(RepositoryRoot)\.github\extensions\markdstage\renderer\index.html">
+    <Content Include="$(RepositoryRoot)\.github\extensions\markdstage\renderer\**\*" Exclude="$(RepositoryRoot)\.github\extensions\markdstage\renderer\index.html">
       <Link>Web\renderer\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
@@ -147,48 +144,30 @@
   <PropertyGroup>
     <PublishReadyToRun>False</PublishReadyToRun>
     <PublishTrimmed>False</PublishTrimmed>
+    <GenerateTemporaryStoreCertificate>True</GenerateTemporaryStoreCertificate>
   </PropertyGroup>
 
-  <Target Name="CopyWinUIResourcesToPublish"
-          AfterTargets="Publish"
-          Condition="'$(WindowsPackageType)' != 'MSIX'">
+  <Target Name="CopyWinUIResourcesToPublish" AfterTargets="Publish" Condition="'$(WindowsPackageType)' != 'MSIX'">
     <ItemGroup>
       <_WinUIXbf Include="$(TargetDir)**\*.xbf" />
       <_WinUIPri Include="$(TargetDir)*.pri" />
       <_WinUIAsset Include="$(TargetDir)Assets\**\*" />
     </ItemGroup>
-    <Copy
-      SourceFiles="@(_WinUIXbf)"
-      DestinationFiles="@(_WinUIXbf->'$(PublishDir)%(RecursiveDir)%(Filename)%(Extension)')"
-      SkipUnchangedFiles="true" />
-    <Copy
-      SourceFiles="@(_WinUIPri)"
-      DestinationFolder="$(PublishDir)"
-      SkipUnchangedFiles="true" />
-    <Copy
-      SourceFiles="@(_WinUIAsset)"
-      DestinationFiles="@(_WinUIAsset->'$(PublishDir)Assets\%(RecursiveDir)%(Filename)%(Extension)')"
-      SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_WinUIXbf)" DestinationFiles="@(_WinUIXbf->'$(PublishDir)%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_WinUIPri)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_WinUIAsset)" DestinationFiles="@(_WinUIAsset->'$(PublishDir)Assets\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
   <Target Name="CopyNativeCliToAppOutput" AfterTargets="Build">
     <Exec Command="dotnet build &quot;$(MSBuildThisFileDirectory)..\MarkdStage.Cli\MarkdStage.Cli.csproj&quot; --configuration &quot;$(Configuration)&quot; --runtime &quot;$(RuntimeIdentifier)&quot; --property:Platform=&quot;$(Platform)&quot; --property:SelfContained=&quot;$(SelfContained)&quot; --property:WindowsAppSDKSelfContained=&quot;$(WindowsAppSDKSelfContained)&quot;" />
-    <MSBuild Projects="..\MarkdStage.Cli\MarkdStage.Cli.csproj"
-             Targets="GetNativeLauncherFiles"
-             Properties="Configuration=$(Configuration);Platform=$(Platform);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=$(SelfContained);WindowsAppSDKSelfContained=$(WindowsAppSDKSelfContained)">
+    <MSBuild Projects="..\MarkdStage.Cli\MarkdStage.Cli.csproj" Targets="GetNativeLauncherFiles" Properties="Configuration=$(Configuration);Platform=$(Platform);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=$(SelfContained);WindowsAppSDKSelfContained=$(WindowsAppSDKSelfContained)">
       <Output TaskParameter="TargetOutputs" ItemName="_NativeCliFiles" />
     </MSBuild>
     <Copy SourceFiles="@(_NativeCliFiles)" DestinationFolder="$(TargetDir)" SkipUnchangedFiles="true" />
   </Target>
-  <Target Name="CopyNativeCliToAppPublish"
-          AfterTargets="Publish"
-          DependsOnTargets="CopyNativeCliToAppOutput"
-          Condition="'$(WindowsPackageType)' != 'MSIX'">
+  <Target Name="CopyNativeCliToAppPublish" AfterTargets="Publish" DependsOnTargets="CopyNativeCliToAppOutput" Condition="'$(WindowsPackageType)' != 'MSIX'">
     <Copy SourceFiles="@(_NativeCliFiles)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" />
   </Target>
-  <Target Name="AddNativeCliToMsixPayload"
-          BeforeTargets="_ComputeAppxPackagePayload"
-          DependsOnTargets="CopyNativeCliToAppOutput"
-          Condition="'$(WindowsPackageType)' == 'MSIX'">
+  <Target Name="AddNativeCliToMsixPayload" BeforeTargets="_ComputeAppxPackagePayload" DependsOnTargets="CopyNativeCliToAppOutput" Condition="'$(WindowsPackageType)' == 'MSIX'">
     <ItemGroup>
       <_NativePackageAssetFiles Include="$(NativePackageAssetsDirectory)\**\*" />
       <AppxPackagePayload Include="@(_NativeCliFiles)">
