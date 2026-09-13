@@ -232,7 +232,9 @@ export async function createNodeIO({ workspaceRoot, transientRoot = tmpdir() } =
       const before = await file.stat();
       if (!before.isFile()) fail("missing");
       if (before.size > limit) fail("too_large");
-      if (!sameVersion(before, entry.info)) fail("io_failed");
+      // Windows path metadata can cache an older ctime until the file is opened.
+      // Pin identity here; the handle supplies the version checked throughout the read.
+      if (!sameIdentity(before, entry.info)) fail("io_failed");
       if (!sameVersion(before, (await resolvePath(path)).info)) fail("io_failed");
       const buffer = Buffer.alloc(limit + 1);
       let length = 0;
