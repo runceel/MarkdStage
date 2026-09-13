@@ -13,6 +13,10 @@
     </Window.SystemBackdrop>
 
     <Grid>
+        <Grid.KeyboardAccelerators>
+            <!-- Only fires while focus is in the XAML tree; the stage WebView forwards its own Escape. -->
+            <KeyboardAccelerator Key="Escape" Invoked="OnEscapeAccelerator" />
+        </Grid.KeyboardAccelerators>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -27,6 +31,29 @@
             <TitleBar.IconSource>
                 <ImageIconSource ImageSource="Assets/AppIcon.ico" />
             </TitleBar.IconSource>
+            <TitleBar.LeftHeader>
+                <!--
+                    The start screen doubles as the workspace file list, so a deck needs a way
+                    back to it. There is deliberately no reverse route: the deck is one click
+                    away in the list itself.
+                -->
+                <Button
+                    x:Name="BackToFilesButton"
+                    Width="36"
+                    Height="32"
+                    Margin="4,0,4,0"
+                    Padding="0"
+                    VerticalAlignment="Center"
+                    AutomationProperties.AutomationId="BackToFilesButton"
+                    AutomationProperties.Name="Back to the file list"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Click="OnBackToFilesClick"
+                    ToolTipService.ToolTip="Back to the file list (Esc)"
+                    Visibility="Collapsed">
+                    <FontIcon FontSize="14" Glyph="&#xE72B;" />
+                </Button>
+            </TitleBar.LeftHeader>
         </TitleBar>
 
         <!--

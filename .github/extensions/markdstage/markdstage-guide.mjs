@@ -2,10 +2,18 @@ import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { architectureSchemaReference } from "./architecture-reference.mjs";
+import { validateArchitectureInput } from "./architecture-validation.mjs";
 import {
-  UNCLOSED_ARCHITECTURE_MESSAGE,
-  validateArchitectureInput,
-} from "./architecture-validation.mjs";
+  architectureValidationErrors,
+  architectureValidationReport,
+  hasFrontMatter,
+} from "./runtime/deck-validation.mjs";
+
+export {
+  architectureValidationErrors,
+  architectureValidationReport,
+  hasFrontMatter,
+};
 
 const EXT_DIR = dirname(fileURLToPath(import.meta.url));
 const README_PATH = join(EXT_DIR, "README.md");
@@ -99,74 +107,6 @@ export async function readGuide(topic = "overview") {
     default:
       throw new Error(`unknown MarkdStage guide topic: ${topic}`);
   }
-}
-
-export function hasFrontMatter(markdown) {
-  const normalized = markdown.replace(/\r\n?/g, "\n").replace(/^[\n \t\uFEFF]+/, "");
-  if (!normalized.startsWith("---\n")) return false;
-  return normalized.split("\n").slice(1).some((line) => line.trim() === "---");
-}
-
-function architectureError(slideIndex, blockIndex, code, message) {
-  return {
-    slideIndex,
-    page: slideIndex + 1,
-    blockIndex,
-    architecture: blockIndex + 1,
-    code,
-    message,
-  };
-}
-
-export function architectureValidationReport(slides, { index, maxDiagnostics } = {}) {
-  if (index !== undefined &&
-      (!Number.isInteger(index) || index < 0 || index >= slides.length)) {
-    throw new RangeError("index must identify a slide in the provided array.");
-  }
-  const report = validateArchitectureInput({
-    format: "slides",
-    slides: index === undefined ? slides : [slides[index]],
-    ...(maxDiagnostics === undefined ? {} : { maxDiagnostics }),
-  });
-  if (index === undefined) return report;
-  const rebase = (item) => typeof item.slideIndex === "number"
-    ? { ...item, slideIndex: item.slideIndex + index, page: item.page + index }
-    : item;
-  return {
-    ...report,
-    scope: "slide",
-    index,
-    page: index + 1,
-    total: slides.length,
-    diagnostics: report.diagnostics.map(rebase),
-    blocks: report.blocks.map(rebase),
-    skipped: report.skipped.map(rebase),
-  };
-}
-
-export function architectureValidationErrors(slides, { index, validation } = {}) {
-  if (Array.isArray(slides) && slides.length === 0 && index === undefined && !validation) return [];
-  const report = validation ?? architectureValidationReport(slides, { index });
-  const errors = [];
-  for (const block of report.blocks) {
-    if (!block.dslValid) {
-      const primary = report.diagnostics
-        .slice(block.diagnosticStart, block.diagnosticStart + block.diagnosticCount)
-        .find((diagnostic) => diagnostic.severity === "error");
-      if (primary) {
-        errors.push(architectureError(
-          block.slideIndex, block.blockIndex, "invalid_architecture", primary.message,
-        ));
-      }
-    }
-    if (block.closed === false) {
-      errors.push(architectureError(
-        block.slideIndex, block.blockIndex, "unclosed_architecture_fence",
-        UNCLOSED_ARCHITECTURE_MESSAGE,
-      ));
-    }
-  }
-  return errors;
 }
 
 export function deckValidationFeedback(slides, { validation } = {}) {

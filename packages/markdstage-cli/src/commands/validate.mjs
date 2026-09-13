@@ -2,12 +2,10 @@
 
 import {
   MarkdStageError,
-  architectureValidationErrors,
-  architectureValidationReport,
   createDeckSession,
   createUrlToken,
-  hasFrontMatter,
 } from "../runtime.mjs";
+import { validateLoadedDeck } from "../../shared/runtime/deck-validation.mjs";
 
 export async function validateCommand(options) {
   const errors = [];
@@ -44,57 +42,10 @@ export async function validateCommand(options) {
     };
   }
 
-  const validation = architectureValidationReport(session.slides);
-  for (const issue of architectureValidationErrors(session.slides, { validation })) {
-    errors.push({
-      code: issue.code,
-      page: issue.page,
-      architecture: issue.architecture,
-      message: issue.message,
-    });
-  }
-  if (validation.truncated) {
-    errors.push({
-      code: "validation_incomplete",
-      message: `Architecture validation reached inspection limits (${validation.budget.limitsReached.join(", ")}). Validate smaller inputs before treating the deck as valid.`,
-    });
-  }
-
-  for (const warning of session.customThemeWarnings ?? []) {
-    warnings.push({ code: warning.code, message: warning.message });
-  }
-
-  session.slides.forEach((slide, index) => {
-    if (!hasFrontMatter(slide)) {
-      warnings.push({
-        code: "missing_front_matter",
-        page: index + 1,
-        message:
-          "Front matter is missing. Add the deck/layout/page/total/size fields to the leading --- block.",
-      });
-    }
-  });
-
-  return {
-    ok: errors.length === 0 && validation.valid,
-    valid: errors.length === 0 && validation.valid,
-    complete: validation.complete,
-    truncated: validation.truncated,
+  return validateLoadedDeck(session, {
     file: session.file,
     workspace: session.workspaceRoot,
-    total: session.slides.length,
-    theme: session.theme,
-    themeFile: session.customThemeFile || undefined,
-    errors,
-    warnings,
-    stages: validation.stages,
-    diagnostics: validation.diagnostics,
-    diagnosticCount: validation.diagnosticCount,
-    blocks: validation.blocks,
-    skipped: validation.skipped,
-    limits: validation.limits,
-    budget: validation.budget,
-  };
+  });
 }
 
 export function formatValidateReport(report) {

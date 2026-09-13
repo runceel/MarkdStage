@@ -102,6 +102,20 @@ test("portable session parses once, owns navigation, detaches snapshots and seri
   await assert.rejects(runtime.navigate("2"), { code: "invalid_input" });
 });
 
+test("portable session validates loaded decks for native hosts", async () => {
+  const { io } = memoryIO({
+    "slides.md": "---\ndeck: Demo\nlayout: title\npage: 1\ntotal: 1\nsize: 16:9\n---\n# Demo",
+  });
+  const runtime = await createHostRuntime(io);
+  await runtime.loadDeck("slides.md");
+  const report = await runtime.validate({ file: "C:\\decks\\slides.md", workspace: "C:\\decks" });
+  assert.equal(report.ok, true);
+  assert.equal(report.file, "C:\\decks\\slides.md");
+  assert.equal(report.workspace, "C:\\decks");
+  assert.equal(report.total, 2);
+  assert.deepEqual(report.errors, []);
+});
+
 test("failed load and reload leave every authoritative field unchanged", async () => {
   const memory = memoryIO({ "slides.md": "# Original", "bad.md": "---\nbackground-image: assets/missing.png\n---\n# Bad" });
   const runtime = await createPortableRuntime({ io: memory.io });

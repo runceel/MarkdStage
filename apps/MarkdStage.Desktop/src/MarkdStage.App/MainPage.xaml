@@ -28,36 +28,121 @@
 
         <Border
             x:Name="WorkspaceStartScreen"
-            Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
-            <StackPanel
-                MaxWidth="760"
-                HorizontalAlignment="Stretch"
-                VerticalAlignment="Center"
-                Spacing="16">
-                <TextBlock
-                    x:Name="WorkspaceHeading"
-                    Text="Open a workspace"
-                    Style="{StaticResource TitleTextBlockStyle}"
-                    TextWrapping="Wrap" />
-                <StackPanel Orientation="Horizontal" Spacing="12">
-                    <Button Content="Open folder…" Click="OnOpenFolderClick" />
-                    <Button
-                        AutomationProperties.AutomationId="OpenMarkdownButton"
-                        Content="Open Markdown file…"
-                        Command="{x:Bind ViewModel.OpenMarkdownCommand}" />
-                    <Button
-                        x:Name="RefreshWorkspaceButton"
-                        Content="Refresh"
-                        Click="OnRefreshWorkspaceClick"
-                        Visibility="Collapsed" />
-                </StackPanel>
-                <ListView
-                    x:Name="WorkspaceItems"
-                    MaxHeight="500"
-                    IsItemClickEnabled="True"
-                    ItemClick="OnWorkspaceItemClick"
-                    SelectionMode="None" />
-            </StackPanel>
+            Background="{ThemeResource BrandStageBrush}">
+            <Grid>
+                <!-- Sits above the stage WebView2, which is live from startup, so it must stay opaque. -->
+                <Rectangle Fill="{ThemeResource BrandSpotlightBrush}" IsHitTestVisible="False" />
+
+                <ScrollViewer
+                    HorizontalScrollMode="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+                    <StackPanel
+                        MaxWidth="720"
+                        Margin="40,56"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Spacing="0">
+
+                        <StackPanel x:Name="BrandHero" Spacing="0">
+                            <Image
+                                Width="76"
+                                Height="76"
+                                HorizontalAlignment="Center"
+                                AutomationProperties.AccessibilityView="Raw"
+                                Source="ms-appx:///Assets/Brand/markdstage-mark.svg" />
+
+                            <TextBlock
+                                Margin="0,20,0,0"
+                                HorizontalAlignment="Center"
+                                AutomationProperties.Name="MarkdStage"
+                                FontSize="40"
+                                FontWeight="Bold">
+                                <Run Foreground="{ThemeResource BrandPaperBrush}" Text="Markd" /><Run Foreground="{ThemeResource BrandAccentBrush}" Text="Stage" />
+                            </TextBlock>
+
+                            <TextBlock
+                                Margin="0,6,0,0"
+                                HorizontalAlignment="Center"
+                                Foreground="{ThemeResource BrandMutedBrush}"
+                                Text="Markdown, ready for the stage."
+                                TextAlignment="Center" />
+                        </StackPanel>
+
+                        <TextBlock
+                            x:Name="WorkspaceHeading"
+                            Margin="0,28,0,0"
+                            MaxWidth="640"
+                            HorizontalAlignment="Center"
+                            Foreground="{ThemeResource BrandPaperBrush}"
+                            FontSize="15"
+                            FontWeight="SemiBold"
+                            Text="Open a workspace"
+                            TextAlignment="Center"
+                            TextTrimming="CharacterEllipsis"
+                            TextWrapping="NoWrap" />
+
+                        <StackPanel
+                            Margin="0,20,0,0"
+                            HorizontalAlignment="Center"
+                            Orientation="Horizontal"
+                            Spacing="12">
+                            <Button
+                                x:Name="OpenFolderButton"
+                                AutomationProperties.Name="Open folder"
+                                Click="OnOpenFolderClick"
+                                Content="Open folder…"
+                                Padding="20,9"
+                                Style="{StaticResource AccentButtonStyle}" />
+                            <Button
+                                AutomationProperties.AutomationId="OpenMarkdownButton"
+                                AutomationProperties.Name="Open Markdown file"
+                                Command="{x:Bind ViewModel.OpenMarkdownCommand}"
+                                Content="Open Markdown file…"
+                                Padding="20,9" />
+                            <Button
+                                x:Name="RefreshWorkspaceButton"
+                                AutomationProperties.Name="Refresh"
+                                Click="OnRefreshWorkspaceClick"
+                                Content="Refresh"
+                                Padding="20,9"
+                                Visibility="Collapsed" />
+                        </StackPanel>
+
+                        <TextBlock
+                            Margin="0,14,0,0"
+                            HorizontalAlignment="Center"
+                            FontSize="12"
+                            Foreground="{ThemeResource BrandMutedBrush}"
+                            Opacity="0.8"
+                            Text="…or drop a folder or .md file anywhere on this window."
+                            TextAlignment="Center" />
+
+                        <TextBlock
+                            x:Name="WorkspaceListHeader"
+                            Margin="0,32,0,8"
+                            Style="{StaticResource BrandSectionHeaderStyle}"
+                            Text="RECENT WORKSPACES"
+                            Visibility="Collapsed" />
+
+                        <ListView
+                            x:Name="WorkspaceItems"
+                            MaxHeight="420"
+                            IsItemClickEnabled="True"
+                            ItemClick="OnWorkspaceItemClick"
+                            SelectionMode="None">
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem">
+                                    <Setter Property="Margin" Value="0,0,0,6" />
+                                    <Setter Property="Padding" Value="0" />
+                                    <Setter Property="MinHeight" Value="0" />
+                                    <Setter Property="CornerRadius" Value="{StaticResource BrandCardCornerRadius}" />
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                </Style>
+                            </ListView.ItemContainerStyle>
+                        </ListView>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
         </Border>
 
         <WebView2
@@ -71,18 +156,26 @@
         <Border
             x:Name="RuntimeMissingScreen"
             Visibility="Collapsed"
-            Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
+            Background="{ThemeResource BrandStageBrush}">
             <StackPanel
                 MaxWidth="620"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
                 Spacing="20">
+                <Image
+                    Width="56"
+                    Height="56"
+                    HorizontalAlignment="Left"
+                    AutomationProperties.AccessibilityView="Raw"
+                    Source="ms-appx:///Assets/Brand/markdstage-mark.svg" />
                 <TextBlock
                     Text="MarkdStage can't start"
+                    Foreground="{ThemeResource BrandPaperBrush}"
                     Style="{StaticResource TitleTextBlockStyle}"
                     IsTextSelectionEnabled="True" />
                 <TextBlock
                     Text="MarkdStage needs the Microsoft Edge WebView2 Runtime, which isn't installed on this PC. Most Windows PCs already have it; on this one it's missing or its data folder isn't accessible."
+                    Foreground="{ThemeResource BrandMutedBrush}"
                     IsTextSelectionEnabled="True"
                     TextWrapping="Wrap" />
                 <StackPanel Orientation="Horizontal" Spacing="12">
