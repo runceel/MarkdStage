@@ -4,6 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>MarkdStage.Core.Tests</RootNamespace>
     <AssemblyName>MarkdStage.Core.Tests</AssemblyName>
+    <Platforms>x64;ARM64</Platforms>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
