@@ -5,6 +5,7 @@
     <Project Path="src/MarkdStage.Core/MarkdStage.Core.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/MarkdStage.Cli.Tests/MarkdStage.Cli.Tests.csproj" />
     <Project Path="tests/MarkdStage.Core.Tests/MarkdStage.Core.Tests.csproj" />
   </Folder>
 </Solution>
