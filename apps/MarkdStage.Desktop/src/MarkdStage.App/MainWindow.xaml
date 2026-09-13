@@ -12,7 +12,7 @@
         <MicaBackdrop />
     </Window.SystemBackdrop>
 
-    <Grid>
+    <Grid KeyboardAcceleratorPlacementMode="Hidden">
         <Grid.KeyboardAccelerators>
             <!-- Only fires while focus is in the XAML tree; the stage WebView forwards its own Escape. -->
             <KeyboardAccelerator Key="Escape" Invoked="OnEscapeAccelerator" />
