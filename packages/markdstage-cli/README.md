@@ -66,12 +66,12 @@ Application options: `--workspace <dir>`, `--theme <name>`,
 `--theme-file <path>`, `--no-open`, and `--json`. Use `--help` and `--version`
 for global information.
 
-Workspace resolution never defaults to the process working directory. Supply
-`--workspace` or a Markdown file. Without `--workspace`, a file selects its nearest
-ancestor containing a `.git` entry, or its containing directory if there is none;
-Git need not be installed. Relative command-line arguments are first made absolute
-against the caller's directory. Files outside an explicit workspace are rejected.
-This is an intentional change from the archive-era bare invocation.
+A bare invocation uses the caller's current directory as the workspace. Without
+`--workspace`, a file selects its nearest ancestor containing a `.git` entry, or
+its containing directory if there is none; Git need not be installed. Relative
+command-line arguments are first made absolute against the caller's directory.
+Files outside an explicit workspace are rejected. `skill install` and `skill check`
+also use the current directory when neither `--root` nor `--workspace` is supplied.
 
 ## Architecture editing
 

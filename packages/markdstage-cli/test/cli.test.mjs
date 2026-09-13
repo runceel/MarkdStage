@@ -55,10 +55,18 @@ const VALID_DECK = [
   "",
 ].join("\n");
 
-test("bare invocation requires an explicit workspace", async () => {
+test("bare invocation uses the current directory as its workspace", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "markdstage-current-cli-"));
   const io = capture();
-  assert.equal(await run([], io), EXIT_DECK);
-  assert.match(io.stderr(), /--workspace/);
+  io.cwd = dir;
+  io.open = false;
+  io.until = Promise.resolve();
+  try {
+    assert.equal(await run([], io), EXIT_OK);
+    assert.match(io.stdout(), /MarkdStage is ready in the workspace/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
 test("blank workspace arguments are not silently discarded", async () => {
@@ -67,10 +75,21 @@ test("blank workspace arguments are not silently discarded", async () => {
   assert.match(io.stderr(), /--workspace/);
 });
 
-test("missing workspace errors retain the shared JSON error code", async () => {
+test("bare JSON invocation opens an empty application in the current workspace", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "markdstage-current-json-"));
   const io = capture();
-  assert.equal(await run(["--json"], io), EXIT_DECK);
-  assert.equal(JSON.parse(io.stdout()).error, "invalid_input");
+  io.cwd = dir;
+  io.open = false;
+  io.until = Promise.resolve();
+  try {
+    assert.equal(await run(["--json"], io), EXIT_OK);
+    const report = JSON.parse(io.stdout());
+    assert.equal(report.ok, true);
+    assert.equal(report.total, 0);
+    assert.equal(report.sourceMode, "snapshot");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
 test("an explicit workspace opens an empty application", async () => {

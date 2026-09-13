@@ -14,7 +14,12 @@ internal static class HostCommands
     };
     internal static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
-    public static async Task<int> RunAsync(CliArguments args, string packageDirectory, TextWriter output, CancellationToken cancellationToken)
+    public static async Task<int> RunAsync(
+        CliArguments args,
+        string packageDirectory,
+        TextWriter output,
+        CancellationToken cancellationToken,
+        string? currentDirectory = null)
     {
         if (args.Has("help") || args.Command == "help")
         {
@@ -38,10 +43,20 @@ internal static class HostCommands
             await output.WriteLineAsync(args.Has("json") ? JsonSerializer.Serialize(new { topic, content }, JsonOptions) : content);
             return 0;
         }
-        return await SkillAsync(args, data.RootElement.GetProperty("skills"), output, cancellationToken);
+        return await SkillAsync(
+            args,
+            data.RootElement.GetProperty("skills"),
+            output,
+            cancellationToken,
+            currentDirectory ?? Environment.CurrentDirectory);
     }
 
-    private static async Task<int> SkillAsync(CliArguments args, JsonElement skills, TextWriter output, CancellationToken cancellationToken)
+    private static async Task<int> SkillAsync(
+        CliArguments args,
+        JsonElement skills,
+        TextWriter output,
+        CancellationToken cancellationToken,
+        string currentDirectory)
     {
         var action = args.Positionals.FirstOrDefault() ?? "install";
         if (action is not ("install" or "check")) throw new CliException("usage_error", "Use skill install or skill check.");
@@ -49,9 +64,7 @@ internal static class HostCommands
         var targets = requested == "all" ? Targets.Keys.ToArray() : requested.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).Distinct().ToArray();
         if (targets.Length == 0 || targets.Any(target => !Targets.ContainsKey(target)))
             throw new CliException("usage_error", "Skill targets: codex, claude, copilot, all.");
-        var rootArgument = args.Get("root") ?? args.Get("workspace");
-        if (rootArgument is null)
-            throw new CliException("invalid_input", "Skill commands require --root <directory> or --workspace <directory>.", 2);
+        var rootArgument = args.Get("root") ?? args.Get("workspace") ?? currentDirectory;
         string root;
         try { root = WorkspaceResolver.Resolve(Path.GetFullPath(rootArgument)); }
         catch (UnauthorizedAccessException) { throw new CliException("path_outside_workspace", "Skill installation does not follow symbolic links or junctions.", 2); }
@@ -113,13 +126,13 @@ internal static class HostCommands
         {
             null or "help" => """
                 markdstage <file.md> [options]
-                markdstage --workspace <folder> [--no-open]
+                markdstage [--workspace <folder>] [--no-open]
                 markdstage <present|preview|validate|inspect|capture|export> <file.md> [options]
                 markdstage guide [overview|slide-format|themes|custom-themes|theme-schema|architecture-dsl|architecture-schema]
-                markdstage skill <install|check> --root <folder> [--target codex,claude,copilot|all] [--force]
+                markdstage skill <install|check> [--root <folder>] [--target codex,claude,copilot|all] [--force]
                 """,
             "guide" => "markdstage guide [overview|slide-format|themes|custom-themes|theme-schema|architecture-dsl|architecture-schema] [--json]",
-            "skill" => "markdstage skill <install|check> --root <folder> [--target codex,claude,copilot|all] [--force] [--json]",
+            "skill" => "markdstage skill <install|check> [--root <folder>] [--target codex,claude,copilot|all] [--force] [--json]",
             "present" or "preview" => $"markdstage {command} <file.md> [--watch] [--no-open]",
             "validate" => "markdstage validate <file.md> [--json]",
             "inspect" => "markdstage inspect <file.md> [--slide <n>] [--all] [--fail-on-issues] [--json]",
@@ -138,7 +151,8 @@ internal static class HostCommands
             -h, --help           Help
             -v, --version        Version
 
-            No file and no --workspace is an error; the working directory is never an implicit workspace.
+            With no file and no --workspace, the current directory is the workspace.
+            Skill commands also use the current directory when --root and --workspace are omitted.
             help, guide, and skill need no browser or JavaScript engine.
             validate uses WebView2 for scripts only, not an installed browser.
             inspect, capture, and export require installed Edge, Chrome, or Chromium with remote debugging permitted.

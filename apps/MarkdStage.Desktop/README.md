@@ -120,14 +120,13 @@ fresh, but decks, assets, and themes are unchanged. Uninstall removes package-ow
 settings and temporary data, never workspace files.
 
 The packaged CLI uses the alias `markdstage` and does not bundle or acquire Node.
-Pass a Markdown file or `--workspace`; a process working directory alone is not a
-workspace. Relative shell arguments are made absolute before the common resolution
-rule. A file chooses its nearest `.git` ancestor or its containing folder, without
-requiring Git.
+A bare invocation uses the caller's current directory as the workspace. Relative
+shell arguments are made absolute before the common resolution rule. A file chooses
+its nearest `.git` ancestor or its containing folder, without requiring Git.
 
-For packaged skill installation, specify the target root explicitly, for example
-`markdstage skill install --target codex --root C:\decks`. `help` and `guide`
-need no workspace or browser.
+Packaged skill installation also defaults to the current directory; specify another
+target root with, for example, `markdstage skill install --target codex --root C:\decks`.
+`help` and `guide` need no workspace or browser.
 
 ### Store listing prerequisite disclosure
 

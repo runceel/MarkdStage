@@ -23,6 +23,7 @@ file layouts, local UI behaviour — does not belong here.
 | # | Title | Status | Decision in one line |
 | --- | --- | --- | --- |
 | [0001](0001-windows-native-app-packaging-and-runtime-hosting.md) | Windows native app packaging and runtime hosting | Accepted | Ship one MSIX with a single application entry, host the shared JS runtime in the embedded browser behind a host-owned I/O port, bundle no language runtime, and treat an installed Chromium-based browser as a CLI prerequisite. |
+| [0002](0002-cli-current-directory-workspace.md) | CLI current-directory workspace default | Accepted | Use the caller's current directory when CLI application or skill commands omit an explicit root, while keeping GUI launch independent of process cwd. |
 
 ## Writing a new record
 

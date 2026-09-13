@@ -17,6 +17,7 @@ CLI は Canvas Extension と同じ Markdown パーサー、レンダラー、テ
 ## コマンド
 
 ```console
+markdstage
 markdstage --workspace .
 markdstage slides.md
 markdstage present slides.md
@@ -31,8 +32,9 @@ markdstage guide architecture-dsl
 markdstage skill install --target codex
 ```
 
-`markdstage --workspace .` は、明示したワークスペースを対象に Canvas と同等の空の UI を開きます。
-**Open Markdown** からデッキを選びます。`markdstage slides.md` は同じ UI にそのファイルを
+`markdstage` は現在のディレクトリをワークスペースとして Canvas と同等の空の UI を開きます。
+`markdstage --workspace .` は同じ動作を明示的に指定します。**Open Markdown** からデッキを
+選びます。`markdstage slides.md` は同じ UI にそのファイルを
 読み込み、自動更新を有効にしてスライド表示で起動します。
 
 | コマンド | 説明 |
@@ -51,10 +53,11 @@ markdstage skill install --target codex
 `--theme-file <path>`、`--no-open`、`--json` です。ヘルプとバージョンは
 `--help`、`--version` で表示します。
 
-ファイルまたは `--workspace` を指定してください。引数なしでは作業ディレクトリから
-ワークスペースを推測しません。ファイルだけを指定した場合、最も近い `.git` エントリーのある
-親フォルダーを使用し、なければファイルのフォルダーを使用します。相対引数はこの処理の前に
-呼び出し元のディレクトリを基準として絶対パスに変換します。
+引数なしでは現在のディレクトリをワークスペースとして使用します。ファイルだけを指定した場合、
+最も近い `.git` エントリーのある親フォルダーを使用し、なければファイルのフォルダーを使用します。
+相対引数はこの処理の前に呼び出し元のディレクトリを基準として絶対パスに変換します。
+`skill install` と `skill check` も、`--root` または `--workspace` を省略すると現在の
+ディレクトリを使用します。
 
 ```console
 markdstage help

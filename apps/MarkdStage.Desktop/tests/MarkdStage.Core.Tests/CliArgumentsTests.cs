@@ -5,12 +5,21 @@ namespace MarkdStage.Core.Tests;
 public sealed class CliArgumentsTests
 {
     [Fact]
-    public void NoArgumentsNeverDeriveAWorkspace()
+    public void NoArgumentsRemainPresentationMode()
     {
         var args = CliArguments.Parse([]);
         Assert.Null(args.Get("workspace"));
         Assert.Null(args.File);
         Assert.True(args.IsPresentation);
+    }
+
+    [Fact]
+    public void InvocationUsesCurrentDirectoryWhenFileAndWorkspaceAreMissing()
+    {
+        var currentDirectory = Path.GetFullPath("current");
+        Assert.Equal(currentDirectory, CliArguments.WorkspaceArgument(null, null, currentDirectory));
+        Assert.Null(CliArguments.WorkspaceArgument(null, "slides.md", currentDirectory));
+        Assert.Equal("explicit", CliArguments.WorkspaceArgument("explicit", null, currentDirectory));
     }
 
     [Theory]

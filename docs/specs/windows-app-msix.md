@@ -442,19 +442,18 @@ Two naming rules that are easy to get wrong:
 - **Process-tree termination.** Every browser it launches is created in a job
   object that terminates on close, so an interrupt or a crash cannot leave an
   orphaned browser holding a transient profile directory.
-- **No working-directory assumptions.** See §9.
+- **Launch-context-specific workspace defaults.** The GUI never uses its process
+  working directory. A CLI invocation with no file or explicit workspace uses
+  the shell's current directory. See §9.
 
 ---
 
 ## 9. Workspace resolution
 
-One rule, shared by the GUI and the CLI's `--workspace` option. It has to be one
-rule because asset resolution and path confinement are derived from it on both
-surfaces, and a difference between them is a security difference.
-
-The rule cannot be derived from the working directory: a process started through
-an alias inherits the caller's working directory, while one started from the
-Start menu gets the system directory, which the app cannot write.
+Workspace confinement and file-derived roots use one rule across the GUI and CLI.
+Launch defaults differ intentionally: an execution alias inherits the shell's
+current directory, while a Start-menu process gets a system directory that is not
+a meaningful user workspace.
 
 Given an optional workspace path `W` and an optional file path `F`:
 
@@ -466,19 +465,18 @@ Given an optional workspace path `W` and an optional file path `F`:
    of `F` that contains a `.git` entry (file or directory); if there is none, it
    is the directory containing `F`. The result is canonicalized. This covers the
    CLI's file argument and GUI activation by file association or drag and drop.
-3. **Neither is given.** There is no derived root. The GUI reopens the last
-   workspace, which is persisted as an absolute path, and asks the user to choose
-   a folder if there is none or it no longer exists. The packaged CLI fails with
-   `invalid_input` and a message naming `--workspace`; it does not fall back to
-   the working directory.
+3. **Neither is given.** The GUI reopens the last workspace, which is persisted
+   as an absolute path, and asks the user to choose a folder if there is none or
+   it no longer exists. The CLI uses the caller's current directory as the
+   workspace. Skill installation and checking use the same default when neither
+   `--root` nor `--workspace` is supplied.
 
 Notes that keep this consistent with ADR 0001 and with today's behaviour:
 
-- A relative path on the command line is made absolute against the caller's
-  working directory *before* resolution begins. That is argument resolution.
-  Workspace resolution itself receives an absolute path and never consults the
-  working directory, and case 3 proves it: no argument means no root, not the
-  working directory.
+- A relative path on the command line and the CLI's default workspace are made
+  absolute against the caller's working directory before resolution begins.
+  Workspace resolution itself receives only absolute paths. The GUI never passes
+  its process working directory into this rule.
 - Rule 2 matches what both surfaces already do — `scripts/workspace-root.mjs`
   and the desktop app's loader both walk up to a `.git` marker — with one
   deliberate change: the `git rev-parse` subprocess is dropped in favour of the

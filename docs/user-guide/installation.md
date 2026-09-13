@@ -84,8 +84,9 @@ that policy. `help`, `guide`, and skill installation do not require a browser.
 The app links to Microsoft's runtime download page and never downloads or installs
 third-party runtimes itself.
 
-The packaged CLI requires explicit paths: use a Markdown file or `--workspace`
-for deck commands, and `--root` (or `--workspace`) for `skill install` / `skill check`.
+The packaged CLI uses the current directory as its workspace when invoked without
+a Markdown file or `--workspace`. `skill install` and `skill check` also default
+to the current directory when `--root` and `--workspace` are omitted.
 
 The first Store release is the archive cutover: **no further archive updates of any
 kind will be published after it**. Install the Store version, open the same workspace,
