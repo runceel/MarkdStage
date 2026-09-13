@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { isSampleDeckPath } from "./ci-sample-path.mjs";
+import { syncShared } from "../packages/markdstage-cli/scripts/sync-shared.mjs";
 
 const REPO_ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const CLI = join(REPO_ROOT, "packages", "markdstage-cli", "bin", "markdstage.mjs");
@@ -54,6 +55,7 @@ async function readStdin() {
 }
 
 async function main() {
+  await syncShared({ quiet: true });
   const changed = await readStdin();
   const changedSamples = [...new Set(changed.filter(isSamplePath))];
   const candidates = changedSamples.length ? changedSamples : KNOWN_SAMPLES;
