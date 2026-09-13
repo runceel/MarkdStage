@@ -41,7 +41,7 @@ delimited by `---`, followed by GFM-compatible content.
 
 Make the first slide a `layout: title` cover. The extension appends a final
 `layout: backcover`. Content may contain headings, lists, tables, images, code,
-`mermaid`, and `architecture`.
+`mermaid`, `architecture`, and `archify`.
 
 Put speaker notes in top-level HTML comments, as in Slidev / Marp. Comments may
 contain Markdown, and multiple comments are displayed with a blank line between
@@ -113,6 +113,39 @@ only. Without a per-slide override, `title` still uses `cover.background` and
 section/back-cover colors and logos are unchanged. Only absent settings trigger
 fallback: invalid paths, missing files, and oversized images fail explicitly.
 
+#### Importing Archify diagrams
+
+Use an `archify` fence to import an SVG exported by
+[Archify](https://github.com/tt-a1i/archify). Save the export under `assets/`
+beside the source Markdown or at the workspace root:
+
+````markdown
+```archify
+assets/checkout-architecture.svg
+```
+````
+
+The block contains exactly one `.svg` asset path, not JSON, inline SVG, or
+Archify source code. Blank lines and lines starting with `#` are ignored.
+Use `assets/...` without a leading slash, with ASCII filenames and `/`
+separators; remote URLs, data URIs, spaces, backslashes, and `.` / `..` path
+segments are rejected. Lookup tries Markdown-adjacent `assets/` before
+workspace-root `assets/`. Pass `sourceName` with canvas `open` / `load_deck` so
+adjacent assets resolve; it remains metadata and does not load the Markdown.
+
+MarkdStage preserves the exported geometry but replaces Archify's colors,
+preset styling, and embedded font with the deck theme. Role markers use
+MarkdStage icons. Supported shapes, connectors, and text export as editable
+PowerPoint objects, rather than a single SVG picture. Use a normal Markdown
+image instead when the original SVG appearance should be preserved.
+
+This import is separate from the JSON-based `architecture` fence and cannot be
+edited in the Architecture Editor. Re-export in Archify and refresh the slide
+to pick up changes. Preview the slide to check import errors:
+`markdstage validate` and `markdstage_validate` do not validate imported Archify
+SVGs. Invalid paths or unreadable/malformed SVGs appear as an **Archify diagram
+error** on the slide.
+
 ### `sourceName` role
 
 `sourceName` is workspace-relative metadata used to resolve adjacent themes and
@@ -124,5 +157,5 @@ To have MarkdStage load a Markdown file, use **More controls > Open Markdown**.
 
 Write local images as `![Alternative text](/assets/foo.png)`. With `sourceName`,
 lookup tries `assets/` beside the Markdown before workspace-root `assets/`.
-Architecture `icon` and `image.src` use `assets/foo.svg` without a leading slash
-and follow the same lookup order.
+Architecture `icon`, `image.src`, and `archify` fence paths use `assets/foo.svg`
+without a leading slash and follow the same lookup order.

@@ -523,6 +523,22 @@ test("guide prints canonical topics and rejects unknown ones", async () => {
   assert.match(io2.stderr(), /Unknown guide topic/);
 });
 
+test("guide exposes Archify imports in default, overview, and slide-format output", async () => {
+  for (const args of [["guide"], ["guide", "overview"]]) {
+    const io = capture();
+    assert.equal(await run(args, io), EXIT_OK);
+    assert.match(io.stdout(), /`archify` fence/);
+    assert.match(io.stdout(), /markdstage guide slide-format/);
+  }
+
+  const io = capture();
+  assert.equal(await run(["guide", "slide-format", "--json"], io), EXIT_OK);
+  const report = JSON.parse(io.stdout());
+  assert.equal(report.topic, "slide-format");
+  assert.match(report.content, /```archify\nassets\/checkout-architecture\.svg\n```/);
+  assert.match(report.content, /do not validate imported Archify\s+SVGs/);
+});
+
 test("skill check reports drift in an empty directory", async () => {
   const dir = await mkdtemp(join(tmpdir(), "markdstage-skill-test-"));
   try {

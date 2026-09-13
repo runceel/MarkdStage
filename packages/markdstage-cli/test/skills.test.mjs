@@ -58,6 +58,28 @@ test("generated skills explain direct live Architecture editing", async () => {
   assert.match(skill, /Automatic refresh can be toggled/);
 });
 
+test("every skill exposes Archify imports and the canonical guidance", async () => {
+  for (const target of Object.keys(SKILL_TARGETS)) {
+    const files = await buildSkillFiles(target);
+    const skill = files.get("SKILL.md");
+    assert.match(skill, /import an Archify SVG/);
+    assert.match(skill, /```archify\nassets\/checkout-architecture\.svg\n```/);
+    assert.match(skill, /markdstage guide slide-format/);
+    assert.match(skill, /Architecture Editor does not edit imported SVGs/);
+    assert.match(files.get("references/overview.md"), /`archify` fence/);
+    assert.match(files.get("references/slide-format.md"), /```archify\nassets\//);
+  }
+
+  const canvasSkill = await readFile(
+    new URL("../../../.github/skills/markdstage/SKILL.md", import.meta.url),
+    "utf8",
+  );
+  assert.match(canvasSkill, /import an Archify SVG/);
+  assert.match(canvasSkill, /```archify\nassets\/checkout-architecture\.svg\n```/);
+  assert.match(canvasSkill, /pass `sourceName`/);
+  assert.match(canvasSkill, /markdstage guide slide-format/);
+});
+
 test("generated skills teach the diagnostic-first authoring loop", async () => {
   const skill = (await buildSkillFiles("codex")).get("SKILL.md");
   const stages = [

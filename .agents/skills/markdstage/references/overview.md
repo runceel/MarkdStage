@@ -23,6 +23,7 @@ Canvas iframe (renderer/)
   | highlights language-tagged code fences with highlight.js
   | converts ```mermaid blocks with mermaid.run
   | converts validated ```architecture JSON DSL into a safe SVG DOM
+  | imports ```archify SVG asset references and repaints them with the deck theme
   | keeps ◀ page ▶, ☰, and ⋯ visible in a compact control bar
   | groups editing, presentation, preview, import, refresh, and export under ⋯
   v
@@ -70,6 +71,14 @@ The themed slide is displayed and updates automatically
   xlarge**. `auto` measures standard slides without code, tables, images, or
   Mermaid and enlarges only when ample space remains; `compact` makes room for
   dense slides.
+- **Import Archify SVG exports with an `archify` fence** containing one local
+  path, such as `assets/checkout-architecture.svg` (no leading slash). The diagram
+  keeps its exported geometry, adopts the deck theme, and exports supported
+  shapes, connectors, and text as editable PowerPoint objects rather than one
+  flat image. Re-export in Archify and refresh the slide to update it; the
+  Architecture Editor edits `architecture` blocks, not imported SVGs. Request
+  `markdstage_guide` topic `slide-format` or run `markdstage guide slide-format`
+  for the fence example and asset rules.
 - Put **speaker notes** in top-level HTML comments on each slide. Presenter view
   renders notes as Markdown and follows navigation. PowerPoint export includes
   readable plain-text notes. Notes are absent from regular slides, the external
