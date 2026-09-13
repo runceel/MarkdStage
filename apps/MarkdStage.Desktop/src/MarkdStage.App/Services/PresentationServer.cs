@@ -158,7 +158,8 @@ internal sealed class PresentationServer(
                 "style-src 'self' 'unsafe-inline' https://web.markdstage.invalid https://workspace.markdstage.invalid; " +
                 "font-src 'self' https://workspace.markdstage.invalid https://web.markdstage.invalid; " +
                 "media-src 'self' https://workspace.markdstage.invalid; " +
-                "script-src 'self' https://web.markdstage.invalid; connect-src 'self'; object-src 'none'; base-uri 'none'";
+                "script-src 'self' https://web.markdstage.invalid; " +
+                "connect-src 'self' https://workspace.markdstage.invalid; object-src 'none'; base-uri 'none'";
             context.Response.Headers.XContentTypeOptions = "nosniff";
             await next();
         });
