@@ -16,14 +16,19 @@ test("MSIX has one GUI application and a distinct console alias executable", asy
   assert.doesNotMatch(manifest, /unvirtualizedResources|broadFileSystemAccess/);
 });
 
-test("v4 release requires accepted Store identity and does not publish desktop archives", async () => {
+test("v4 release requires accepted Store identity and publishes signed desktop packages", async () => {
   const workflow = await readFile(new URL("../../.github/workflows/npm-publish.yml", import.meta.url), "utf8");
   assert.match(workflow, /STORE_ACCEPTED_SHA.*!=.*GITHUB_SHA/);
   assert.match(workflow, /vars\.MARKDSTAGE_PACKAGE_NAME/);
   assert.match(workflow, /vars\.MARKDSTAGE_PACKAGE_PUBLISHER/);
   assert.match(workflow, /vars\.MARKDSTAGE_STORE_URL/);
+  assert.match(workflow, /secrets\.MARKDSTAGE_SIGNING_CERTIFICATE_BASE64/);
+  assert.match(workflow, /secrets\.MARKDSTAGE_SIGNING_CERTIFICATE_PASSWORD/);
+  assert.match(workflow, /Verify release package signatures/);
   assert.match(workflow, /needs: \[validate, desktop\]/);
   assert.doesNotMatch(workflow, /MarkdStage-win-(?:x64|arm64)\.zip/);
   const publication = workflow.split("- name: Create or update GitHub Release")[1].split("- name: Verify published release")[0];
-  assert.doesNotMatch(publication, /\.msix/);
+  assert.match(publication, /MarkdStage-win-x64\.msix/);
+  assert.match(publication, /MarkdStage-win-arm64\.msix/);
+  assert.match(publication, /MarkdStage\.cer/);
 });
