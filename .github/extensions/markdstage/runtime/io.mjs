@@ -118,5 +118,10 @@ export function unwrapIOResult(result, { operation, path, kind } = {}) {
       filename ? `${messages[code]} Close ${filename} and retry.` : `${messages[code]} Close it and retry.`);
   }
   const suffix = validPath && path !== "" ? ` (${path})` : "";
+  // io_failed is the catch-all, so name the port operation that produced it. The operation
+  // set is a fixed vocabulary, so this stays free of host paths and host error text.
+  if (code === "io_failed" && IO_OPERATIONS.includes(operation)) {
+    throw new MarkdStageError(code, `${messages[code]} (${operation}${validPath && path !== "" ? ` ${path}` : ""})`);
+  }
   throw new MarkdStageError(code, `${messages[code]}${suffix}`);
 }

@@ -4012,9 +4012,11 @@ function showExportNotification(state, message, path = "") {
   pauseExportNotification();
   const notification = document.getElementById("exportNotification");
   const location = document.getElementById("exportNotificationPath");
+  const link = document.getElementById("exportNotificationLink");
   notification.dataset.state = state;
   document.getElementById("exportNotificationMessage").textContent = message;
-  location.textContent = path ? `Saved to: ${path}` : "";
+  link.textContent = path ? `Open ${path.split(/[\\/]/).pop()}` : "";
+  link.dataset.path = path;
   location.hidden = !path;
   document.getElementById("exportNotificationClose").hidden = state === "pending";
   notification.hidden = false;
@@ -4024,6 +4026,12 @@ function showExportNotification(state, message, path = "") {
   exportNotificationRemaining = state === "success" ? 8000 : 0;
   resumeExportNotification();
 }
+
+document.getElementById("exportNotificationLink")?.addEventListener("click", (event) => {
+  event.preventDefault();
+  const path = event.currentTarget.dataset.path;
+  if (path) window.chrome?.webview?.postMessage({ type: "shell:open-file", path });
+});
 
 let pptxOptionsPending = false;
 

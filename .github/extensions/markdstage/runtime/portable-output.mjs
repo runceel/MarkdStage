@@ -102,11 +102,13 @@ export function createPortableOutput({ runtime, io, baseUrl, sendCdp }) {
       return await operation({ send: (method, parameters = {}) => sendCdp(browser.handle, method, parameters) }, job);
     } finally {
       jobs.delete(token);
-      try {
-        if (browser) await callIO("closeBrowser", browser.handle);
-      } finally {
-        if (profile) await callIO("removeTransientDirectory", profile);
-      }
+      // Scratch cleanup is housekeeping, never part of the user's result. A browser that
+      // refuses to exit or a profile directory Windows still holds a handle on must not
+      // replace a finished render with an I/O error, which would abandon the export before
+      // its bytes are ever written. Whatever survives here is reclaimed by the host sweep
+      // of stale transient directories.
+      if (browser) await callIO("closeBrowser", browser.handle).catch(() => {});
+      if (profile) await callIO("removeTransientDirectory", profile).catch(() => {});
     }
   }
 

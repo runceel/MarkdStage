@@ -156,6 +156,25 @@ public sealed class WorkspaceIoTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ListReleasesTheCallingThreadWhileWalkingTheWorkspace()
+    {
+        // The desktop shell lists from its UI thread. A walk that ran inline would hold that thread
+        // for its whole duration, so the window could not even paint the progress indicator it had
+        // just shown; the caller must get its thread back before the enumeration starts.
+        for (var i = 0; i < 300; i++)
+        {
+            var folder = Path.Combine(Root, $"folder{i}");
+            Directory.CreateDirectory(folder);
+            await File.WriteAllTextAsync(Path.Combine(folder, "deck.md"), "# A");
+        }
+
+        var pending = Call("list", "", new { extensions = new[] { ".md" }, maxEntries = 10000, recursive = true });
+        Assert.False(pending.IsCompleted);
+        var entries = JsonSerializer.SerializeToElement((await pending).Value);
+        Assert.Equal(300, entries.GetArrayLength());
+    }
+
+    [Fact]
     public async Task WatchingEmitsRelativeEventsAndUnwatchStopsSubscription()
     {
         await File.WriteAllTextAsync(Path.Combine(Root, "deck.md"), "# A");

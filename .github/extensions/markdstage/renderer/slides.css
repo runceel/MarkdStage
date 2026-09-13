@@ -545,7 +545,9 @@ footer .page{color:var(--accent-strong);font-weight:600;background:var(--accent-
      overflow-wrap:anywhere;user-select:text;}
 .export-notification-message{margin:0;font-weight:650;}
 .export-notification-path{margin:8px 0 0;}
-.export-notification-path:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
+.export-notification-path a{color:var(--accent-strong);font-weight:650;text-decoration:underline;}
+.export-notification-path:focus-visible,.export-notification-path a:focus-visible{
+  outline:2px solid var(--accent);outline-offset:2px;}
 .export-notification>.nav-btn{flex:none;margin-left:auto;}
 body.presenter-mode .export-feedback,
 body.preview-mode .export-feedback,

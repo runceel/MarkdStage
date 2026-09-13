@@ -51,8 +51,8 @@ function harness(overrides = {}) {
       output.reportStatus(token, { status: "ready", layout: layout(index) });
       return ok({ handle: `browser-${events.length}`, debuggerEndpoint: "ws://127.0.0.1:3000/devtools/page/1" });
     },
-    async closeBrowser(handle) { events.push(["close", handle]); return ok(undefined); },
-    async removeTransientDirectory(handle) { events.push(["remove", handle]); return ok(undefined); },
+    async closeBrowser(handle) { events.push(["close", handle]); return overrides.close ? overrides.close(handle) : ok(undefined); },
+    async removeTransientDirectory(handle) { events.push(["remove", handle]); return overrides.remove ? overrides.remove(handle) : ok(undefined); },
     async makeDirectory(path) { events.push(["mkdir", path]); return ok(path); },
     async writeBytes(path, bytes, options) {
       events.push(["write", path, options]);
@@ -189,6 +189,31 @@ test("portable PPTX preserves actionable locked-destination errors", async () =>
       message: "The output file may be open in another application. Close final.pptx and retry.",
     },
   );
+});
+
+test("scratch cleanup failures never discard a finished export", async () => {
+  const failure = { ok: false, code: "io_failed", message: "host detail" };
+  for (const overrides of [{ close: () => failure }, { remove: () => failure }, { close: () => failure, remove: () => failure }]) {
+    const h = harness(overrides);
+    const report = await h.output.exportPdf();
+    assert.equal(new TextDecoder().decode(h.writes.get(report.path)), "%PDF-1.7\n%%EOF");
+    // Both cleanup steps are still attempted even when the first one fails.
+    assert.deepEqual(h.events.filter(([kind]) => kind === "close" || kind === "remove").map(([kind]) => kind),
+      ["close", "remove"]);
+    assert.equal((await h.output.inspect()).ok, true);
+  }
+});
+
+test("an opaque io failure names the port operation that produced it", async () => {
+  const h = harness({ launch: () => ({ ok: false, code: "io_failed", message: "host detail" }) });
+  await assert.rejects(h.output.inspect(), (error) => {
+    assert.equal(error.code, "io_failed");
+    assert.match(error.message, /launchBrowser/u);
+    assert.doesNotMatch(error.message, /host detail/u);
+    return true;
+  });
+  const locked = harness({ write: () => ({ ok: false, code: "io_failed", message: "host detail" }) });
+  await assert.rejects(locked.output.exportPdf(), { code: "io_failed", message: "The I/O operation failed. (writeBytes talk.pdf)" });
 });
 
 test("failed rendering releases browser then transient handle and resets exclusivity", async () => {

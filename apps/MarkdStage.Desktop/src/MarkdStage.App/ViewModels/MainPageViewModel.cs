@@ -19,6 +19,8 @@ public sealed partial class MainPageViewModel : ObservableObject, IAsyncDisposab
     private readonly SynchronizationContext _uiContext;
     private readonly SemaphoreSlim _loadGate = new(1, 1);
     private readonly ObservableCollection<SlideOverviewItem> _slideOverviews = [];
+    private CancellationTokenSource? _busyIndicatorCancellation;
+    private long _busyGeneration;
     private string _currentPath = string.Empty;
     private long _slideOverviewDeckVersion = -1;
     internal Func<string, Task>? OpenRequested { get; set; }
@@ -78,6 +80,12 @@ public sealed partial class MainPageViewModel : ObservableObject, IAsyncDisposab
 
     [ObservableProperty]
     public partial bool IsPresenterRunning { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsBusy { get; set; }
+
+    [ObservableProperty]
+    public partial string BusyMessage { get; set; } = string.Empty;
 
     [ObservableProperty]
     public partial int CurrentSlideIndex { get; set; } = -1;
@@ -169,6 +177,7 @@ public sealed partial class MainPageViewModel : ObservableObject, IAsyncDisposab
     internal async Task LoadPathAsync(string path, bool startWatching, bool throwOnError = false)
     {
         var loaded = false;
+        BeginBusy("Loading Markdown…");
         await _loadGate.WaitAsync();
         try
         {
@@ -198,6 +207,7 @@ public sealed partial class MainPageViewModel : ObservableObject, IAsyncDisposab
         finally
         {
             _loadGate.Release();
+            EndBusy();
         }
 
         if (startWatching && loaded)
@@ -205,6 +215,39 @@ public sealed partial class MainPageViewModel : ObservableObject, IAsyncDisposab
             await _watcher.WatchAsync(
                 path,
                 cancellationToken => ReloadWatchedFileAsync(path, cancellationToken));
+        }
+    }
+
+    internal void BeginBusy(string message)
+    {
+        _busyIndicatorCancellation?.Cancel();
+        var cancellation = _busyIndicatorCancellation = new CancellationTokenSource();
+        var generation = ++_busyGeneration;
+        BusyMessage = message;
+        _ = ShowBusyAfterDelayAsync(cancellation.Token, generation);
+    }
+
+    internal void EndBusy()
+    {
+        _busyIndicatorCancellation?.Cancel();
+        _busyIndicatorCancellation = null;
+        ++_busyGeneration;
+        PostToUi(() => IsBusy = false);
+    }
+
+    private async Task ShowBusyAfterDelayAsync(CancellationToken cancellationToken, long generation)
+    {
+        try
+        {
+            await Task.Delay(250, cancellationToken);
+            PostToUi(() =>
+            {
+                if (!cancellationToken.IsCancellationRequested && generation == _busyGeneration)
+                    IsBusy = true;
+            });
+        }
+        catch (OperationCanceledException)
+        {
         }
     }
 

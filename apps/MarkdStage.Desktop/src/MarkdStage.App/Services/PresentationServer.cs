@@ -18,7 +18,6 @@ internal sealed class PresentationServer(
     PresentationSession session,
     Func<bool> presenterRunning,
     Action<WebApplication, string>? configureRoutes = null,
-    bool mapAssets = false,
     Func<Task<bool>>? openPresenter = null,
     Func<Task>? closePresenter = null,
     Func<Task>? reloadSource = null,
@@ -681,6 +680,10 @@ internal sealed class PresentationServer(
         }
     }
 
+    // Workspace assets are streamed over HTTP for every consumer instead of being redirected to the
+    // WebView2 virtual host. The host name lives in the reserved .invalid TLD (RFC 2606) and only
+    // resolves inside a WebView2 that has SetVirtualHostNameToFolderMapping applied, so the external
+    // Chromium that renders PDF, PPTX and PNG output could never fetch a redirected asset.
     private async Task SendDeckAssetAsync(HttpContext context, string relativePath)
     {
         var snapshot = session.GetSnapshot();
@@ -694,7 +697,6 @@ internal sealed class PresentationServer(
         var resolved = DeckAssetResolver.Resolve(snapshot.SourcePath, snapshot.WorkspaceRoot, relativePath);
         if (resolved is not null)
         {
-            if (mapAssets) { RedirectWorkspaceAsset(context, snapshot.WorkspaceRoot, resolved); return; }
             await SendFileAsync(context, resolved, MimeFor(resolved), 10 * 1024 * 1024);
             return;
         }
@@ -709,7 +711,6 @@ internal sealed class PresentationServer(
         {
             var resolved = SlideBackgrounds.Resolve(
                 snapshot.SourcePath, snapshot.WorkspaceRoot, "/assets/" + relativePath);
-            if (mapAssets) { RedirectWorkspaceAsset(context, snapshot.WorkspaceRoot, resolved); return; }
             await SendFileAsync(context, resolved, MimeFor(resolved), SlideBackgrounds.MaxBytes);
         }
         catch (Exception error) when (error is DeckLoadException or IOException or UnauthorizedAccessException)
@@ -730,7 +731,6 @@ internal sealed class PresentationServer(
         try
         {
             var resolved = ThemeService.ResolveAsset(root, relativePath);
-            if (mapAssets) { RedirectWorkspaceAsset(context, session.GetSnapshot().WorkspaceRoot, resolved); return; }
             await SendFileAsync(context, resolved, MimeFor(resolved), 2 * 1024 * 1024);
         }
         catch (Exception error) when (error is DeckLoadException or IOException or UnauthorizedAccessException)
@@ -753,12 +753,6 @@ internal sealed class PresentationServer(
 
         return SendFileAsync(context, resolved, MimeFor(resolved));
     }
-
-    private static void RedirectWorkspaceAsset(HttpContext context, string root, string path) =>
-        context.Response.Redirect(MappedUrl("workspace.markdstage.invalid", Path.GetRelativePath(root, path)));
-
-    private static string MappedUrl(string host, string relative) =>
-        $"https://{host}/" + string.Join('/', relative.Replace('\\', '/').Split('/').Select(Uri.EscapeDataString));
 
     private static async Task SendFileAsync(
         HttpContext context,
@@ -802,8 +796,12 @@ internal sealed class PresentationServer(
             ".ico" => "image/x-icon",
             ".woff" => "font/woff",
             ".woff2" => "font/woff2",
+            ".ttf" => "font/ttf",
+            ".otf" => "font/otf",
             ".mp4" => "video/mp4",
             ".webm" => "video/webm",
+            ".mp3" => "audio/mpeg",
+            ".wav" => "audio/wav",
             _ => "application/octet-stream",
         };
 

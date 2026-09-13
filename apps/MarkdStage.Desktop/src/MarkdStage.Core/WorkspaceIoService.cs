@@ -118,7 +118,7 @@ public sealed class WorkspaceIoService : IAsyncDisposable
                     break;
                 }
                 case "list":
-                    value = List(path, args.GetArrayLength() > 1 ? args[1] : default);
+                    value = await ListAsync(path, args.GetArrayLength() > 1 ? args[1] : default, cancellationToken);
                     break;
                 case "writeBytes":
                 case "replaceText":
@@ -336,12 +336,25 @@ public sealed class WorkspaceIoService : IAsyncDisposable
             : (object)new { kind = directory ? "directory" : "file", size, modifiedAt = ModifiedAt(target) };
     }
 
-    private object List(string path, JsonElement options)
+    /// <summary>
+    /// Walking a workspace visits up to 10,000 entries and opens a lease handle for each one, which is
+    /// far too slow to run inline on the caller's thread: the desktop shell lists from the UI thread,
+    /// where the walk would block rendering — including any progress indicator — until it finished.
+    /// The options are read here, on the caller's thread, so the worker never touches a
+    /// <see cref="JsonElement"/> whose document the caller may dispose once this task is awaited.
+    /// </summary>
+    private Task<object> ListAsync(string path, JsonElement options, CancellationToken cancellationToken)
     {
-        var directory = WorkspaceResolver.ResolveRelative(Root, path, true);
         var max = options.ValueKind == JsonValueKind.Object && options.TryGetProperty("maxEntries", out var count)
             ? Math.Clamp(count.GetInt32(), 0, 10000) : 1000;
         var extensions = Extensions(options);
+        var recursive = Bool(options, "recursive");
+        return Task.Run(() => List(path, max, extensions, recursive), cancellationToken);
+    }
+
+    private object List(string path, int max, HashSet<string> extensions, bool recursive)
+    {
+        var directory = WorkspaceResolver.ResolveRelative(Root, path, true);
         var pending = new Stack<string>();
         pending.Push(directory);
         var result = new List<object>();
@@ -357,7 +370,7 @@ public sealed class WorkspaceIoService : IAsyncDisposable
                 WorkspaceResolver.RejectLinks(entry);
                 using var entryLease = WorkspacePathLease.Acquire(entry, includeFile: true);
                 var isDirectory = Directory.Exists(entry);
-                if (isDirectory && Bool(options, "recursive")) pending.Push(entry);
+                if (isDirectory && recursive) pending.Push(entry);
                 if (extensions.Count > 0 && (isDirectory || !extensions.Contains(Path.GetExtension(entry)))) continue;
                 result.Add(Describe(Path.GetRelativePath(Root, entry).Replace('\\', '/'), entry, true));
             }

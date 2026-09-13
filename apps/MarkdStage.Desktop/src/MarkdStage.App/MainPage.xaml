@@ -124,6 +124,34 @@
                             Text="RECENT WORKSPACES"
                             Visibility="Collapsed" />
 
+                        <TextBox
+                            x:Name="WorkspaceFilterBox"
+                            Margin="0,0,0,8"
+                            PlaceholderText="Filter by name"
+                            TextChanged="OnWorkspaceFilterChanged"
+                            Visibility="Collapsed" />
+
+                        <!--
+                            List-scoped progress. Opening a workspace only replaces this list, so a
+                            full-window overlay would overstate the change and block chrome that stays
+                            usable; the spinner sits where the results will appear instead.
+                        -->
+                        <StackPanel
+                            x:Name="WorkspaceListProgress"
+                            Margin="0,2,0,8"
+                            Orientation="Horizontal"
+                            Spacing="12"
+                            Visibility="Collapsed">
+                            <ProgressRing
+                                Width="20"
+                                Height="20"
+                                IsActive="True" />
+                            <TextBlock
+                                x:Name="WorkspaceListProgressText"
+                                VerticalAlignment="Center"
+                                Foreground="{ThemeResource BrandMutedBrush}" />
+                        </StackPanel>
+
                         <ListView
                             x:Name="WorkspaceItems"
                             MaxHeight="420"
@@ -143,6 +171,22 @@
                     </StackPanel>
                 </ScrollViewer>
             </Grid>
+        </Border>
+
+        <Border
+            x:Name="LoadingOverlay"
+            Background="#CC0B1020"
+            Visibility="Collapsed">
+            <StackPanel
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Spacing="12">
+                <ProgressRing IsActive="True" />
+                <TextBlock
+                    Foreground="{ThemeResource BrandPaperBrush}"
+                    Text="{x:Bind ViewModel.BusyMessage, Mode=OneWay}"
+                    TextAlignment="Center" />
+            </StackPanel>
         </Border>
 
         <WebView2
