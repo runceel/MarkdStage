@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-09-12
 - Supersedes: none
-- Superseded by: none
+- Superseded by: ADR 0002 for the CLI working-directory clause only
 
 ## Context
 

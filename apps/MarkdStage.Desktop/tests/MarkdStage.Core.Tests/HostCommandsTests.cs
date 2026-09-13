@@ -38,11 +38,13 @@ public sealed class HostCommandsTests : IDisposable
     }
 
     [Fact]
-    public async Task SkillNeverUsesAnImplicitWorkingDirectory()
+    public async Task SkillUsesCurrentDirectoryByDefault()
     {
-        var error = await Assert.ThrowsAsync<CliException>(() => HostCommands.RunAsync(
-            CliArguments.Parse(["skill", "install", "--target", "codex"]), root, new StringWriter(), CancellationToken.None));
-        Assert.Equal("invalid_input", error.Code);
+        Assert.Equal(0, await HostCommands.RunAsync(
+            CliArguments.Parse(["skill", "install", "--target", "codex"]),
+            root, new StringWriter(), CancellationToken.None, root));
+        Assert.Equal("# MarkdStage\n", File.ReadAllText(
+            Path.Combine(root, ".agents", "skills", "markdstage", "SKILL.md")));
     }
 
     [Fact]

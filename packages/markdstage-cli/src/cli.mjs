@@ -88,6 +88,7 @@ function usage(command) {
       "  markdstage <command> [options]",
       "",
       "Application:",
+      "  With no file or --workspace, use the current directory as the workspace.",
       "  With --workspace and no file, open an empty UI and choose Markdown.",
       "  With a Markdown file, open it in live slide view and refresh it on save.",
       "",
@@ -211,16 +212,17 @@ function requireFile(positionals, command) {
   return file;
 }
 
-function deckOptions(file, values) {
+function deckOptions(file, values, currentDirectory = process.cwd()) {
   if (values.workspace !== undefined && !values.workspace.trim()) {
     throw new MarkdStageError("invalid_input", "--workspace requires a nonempty directory path.");
   }
-  if (!file && !values.workspace) {
-    throw new MarkdStageError("invalid_input", "Specify --workspace or a Markdown file; no workspace is derived from the working directory.");
-  }
   return {
-    file: file ? resolve(file) : undefined,
-    workspace: values.workspace ? resolve(values.workspace) : undefined,
+    file: file ? resolve(currentDirectory, file) : undefined,
+    workspace: values.workspace
+      ? resolve(currentDirectory, values.workspace)
+      : file
+        ? undefined
+        : resolve(currentDirectory),
     theme: values.theme,
     themeFile: values["theme-file"],
   };
@@ -234,6 +236,7 @@ export async function run(argv, io = {}) {
   const out = io.out ?? ((text) => console.log(text));
   const err = io.err ?? ((text) => console.error(text));
   const json = (payload) => out(JSON.stringify(payload, null, 2));
+  const currentDirectory = io.cwd ?? process.cwd();
 
   const command = argv[0];
   const rest = argv.slice(1);
@@ -294,7 +297,7 @@ export async function run(argv, io = {}) {
     try {
       const report = await applicationCommand(
         {
-          ...deckOptions(file, values),
+          ...deckOptions(file, values, currentDirectory),
           live: Boolean(file),
           open: io.open ?? !values["no-open"],
           until: io.until,
@@ -349,7 +352,7 @@ export async function run(argv, io = {}) {
         const file = requireFile(positionals, "preview");
         const report = await applicationCommand(
           {
-            ...deckOptions(file, values),
+            ...deckOptions(file, values, currentDirectory),
             watch: values.watch,
             open: io.open ?? !values["no-open"],
             until: io.until,
@@ -369,7 +372,7 @@ export async function run(argv, io = {}) {
         const file = requireFile(positionals, "present");
         const report = await applicationCommand(
           {
-            ...deckOptions(file, values),
+            ...deckOptions(file, values, currentDirectory),
             watch: values.watch,
             open: io.open ?? !values["no-open"],
             presenterView: true,
@@ -388,7 +391,7 @@ export async function run(argv, io = {}) {
       }
       case "validate": {
         const file = requireFile(positionals, "validate");
-        const report = await validateCommand(deckOptions(file, values));
+        const report = await validateCommand(deckOptions(file, values, currentDirectory));
         if (values.json) json(report);
         else out(formatValidateReport(report));
         return report.ok ? EXIT_OK : EXIT_DECK;
@@ -404,7 +407,7 @@ export async function run(argv, io = {}) {
           index = page - 1;
         }
         const report = await inspectCommand({
-          ...deckOptions(file, values),
+          ...deckOptions(file, values, currentDirectory),
           index,
           includeFits: values.all,
         });
@@ -423,7 +426,7 @@ export async function run(argv, io = {}) {
           }
         }
         const report = await captureCommand({
-          ...deckOptions(file, values),
+          ...deckOptions(file, values, currentDirectory),
           indexes,
           output: values.output,
         });
@@ -434,7 +437,7 @@ export async function run(argv, io = {}) {
       case "export": {
         const file = requireFile(positionals, "export");
         const report = await exportCommand({
-          ...deckOptions(file, values),
+          ...deckOptions(file, values, currentDirectory),
           output: values.output,
           mermaidImageFallback: values["mermaid-image-fallback"],
         });
@@ -452,7 +455,7 @@ export async function run(argv, io = {}) {
         const report = await skillCommand({
           action: positionals[0] ?? "install",
           target: values.target,
-          root: values.root ? resolve(values.root) : process.cwd(),
+          root: values.root ? resolve(currentDirectory, values.root) : currentDirectory,
           force: values.force,
         });
         if (values.json) json(report);

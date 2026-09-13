@@ -41,10 +41,11 @@ internal static class Program
         try
         {
             file = CliArguments.AbsoluteArgument(args.File);
-            root = WorkspaceResolver.Resolve(CliArguments.AbsoluteArgument(args.Get("workspace")), file);
+            var workspace = CliArguments.WorkspaceArgument(args.Get("workspace"), file, Environment.CurrentDirectory);
+            root = WorkspaceResolver.Resolve(CliArguments.AbsoluteArgument(workspace), file);
         }
         catch (UnauthorizedAccessException) { throw new CliException("path_outside_workspace", "The file must stay inside the workspace and cannot traverse links.", 2); }
-        catch (ArgumentException) { throw new CliException("invalid_input", "Specify a Markdown file or an existing --workspace <directory>.", 2); }
+        catch (ArgumentException) { throw new CliException("invalid_input", "Specify a Markdown file or an existing workspace directory.", 2); }
         catch (IOException) { throw new CliException("invalid_input", "The workspace is unavailable; specify an existing --workspace <directory>.", 2); }
         if (args.Command is "inspect" or "capture" or "export" || args.IsPresentation && !args.Has("no-open"))
             _ = BrowserAutomation.FindBrowser();

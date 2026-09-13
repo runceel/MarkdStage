@@ -84,6 +84,8 @@ internal sealed record CliArguments(string Command, IReadOnlyList<string> Positi
     }
 
     public static string? AbsoluteArgument(string? value) => value is null ? null : Path.GetFullPath(value);
+    public static string? WorkspaceArgument(string? workspace, string? file, string currentDirectory) =>
+        workspace is null && file is null ? currentDirectory : workspace;
     private static bool IsMarkdown(string value) =>
         Path.GetExtension(value).Equals(".md", StringComparison.OrdinalIgnoreCase) ||
         Path.GetExtension(value).Equals(".markdown", StringComparison.OrdinalIgnoreCase);
