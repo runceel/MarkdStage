@@ -4012,11 +4012,21 @@ function showExportNotification(state, message, path = "") {
   pauseExportNotification();
   const notification = document.getElementById("exportNotification");
   const location = document.getElementById("exportNotificationPath");
-  const link = document.getElementById("exportNotificationLink");
+  let link = document.getElementById("exportNotificationLink");
+  if (!link) {
+    link = document.createElement("a");
+    link.id = "exportNotificationLink";
+    link.href = "#";
+    link.rel = "nofollow";
+  }
   notification.dataset.state = state;
   document.getElementById("exportNotificationMessage").textContent = message;
-  link.textContent = path ? `Open ${path.split(/[\\/]/).pop()}` : "";
+  link.textContent = path;
   link.dataset.path = path;
+  location.replaceChildren(link);
+  if (path) {
+    location.prepend("Saved to: ");
+  }
   location.hidden = !path;
   document.getElementById("exportNotificationClose").hidden = state === "pending";
   notification.hidden = false;

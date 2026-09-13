@@ -11,6 +11,7 @@ test("export notifications expose a direct file-opening link", async () => {
     renderer,
     /postMessage\(\{ type: "shell:open-file", path \}\)/,
   );
-  assert.match(renderer, /link\.textContent = path \? `Open/);
+  assert.match(html, /id="exportNotificationPath"[^>]*tabindex="0"/);
+  assert.match(renderer, /link\.textContent = path;/);
+  assert.match(renderer, /location\.prepend\("Saved to: "\)/);
 });
-
