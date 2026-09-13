@@ -10,15 +10,15 @@
   IgnorableNamespaces="uap uap5 desktop4 rescap">
 
   <Identity
-    Name="MarkdStage.Desktop"
-    Publisher="CN=AppPublisher"
+    Name="45014okazuki.MarkdStage"
+    Publisher="CN=57A8C5FA-395A-4109-91A0-CF1B93556B5D"
     Version="1.0.0.0" />
 
-  <mp:PhoneIdentity PhoneProductId="633E2F8C-CAFF-4336-B90B-3F16B9923DB4" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
+  <mp:PhoneIdentity PhoneProductId="34ff5dfb-aa05-4dc2-bb5a-e0b67414fa0a" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
 
   <Properties>
     <DisplayName>MarkdStage</DisplayName>
-    <PublisherDisplayName>MarkdStage</PublisherDisplayName>
+    <PublisherDisplayName>okazuki</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
 
