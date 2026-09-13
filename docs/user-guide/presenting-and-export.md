@@ -12,7 +12,7 @@ equivalent to presentation or export output.
 
 ## Compare presentation features
 
-| Feature | Canvas Extension | Desktop | CLI |
+| Feature | Canvas Extension | Desktop | npm CLI |
 | --- | --- | --- | --- |
 | Current slide | Yes | Yes | Yes |
 | Next-slide preview | Presenter view | Main window | Presenter view |
@@ -25,6 +25,14 @@ equivalent to presentation or export output.
 | PDF export | Yes | No | UI and `markdstage export --output slides.pdf` |
 | Editable PowerPoint export | Yes | No | UI and `markdstage export --output slides.pptx` |
 | Surface Pen | Supported on Windows | Supported while audience window is open | No |
+
+The **packaged Windows CLI** opens the native Desktop app for interactive
+commands, so its interactive features follow the Desktop column. `present` also
+opens the native audience window and repeated requests reuse it. The npm CLI is
+unchanged and browser-based; packaged `--no-open` retains the local server UI.
+`inspect`, `capture`, and `export` remain console commands in both distributions
+and require an external Chromium browser. Native interaction uses WebView2 only.
+The native app has no export buttons; use `markdstage export` instead.
 
 ## Prepare presenter view
 
@@ -41,8 +49,11 @@ Open presenter view in Canvas or the CLI application, or use the Desktop main wi
 
 - **Canvas:** Select **More controls > External window**, or select **Start presentation** in
   presenter view.
-- **CLI:** Use the same controls. `markdstage present slides.md` starts with
+- **npm CLI:** Use the same controls. `markdstage present slides.md` starts with
   presenter view already open.
+- **Packaged Windows CLI:** `markdstage present slides.md` opens presenter view
+  and the native audience window directly. Repeating it does not close or
+  duplicate the audience window.
 - **Desktop:** Select **Start presentation**.
 
 Move the new window to the audience display. Press `F11` for fullscreen and `Esc` to leave
@@ -50,7 +61,7 @@ fullscreen. Navigation from the presenter and audience surfaces remains synchron
 
 ## Check fixed 16:9 output
 
-In the Canvas Extension or CLI application, select **More controls > Output preview**. The slide
+In the Canvas Extension or browser-based CLI UI, select **More controls > Output preview**. The slide
 is letterboxed with the exact 1280x720 typography, spacing, and content limits used by PDF output.
 
 If content exceeds the fixed page, MarkdStage shows a clipping warning:
@@ -64,12 +75,15 @@ You can also ask Copilot to inspect the deck's PDF layout and identify pages tha
 
 ## Export PDF
 
+These UI steps apply to Canvas and the browser-based CLI UI. From the native app,
+run `markdstage export slides.md --output slides.pdf` in a terminal.
+
 1. Reload the source if it changed after the deck opened.
 2. Select **More controls > Output preview** and resolve clipping warnings.
 3. Select **More controls > Export PDF**.
 4. Open the generated PDF from the workspace and review every page.
 
-When the deck was loaded from Markdown, Canvas and the CLI application derive the PDF name from
+When the deck was loaded from Markdown, Canvas and the browser-based CLI UI derive the PDF name from
 the source filename and save it beside the source Markdown file. The exported file contains one 16:9
 page per slide, including the back cover, with
 backgrounds, images, highlighted code, Mermaid, and Architecture diagrams.
@@ -77,6 +91,9 @@ backgrounds, images, highlighted code, Mermaid, and Architecture diagrams.
 Speaker notes and Architecture editing controls are excluded.
 
 ## Export editable PowerPoint
+
+Native-app users run `markdstage export slides.md --output slides.pptx`; the UI
+controls below belong to Canvas and the browser-based CLI UI.
 
 1. Reload the source if it changed after the deck opened.
 2. Select **More controls > Output preview** and resolve clipping warnings.
@@ -90,7 +107,7 @@ Images keep each diagram together but its text and lines cannot be edited indivi
 editable shapes; the choice is not saved. Decks without Mermaid export immediately.
 4. Open the generated presentation and review every slide.
 
-When the deck was loaded from Markdown, Canvas and the CLI application save the PowerPoint beside
+When the deck was loaded from Markdown, Canvas and the browser-based CLI UI save the PowerPoint beside
 the source Markdown file using a name derived from the source filename.
 
 Native PowerPoint objects stay editable; anything the converter cannot express natively becomes a
@@ -111,6 +128,8 @@ fallback picture that is positioned individually rather than flattened into a fu
 | Unsupported image effects and HTML/CSS | Fallback picture |
 
 The export report lists every fallback instead of silently omitting it.
+Icons and decorations count as fallback items even when Architecture diagram shapes, labels,
+and connectors remain editable.
 
 The exported presentation creates one slide master for each theme used in the deck, with named
 `title`, `default`, `center`, `section`, and `backcover` layouts. Theme-common backgrounds and top

@@ -29,6 +29,7 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <Compile Include="..\..\src\MarkdStage.App\Services\DeckLoadException.cs" Link="Services\DeckLoadException.cs" />
     <Compile Include="..\..\src\MarkdStage.App\Services\AsyncDispatcher.cs" Link="Services\AsyncDispatcher.cs" />
+    <Compile Include="..\..\src\MarkdStage.App\Services\DeckWatcher.cs" Link="Services\DeckWatcher.cs" />
     <Compile Include="..\..\src\MarkdStage.App\Services\DeckAssetResolver.cs" Link="Services\DeckAssetResolver.cs" />
     <Compile Include="..\..\src\MarkdStage.App\Services\SlideBackgrounds.cs" Link="Services\SlideBackgrounds.cs" />
     <Compile Include="..\..\src\MarkdStage.App\Services\PathSecurity.cs" Link="Services\PathSecurity.cs" />

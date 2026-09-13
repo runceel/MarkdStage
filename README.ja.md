@@ -116,13 +116,24 @@ canvasId: MarkdStage
 ## CLI を使う
 
 [MarkdStage CLI](./docs/user-guide/ja/cli.md) は Canvas なしで、Claude Code、Codex、ターミナル、
-CI から利用できます。**Node.js 24 以降**と、インストール済みの **Microsoft Edge、
+CI から利用できます。**npm 版 CLI** は **Node.js 24 以降**と、インストール済みの **Microsoft Edge、
 Google Chrome、または Chromium** が必要です。ブラウザーの自動ダウンロードは行いません。
 前提条件やオフライン導入は[インストールガイド](./docs/user-guide/ja/installation.md)を参照してください。
 
+**Windows パッケージ版 CLI（Desktop v4 / MSIX、Store 未公開）**は Node.js が不要です。
+引数なしの `markdstage`、Markdown の直接指定、`preview` はネイティブのワークスペース
+ウィンドウを開くか再利用し、`present` はネイティブの投影用ウィンドウも開きます。
+引数なしでは呼び出し元の現在のディレクトリをファイル未選択で開きます。
+ネイティブ表示は WebView2 のみ必要ですが、`inspect`、`capture`、`export` は引き続き
+外部 Chromium が必要です。CLI はアプリの受け入れ応答後に終了します。
+`--no-open` は Ctrl+C までローカルサーバーを維持します。ネイティブの監視は常に有効で、
+`--watch` も指定可能です。ネイティブ起動は `--theme` / `--theme-file` を拒否するため、
+アプリでテーマを選ぶか、`--no-open` で上書きを指定します。
+フラグと受け入れ JSON は [CLI ガイド](./docs/user-guide/ja/cli.md)を参照してください。
+
 ### 導入して下書きを依頼
 
-CLI をインストールし、資料を作るフォルダーでスキルを登録します。以下は Claude Code の例です。
+npm 版 CLI をインストールし、資料を作るフォルダーでスキルを登録します。以下は Claude Code の例です。
 
 ```console
 npm install --global @markdstage/markdstage
@@ -147,7 +158,7 @@ Codex を使う場合は、スキル登録の行を `markdstage skill install --
 markdstage slides.md
 ```
 
-Markdown をテキストエディターで編集すると、保存時に UI が更新されます。同じ UI で
+Markdown をテキストエディターで編集すると、保存時に UI が更新されます。npm 版のブラウザー UI で
 鉛筆ボタンから Architecture 図の配置を調整でき、**Advanced edit** で詳細な編集ができます。
 配置変更はその場で保存され、詳細デザイナーの下書きは **Save** で Markdown に書き戻されます。
 
@@ -179,8 +190,10 @@ markdstage export slides.md --output slides.pdf
 markdstage export slides.md --output slides.pptx
 ```
 
-`present` は同じフル UI を発表者ビューで開きます。そこで **Start presentation** を選ぶと、
-同期された観客向けウィンドウが開きます。配布前には最終出力の全ページを確認します。
+npm 版の `present` は同じフル UI を発表者ビューで開き、**Start presentation** で同期した
+観客向けウィンドウを開きます。Windows パッケージ版の `present` は発表者ビューとネイティブの
+投影用ウィンドウをすぐに開き、繰り返してもそのウィンドウを再利用します。
+配布前には最終出力の全ページを確認します。
 
 <a id="present-without-ai"></a>
 
@@ -197,8 +210,9 @@ npx @markdstage/markdstage slides.md
 npx @markdstage/markdstage present slides.md
 ```
 
-最初のコマンドは現在のワークスペースを対象に Canvas と同等の空の UI を開きます。2つ目は
-`slides.md` を自動更新付きで開きます。CLI UI と Canvas のどちらでも
+これらの `npx` コマンドは従来どおりブラウザーで動く npm 版です。最初のコマンドは現在の
+ワークスペースを対象に Canvas と同等の空の UI を開きます。2つ目は
+`slides.md` を自動更新付きで開きます。npm 版 CLI UI と Canvas のどちらでも
 **More controls > Open Markdown** からファイルを直接開けます。発表用のネイティブアプリも
 利用できます。
 

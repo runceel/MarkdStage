@@ -12,7 +12,7 @@ Canvas、Desktop、CLI は同じレンダラーで描画するため、聞き手
 
 ## プレゼンテーション機能を比較する
 
-| 機能 | Canvas Extension | Desktop | CLI |
+| 機能 | Canvas Extension | Desktop | npm 版 CLI |
 | --- | --- | --- | --- |
 | 現在のスライド | 対応 | 対応 | 対応 |
 | 次のスライドのプレビュー | 発表者ビュー | メインウィンドウ | 発表者ビュー |
@@ -25,6 +25,13 @@ Canvas、Desktop、CLI は同じレンダラーで描画するため、聞き手
 | PDF エクスポート | 対応 | 非対応 | UI と `markdstage export --output slides.pdf` |
 | 編集可能な PowerPoint エクスポート | 対応 | 非対応 | UI と `markdstage export --output slides.pptx` |
 | Surface Pen | Windows で対応 | 投影用ウィンドウ表示中に対応 | 非対応 |
+
+**Windows パッケージ版 CLI** の対話コマンドはネイティブの Desktop アプリを開くため、
+表示機能は Desktop 列に従います。`present` はネイティブの投影用ウィンドウも開き、
+繰り返しても再利用します。npm 版は従来どおりブラウザーで動き、パッケージ版の
+`--no-open` はローカルサーバーの UI を維持します。`inspect`、`capture`、`export` は
+両方ともコンソールコマンドのままで、外部 Chromium が必要です。ネイティブ表示は
+WebView2 のみを使います。ネイティブアプリに出力ボタンはなく、`markdstage export` を使います。
 
 ## 発表者ビューを準備する
 
@@ -42,8 +49,10 @@ Canvas または CLI アプリケーションの発表者ビュー、あるい�
 
 - **Canvas:** **More controls > External window**、または発表者ビューの
   **Start presentation** を選びます。
-- **CLI:** 同じ操作を使います。`markdstage present slides.md` は発表者ビューを開いた状態で
+- **npm 版 CLI:** 同じ操作を使います。`markdstage present slides.md` は発表者ビューを開いた状態で
   起動します。
+- **Windows パッケージ版 CLI:** `markdstage present slides.md` は発表者ビューと
+  ネイティブの投影用ウィンドウを直接開きます。繰り返しても閉じたり重複させたりしません。
 - **Desktop:** **Start presentation** を選びます。
 
 開いたウィンドウを投影用ディスプレイへ移します。`F11` で全画面にし、
@@ -51,7 +60,7 @@ Canvas または CLI アプリケーションの発表者ビュー、あるい�
 
 ## 固定 16:9 出力を確認する
 
-Canvas Extension または CLI アプリケーションで **More controls > Output preview** を選びます。PDF 出力と同じ
+Canvas Extension またはブラウザー版 CLI UI で **More controls > Output preview** を選びます。PDF 出力と同じ
 1280x720 のタイポグラフィ、余白、内容量の制限でスライドをレターボックス表示します。
 
 内容が固定ページに収まらない場合は、クリッピング警告が出ます。
@@ -65,12 +74,15 @@ Canvas Extension または CLI アプリケーションで **More controls > Out
 
 ## PDF を書き出す
 
+次の UI 手順は Canvas とブラウザー版 CLI UI 向けです。ネイティブアプリからは、
+ターミナルで `markdstage export slides.md --output slides.pdf` を実行します。
+
 1. デッキを開いた後に元ファイルを変更した場合は、読み込み直します。
 2. **More controls > Output preview** を選び、クリッピング警告を解消します。
 3. **More controls > Export PDF** を選びます。
 4. ワークスペースにできた PDF を開き、全ページを確認します。
 
-Markdown からデッキを読み込んだ場合、Canvas と CLI アプリケーションでは PDF のファイル名が
+Markdown からデッキを読み込んだ場合、Canvas とブラウザー版 CLI UI では PDF のファイル名が
 元ファイル名をもとに決まり、元の Markdown と同じフォルダーに保存されます。
 書き出した PDF には、裏表紙を含む各スライドが 16:9 で1ページずつ入り、
 背景、画像、シンタックスハイライト付きコード、Mermaid、Architecture 図もそのまま出ます。
@@ -78,6 +90,9 @@ Markdown からデッキを読み込んだ場合、Canvas と CLI アプリケ�
 スピーカーノートと Architecture の編集コントロールは PDF には出ません。
 
 ## 編集可能な PowerPoint を書き出す
+
+ネイティブアプリ利用時は `markdstage export slides.md --output slides.pptx` を実行します。
+以下の UI は Canvas とブラウザー版 CLI UI の機能です。
 
 1. デッキを開いた後に元ファイルを変更した場合は、読み込み直します。
 2. **More controls > Output preview** を選び、クリッピング警告を解消します。
@@ -91,7 +106,7 @@ Mermaid 図を含むデッキでは、**Export PowerPoint…** を選ぶと小�
 選択は保存されません。Mermaid がないデッキはそのまま書き出します。
 4. 生成されたプレゼンテーションを開き、全スライドを確認します。
 
-Markdown からデッキを読み込んだ場合、Canvas と CLI アプリケーションでは PowerPoint も
+Markdown からデッキを読み込んだ場合、Canvas とブラウザー版 CLI UI では PowerPoint も
 元ファイル名をもとにした名前で、元の Markdown と同じフォルダーに保存されます。
 
 PowerPoint のネイティブオブジェクトは編集可能なまま残ります。ネイティブに表現できない要素は、
@@ -112,6 +127,8 @@ PowerPoint のネイティブオブジェクトは編集可能なまま残りま
 | 未対応の画像効果や HTML/CSS | フォールバック画像 |
 
 書き出し結果にはフォールバック内容が明示され、黙って削除されることはありません。
+Architecture の図形、ラベル、コネクターが編集可能なままでも、アイコンや装飾は
+フォールバック件数に含まれます。
 
 書き出したプレゼンテーションには、デッキで使われたテーマごとにスライドマスターが作られ、
 `title`、`default`、`center`、`section`、`backcover` の名前付きレイアウトが含まれます。

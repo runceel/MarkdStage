@@ -21,7 +21,10 @@ Copilot:
 Review local extension code before installing it. A release tag or commit SHA provides a
 reproducible installation.
 
-## MarkdStage CLI
+## MarkdStage CLI (npm)
+
+These instructions install the browser-based npm CLI. For the Windows package's
+native-app CLI, see [Desktop v4 / Microsoft Store transition](#desktop-v4--microsoft-store-transition).
 
 ### Requirements
 
@@ -77,16 +80,31 @@ require Node.js. The desktop app is a **presenter**, with no PDF or PowerPoint
 export buttons; exports remain CLI-only.
 
 WebView2 Runtime is required for the app and the packaged CLI's script execution.
-Present/preview and layout inspection, capture, PDF, and PowerPoint export also
-require an installed Chromium-based browser. Remote debugging disabled by enterprise
-policy prevents inspection/capture/export; installing MarkdStage does not change
-that policy. `help`, `guide`, and skill installation do not require a browser.
+Bare invocation, direct Markdown, `preview`, and `present` activate the installed
+native app; they do **not** require a separate Chromium browser. `present` opens
+presenter view and the native audience window. Layout inspection, capture, PDF,
+and PowerPoint export still require installed Edge, Chrome, or Chromium. Remote
+debugging disabled by enterprise policy prevents inspection/capture/export;
+installing MarkdStage does not change that policy. Help, version, `guide`, and
+skill commands do not require a browser. These and `validate`, `inspect`,
+`capture`, and `export` remain console operations.
 The app links to Microsoft's runtime download page and never downloads or installs
 third-party runtimes itself.
 
-The packaged CLI uses the current directory as its workspace when invoked without
-a Markdown file or `--workspace`. `skill install` and `skill check` also default
-to the current directory when `--root` and `--workspace` are omitted.
+The packaged CLI uses the caller's current directory as its workspace when invoked
+without a Markdown file or `--workspace`, with no file selected. Existing workspace
+windows are reused. Relative file and workspace arguments resolve against that
+same directory. The command exits successfully only after the app accepts the
+request; failures/timeouts return a nonzero `activation_failed` error.
+`--no-open` explicitly retains the long-running local server until Ctrl+C.
+Native Markdown watching is always enabled (`--watch` is accepted). Native handoff
+rejects `--theme` / `--theme-file`: choose the theme in the app or use `--no-open`.
+`skill install` and `skill check` also default to the current directory when
+`--root` and `--workspace` are omitted. See the [CLI guide](cli.md) for JSON output.
+
+The npm CLI remains browser-based. If npm and the package both provide
+`markdstage`, check command resolution with `Get-Command markdstage`;
+`npx @markdstage/markdstage` explicitly runs npm.
 
 The first Store release is the archive cutover: **no further archive updates of any
 kind will be published after it**. Install the Store version, open the same workspace,

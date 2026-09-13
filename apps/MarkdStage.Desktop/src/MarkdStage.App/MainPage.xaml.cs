@@ -212,12 +212,13 @@ public sealed partial class MainPage : Page
         ViewModel.ErrorMessage = message;
     }
 
-    public async Task OpenWorkspaceAsync(string root, string? file)
+    public async Task OpenWorkspaceAsync(string root, string? file, bool throwOnError = false)
     {
         if (WorkspaceRoot is not null && !WorkspaceRoot.Equals(root, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("A window cannot change its workspace.");
         WorkspaceRoot = root;
-        await _ready.Task;
+        if (throwOnError) await _ready.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        else await _ready.Task;
         if (_io is null)
         {
             _io = new WorkspaceIoService(root, AppStorage.TransientRoot, _browserHost);
@@ -233,8 +234,56 @@ public sealed partial class MainPage : Page
         }
         else
         {
-            await ViewModel.LoadPathAsync(file, startWatching: true);
+            await ViewModel.LoadPathAsync(file, startWatching: true, throwOnError: throwOnError);
             if (ViewModel.IsDeckLoaded) HideLibrary();
+        }
+    }
+
+    public async Task ApplyActivationAsync(DesktopActivationRequest request)
+    {
+        if (request.Mode != "present") await _presenterWindowService.StopAsync();
+        if (request.File is null)
+        {
+            WorkspaceStartScreen.Visibility = Visibility.Visible;
+            _window.SetBackToFilesVisible(false);
+            await RefreshWorkspaceFilesAsync();
+            return;
+        }
+        var source = new UriBuilder(_server.BaseUri!)
+        {
+            Query = request.Mode == "present" ? "presenter=1" : ""
+        }.Uri;
+        var core = StageWebView.CoreWebView2;
+        var ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        ulong? navigationId = null;
+        void Starting(CoreWebView2 sender, CoreWebView2NavigationStartingEventArgs args)
+        {
+            if (args.Uri == source.AbsoluteUri) navigationId = args.NavigationId;
+        }
+        void Completed(CoreWebView2 sender, CoreWebView2NavigationCompletedEventArgs args)
+        {
+            if (args.NavigationId != navigationId) return;
+            if (args.IsSuccess) ready.TrySetResult();
+            else ready.TrySetException(new IOException("The slide view could not be opened."));
+        }
+        core.NavigationStarting += Starting;
+        core.NavigationCompleted += Completed;
+        try
+        {
+            core.Navigate(source.AbsoluteUri);
+            await ready.Task.WaitAsync(TimeSpan.FromSeconds(30));
+            HideLibrary();
+            if (request.Mode == "present")
+            {
+                await _presenterWindowService.OpenAsync(_server.BaseUri!);
+                if (!_presenterWindowService.IsRunning)
+                    throw new IOException("The audience window could not be opened.");
+            }
+        }
+        finally
+        {
+            core.NavigationStarting -= Starting;
+            core.NavigationCompleted -= Completed;
         }
     }
 

@@ -2,7 +2,9 @@
 
 - Status: Draft
 - Target: MarkdStage Desktop v4 (MSIX / Microsoft Store)
-- Decision record: [../adr/0001-windows-native-app-packaging-and-runtime-hosting.md](../adr/0001-windows-native-app-packaging-and-runtime-hosting.md)
+- Decision records: [ADR 0001](../adr/0001-windows-native-app-packaging-and-runtime-hosting.md),
+  [ADR 0002](../adr/0002-cli-current-directory-workspace.md), and
+  [ADR 0003](../adr/0003-packaged-cli-native-app-activation.md)
 - Lifetime: deleted once v4 ships. Anything still true at that point moves to
   docs/architecture.md.
 
@@ -16,9 +18,9 @@ runtime's Node I/O layer with a host-implemented port changes all three at once.
 It exists so that the port boundary is designed once, in writing, rather than
 incidentally by whoever implements first.
 
-Nothing here may contradict ADR 0001. Where implementation work shows a decision
-in ADR 0001 to be wrong, it is corrected by a new record that supersedes it, not
-by editing ADR 0001 and not by this document.
+This document follows ADR 0001 except for the workspace-default clause superseded
+by ADR 0002 and the interactive CLI execution clause superseded by ADR 0003.
+Further decision changes require a new record, not edits to historical ADRs.
 
 Non-goals: user interface design, theme changes, store listing copy, release
 scheduling. Desktop-only behaviour (windowing, presenter view, pen input) belongs
@@ -361,35 +363,81 @@ host must preserve when it chooses the renderer's origin.
 
 ## 7. CLI execution model
 
-Commands do not all need the same machinery. This split is fixed:
+This section describes the **packaged Windows CLI**. The npm CLI remains
+browser-based and does not activate the Windows app. Packaged commands do not all
+need the same machinery:
 
 | Command group | Commands today | Needs |
 | --- | --- | --- |
-| Skill install, guide | `skill`, `guide`, `help` | Host code only. No JavaScript engine, no browser. |
-| Validate | `validate` | A JavaScript engine. Deck parsing, deck state, and architecture validation have no Node and no DOM dependency, so no browser is required. |
-| Present, preview | `present`, `preview` | The native server that already exists, plus the user's browser opened as a window. No automation protocol. |
+| Console information and skills | `skill`, `guide`, `help`, `--help`, `--version` | Host code only. No JavaScript engine, no browser, no native app activation. |
+| Validate | `validate` | WebView2 for script execution, without native presentation-app activation or an external browser. Parsing and validation require no layout or DOM. |
+| Interactive application | Bare invocation, direct Markdown path, `preview`, `present` | Package-supported activation of the installed native app, using WebView2 and the existing native window lifecycle. No external Chromium browser. |
+| Explicit headless serving | Interactive commands with `--no-open` | The existing long-running local server; no app or browser launch. Ctrl+C stops the server. |
 | Inspect, capture, export | `inspect`, `capture`, `export` | A full browser engine, driven over the automation protocol. Per ADR 0001 this is the installed Chromium-based browser. |
+
+### Interactive activation contract
+
+- Activate the current package's single `!App` application entry through Windows
+  `IApplicationActivationManager`, not by starting an executable or a browser.
+  Pass versioned structured launch arguments that preserve absolute paths,
+  Unicode, spaces, the requested mode, and the per-request acknowledgement target.
+- Route requests through the existing `AppInstance` and canonical-workspace
+  window registry. An already open workspace reuses its native window; a
+  different workspace gets its own window in the app lifecycle.
+- A bare invocation opens the caller's current-directory workspace with no file
+  selected. An explicit `--workspace` without a file does the same for that root.
+  Reusing a workspace without a file shows its file list and stops the audience
+  window; any loaded deck remains retained behind the list rather than being
+  selected for this request. Direct Markdown and `preview` select normal slide view.
+  `present` selects presenter view and opens the synchronized native audience
+  window. Repeating `present` is idempotent: reuse the audience window, never
+  toggle it closed or create a duplicate. Native `present` without a file is a
+  usage error; `present --no-open` retains the existing file-less server behavior.
+- Resolve files and explicit workspaces against the caller's current directory
+  before applying §9. The CLI and app both validate canonical roots, reject links,
+  enforce containment and existence, and accept only `.md` or `.markdown` files.
+  The app does not trust a path merely because the CLI already checked it.
+- Use a same-user private per-request pipe for bounded acknowledgement. Exit `0`
+  only after the app responds that the request was accepted. Successful Windows
+  activation alone is insufficient. App rejection, activation failure, or timeout
+  returns the environment error `activation_failed` and a nonzero exit code
+  (`3`); input rejected by the CLI retains normal usage/deck error classification.
+- With `--json`, an accepted request prints
+  `{ "ok": true, "accepted": true, "workspace": "<absolute>", "file": "<absolute>", "mode": "preview", "processId": 1234, "windowId": 5678 }`.
+  `file` is JSON `null` when no file was supplied; `mode` is `"preview"` or
+  `"present"`. `processId` and `windowId` are the actual accepting native process
+  and workspace window IDs, not the illustrative values above or the transient
+  activation process ID. Failure uses the normal `{ "ok": false, "error": "<code>", "message": "<text>" }`
+  shape. Acceptance acknowledges the request, not an export or a completed
+  presentation; the app owns the subsequent lifetime.
+- `--watch` maps to the native app's existing automatic Markdown watching, which
+  is always enabled. It does not create a separate watcher or disable native
+  watching when omitted.
+- Reject `--theme` and `--theme-file` on app handoff with a usage error (`1`)
+  instructing users to choose the theme in the app or use `--no-open`. Never
+  silently discard an override. `--no-open` preserves the existing server's theme
+  overrides, watch handling, JSON server output, and Ctrl+C lifecycle.
+
+### Console execution
 
 Consequences the implementation must honour:
 
+- `help`, version, `guide`, `skill`, `validate`, `inspect`, `capture`, and `export`
+  remain console operations and must never activate the native presentation app.
 - `skill` and `guide` must work with no browser installed and must not pay
   engine startup cost. Their content ships as data in the package; the host reads
   and prints it.
-- `validate` must work with no browser installed. It executes the pure modules
-  in an engine without layout or DOM, and produces the same diagnostics and exit
-  codes as today.
+- `validate` must work with no external browser installed. It executes the pure
+  modules through WebView2 without layout or DOM and produces the same diagnostics
+  and exit codes as today. This script-only use does not require activating the
+  native presentation app.
 - `inspect`, `capture`, and `export` fail with a clear, documented message when
   no Chromium-based browser is installed, or when policy has disabled remote
   debugging. ADR 0001 calls the latter a known limitation, not a bug; the message
   must say so rather than implying a defect.
 
-Open item, deferred: which engine hosts `validate`. The candidate is the embedded
-browser with no visible window, used for script execution only — which does not
-reopen ADR 0001's rejected offscreen-*rendering* alternative, because no layout
-or capture is involved. The fallback, if that proves unsupportable, is to run
-`validate` through the same installed browser the automation commands use, at the
-cost of the "no browser required" property above. Owner: @runceel, decided in the
-stage that builds the CLI host.
+WebView2 script execution does not reopen ADR 0001's rejected
+offscreen-*rendering* alternative: no layout or capture is involved.
 
 ---
 
@@ -471,7 +519,7 @@ Given an optional workspace path `W` and an optional file path `F`:
    workspace. Skill installation and checking use the same default when neither
    `--root` nor `--workspace` is supplied.
 
-Notes that keep this consistent with ADR 0001 and with today's behaviour:
+Notes that keep this consistent with the accepted ADRs:
 
 - A relative path on the command line and the CLI's default workspace are made
   absolute against the caller's working directory before resolution begins.
@@ -483,7 +531,9 @@ Notes that keep this consistent with ADR 0001 and with today's behaviour:
   marker walk alone. The packaged app cannot rely on Git being installed, and the
   two paths must not disagree when it is not.
 - The root is persisted and passed as an absolute canonical path. It is resolved
-  once per session, not per operation.
+  once per session, not per operation. For CLI-to-app activation, the app
+  independently revalidates the supplied absolute paths against the same boundary
+  before accepting them.
 
 ---
 
@@ -531,13 +581,11 @@ Each stage is independently shippable and leaves the product working.
 
 ## Open items
 
-Every question this document was written to answer is answered above, except the
-two deferred explicitly:
+The following package verification remains deferred:
 
 | Item | Section | Owner | Due |
 | --- | --- | --- | --- |
 | Whether the package temporary folder is writable by the external browser end to end, on a Store-distributed package | §5 | @runceel | Before first Store submission |
-| Which engine hosts `validate` | §7 | @runceel | Stage 4 |
 
 ADR 0001 keeps a third point under review — behaviour when remote debugging is
 disabled by policy. It is not an open item for this document, because §7 already

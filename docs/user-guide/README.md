@@ -55,7 +55,11 @@ images, speaker notes, and the built-in dark, light, and Microsoft themes.
   project or user.
 - **Desktop:** Windows, Microsoft Edge WebView2 Runtime, and the MarkdStage Desktop portable
   package for your processor architecture.
-- **CLI:** Node.js 24 or later and an installed Microsoft Edge, Google Chrome, or Chromium.
+- **npm CLI:** Node.js 24 or later and an installed Microsoft Edge, Google Chrome, or Chromium.
+- **Packaged Windows CLI (Desktop v4 / MSIX):** no Node.js. Bare invocation, direct
+  Markdown, preview, and present activate the native app with WebView2; inspect,
+  capture, and export still require external Chromium. See [installation](installation.md)
+  for package availability and [CLI](cli.md) for flags and lifecycle differences.
 - **Deck source:** A `.md` or `.markdown` file inside the current workspace.
 
 [Open the quick start →](quick-start.md)

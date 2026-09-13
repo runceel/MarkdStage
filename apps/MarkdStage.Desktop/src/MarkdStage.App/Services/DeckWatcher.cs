@@ -121,6 +121,7 @@ internal sealed class DeckWatcher : IAsyncDisposable
             _debounce?.Dispose();
             var debounce = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
             _debounce = debounce;
+            var debounceToken = debounce.Token;
             var generation = _generation;
             var reload = _reload;
             var lifetimeToken = _lifetime.Token;
@@ -128,7 +129,7 @@ internal sealed class DeckWatcher : IAsyncDisposable
             {
                 try
                 {
-                    await Task.Delay(160, debounce.Token);
+                    await Task.Delay(160, debounceToken);
                     if (reload is null || generation != Volatile.Read(ref _generation))
                     {
                         return;
@@ -136,7 +137,7 @@ internal sealed class DeckWatcher : IAsyncDisposable
 
                     await reload(lifetimeToken);
                 }
-                catch (OperationCanceledException) when (debounce.IsCancellationRequested)
+                catch (OperationCanceledException) when (debounceToken.IsCancellationRequested)
                 {
                 }
             });

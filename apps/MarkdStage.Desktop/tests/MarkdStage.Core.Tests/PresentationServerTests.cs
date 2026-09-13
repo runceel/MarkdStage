@@ -8,6 +8,27 @@ namespace MarkdStage.Core.Tests;
 
 public sealed class PresentationServerTests
 {
+    [Fact]
+    public async Task ImagePolicyAllowsLocalExportArtworkWithoutAllowingBlobScripts()
+    {
+        await using var server = new PresentationServer(new PresentationSession(), () => false);
+        await server.StartAsync();
+        using var client = new HttpClient { BaseAddress = server.BaseUri };
+        using var response = await client.GetAsync("");
+        response.EnsureSuccessStatusCode();
+        var policy = response.Headers.GetValues("Content-Security-Policy").Single();
+        var directives = policy.Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .Select(directive => directive.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            .ToDictionary(parts => parts[0], parts => parts[1..]);
+        Assert.Contains("blob:", directives["img-src"]);
+        Assert.Contains("data:", directives["img-src"]);
+        Assert.DoesNotContain("*", directives["img-src"]);
+        Assert.DoesNotContain("blob:", directives["script-src"]);
+        Assert.DoesNotContain("'unsafe-inline'", directives["script-src"]);
+        Assert.Equal(["'self'"], directives["connect-src"]);
+        Assert.Equal(["'none'"], directives["object-src"]);
+    }
+
     [WindowsFact]
     public async Task ApplicationStateUsesSharedRendererAndPresenterRoutes()
     {

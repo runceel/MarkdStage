@@ -56,7 +56,11 @@ GitHub Copilot Canvas Extension、スタンドアロンの Windows Desktop ア�
   GitHub Copilot。
 - **Desktop:** Windows、Microsoft Edge WebView2 Runtime、そして CPU アーキテクチャに合った
   MarkdStage Desktop のポータブルパッケージ。
-- **CLI:** Node.js 24 以降と、インストール済みの Microsoft Edge、Google Chrome、または Chromium。
+- **npm 版 CLI:** Node.js 24 以降と、インストール済みの Microsoft Edge、Google Chrome、または Chromium。
+- **Windows パッケージ版 CLI（Desktop v4 / MSIX）:** Node.js は不要です。引数なし、
+  Markdown 直接指定、preview、present は WebView2 を使うネイティブアプリを開きます。
+  inspect、capture、export は引き続き外部 Chromium が必要です。提供状況は
+  [インストール](installation.md)、フラグと終了動作の違いは [CLI](cli.md)を参照してください。
 - **デッキのソース:** 現在のワークスペース内にある `.md` または `.markdown` ファイル。
 
 [クイックスタートを開く →](quick-start.md)
