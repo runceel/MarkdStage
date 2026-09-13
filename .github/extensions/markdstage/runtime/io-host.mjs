@@ -10,6 +10,9 @@ const errorMessages = Object.freeze({
   too_large: "The file exceeds its size limit.",
   exists: "The output already exists.",
   conflict: "The source changed before it could be saved.",
+  destination_locked: "The destination file is in use.",
+  browser_not_found: "No installed Chromium-based browser was found.",
+  browser_automation_unavailable: "Chromium automation could not start. Enterprise policy may disable remote debugging.",
   io_failed: "The I/O operation failed.",
 });
 const eventKinds = new Set(["change", "changed", "rename", "create", "modify", "delete", "created", "modified", "deleted"]);

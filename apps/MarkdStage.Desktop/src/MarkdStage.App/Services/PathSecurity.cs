@@ -18,7 +18,7 @@ internal static class PathSecurity
             return Path.GetFullPath(path);
         }
         using var handle = CreateFile(
-            Path.GetFullPath(path),
+            ToExtendedPath(Path.GetFullPath(path)),
             0,
             FileShare.Read | FileShare.Write | FileShare.Delete,
             nint.Zero,
@@ -90,6 +90,18 @@ internal static class PathSecurity
         return path.StartsWith(devicePrefix, StringComparison.OrdinalIgnoreCase)
             ? path[devicePrefix.Length..]
             : path;
+    }
+
+    private static string ToExtendedPath(string path)
+    {
+        if (path.StartsWith(@"\\?\", StringComparison.Ordinal))
+        {
+            return path;
+        }
+
+        return path.StartsWith(@"\\", StringComparison.Ordinal)
+            ? @"\\?\UNC\" + path[2..]
+            : @"\\?\" + path;
     }
 
     [DllImport(

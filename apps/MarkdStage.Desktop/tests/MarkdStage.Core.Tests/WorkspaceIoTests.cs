@@ -80,6 +80,55 @@ public sealed class WorkspaceIoTests : IAsyncLifetime
         Assert.Single(Directory.GetFiles(Path.Combine(Root, "new")));
     }
 
+    [WindowsFact]
+    public async Task LockedDestinationPreservesExistingFileAndReturnsActionableCode()
+    {
+        var target = Path.Combine(Root, "deck.pptx");
+        await File.WriteAllTextAsync(target, "existing");
+        using (new FileStream(target, FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            var result = await Call("writeBytes", "deck.pptx", new { base64 = "bmV3" }, new { overwrite = true });
+            Assert.Equal("destination_locked", result.Code);
+            Assert.Equal("The destination file is in use.", result.Message);
+        }
+        Assert.Equal("existing", await File.ReadAllTextAsync(target));
+        Assert.Equal(["deck.pptx"], Directory.GetFiles(Root).Select(Path.GetFileName).ToArray());
+    }
+
+    [WindowsFact]
+    public async Task ShortLivedDestinationLockRetriesThenAllowsRepeatedOverwrite()
+    {
+        var target = Path.Combine(Root, "deck.pptx");
+        await File.WriteAllTextAsync(target, "existing");
+        var locked = new FileStream(target, FileMode.Open, FileAccess.Read, FileShare.Read);
+        try
+        {
+            var release = Task.Run(async () =>
+            {
+                await Task.Delay(125);
+                locked.Dispose();
+            });
+            Assert.True((await Call(
+                "writeBytes",
+                "deck.pptx",
+                new { base64 = "cmVjb3ZlcmVk" },
+                new { overwrite = true })).Ok);
+            await release;
+        }
+        finally
+        {
+            locked.Dispose();
+        }
+        Assert.Equal("recovered", await File.ReadAllTextAsync(target));
+        Assert.True((await Call(
+            "writeBytes",
+            "deck.pptx",
+            new { base64 = "cmVwZWF0ZWQ=" },
+            new { overwrite = true })).Ok);
+        Assert.Equal("repeated", await File.ReadAllTextAsync(target));
+        Assert.Equal(["deck.pptx"], Directory.GetFiles(Root).Select(Path.GetFileName).ToArray());
+    }
+
     [Fact]
     public async Task RejectsLinksEvenWhenTheyPointInsideWorkspace()
     {
@@ -140,6 +189,34 @@ public sealed class WorkspaceIoTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task BrowserEnvironmentFailuresStayActionableAndPrivacySafe()
+    {
+        await using var io = new WorkspaceIoService(
+            Root,
+            Path.Combine(_directory, "browser-transient"),
+            new FailingBrowserHost());
+        var profile = (string)(await io.ExecuteAsync(
+            "createTransientDirectory",
+            JsonSerializer.SerializeToElement(new[] { "pptx" }))).Value!;
+        var result = await io.ExecuteAsync(
+            "launchBrowser",
+            JsonSerializer.SerializeToElement(new[]
+            {
+                new
+                {
+                    url = "http://127.0.0.1/",
+                    profile,
+                    mode = "automation",
+                    windowSize = new { width = 1280, height = 720 },
+                },
+            }));
+
+        Assert.Equal("browser_automation_unavailable", result.Code);
+        Assert.Contains("Chromium automation could not start", result.Message);
+        Assert.DoesNotContain(_directory, result.Message);
+    }
+
+    [Fact]
     public async Task TransientSweepSkipsAnotherOwnersOldActiveProfile()
     {
         var activeHandle = (string)(await Call("createTransientDirectory", "present")).Value!;
@@ -162,6 +239,31 @@ public sealed class WorkspaceIoTests : IAsyncLifetime
         Assert.Empty(Directory.EnumerateFiles(transientRoot, "*.lock"));
     }
 
+    [WindowsFact]
+    public async Task TransientRemovalRetriesFilesReleasedByBrowserShutdown()
+    {
+        var handle = (string)(await Call("createTransientDirectory", "pptx")).Value!;
+        var directory = _io.GetTransientDirectory(handle);
+        var file = Path.Combine(directory, "locked");
+        await File.WriteAllTextAsync(file, "temporary");
+        var locked = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read);
+        try
+        {
+            var release = Task.Run(async () =>
+            {
+                await Task.Delay(150);
+                locked.Dispose();
+            });
+            Assert.True((await Call("removeTransientDirectory", handle)).Ok);
+            await release;
+        }
+        finally
+        {
+            locked.Dispose();
+        }
+        Assert.False(Directory.Exists(directory));
+    }
+
     [Fact]
     public void ResolutionAndStateDoNotDependOnWorkingDirectory()
     {
@@ -179,5 +281,19 @@ public sealed class WorkspaceIoTests : IAsyncLifetime
         var restored = new DesktopStateStore(Path.Combine(_directory, "state")).State;
         Assert.Equal(store.State.RecentWorkspaces, restored.RecentWorkspaces);
         Assert.Equal(store.State.Theme, restored.Theme);
+    }
+
+    private sealed class FailingBrowserHost : IBrowserHost
+    {
+        public Task<object> LaunchAsync(
+            JsonElement options,
+            string profileDirectory,
+            CancellationToken cancellationToken) =>
+            throw new BrowserHostException(
+                "browser_automation_unavailable",
+                $"Sensitive profile: {profileDirectory}");
+
+        public Task CloseAsync(string handle, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
     }
 }

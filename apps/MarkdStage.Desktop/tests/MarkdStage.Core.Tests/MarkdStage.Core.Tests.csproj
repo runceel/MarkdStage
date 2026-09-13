@@ -20,6 +20,7 @@
     <Using Include="Xunit" />
     <Compile Include="..\..\src\MarkdStage.Cli\CliArguments.cs" Link="Cli\CliArguments.cs" />
     <Compile Include="..\..\src\MarkdStage.Cli\HostCommands.cs" Link="Cli\HostCommands.cs" />
+    <Compile Include="..\..\src\MarkdStage.Cli\BrowserEndpointDiscovery.cs" Link="Cli\BrowserEndpointDiscovery.cs" />
     <Compile Include="..\..\src\MarkdStage.Cli\BrowserProcess.cs" Link="Cli\BrowserProcess.cs" />
   </ItemGroup>
 

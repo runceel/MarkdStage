@@ -69,7 +69,8 @@ test("all port errors map to stable safe runtime errors", () => {
   const expected = {
     denied: "path_outside_workspace", unsupported: "invalid_markdown_path",
     missing: "file_not_found", too_large: "file_too_large", exists: "invalid_output_path",
-    conflict: "source_changed", io_failed: "io_failed",
+    conflict: "source_changed", browser_not_found: "browser_not_found",
+    browser_automation_unavailable: "browser_automation_unavailable", io_failed: "io_failed",
   };
   for (const [port, code] of Object.entries(expected)) {
     assertMapped(failure(port), { operation: "readText", path: "deck.md" }, code);
@@ -83,6 +84,25 @@ test("all port errors map to stable safe runtime errors", () => {
   assertMapped(failure("denied"), { path: "/private/secret" }, "invalid_input");
   assert.equal(unwrapIOResult(ok("value")), "value");
   assert.equal(unwrapIOResult(ok(undefined)), undefined);
+});
+
+test("locked destinations map to filename-only close-and-retry guidance", () => {
+  assert.throws(
+    () => unwrapIOResult(failure("destination_locked"), {
+      operation: "writeBytes",
+      path: "private/customer/deck.pptx",
+    }),
+    (error) => {
+      assert.ok(error instanceof MarkdStageError);
+      assert.equal(error.code, "output_locked");
+      assert.equal(
+        error.message,
+        "The output file may be open in another application. Close deck.pptx and retry.",
+      );
+      assert.doesNotMatch(error.message, /private|customer/u);
+      return true;
+    },
+  );
 });
 
 test("theme and background error mappings follow the port specification", () => {
@@ -147,7 +167,10 @@ test("host rejects invalid paths before calling the bridge", async () => {
 });
 
 test("host sanitizes every failure, rejection, and malformed envelope", async () => {
-  for (const code of ["denied", "unsupported", "missing", "too_large", "exists", "conflict", "io_failed"]) {
+  for (const code of [
+    "denied", "unsupported", "missing", "too_large", "exists", "conflict", "destination_locked",
+    "browser_not_found", "browser_automation_unavailable", "io_failed",
+  ]) {
     const result = await createHostIO(bridgeWith({ readText: async () => failure(code) })).readText("deck.md");
     assert.equal(result.code, code);
     assert.doesNotMatch(result.message, /private|EACCES|errno/u);

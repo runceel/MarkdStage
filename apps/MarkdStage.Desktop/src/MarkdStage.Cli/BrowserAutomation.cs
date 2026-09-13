@@ -58,7 +58,10 @@ internal sealed class BrowserAutomation : IAsyncDisposable
         var cdp = new CdpConnection();
         try
         {
-            var endpoint = await DiscoverEndpointAsync(process, profile, cancellationToken);
+            var endpoint = await BrowserEndpointDiscovery.DiscoverAsync(
+                () => process.HasExited,
+                profile,
+                cancellationToken);
             using var http = new HttpClient(new HttpClientHandler { UseProxy = false }) { Timeout = TimeSpan.FromSeconds(5) };
             // A page target is created through a loopback-only endpoint in this fresh private profile.
             using var request = new HttpRequestMessage(HttpMethod.Put, new Uri(endpoint, "json/new?about:blank"));
@@ -82,26 +85,6 @@ internal sealed class BrowserAutomation : IAsyncDisposable
             throw new CliException("browser_automation_unavailable",
                 "Chromium automation could not start. Enterprise policy may disable remote debugging; this is a known limitation. Check browser policy and access to the package temporary profile.", 3);
         }
-    }
-
-    private static async Task<Uri> DiscoverEndpointAsync(BrowserProcess process, string profile, CancellationToken cancellationToken)
-    {
-        var expires = DateTime.UtcNow.AddSeconds(20);
-        var path = Path.Combine(profile, "DevToolsActivePort");
-        while (DateTime.UtcNow < expires && !process.HasExited)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            try
-            {
-                var lines = await File.ReadAllLinesAsync(path, cancellationToken);
-                if (lines.Length >= 2 && int.TryParse(lines[0], out var port) && port is > 0 and <= 65535)
-                    return new Uri($"http://127.0.0.1:{port}/");
-            }
-            catch (IOException) { }
-            await Task.Delay(100, cancellationToken);
-        }
-        throw new CliException("browser_automation_unavailable",
-            "Chromium remote debugging is unavailable. Enterprise policy may disable it; this is a known limitation of inspect, capture, and export.", 3);
     }
 
     private static void RequireLoopback(string url)
