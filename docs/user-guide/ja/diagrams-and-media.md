@@ -3,7 +3,7 @@
 > English version: [English](../diagrams-and-media.md)
 
 MarkdStage では、Markdown の画像、自動でレイアウトされる Mermaid、位置や経路を固定できる
-Architecture DSL を使えます。
+Architecture DSL、そして読み込んだ Archify の図を使えます。
 
 ## Mermaid で自動レイアウトする
 
@@ -223,6 +223,36 @@ Advanced editing を使うには、**More controls > Open Markdown** で読み�
 ```architecture
 ```
 ````
+
+## Archify の図を読み込む
+
+[Archify](https://github.com/tt-a1i/archify) はブラウザーでアーキテクチャ図を描き、SVG として書き
+出せます。書き出したファイルを `assets/` に置き、`archify` フェンスでそのパスを指定します。
+
+````markdown
+```archify
+assets/checkout-architecture.svg
+```
+````
+
+フェンスに書くのはパス 1 行だけです。`#` で始まる行はコメントになります。
+
+図は画像として貼り付けられるわけではありません。MarkdStage は Archify が書き出しに記録している構造
+（どの図形がコンポーネントで、どの線が接続で、どのラベルが何に属するか）を読み取り、描き直します。
+そのため次の 2 点が成り立ちます。
+
+- **デッキになじみます。** Archify 自身の色は破棄し、デッキのテーマから塗り直します。`dark`、
+  `light`、`microsoft`、独自テーマのいずれでも見た目がそろい、テーマを変えれば図も変わります。役割
+  を示すマークも MarkdStage 自身のアイコンで描き直されます。
+- **PowerPoint には図形として出力されます。** 書き出すと、平坦な画像ではなく編集できる四角形・コネク
+  ター・テキストボックスになります。レビューする人が PowerPoint 上で箱を動かしたり誤字を直したりでき
+  ます。
+
+書き出しに使った Archify のプリセット（Classic、Blueprint、Editorial など）は問いません。読み取るの
+は構造だけだからです。
+
+図を更新したときは Archify から書き出し直して再読み込みしてください。スライドを描画するたびにファイ
+ルを読み直します。
 
 ## 画像を追加する
 

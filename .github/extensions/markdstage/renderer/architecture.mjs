@@ -183,6 +183,37 @@ const ICON_SHAPES = Object.freeze({
     { tag: "path", attributes: { d: "M12 2.5 20 5.5v6.2c0 4.6-3.2 8.1-8 9.8-4.8-1.7-8-5.2-8-9.8V5.5Z" } },
     { tag: "path", attributes: { d: "m8.5 12 2.5 2.5 4.5-4.5" } },
   ],
+  // The remaining icons name roles and run states rather than infrastructure. They
+  // also let a diagram imported from an external tool keep its role markers (see
+  // archify.mjs#SIGIL_ICONS) instead of dropping them.
+  external: [
+    { tag: "rect", attributes: { x: 3, y: 7.5, width: 13, height: 13, rx: 2 } },
+    { tag: "path", attributes: { d: "M12 3.5h8.5V12M20.5 3.5 11 13" } },
+  ],
+  component: [
+    { tag: "rect", attributes: { x: 4, y: 4, width: 16, height: 16, rx: 3 } },
+    { tag: "circle", attributes: { cx: 12, cy: 12, r: 1.8 }, solid: true },
+  ],
+  start: [
+    { tag: "circle", attributes: { cx: 12, cy: 12, r: 8.5 } },
+    { tag: "path", attributes: { d: "m10 8.2 5.6 3.8L10 15.8Z" }, solid: true },
+  ],
+  activity: [{ tag: "path", attributes: { d: "M2.5 12h4L9 5.5 13 18.5l2.4-6.5h4.1" } }],
+  waiting: [
+    { tag: "path", attributes: { d: "M6 3h12M6 21h12" } },
+    {
+      tag: "path",
+      attributes: { d: "M7.5 3.5c0 4.2 3 4.8 4.5 7.5-1.5 2.7-4.5 3.3-4.5 7.5M16.5 3.5c0 4.2-3 4.8-4.5 7.5 1.5 2.7 4.5 3.3 4.5 7.5" },
+    },
+  ],
+  success: [
+    { tag: "circle", attributes: { cx: 12, cy: 12, r: 8.5 } },
+    { tag: "path", attributes: { d: "m7.8 12 2.7 2.7 5.7-6" } },
+  ],
+  failure: [
+    { tag: "circle", attributes: { cx: 12, cy: 12, r: 8.5 } },
+    { tag: "path", attributes: { d: "m8.6 8.6 6.8 6.8m0-6.8-6.8 6.8" } },
+  ],
 });
 const ICONS = new Set(architectureContract.definitions.iconName.enum);
 // User-provided icons must be repository files under `assets/`. Rendering uses
@@ -3658,6 +3689,38 @@ function iconShapeAttributes(shape, textColor) {
   return shape.solid ? { ...shape.attributes, fill: textColor } : shape.attributes;
 }
 
+/**
+ * Serialize a built-in icon as a standalone SVG document string.
+ *
+ * The on-slide renderer builds icons with DOM APIs, but importers that express a
+ * diagram purely as a shared scene need the same artwork as an `image` node
+ * payload. Returns null for unknown names so callers can drop the icon rather
+ * than emit a blank picture.
+ */
+function builtinIconSvg(iconName, color) {
+  const shapes = ICON_SHAPES[iconName];
+  if (!shapes) return null;
+  const escapeAttribute = (value) =>
+    String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  const body = shapes
+    .map((shape) => {
+      const attributes = Object.entries(iconShapeAttributes(shape, color))
+        .map(([name, value]) => `${name}="${escapeAttribute(value)}"`)
+        .join(" ");
+      return `<${shape.tag} ${attributes}/>`;
+    })
+    .join("");
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" ` +
+    `stroke="${escapeAttribute(color)}" stroke-width="1.8" stroke-linecap="round" ` +
+    `stroke-linejoin="round">${body}</svg>`
+  );
+}
+
 function polygonPoints(element) {
   const { x, y, width, height } = element;
   const right = x + width;
@@ -4494,6 +4557,7 @@ export function renderArchitectureBlock(
 export {
   ArchitectureError,
   CONNECTOR_LABEL_CLEARANCE,
+  builtinIconSvg,
   DSL_VERSION,
   ICONS,
   ICON_ASSET_PATTERN,

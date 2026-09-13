@@ -134,7 +134,14 @@ export const architectureContract = {
                 "mobile",
                 "network",
                 "queue",
-                "shield"
+                "shield",
+                "external",
+                "component",
+                "start",
+                "activity",
+                "waiting",
+                "success",
+                "failure"
               ],
               "description": "Built-in icon name. Icons render as 24x24 line art using the node textColor for the stroke, so their colors automatically adapt to all four themes."
             },
@@ -1337,7 +1344,14 @@ export const architectureContract = {
         "mobile",
         "network",
         "queue",
-        "shield"
+        "shield",
+        "external",
+        "component",
+        "start",
+        "activity",
+        "waiting",
+        "success",
+        "failure"
       ],
       "description": "Built-in icon name. Icons render as 24x24 line art using the node textColor for the stroke, so their colors automatically adapt to all four themes."
     },
@@ -1367,7 +1381,14 @@ export const architectureContract = {
             "mobile",
             "network",
             "queue",
-            "shield"
+            "shield",
+            "external",
+            "component",
+            "start",
+            "activity",
+            "waiting",
+            "success",
+            "failure"
           ],
           "description": "Built-in icon name. Icons render as 24x24 line art using the node textColor for the stroke, so their colors automatically adapt to all four themes."
         },
@@ -1921,7 +1942,14 @@ export const architectureContract = {
                 "mobile",
                 "network",
                 "queue",
-                "shield"
+                "shield",
+                "external",
+                "component",
+                "start",
+                "activity",
+                "waiting",
+                "success",
+                "failure"
               ],
               "description": "Built-in icon name. Icons render as 24x24 line art using the node textColor for the stroke, so their colors automatically adapt to all four themes."
             },
@@ -2193,7 +2221,14 @@ export const architectureContract = {
                 "mobile",
                 "network",
                 "queue",
-                "shield"
+                "shield",
+                "external",
+                "component",
+                "start",
+                "activity",
+                "waiting",
+                "success",
+                "failure"
               ],
               "description": "Built-in icon name. Icons render as 24x24 line art using the node textColor for the stroke, so their colors automatically adapt to all four themes."
             },
@@ -2460,7 +2495,14 @@ export const architectureContract = {
                 "mobile",
                 "network",
                 "queue",
-                "shield"
+                "shield",
+                "external",
+                "component",
+                "start",
+                "activity",
+                "waiting",
+                "success",
+                "failure"
               ],
               "description": "Built-in icon name. Icons render as 24x24 line art using the node textColor for the stroke, so their colors automatically adapt to all four themes."
             },
@@ -7196,7 +7238,14 @@ export const architectureContract = {
                       "mobile",
                       "network",
                       "queue",
-                      "shield"
+                      "shield",
+                      "external",
+                      "component",
+                      "start",
+                      "activity",
+                      "waiting",
+                      "success",
+                      "failure"
                     ],
                     "description": "Built-in icon name. Icons render as 24x24 line art using the node textColor for the stroke, so their colors automatically adapt to all four themes."
                   },
@@ -8476,7 +8525,14 @@ export const architectureContract = {
                       "mobile",
                       "network",
                       "queue",
-                      "shield"
+                      "shield",
+                      "external",
+                      "component",
+                      "start",
+                      "activity",
+                      "waiting",
+                      "success",
+                      "failure"
                     ],
                     "description": "Built-in icon name. Icons render as 24x24 line art using the node textColor for the stroke, so their colors automatically adapt to all four themes."
                   },
@@ -9751,7 +9807,14 @@ export const architectureContract = {
                       "mobile",
                       "network",
                       "queue",
-                      "shield"
+                      "shield",
+                      "external",
+                      "component",
+                      "start",
+                      "activity",
+                      "waiting",
+                      "success",
+                      "failure"
                     ],
                     "description": "Built-in icon name. Icons render as 24x24 line art using the node textColor for the stroke, so their colors automatically adapt to all four themes."
                   },
@@ -11023,7 +11086,14 @@ export const architectureContract = {
                       "mobile",
                       "network",
                       "queue",
-                      "shield"
+                      "shield",
+                      "external",
+                      "component",
+                      "start",
+                      "activity",
+                      "waiting",
+                      "success",
+                      "failure"
                     ],
                     "description": "Built-in icon name. Icons render as 24x24 line art using the node textColor for the stroke, so their colors automatically adapt to all four themes."
                   },
@@ -12298,7 +12368,14 @@ export const architectureContract = {
                       "mobile",
                       "network",
                       "queue",
-                      "shield"
+                      "shield",
+                      "external",
+                      "component",
+                      "start",
+                      "activity",
+                      "waiting",
+                      "success",
+                      "failure"
                     ],
                     "description": "Built-in icon name. Icons render as 24x24 line art using the node textColor for the stroke, so their colors automatically adapt to all four themes."
                   },
@@ -13570,7 +13647,14 @@ export const architectureContract = {
                       "mobile",
                       "network",
                       "queue",
-                      "shield"
+                      "shield",
+                      "external",
+                      "component",
+                      "start",
+                      "activity",
+                      "waiting",
+                      "success",
+                      "failure"
                     ],
                     "description": "Built-in icon name. Icons render as 24x24 line art using the node textColor for the stroke, so their colors automatically adapt to all four themes."
                   },
@@ -14845,7 +14929,14 @@ export const architectureContract = {
                       "mobile",
                       "network",
                       "queue",
-                      "shield"
+                      "shield",
+                      "external",
+                      "component",
+                      "start",
+                      "activity",
+                      "waiting",
+                      "success",
+                      "failure"
                     ],
                     "description": "Built-in icon name. Icons render as 24x24 line art using the node textColor for the stroke, so their colors automatically adapt to all four themes."
                   },
@@ -16117,7 +16208,14 @@ export const architectureContract = {
                       "mobile",
                       "network",
                       "queue",
-                      "shield"
+                      "shield",
+                      "external",
+                      "component",
+                      "start",
+                      "activity",
+                      "waiting",
+                      "success",
+                      "failure"
                     ],
                     "description": "Built-in icon name. Icons render as 24x24 line art using the node textColor for the stroke, so their colors automatically adapt to all four themes."
                   },
@@ -17007,7 +17105,14 @@ export const architectureContract = {
                       "mobile",
                       "network",
                       "queue",
-                      "shield"
+                      "shield",
+                      "external",
+                      "component",
+                      "start",
+                      "activity",
+                      "waiting",
+                      "success",
+                      "failure"
                     ],
                     "description": "Built-in icon name. Icons render as 24x24 line art using the node textColor for the stroke, so their colors automatically adapt to all four themes."
                   },
