@@ -304,8 +304,20 @@ internal sealed class PresentationServer(
         {
             if (closePresenter is null)
                 return Results.Json(new { ok = false, error = "not_available" }, statusCode: 501);
-            await closePresenter();
-            return Results.Json(new { ok = true });
+            try
+            {
+                await closePresenter();
+                return Results.Json(new { ok = true });
+            }
+            catch (Exception error) when (error is InvalidOperationException or IOException)
+            {
+                return Results.Json(new
+                {
+                    ok = false,
+                    error = "presenter_close_failed",
+                    message = error.Message,
+                }, statusCode: 500);
+            }
         });
 
         application.MapGet(
