@@ -94,6 +94,17 @@ Unsigned output is not an installable public release. Supply `-Version <major.mi
 when preparing the product release; use the actual Store identity, not the checked-in
 development placeholder.
 
+Create the unsigned multi-architecture Partner Center upload package locally:
+
+```powershell
+scripts\CreateStorePackage.ps1 -Version <major.minor.patch.0>
+```
+
+The script uses the Store identity in `Package.appxmanifest`, builds x64 and ARM64,
+and writes `artifacts\MarkdStage-Store.msixupload` plus its SHA-256 checksum. Upload
+the `.msixupload` file to Microsoft Store Partner Center. GitHub Release MSIX files
+are separately signed sideloading packages and are not Store submission inputs.
+
 Microsoft Edge WebView2 Runtime is required on the target system. The audience view uses a native
 window built into the app, so a separate Edge, Chrome, or Chromium installation is not required.
 
