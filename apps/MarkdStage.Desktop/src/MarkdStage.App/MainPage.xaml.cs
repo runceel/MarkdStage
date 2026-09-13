@@ -15,6 +15,7 @@ namespace MarkdStageApp;
 
 public sealed partial class MainPage : Page
 {
+    private readonly AsyncDispatcher _dispatcher;
     private readonly PresenterWindowService _presenterWindowService;
     private readonly PresentationServer _server;
     private readonly NativeBrowserHost _browserHost = new();
@@ -38,6 +39,10 @@ public sealed partial class MainPage : Page
         _window = window;
         InitializeComponent();
 
+        var dispatcherQueue = DispatcherQueue;
+        _dispatcher = new AsyncDispatcher(
+            () => dispatcherQueue.HasThreadAccess,
+            action => dispatcherQueue.TryEnqueue(() => action()));
         var session = _session = new PresentationSession();
         _presenterWindowService = new PresenterWindowService(delta =>
         {
@@ -47,8 +52,8 @@ public sealed partial class MainPage : Page
             session,
             () => _presenterWindowService.IsRunning,
             mapAssets: true,
-            openPresenter: OpenPresenterAsync,
-            closePresenter: _presenterWindowService.StopAsync,
+            openPresenter: OpenPresenterFromServerAsync,
+            closePresenter: ClosePresenterFromServerAsync,
             reloadSource: ReloadAfterArchitectureSaveAsync,
             exportDeck: ExportDeckAsync,
             exportData: GetExportDataAsync,
@@ -84,13 +89,17 @@ public sealed partial class MainPage : Page
     public static Visibility NextPlaceholderVisibility(bool deckLoaded, bool hasNext) =>
         deckLoaded && hasNext ? Visibility.Collapsed : Visibility.Visible;
 
-    private async Task<bool> OpenPresenterAsync()
-    {
-        var alreadyRunning = _presenterWindowService.IsRunning;
-        await _presenterWindowService.OpenAsync(
-            _server.BaseUri ?? throw new InvalidOperationException("The presentation server is not ready."));
-        return alreadyRunning;
-    }
+    private Task<bool> OpenPresenterFromServerAsync() =>
+        _dispatcher.InvokeAsync(async () =>
+        {
+            var alreadyRunning = _presenterWindowService.IsRunning;
+            await _presenterWindowService.OpenAsync(
+                _server.BaseUri ?? throw new InvalidOperationException("The presentation server is not ready."));
+            return alreadyRunning;
+        });
+
+    private Task ClosePresenterFromServerAsync() =>
+        _dispatcher.InvokeAsync(_presenterWindowService.StopAsync);
 
     private async Task ReloadAfterArchitectureSaveAsync()
     {

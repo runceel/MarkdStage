@@ -59,6 +59,35 @@ public sealed class PresentationServerTests
     }
 
     [WindowsFact]
+    public async Task PresenterRoutesReturnStructuredFailures()
+    {
+        var session = new PresentationSession();
+        session.ApplySnapshot(new PresentationSnapshot(
+            ["# Slide"], 0, 1, 1, "slides.md", Directory.GetCurrentDirectory(), new ThemeState("dark")));
+        await using var server = new PresentationServer(
+            session,
+            () => false,
+            openPresenter: () => throw new InvalidOperationException("UI dispatcher unavailable."),
+            closePresenter: () => throw new IOException("Presenter window could not close."));
+        await server.StartAsync();
+        using var client = new HttpClient { BaseAddress = server.BaseUri };
+
+        using var openResponse = await client.PostAsync("present", null);
+        Assert.Equal(HttpStatusCode.InternalServerError, openResponse.StatusCode);
+        var openBody = await openResponse.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.False(openBody.GetProperty("ok").GetBoolean());
+        Assert.Equal("presenter_launch_failed", openBody.GetProperty("error").GetString());
+        Assert.Equal("UI dispatcher unavailable.", openBody.GetProperty("message").GetString());
+
+        using var closeResponse = await client.DeleteAsync("present");
+        Assert.Equal(HttpStatusCode.InternalServerError, closeResponse.StatusCode);
+        var closeBody = await closeResponse.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.False(closeBody.GetProperty("ok").GetBoolean());
+        Assert.Equal("presenter_close_failed", closeBody.GetProperty("error").GetString());
+        Assert.Equal("Presenter window could not close.", closeBody.GetProperty("message").GetString());
+    }
+
+    [WindowsFact]
     public async Task ExportRoutesUseSourceBasedOutputs()
     {
         var root = CreateTestWorkspace();
