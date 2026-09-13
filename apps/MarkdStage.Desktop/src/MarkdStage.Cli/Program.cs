@@ -21,6 +21,8 @@ internal static class Program
             var arguments = CliArguments.Parse(argv);
             if (arguments.IsHostOnly)
                 return HostCommands.RunAsync(arguments, AppContext.BaseDirectory, Console.Out, interrupted.Token).GetAwaiter().GetResult();
+            if (arguments.IsAppActivation)
+                return PackagedAppLauncher.RunAsync(arguments, interrupted.Token).GetAwaiter().GetResult();
             return StaDispatcher.Run(dispatcher => RunAsync(arguments, dispatcher, interrupted.Token));
         }
         catch (OperationCanceledException) { return 130; }
@@ -47,7 +49,7 @@ internal static class Program
         catch (UnauthorizedAccessException) { throw new CliException("path_outside_workspace", "The file must stay inside the workspace and cannot traverse links.", 2); }
         catch (ArgumentException) { throw new CliException("invalid_input", "Specify a Markdown file or an existing workspace directory.", 2); }
         catch (IOException) { throw new CliException("invalid_input", "The workspace is unavailable; specify an existing --workspace <directory>.", 2); }
-        if (args.Command is "inspect" or "capture" or "export" || args.IsPresentation && !args.Has("no-open"))
+        if (args.Command is "inspect" or "capture" or "export")
             _ = BrowserAutomation.FindBrowser();
 
         var session = new PresentationSession();
@@ -94,20 +96,9 @@ internal static class Program
         {
             if (file is not null && args.Has("watch")) await scripts.InvokeAsync("sourceMode", new { body = new { mode = "live" } });
             var url = server.BaseUri!.AbsoluteUri + (args.Command == "present" ? "?presenter=1" : "");
-            if (!args.Has("no-open"))
-            {
-                var transient = await io.ExecuteAsync("createTransientDirectory", JsonSerializer.SerializeToElement(new[] { "present" }), cancellationToken);
-                if (!transient.Ok) throw new CliException("browser_not_found", "The package temporary browser profile could not be created.", 3);
-                var launch = await io.ExecuteAsync("launchBrowser", JsonSerializer.SerializeToElement(new[]
-                {
-                    new { url, profile = (string)transient.Value!, mode = "app", windowSize = new { width = 1280, height = 720 } }
-                }), cancellationToken);
-                if (!launch.Ok) throw browsers.LastEnvironmentError ?? new CliException("browser_not_found", "The presentation browser could not start.", 3);
-            }
             if (args.Has("json")) Console.WriteLine(JsonSerializer.Serialize(new { ok = true, url, workspace = root }, HostCommands.JsonOptions));
             else Console.WriteLine($"MarkdStage: {url}\nPress Ctrl+C to stop.");
-            if (args.Has("no-open")) await Task.Delay(Timeout.Infinite, cancellationToken);
-            else while (browsers.HasRunningWindows) await Task.Delay(250, cancellationToken);
+            await Task.Delay(Timeout.Infinite, cancellationToken);
             return 0;
         }
 

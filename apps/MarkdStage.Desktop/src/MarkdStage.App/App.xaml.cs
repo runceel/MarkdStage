@@ -10,6 +10,7 @@ namespace MarkdStageApp;
 public partial class App : Application
 {
     private static readonly List<MainWindow> Windows = [];
+    private static readonly SemaphoreSlim OpenGate = new(1, 1);
     public static DesktopStateStore StateStore { get; } = new(AppStorage.LocalRoot);
 
     public App()
@@ -27,16 +28,47 @@ public partial class App : Application
             Exit();
             return;
         }
+        var dispatcher = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
         instance.Activated += (_, eventArgs) =>
         {
-            var dispatcher = Windows.FirstOrDefault()?.DispatcherQueue;
-            dispatcher?.TryEnqueue(() => ActivateRequest(eventArgs));
+            if (!dispatcher.TryEnqueue(() => _ = ActivateRequestAsync(eventArgs)))
+                System.Diagnostics.Trace.TraceError("The app dispatcher could not accept activation.");
         };
-        ActivateRequest(activation);
+        await ActivateRequestAsync(activation);
     }
 
-    private static void ActivateRequest(AppActivationArguments args)
+    private static async Task ActivateRequestAsync(AppActivationArguments args)
     {
+        if (args.Kind == ExtendedActivationKind.Launch && args.Data is ILaunchActivatedEventArgs cli &&
+            cli.Arguments.StartsWith("--markdstage-activation", StringComparison.Ordinal))
+        {
+            DesktopActivationRequest? request = null;
+            DesktopActivationResult result;
+            try
+            {
+                request = DesktopActivationRequest.Parse(cli.Arguments);
+                var validated = request.Validate();
+                var window = await OpenWindowAsync(validated.Workspace, validated.File, activation: validated);
+                result = new DesktopActivationResult(true, ProcessId: Environment.ProcessId,
+                    WindowId: WinRT.Interop.WindowNative.GetWindowHandle(window).ToInt64());
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException or
+                InvalidOperationException or TimeoutException or OperationCanceledException or System.Runtime.InteropServices.COMException)
+            {
+                result = new DesktopActivationResult(false, error.Message);
+                ShowOpenError(null, error.Message);
+            }
+            if (request is not null)
+            {
+                try { await DesktopActivation.ReplyAsync(request, result); }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException or OperationCanceledException)
+                {
+                    System.Diagnostics.Trace.TraceError($"Activation acknowledgment failed: {error.Message}");
+                    ShowOpenError(null, "The CLI is no longer waiting for this activation.");
+                }
+            }
+            return;
+        }
         string? file = null;
         if (args.Kind == ExtendedActivationKind.File && args.Data is IFileActivatedEventArgs files)
             file = files.Files.OfType<StorageFile>().FirstOrDefault(item => IsMarkdown(item.Path))?.Path;
@@ -46,7 +78,7 @@ public partial class App : Application
             if (argument.Length > 0 && IsMarkdown(argument))
                 file = Path.GetFullPath(argument);
         }
-        _ = OpenAsync(file: file);
+        await OpenAsync(file: file);
     }
 
     public static bool IsMarkdown(string path) =>
@@ -57,6 +89,29 @@ public partial class App : Application
     {
         try
         {
+            await OpenWindowAsync(workspace, file, requestingWindow, remember);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException)
+        {
+            ShowOpenError(requestingWindow, "The workspace or Markdown file could not be opened.");
+        }
+    }
+
+    private static async Task<MainWindow> OpenWindowAsync(
+        string? workspace = null, string? file = null, MainWindow? requestingWindow = null,
+        bool remember = true, DesktopActivationRequest? activation = null)
+    {
+        await OpenGate.WaitAsync();
+        try
+        {
+            // Recheck after queueing: a workspace or file may have changed during another load.
+            if (activation is not null)
+            {
+                activation = activation.Validate();
+                workspace = activation.Workspace;
+                file = activation.File;
+            }
             if (file is not null && File.Exists(file)) file = WorkspacePathLease.CanonicalizeExisting(file);
             if (workspace is null && file is not null && requestingWindow?.WorkspaceRoot is { } currentRoot &&
                 WorkspaceResolver.IsInside(currentRoot, Path.GetFullPath(file)))
@@ -74,22 +129,25 @@ public partial class App : Application
             window.Activate();
             if (root is not null)
             {
-                await window.OpenWorkspaceAsync(root, file);
+                await window.Page.OpenWorkspaceAsync(root, file, throwOnError: activation is not null);
+                if (activation is not null) await window.Page.ApplyActivationAsync(activation);
                 if (remember) StateStore.Remember(root);
             }
+            return window;
         }
-        catch (OperationCanceledException) { }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException)
+        finally { OpenGate.Release(); }
+    }
+
+    private static void ShowOpenError(MainWindow? requestingWindow, string message)
+    {
+        var window = requestingWindow ?? Windows.FirstOrDefault();
+        if (window is null)
         {
-            var window = requestingWindow ?? Windows.FirstOrDefault();
-            if (window is null)
-            {
-                window = new MainWindow();
-                Windows.Add(window);
-                window.Closed += (_, _) => Windows.Remove(window);
-                window.Activate();
-            }
-            window.Page.ShowOpenError("The workspace or Markdown file could not be opened.");
+            window = new MainWindow();
+            Windows.Add(window);
+            window.Closed += (_, _) => Windows.Remove(window);
+            window.Activate();
         }
+        window.Page.ShowOpenError(message);
     }
 }

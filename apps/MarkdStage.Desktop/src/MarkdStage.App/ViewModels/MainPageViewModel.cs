@@ -166,7 +166,7 @@ public sealed partial class MainPageViewModel : ObservableObject, IAsyncDisposab
         _loadGate.Release();
     }
 
-    internal async Task LoadPathAsync(string path, bool startWatching)
+    internal async Task LoadPathAsync(string path, bool startWatching, bool throwOnError = false)
     {
         var loaded = false;
         await _loadGate.WaitAsync();
@@ -183,15 +183,15 @@ public sealed partial class MainPageViewModel : ObservableObject, IAsyncDisposab
                 ErrorMessage = string.Empty;
             });
         }
-        catch (DeckLoadException error)
+        catch (DeckLoadException error) when (!throwOnError)
         {
             ShowError(error.Message);
         }
-        catch (UnauthorizedAccessException)
+        catch (UnauthorizedAccessException) when (!throwOnError)
         {
             ShowError("You don't have permission to read this Markdown file.");
         }
-        catch (Exception error) when (error is IOException or InvalidOperationException)
+        catch (Exception error) when (!throwOnError && (error is IOException or InvalidOperationException))
         {
             ShowError("The Markdown file couldn't be loaded. The last successfully rendered deck is still displayed.");
         }

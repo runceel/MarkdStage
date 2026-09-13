@@ -53,7 +53,10 @@ The start screen shows:
 Choosing a recent workspace or a folder loads the workspace and leaves the window
 in its deck-less state: no deck is opened automatically, even when the folder
 contains exactly one Markdown file. The user picks the deck from the workspace,
-which is the same behaviour the CLI has when it is started without a file.
+which is the same behaviour the packaged CLI requests when it is started without
+a file. A workspace-only CLI activation also shows the file list when reusing an
+existing workspace window and stops its audience window. Its loaded deck remains
+retained behind the list; this request does not select that deck.
 
 ### 1.2 Activation with a file
 
@@ -63,6 +66,15 @@ one flow. In each case the app receives a file path, and the workspace root come
 from applying the shared resolution rule to that path — the same rule the CLI
 applies to a file argument. That rule is defined once, in the cross-surface spec,
 and is not restated or re-derived here.
+
+Packaged CLI requests carry the resolved workspace and optional file through the
+package activation contract in [§7 of the cross-surface spec](../../../docs/specs/windows-app-msix.md#7-cli-execution-model).
+The app revalidates the paths before accepting them. Direct Markdown and `preview`
+open normal slide view; `present` enters presenter view and opens the native
+audience window. Repeated `present` requests reuse that window without closing or
+duplicating it. Native `present` requires a file; file-less `present --no-open`
+retains the console-server flow. `--no-open` is not app activation; the npm CLI
+remains browser-based.
 
 The deck opens directly and the start screen is not shown. If a drag and drop
 carries more than one file, the first Markdown file is opened and the rest are
@@ -80,8 +92,9 @@ Instead:
   workspace root, resolved as in 1.2. The existing window is untouched.
 - If the window is still on the start screen, that window is reused.
 
-The file is never refused. Refusal would make *Open with* fail for exactly the
-files users reach for most.
+A valid file is not refused merely because a different workspace is open.
+This GUI behavior does not relax an explicit CLI `--workspace`: a file outside
+that requested root is rejected by the shared confinement rule.
 
 ### 1.4 A remembered workspace that is gone
 
@@ -123,7 +136,8 @@ The app persists only the recent workspace list, the last window size and
 position, and the last chosen theme. Deck content, navigation position, and
 presenter state are not persisted.
 
-This state is desktop-only and is not shared with the CLI. It is written to the
+This state is owned by the desktop app, including when opened through packaged CLI
+activation; it is not shared with the CLI's local server or console commands. It is written to the
 packaged app's own local storage, which is the location MSIX removes on uninstall
 and which the app can write to from every activation path. Because files newly
 created directly under the roaming or local application-data roots are redirected
@@ -304,8 +318,10 @@ They are frozen: no fixes, no new architectures, no new releases.
 
 ## 5. Prerequisites as the user experiences them
 
-An installed Chromium-based browser is a documented prerequisite of the CLI, and
-the embedded browser runtime is a documented prerequisite of the graphical app.
+An installed Chromium-based browser is a documented prerequisite of console
+inspection, capture, and export, and the embedded browser runtime is a documented
+prerequisite of the graphical app and packaged CLI script execution. Interactive
+packaged CLI commands activate the native app and need no external browser.
 Store policy requires a dependency to be declared up front rather than discovered
 at run time, so the listing text is part of this deliverable. The user meets these
 statements in three places, and they must agree with each other.

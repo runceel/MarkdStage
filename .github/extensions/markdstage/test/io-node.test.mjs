@@ -180,6 +180,54 @@ test("text decoding strips a UTF-8 BOM, bytes remain unchanged, and limits canno
   code(await io.readBytes("nested/THEME.JSON", IO_LIMITS.architectureAsset), "too_large");
 });
 
+test("reads take their version baseline from the opened handle, not cached path metadata", async (t) => {
+  const { io, workspaceRoot } = await fixture(t);
+  const path = join(workspaceRoot, "fresh.md");
+  await fs.writeFile(path, "fresh content");
+  const originalLstat = fs.lstat;
+  let lookups = 0;
+  await withFsMock(t, "lstat", async (...args) => {
+    const info = await originalLstat(...args);
+    if (args[0] === path && lookups++ === 0) info.ctimeMs -= 2000;
+    return info;
+  }, async () => assert.equal(value(await io.readText("fresh.md")), "fresh content"));
+  assert.ok(lookups > 1, "the path is revalidated after opening");
+});
+
+test("reads reject replacement between path lookup and opening the handle", async (t) => {
+  const { io, workspaceRoot } = await fixture(t);
+  const path = join(workspaceRoot, "replaced.md");
+  await fs.writeFile(path, "original");
+  const originalOpen = fs.open;
+  await withFsMock(t, "open", async (...args) => {
+    if (args[0] === path) {
+      await fs.rename(path, join(workspaceRoot, "previous.md"));
+      await fs.writeFile(path, "external");
+    }
+    return originalOpen(...args);
+  }, async () => code(await io.readText("replaced.md"), "io_failed"));
+});
+
+test("reads still reject ctime-only changes after taking the handle snapshot", async (t) => {
+  const { io, workspaceRoot } = await fixture(t);
+  const path = join(workspaceRoot, "changing.md");
+  await fs.writeFile(path, "original");
+  const originalOpen = fs.open;
+  await withFsMock(t, "open", async (...args) => {
+    const file = await originalOpen(...args);
+    if (args[0] === path) {
+      const originalStat = file.stat.bind(file);
+      let snapshots = 0;
+      file.stat = async (...statArgs) => {
+        const info = await originalStat(...statArgs);
+        if (snapshots++ > 0) info.ctimeMs += 2000;
+        return info;
+      };
+    }
+    return file;
+  }, async () => code(await io.readText("changing.md"), "io_failed"));
+});
+
 test("a file growing during a read is detected with a bounded allocation", async (t) => {
   const { io, workspaceRoot } = await fixture(t);
   const path = join(workspaceRoot, "growing.md");

@@ -131,6 +131,62 @@ async function openPptx(page, harness) {
   return page.evaluate(() => window.__presentationPptxModel);
 }
 
+for (const allowBlob of [false, true]) {
+  test(`Architecture icon artwork under native image CSP (blob ${allowBlob ? "allowed" : "blocked"})`, async ({ page }) => {
+    const harness = await startHarness({ slides: [SLIDES[2]], theme: "dark" });
+    try {
+      await page.route(`${harness.url}/?pptx=*`, async (route) => {
+        const response = await route.fetch();
+        await route.fulfill({
+          response,
+          headers: {
+            ...response.headers(),
+            "content-security-policy": `img-src 'self' data:${allowBlob ? " blob:" : ""}`,
+          },
+        });
+      });
+      const model = await openPptx(page, harness);
+      const slide = model.slides[0];
+      const architecture = slide.elements.filter((element) => element.architecture);
+      const wholeDiagram = slide.fallbacks.filter((fallback) => fallback.type === "architecture");
+      if (allowBlob) {
+        expect(wholeDiagram).toEqual([]);
+        expect(
+          architecture
+            .filter((element) => element.type === "shape" && element.architecture.kind === "node")
+            .map((element) => element.text.paragraphs[0].runs[0].text),
+        ).toEqual(["API", "Worker", "Store"]);
+        expect(architecture.filter((element) => element.type === "connector")).toHaveLength(2);
+        expect(
+          architecture
+            .filter((element) => element.architecture.kind === "connector-label")
+            .map((element) => element.text.paragraphs[0].runs[0].text),
+        ).toEqual(["calls", "writes"]);
+        expect(
+          architecture.filter((element) =>
+            element.type === "image" && element.architecture.kind === "icon-picture"),
+        ).toHaveLength(1);
+        expect(slide.fallbacks).toContainEqual(expect.objectContaining({
+          type: "architecture-icon",
+          reason: "icon-rendered-as-foreground-picture",
+        }));
+      } else {
+        expect(architecture).toEqual([]);
+        expect(wholeDiagram).toEqual([
+          expect.objectContaining({ reason: "architecture-rendered-as-artwork-after-foreground-failure" }),
+        ]);
+        expect(slide.fallbacks).toContainEqual(expect.objectContaining({
+          type: "architecture-foreground",
+          reason: expect.stringContaining("foreground-picture-failed:"),
+          artwork: false,
+        }));
+      }
+    } finally {
+      await harness.close();
+    }
+  });
+}
+
 test("collects a serializable hybrid model for every layout and theme", async ({ page }) => {
   const harness = await startHarness({ slides: SLIDES, theme: "dark" });
   try {

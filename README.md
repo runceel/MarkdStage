@@ -111,13 +111,24 @@ canvasId: MarkdStage
 ## Use the CLI
 
 The [MarkdStage CLI](./docs/user-guide/cli.md) works without Canvas in Claude Code, Codex,
-terminals, and CI. It requires **Node.js 24 or later** and an installed **Microsoft Edge,
-Google Chrome, or Chromium**; it does not download a browser.
+terminals, and CI. The **npm CLI** requires **Node.js 24 or later** and an installed
+**Microsoft Edge, Google Chrome, or Chromium**; it does not download a browser.
 See the [installation guide](./docs/user-guide/installation.md) for prerequisites and offline installation.
+
+The **Windows packaged CLI (Desktop v4 / MSIX, not yet Store-released)** needs no
+Node.js. Bare `markdstage`, a Markdown path, and `preview` open/reuse the native
+workspace window; `present` also opens the native audience window. Bare invocation
+uses caller CWD with no file selected. Native interaction requires only WebView2,
+while `inspect`, `capture`, and `export` still require external Chromium.
+The CLI exits after app acceptance. `--no-open` explicitly retains the local server
+until Ctrl+C. Native Markdown watching is always enabled (`--watch` is accepted).
+Native handoff rejects `--theme` / `--theme-file`: choose the theme in the app or
+use `--no-open`. See the
+[CLI guide](./docs/user-guide/cli.md) for flags and acceptance JSON.
 
 ### Install and ask for a draft
 
-Install the CLI, then run the Skill command in the folder where you will create your deck.
+Install the npm CLI, then run the Skill command in the folder where you will create your deck.
 This example selects Claude Code:
 
 ```console
@@ -143,7 +154,7 @@ Open the same folder in your chosen agent, attach notes or source material, and 
 markdstage slides.md
 ```
 
-Edit Markdown in your text editor; the UI reloads on save. The same UI includes the pencil
+Edit Markdown in your text editor; the UI reloads on save. The npm browser UI includes the pencil
 placement editor and **Advanced edit** for Architecture diagrams. Placement changes save
 immediately; the detailed designer keeps a draft until **Save** writes it back to Markdown.
 
@@ -175,9 +186,11 @@ markdstage export slides.md --output slides.pdf
 markdstage export slides.md --output slides.pptx
 ```
 
-`present` opens the same full UI with presenter view selected. Select **Start presentation**
-there to open the synchronized audience window. Review every page of the final export before
-distribution.
+With npm, `present` opens the same full UI with presenter view selected; select
+**Start presentation** to open the synchronized audience window. With the Windows
+package, `present` opens presenter view and the native audience window immediately;
+repeating the command reuses that window. Review every page of the final export
+before distribution.
 
 ## Present without AI
 
@@ -191,8 +204,9 @@ npx @markdstage/markdstage slides.md
 npx @markdstage/markdstage present slides.md
 ```
 
-The first command opens an empty Canvas-equivalent UI for the current workspace. The second opens
-`slides.md` with automatic refresh. Both the CLI UI and Canvas open files through
+These `npx` commands use the unchanged browser-based npm CLI. The first opens an empty
+Canvas-equivalent UI for the current workspace. The second opens
+`slides.md` with automatic refresh. Both the npm CLI UI and Canvas open files through
 **More controls > Open Markdown**. Native presenters are another option:
 
 ## Use MarkdStage Desktop

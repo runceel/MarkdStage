@@ -120,13 +120,34 @@ fresh, but decks, assets, and themes are unchanged. Uninstall removes package-ow
 settings and temporary data, never workspace files.
 
 The packaged CLI uses the alias `markdstage` and does not bundle or acquire Node.
-A bare invocation uses the caller's current directory as the workspace. Relative
-shell arguments are made absolute before the common resolution rule. A file chooses
-its nearest `.git` ancestor or its containing folder, without requiring Git.
+Bare invocation, direct Markdown, `preview`, and `present` activate the installed
+native app through the current package's single application entry, reusing its
+`AppInstance` and canonical-workspace window. Bare invocation opens the caller's
+current directory with no file selected; a reused workspace shows its file list
+and stops its audience window, retaining the previous deck behind the list.
+Direct Markdown and `preview` select slide view; `present` enters presenter view
+and opens the native audience window, reusing it on repeated requests. Native
+`present` requires a file; file-less `present` is supported only with `--no-open`.
+
+Relative file and `--workspace` arguments are made absolute against the caller's
+directory before the common resolution rule. A file chooses its nearest `.git`
+ancestor or containing folder, without requiring Git. Both CLI and app enforce
+canonicalization, link rejection, containment, existence, and Markdown extensions.
+The CLI returns success only after the app acknowledges acceptance, including its
+actual `processId` and `windowId` for automation; rejection or timeout is an
+`activation_failed` environment error. See the
+[CLI guide](../../docs/user-guide/cli.md) for the acceptance JSON contract.
+
+`--watch` uses always-enabled native Markdown watching. `--theme` and `--theme-file`
+are rejected on native handoff: choose the theme in the app or use `--no-open`.
+`--no-open` explicitly keeps the existing local server running until Ctrl+C, with
+its theme overrides and watch handling intact. The npm CLI is unchanged and
+browser-based.
 
 Packaged skill installation also defaults to the current directory; specify another
 target root with, for example, `markdstage skill install --target codex --root C:\decks`.
-`help` and `guide` need no workspace or browser.
+Help, version, `guide`, and `skill` need no browser. These and `validate`, `inspect`,
+`capture`, and `export` stay console-only and never activate the presentation app.
 
 ### Store listing prerequisite disclosure
 
@@ -136,20 +157,80 @@ and Surface Pen navigation. Open your own workspace folders; your content stays
 in your files. The graphical app is a presenter, not a PDF/PowerPoint exporter.
 PDF and PowerPoint exports are available through the included command-line tool.
 
-Microsoft Edge WebView2 Runtime is required. The command-line presentation,
-inspection, capture, and export commands additionally require an installed
-Microsoft Edge, Google Chrome, or Chromium browser. Organization policy disabling
-remote debugging prevents inspection, capture, and export. No browser or runtime
-is downloaded or installed by MarkdStage.
+Microsoft Edge WebView2 Runtime is required. The included command-line tool opens
+the native app for interactive use, including presentation; no separate browser
+is needed for those commands. Command-line inspection, capture, and export
+additionally require installed Microsoft Edge, Google Chrome, or Chromium.
+Organization policy disabling remote debugging prevents inspection, capture, and
+export. No browser or runtime is downloaded or installed by MarkdStage.
 
 ### Windows acceptance before submission
 
 Run these checks on a locally registered package for both supported architectures;
 a successful source build is not a substitute for package activation tests.
 
+From the repository root, run the durable packaged-activation harness:
+
+```powershell
+.\apps\MarkdStage.Desktop\scripts\Test-PackagedActivation.ps1 -CliPath markdstage.exe -ArtifactsDirectory .\artifacts\packaged-activation-x64
+```
+
+`-CliPath` defaults to `markdstage.exe`; supply the path to the **installed
+execution alias** if needed to avoid an npm command or another installation.
+`-ArtifactsDirectory` selects the results/screenshot directory; use a separate
+directory for each architecture/run. The script exercises an **already registered
+package** in an interactive Windows desktop session. It does not install or
+register a package. Review its artifacts alongside the manual checks below.
+
+**Local verification:** all eight behavioral acceptance groups passed for ARM64
+and x64 using isolated registered test packages on an ARM64 host. This does not
+establish native x64 hardware coverage or Store-distributed package acceptance,
+and does not indicate a deployment or release.
+
 - Verify the package has one application entry, Start-menu activation opens the
   native window, and `markdstage` resolves to the console launcher. Run from a
   different directory, with Unicode/spaced filenames and redirected UTF-8 output.
+- With no app running, test bare `markdstage`, direct Markdown,
+  `preview <file>`, and `present <file>` through the installed alias, not an
+  unpackaged executable. Expect native windows and no external browser.
+- Run bare `markdstage` from a repository root and a non-repository directory
+  different from the package directory. Confirm the caller's directory is the
+  workspace and no file is selected, including a folder with exactly one deck.
+  Repeat with `--workspace .` and a relative explicit workspace.
+- Test relative and absolute `.md` / `.markdown` paths, quoted paths containing
+  spaces and Unicode, and file-derived `.git` roots (including worktree markers)
+  versus containing-directory fallback. Combine a relative file and relative
+  `--workspace`; both must resolve against caller CWD, not the app directory.
+- Repeat requests with the app already running, including a workspace opened
+  through the GUI and equivalent canonical spellings/casing of the same root.
+  Confirm one workspace window is reused. A workspace-only request shows its
+  file list and stops the audience window, while retaining the loaded deck behind
+  the list; a different root opens an independent workspace window.
+- Confirm direct Markdown and `preview` start in normal slide view; `present`
+  enters presenter view and opens the synchronized native audience window.
+  Repeat `present` and verify the same audience window remains open, with no
+  duplicate or toggle-close. Native `present` without a file must return a usage
+  error; `present --no-open` without a file must retain headless serving.
+- Check `--json` acceptance after both cold and redirected activation: exit `0`,
+  `ok: true`, `accepted: true`, absolute `workspace`, absolute `file` or JSON
+  `null`, the requested `mode`, and the actual native `processId` / `windowId`.
+  Verify these identify the accepting app and reused workspace window, rather
+  than treating the activation API's process ID as acceptance.
+- Test missing files/directories, non-Markdown files, out-of-workspace files,
+  symlinks/junctions, and inaccessible roots. Verify CLI rejection and app-side
+  revalidation, including a file removed between CLI validation and app acceptance.
+  Test app rejection, unavailable activation, and missing/late acknowledgement:
+  no false success, nonzero environment error `activation_failed`, normal
+  `{ok:false,error,message}` JSON, and bounded waiting.
+- Test `--watch` and its omission: native saves reload automatically either way.
+  Test both `--theme` and `--theme-file` on native handoff: usage error with
+  instructions to choose the theme in the app or use `--no-open`, never silent
+  ignore. With `--no-open`, verify no app/browser launch, long-running local
+  serving, retained theme overrides/watch flags, and Ctrl+C cleanup.
+- Verify help/version/guide/skill/validate/inspect/capture/export remain console
+  operations with no native app activation. Confirm interactive native commands
+  work with WebView2 but no external Chromium installed; retain the external
+  browser requirement for inspect/capture/export.
 - Test every CLI command, large JSON output, stdin/stdout pipelines, exact exit
   codes, Ctrl+C/Ctrl+Break, and browser/profile cleanup after cancellation and crash.
 - Test `validate` with no external browser installed. Test layout/export commands

@@ -2,6 +2,15 @@
 
 Present, validate, inspect, capture, and export MarkdStage Markdown decks from a terminal — no GitHub Copilot canvas required.
 
+This README describes the **npm CLI**, whose interactive commands remain
+browser-based. The Windows MSIX package also provides a `markdstage` alias, but
+bare invocation, direct Markdown, `preview`, and `present` activate its native app
+by default. That distribution requires no Node.js; interactive presentation uses
+WebView2, while console inspect/capture/export still need external Chromium.
+See the [CLI guide](https://github.com/runceel/markdstage/blob/main/docs/user-guide/cli.md)
+for packaged activation, acceptance JSON, and `--no-open` differences.
+Use `npx @markdstage/markdstage` to select npm explicitly if both are installed.
+
 The CLI reuses the very same Markdown parser, renderer, Architecture DSL
 validation, theme handling, and PDF/PNG/PowerPoint pipeline as the MarkdStage canvas
 Extension, so a deck looks identical in Copilot, MarkdStage Desktop, the CLI, and

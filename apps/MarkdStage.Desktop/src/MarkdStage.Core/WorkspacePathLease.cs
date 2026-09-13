@@ -14,7 +14,7 @@ public sealed class WorkspacePathLease : IDisposable
     {
         using var lease = Acquire(path, includeFile: true);
         if (!OperatingSystem.IsWindows()) return Path.GetFullPath(path);
-        using var handle = CreateFile(path, 0, FileShare.Read, nint.Zero, FileMode.Open,
+        using var handle = CreateFile(NativePath(path), 0, FileShare.Read, nint.Zero, FileMode.Open,
             0x02000000 | 0x00200000, nint.Zero);
         if (handle.IsInvalid) throw new IOException("The workspace path could not be resolved.");
         var capacity = 512u;
@@ -48,7 +48,7 @@ public sealed class WorkspacePathLease : IDisposable
                     if (includeFile) throw new FileNotFoundException("The workspace path is unavailable.");
                     break;
                 }
-                var handle = CreateFile(current, 0, FileShare.Read, nint.Zero, FileMode.Open,
+                var handle = CreateFile(NativePath(current), 0, FileShare.Read, nint.Zero, FileMode.Open,
                     0x02000000 | 0x00200000, nint.Zero);
                 if (handle.IsInvalid)
                 {
@@ -69,6 +69,13 @@ public sealed class WorkspacePathLease : IDisposable
     {
         for (var index = _handles.Count - 1; index >= 0; index--) _handles[index].Dispose();
         _handles.Clear();
+    }
+
+    private static string NativePath(string path)
+    {
+        var fullPath = Path.GetFullPath(path);
+        return fullPath.StartsWith(@"\\?\", StringComparison.Ordinal) ? fullPath :
+            fullPath.StartsWith(@"\\", StringComparison.Ordinal) ? @"\\?\UNC\" + fullPath[2..] : @"\\?\" + fullPath;
     }
 
     [StructLayout(LayoutKind.Sequential)]

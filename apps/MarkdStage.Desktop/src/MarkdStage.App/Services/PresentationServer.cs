@@ -152,8 +152,9 @@ internal sealed class PresentationServer(
             }
 
             context.Response.Headers.CacheControl = "no-store";
+            // PowerPoint keeps diagram shapes editable by rasterizing only icon layers through local SVG blobs.
             context.Response.Headers.ContentSecurityPolicy =
-                "default-src 'self'; img-src 'self' data: https://workspace.markdstage.invalid https://web.markdstage.invalid; " +
+                "default-src 'self'; img-src 'self' data: blob: https://workspace.markdstage.invalid https://web.markdstage.invalid; " +
                 "style-src 'self' 'unsafe-inline' https://web.markdstage.invalid https://workspace.markdstage.invalid; " +
                 "font-src 'self' https://workspace.markdstage.invalid https://web.markdstage.invalid; " +
                 "media-src 'self' https://workspace.markdstage.invalid; " +

@@ -145,19 +145,26 @@ internal static class HostCommands
             {specific}
 
             --workspace <folder>  Explicit workspace; otherwise use the file's nearest .git ancestor or parent.
-            --theme <name>        dark, light, microsoft, or custom
-            --theme-file <path>   Custom theme CSS
+            --theme <name>        Console/server only: dark, light, microsoft, or custom
+            --theme-file <path>   Console/server only: custom theme CSS
             --json               Machine-readable output
             -h, --help           Help
             -v, --version        Version
 
             With no file and no --workspace, the current directory is the workspace.
+            Interactive commands activate the installed Windows app and reuse its workspace window.
+            preview and direct Markdown open slide view; present opens presenter and native audience views.
+            The app watches Markdown saves automatically (--watch is supported).
+            Choose themes in the app; --theme and --theme-file require --no-open for present/preview.
+            --no-open runs the local server until Ctrl+C without activating the app.
+            Activation --json reports accepted, resolved workspace/file, mode, processId, and windowId.
             Skill commands also use the current directory when --root and --workspace are omitted.
             help, guide, and skill need no browser or JavaScript engine.
+            Interactive app commands require WebView2, not an external Chromium browser.
             validate uses WebView2 for scripts only, not an installed browser.
             inspect, capture, and export require installed Edge, Chrome, or Chromium with remote debugging permitted.
             No browser or language runtime is downloaded.
-            Exit codes: 0 success; 1 usage; 2 deck/input; 3 environment; 4 rendering/output; 5 issues; 130 interrupted.
+            Exit codes: 0 success/accepted activation; 1 usage; 2 deck/input; 3 environment/activation; 4 rendering/output; 5 issues; 130 interrupted.
             """;
     }
 }

@@ -94,8 +94,36 @@ a persistent source-backed authoring loop, terminal or CI validation, fixed
 the same parser, renderer, themes, Architecture DSL, and output pipeline as the
 Canvas.
 
-Run commands with `npx @markdstage/markdstage` or install
-`@markdstage/markdstage` globally and use `markdstage`.
+For the browser-based **npm CLI**, run `npx @markdstage/markdstage` or install
+`@markdstage/markdstage` globally and use `markdstage`. It requires Node.js 24+
+and an installed Chromium-based browser; its behavior is unchanged.
+
+The **packaged Windows CLI** also exposes `markdstage`, without Node.js. Bare
+invocation, direct Markdown, `preview`, and `present` activate the installed native
+app through the package contract, reusing the window for the canonical workspace.
+Bare invocation uses caller CWD with no file selected (an existing workspace shows
+its file list, stops its audience window, and retains the deck behind the list).
+Relative file and workspace arguments use caller CWD; both CLI and
+app validate paths, containment, links, existence, and Markdown extensions.
+Direct Markdown/preview open slide view; present opens presenter view and the
+native audience window, idempotently on repeated requests. Native `present`
+requires a file; only `present --no-open` retains file-less serving.
+
+Native interaction needs WebView2, not external Chromium. `--watch` is accepted
+and native Markdown watching is always enabled. `--theme` / `--theme-file` on
+native handoff are usage errors: choose the theme in the app or use `--no-open`.
+`--no-open` explicitly keeps the existing headless local server running until
+Ctrl+C, preserving theme overrides and watch handling.
+
+Packaged interactive commands return `0` only after app acceptance. `--json`
+reports `{ok:true,accepted:true,workspace:<absolute>,file:<absolute or null>,mode:"preview"|"present"}`;
+the response also includes the actual accepting native `processId` and `windowId`.
+Rejection/timeout/activation
+failure returns nonzero with `{ok:false,error:"activation_failed",message:...}`.
+Do not interpret successful process launch alone as acceptance.
+Help/version/guide/skill/validate/inspect/capture/export stay console-only;
+inspect/capture/export still require external Chromium. Check which `markdstage`
+is resolved when both distributions are installed; `npx` selects npm explicitly.
 
 ### Recommended create-review-deliver loop
 
@@ -113,10 +141,13 @@ Run commands with `npx @markdstage/markdstage` or install
    DSL errors before judging layout.
 5. **Use watch mode for live authoring.** Run
    `markdstage preview slides.md --watch`, edit the Markdown, and review the
-   reloaded deck without losing the current slide. The browser begins on the
+   reloaded deck without losing the current slide. For npm or the UI served by
+   packaged `--no-open`, the browser begins on the
    fixed 16:9 output surface in viewing mode; **Output preview** switches to the
    retained responsive layout, and the pencil control switches to that layout
-   while enabling Architecture placement and detailed editing.
+   while enabling Architecture placement and detailed editing. Native handoff
+   opens the app in slide view; use its **More controls → Shape editing** for
+   Architecture editing.
 6. **Inspect fixed 16:9 output.** Run
    `markdstage inspect slides.md --json`. Use `--slide <n>` after a localized
    change and `--fail-on-issues` in CI or other quality gates.

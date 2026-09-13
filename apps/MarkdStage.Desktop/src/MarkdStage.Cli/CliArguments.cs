@@ -20,6 +20,32 @@ internal sealed record CliArguments(string Command, IReadOnlyList<string> Positi
     public string? File => Command is "guide" or "skill" or "help" ? null : Positionals.FirstOrDefault();
     public bool IsHostOnly => Command is "guide" or "skill" or "help" || Has("help") || Has("version");
     public bool IsPresentation => Command is "present" or "preview";
+    public bool IsAppActivation => !IsHostOnly && IsPresentation && !Has("no-open");
+
+    public DesktopActivationRequest CreateActivationRequest(string currentDirectory)
+    {
+        if (!IsAppActivation) throw new CliException("usage_error", "This command does not activate the Windows app.");
+        if (Has("theme") || Has("theme-file"))
+            throw new CliException("usage_error",
+                "--theme and --theme-file do not apply to Windows app activation. Choose the theme in the app or use --no-open.");
+        if (Command == "present" && File is null)
+            throw new CliException("usage_error", "present requires a Markdown file when opening the Windows app.");
+        try
+        {
+            var file = File is null ? null : Path.GetFullPath(File, currentDirectory);
+            var workspace = WorkspaceArgument(Get("workspace"), file, currentDirectory);
+            var root = WorkspaceResolver.Resolve(workspace is null ? null : Path.GetFullPath(workspace, currentDirectory), file);
+            return new DesktopActivationRequest(root, file, Command, Guid.NewGuid().ToString("N")).Validate();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            throw new CliException("path_outside_workspace", "The file must stay inside the workspace and cannot traverse links.", 2);
+        }
+        catch (Exception error) when (error is ArgumentException or IOException)
+        {
+            throw new CliException("invalid_input", $"The workspace or Markdown file is unavailable: {error.Message}", 2);
+        }
+    }
 
     public static CliArguments Parse(string[] args)
     {
