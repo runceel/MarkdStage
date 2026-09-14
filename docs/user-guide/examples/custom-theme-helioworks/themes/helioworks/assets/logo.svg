@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 96" width="520" height="96" role="img" aria-label="Helioworks">
+  <defs>
+    <linearGradient id="hw" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFC46B"/>
+      <stop offset="0.55" stop-color="#FF8A3D"/>
+      <stop offset="1" stop-color="#8F6BFF"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(6,10)">
+    <circle cx="38" cy="38" r="20" fill="url(#hw)"/>
+    <g stroke="url(#hw)" stroke-width="5" stroke-linecap="round">
+      <path d="M38 2 V12"/>
+      <path d="M38 64 V74"/>
+      <path d="M2 38 H12"/>
+      <path d="M64 38 H74"/>
+      <path d="M12.5 12.5 L19.6 19.6"/>
+      <path d="M56.4 56.4 L63.5 63.5"/>
+      <path d="M12.5 63.5 L19.6 56.4"/>
+      <path d="M56.4 19.6 L63.5 12.5"/>
+    </g>
+  </g>
+  <text x="98" y="62" font-family="Segoe UI Variable Display, Segoe UI, system-ui, sans-serif"
+        font-size="46" font-weight="700" letter-spacing="-1" fill="#FFF6EC">Helio<tspan fill="url(#hw)">works</tspan></text>
+</svg>

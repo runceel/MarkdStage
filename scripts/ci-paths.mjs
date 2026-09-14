@@ -44,6 +44,10 @@ function isSiteContent(path) {
   );
 }
 
+function isStoreAsset(path) {
+  return path.startsWith(".github/store/");
+}
+
 function isSampleDeck(path) {
   return isSampleDeckPath(path);
 }
@@ -125,6 +129,10 @@ export function classifyCiPaths(paths, { forceAll = false } = {}) {
     }
 
     if (isSiteContent(path)) {
+      recognized = true;
+    }
+
+    if (isStoreAsset(path)) {
       recognized = true;
     }
 

@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" role="img" aria-label="A Markdown hash lit by a stage spotlight">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1920" y2="1080" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#171E35"/>
+      <stop offset="0.55" stop-color="#0B1020"/>
+      <stop offset="1" stop-color="#05080F"/>
+    </linearGradient>
+    <radialGradient id="ambient" cx="0" cy="0" r="1" gradientTransform="translate(360 760) scale(760 520)">
+      <stop stop-color="#8FB4FF" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#8FB4FF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="deck" x1="0" y1="900" x2="0" y2="1080" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0E1426"/>
+      <stop offset="1" stop-color="#05080F"/>
+    </linearGradient>
+    <linearGradient id="spot" x1="1300" y1="0" x2="1300" y2="900" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFD77A" stop-opacity="0.80"/>
+      <stop offset="0.45" stop-color="#FFB547" stop-opacity="0.26"/>
+      <stop offset="1" stop-color="#FFB547" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="floor" cx="0" cy="0" r="1" gradientTransform="translate(1300 900) scale(600 150)">
+      <stop stop-color="#FFD77A" stop-opacity="0.62"/>
+      <stop offset="0.5" stop-color="#FFB547" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#FFB547" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="edge" x1="700" y1="0" x2="1920" y2="0" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFB547" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#FFD77A" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="#FFB547" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+  <rect width="1920" height="1080" fill="url(#ambient)"/>
+
+  <rect x="0" y="900" width="1920" height="180" fill="url(#deck)"/>
+
+  <path d="M1180 0H1480L1820 900H780L1180 0Z" fill="url(#spot)"/>
+  <ellipse cx="1300" cy="900" rx="600" ry="150" fill="url(#floor)"/>
+  <rect x="700" y="899" width="1220" height="2" fill="url(#edge)"/>
+
+  <g transform="translate(1300 520) scale(1.1) translate(-490 -525)"
+     fill="none" stroke="#F7F4ED" stroke-linecap="round" stroke-width="76">
+    <path d="M428 342L382 708"/>
+    <path d="M612 342L566 708"/>
+    <path d="M318 458H682"/>
+    <path d="M298 594H662"/>
+  </g>
+</svg>

@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="2160" viewBox="0 0 1440 2160" role="img" aria-label="MarkdStage">
+  <defs>
+    <linearGradient id="bg" x1="200" y1="0" x2="1240" y2="2160" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#151B2F"/>
+      <stop offset="0.58" stop-color="#0B1020"/>
+      <stop offset="1" stop-color="#070A14"/>
+    </linearGradient>
+    <linearGradient id="spot" x1="720" y1="300" x2="720" y2="1560" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFD77A" stop-opacity="0.72"/>
+      <stop offset="0.48" stop-color="#FFB547" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#FFB547" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="floor" cx="0" cy="0" r="1" gradientTransform="translate(720 1552) scale(560 128)">
+      <stop stop-color="#FFD77A" stop-opacity="0.58"/>
+      <stop offset="0.55" stop-color="#FFB547" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#FFB547" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="word" x1="760" y1="0" x2="1180" y2="0" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFD77A"/>
+      <stop offset="1" stop-color="#FFB547"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1440" height="2160" fill="url(#bg)"/>
+
+  <path d="M590 300H850L1340 1560H100L590 300Z" fill="url(#spot)"/>
+  <ellipse cx="720" cy="1552" rx="560" ry="128" fill="url(#floor)"/>
+
+  <path d="M556 196H884L850 316H590L556 196Z" fill="#FFB547"/>
+  <rect x="600" y="166" width="240" height="62" rx="31" fill="#FFD77A"/>
+
+  <g transform="translate(720 950) scale(1.25) translate(-490 -525)"
+     fill="none" stroke="#F7F4ED" stroke-linecap="round" stroke-width="76">
+    <path d="M428 342L382 708"/>
+    <path d="M612 342L566 708"/>
+    <path d="M318 458H682"/>
+    <path d="M298 594H662"/>
+  </g>
+
+  <text x="720" y="1830" text-anchor="middle"
+        font-family="Segoe UI Variable Display, Segoe UI, sans-serif"
+        font-size="164" font-weight="700" letter-spacing="-4" fill="#F7F4ED">Markd<tspan fill="url(#word)">Stage</tspan></text>
+
+  <text x="720" y="1936" text-anchor="middle"
+        font-family="Segoe UI Variable Display, Segoe UI, sans-serif"
+        font-size="58" font-weight="400" letter-spacing="1" fill="#93A6C2">Markdown, ready for the stage.</text>
+</svg>

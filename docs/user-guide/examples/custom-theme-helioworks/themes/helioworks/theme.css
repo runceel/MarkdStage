@@ -1,0 +1,42 @@
+:root {
+  --bg: #14101d;
+  --fg: #fff6ec;
+  --muted: #b6a7c4;
+  --body: #e6dcf0;
+  --accent: #ff8a3d;
+  --accent-strong: #ffc46b;
+  --accent-soft: rgb(255 138 61 / 14%);
+  --accent-line: rgb(255 138 61 / 45%);
+  --surface: #221a30;
+  --code: #1a1426;
+  --code-fg: #ffe3cc;
+  --border: #46375d;
+
+  --topbar: linear-gradient(90deg, #ff8a3d, #ffc46b 45%, #8f6bff);
+  --kicker-mark: linear-gradient(135deg, #ff8a3d, #ffc46b);
+  --glow-1: rgb(255 138 61 / 22%);
+  --glow-2: rgb(143 107 255 / 20%);
+
+  --cover-bg:
+    radial-gradient(120% 80% at 82% 8%, rgb(255 138 61 / 38%), transparent 58%),
+    radial-gradient(100% 70% at 10% 100%, rgb(143 107 255 / 34%), transparent 62%),
+    linear-gradient(150deg, #1d1428, #14101d 62%);
+  --cover-topbar: linear-gradient(90deg, #ff8a3d, #ffc46b 45%, #8f6bff);
+  --cover-text-align: left;
+  --cover-content-align: flex-start;
+  --cover-content-width: 68%;
+  --cover-logo-width: 260px;
+
+  --section-bg:
+    radial-gradient(110% 60% at 70% 110%, #ff8a3d, #8f6bff 45%, transparent 74%),
+    #14101d;
+  --print-section-bg: var(--section-bg);
+  --backcover-bg: linear-gradient(145deg, #ff8a3d, #8f6bff);
+  --backcover-logo-width: 220px;
+
+  --print-slide-bg: #14101d;
+  --print-cover-bg: var(--cover-bg);
+
+  --ms-font: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --heading-font: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+}
