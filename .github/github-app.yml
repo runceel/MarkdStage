@@ -1,0 +1,10 @@
+scripts:
+  - name: Preview site
+    command: npm run preview:site
+  - name: Run Desktop
+    command: 'dotnet run --project apps\MarkdStage.Desktop\src\MarkdStage.App\MarkdStage.App.csproj -p:EnableWinAppRunSupport=true'
+  - name: Run Node.js app
+    command: 'node packages\markdstage-cli\bin\markdstage.mjs'
+
+server_ready_pattern: 'MarkdStage site preview:\s+(https?://\S+)'
+auto_open_in_browser: true

@@ -32,9 +32,14 @@ export async function exportCommand(
 
 export function formatExportReport(report) {
   const format = report.format === "pptx" ? "PowerPoint" : "PDF";
-  const fallback =
-    report.format === "pptx" && report.fallbackCount
-      ? `, ${report.fallbackCount} fallback item(s)`
-      : "";
-  return `Exported ${report.total} slide(s) to ${report.path} (${report.bytes} bytes, ${format}, theme ${report.theme}${fallback}).`;
+  const exported = `Exported ${report.total} slide(s) to ${report.path} (${report.bytes} bytes, ${format}, theme ${report.theme})`;
+  const contentFallbacks = report.format === "pptx" && Array.isArray(report.fallbacks)
+    ? report.fallbacks.filter((fallback) => fallback?.impact === "content")
+    : [];
+  if (!contentFallbacks.length) return `${exported}.`;
+  const pages = [...new Set(contentFallbacks.map((fallback) => fallback.page).filter(Number.isInteger))]
+    .sort((a, b) => a - b);
+  return pages.length === 1
+    ? `${exported} — an image on slide ${pages[0]} is not editable.`
+    : `${exported} — images on slides ${pages.join(", ")} are not editable.`;
 }

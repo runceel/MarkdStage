@@ -271,7 +271,12 @@ export function pptxFallbackReport(model) {
   return model.slides.flatMap((slide, slideIndex) =>
     (Array.isArray(slide.fallbacks) ? slide.fallbacks : []).map((fallback) => {
       const { artwork: _artwork, captureId: _captureId, zOrder: _zOrder, ...reportedFallback } = fallback;
-      return { slideIndex, page: slideIndex + 1, ...reportedFallback };
+      const impact = fallback.artwork === false
+        ? "none"
+        : fallback.behindNative === true
+          ? "decoration"
+          : "content";
+      return { slideIndex, page: slideIndex + 1, ...reportedFallback, impact };
     }));
 }
 

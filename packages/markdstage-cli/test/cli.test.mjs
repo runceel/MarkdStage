@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { run } from "../src/cli.mjs";
 import { withDeckServer } from "../src/deck.mjs";
 import { applicationCommand } from "../src/commands/present.mjs";
-import { exportCommand } from "../src/commands/export.mjs";
+import { exportCommand, formatExportReport } from "../src/commands/export.mjs";
 import { inspectCommand } from "../src/commands/inspect.mjs";
 import { EXIT_DECK, EXIT_ISSUES, EXIT_OK, EXIT_USAGE } from "../src/exit.mjs";
 
@@ -284,6 +284,38 @@ test("export selects PDF or PowerPoint from the output extension", async () => {
       },
     ]);
   });
+});
+
+test("export report warns only about uneditable PowerPoint content", () => {
+  const base = {
+    format: "pptx",
+    total: 17,
+    path: "sample.pptx",
+    bytes: 995280,
+    theme: "dark",
+    fallbackCount: 3,
+  };
+  assert.equal(
+    formatExportReport({
+      ...base,
+      fallbacks: [
+        { page: 1, impact: "none" },
+        { page: 2, impact: "decoration" },
+      ],
+    }),
+    "Exported 17 slide(s) to sample.pptx (995280 bytes, PowerPoint, theme dark).",
+  );
+  assert.equal(
+    formatExportReport({
+      ...base,
+      fallbacks: [
+        { page: 11, impact: "content" },
+        { page: 8, impact: "content" },
+        { page: 11, impact: "content" },
+      ],
+    }),
+    "Exported 17 slide(s) to sample.pptx (995280 bytes, PowerPoint, theme dark) — images on slides 8, 11 are not editable.",
+  );
 });
 
 test("export help documents the opt-in Mermaid image fallback", async () => {
