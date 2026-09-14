@@ -1,4 +1,3 @@
-using System.Text;
 using System.Text.Json;
 using MarkdStage.Core;
 
@@ -6,12 +5,6 @@ namespace MarkdStage.Cli;
 
 internal static class HostCommands
 {
-    private static readonly Dictionary<string, string[]> Targets = new(StringComparer.Ordinal)
-    {
-        ["codex"] = [".agents", "skills", "markdstage"],
-        ["claude"] = [".claude", "skills", "markdstage"],
-        ["copilot"] = [".github", "skills", "markdstage"]
-    };
     internal static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     public static async Task<int> RunAsync(
@@ -61,63 +54,70 @@ internal static class HostCommands
         var action = args.Positionals.FirstOrDefault() ?? "install";
         if (action is not ("install" or "check")) throw new CliException("usage_error", "Use skill install or skill check.");
         var requested = args.Get("target") ?? "all";
-        var targets = requested == "all" ? Targets.Keys.ToArray() : requested.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).Distinct().ToArray();
-        if (targets.Length == 0 || targets.Any(target => !Targets.ContainsKey(target)))
+        var targets = requested == "all"
+            ? SkillInstaller.AvailableTargets
+            : requested.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if (targets.Count == 0 || targets.Any(target => !SkillInstaller.AvailableTargets.Contains(target)))
             throw new CliException("usage_error", "Skill targets: codex, claude, copilot, all.");
         var rootArgument = args.Get("root") ?? args.Get("workspace") ?? currentDirectory;
         string root;
-        try { root = WorkspaceResolver.Resolve(Path.GetFullPath(rootArgument)); }
-        catch (UnauthorizedAccessException) { throw new CliException("path_outside_workspace", "Skill installation does not follow symbolic links or junctions.", 2); }
-        catch (IOException) { throw new CliException("invalid_input", "The skill root must be an existing directory.", 2); }
-        var files = new List<object>();
-        var changed = 0;
-        var conflicts = 0;
-        foreach (var target in targets)
+        try
         {
-            var directory = Path.Combine([root, .. Targets[target]]);
-            foreach (var entry in skills.GetProperty(target).EnumerateObject())
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (Path.IsPathRooted(entry.Name) || entry.Name.Split('/', '\\').Any(part => part is ".." or "." or "") || entry.Name.Contains(':'))
-                    throw new InvalidDataException("Invalid packaged skill path.");
-                var path = Path.Combine(directory, entry.Name.Replace('/', Path.DirectorySeparatorChar));
-                RejectLinks(path);
-                var contents = entry.Value.GetString() ?? "";
-                var existing = File.Exists(path) ? await File.ReadAllTextAsync(path, cancellationToken) : null;
-                var status = existing == contents ? "unchanged" : existing is null ? "created" :
-                    args.Has("force") || action == "check" ? "updated" : "conflict";
-                if (status == "conflict") conflicts++;
-                if (status is "created" or "updated")
-                {
-                    changed++;
-                    if (action == "install")
-                    {
-                        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-                        RejectLinks(path);
-                        var staging = path + "." + Guid.NewGuid().ToString("N") + ".new";
-                        try
-                        {
-                            await File.WriteAllTextAsync(staging, contents, new UTF8Encoding(false), cancellationToken);
-                            RejectLinks(path);
-                            File.Move(staging, path, overwrite: existing is not null);
-                        }
-                        finally { if (File.Exists(staging)) File.Delete(staging); }
-                    }
-                }
-                files.Add(new { target, path, status });
-            }
+            root = WorkspaceResolver.Resolve(Path.GetFullPath(rootArgument));
         }
-        var report = new { action, targets, files, changed, conflicts };
-        await output.WriteLineAsync(args.Has("json") ? JsonSerializer.Serialize(report, JsonOptions) :
-            action == "check" ? $"Generated skills: {changed} file(s) differ; {conflicts} conflict(s)." :
-            $"Installed skills: {changed} file(s) written; {conflicts} modified file(s) left untouched.");
-        return conflicts > 0 || action == "check" && changed > 0 ? 5 : 0;
-    }
+        catch (UnauthorizedAccessException)
+        {
+            throw new CliException(
+                "path_outside_workspace",
+                "Skill installation does not follow symbolic links or junctions.",
+                2);
+        }
+        catch (IOException)
+        {
+            throw new CliException("invalid_input", "The skill root must be an existing directory.", 2);
+        }
 
-    private static void RejectLinks(string path)
-    {
-        try { WorkspaceResolver.RejectLinks(path); }
-        catch (UnauthorizedAccessException) { throw new CliException("path_outside_workspace", "Skill installation does not follow symbolic links or junctions.", 2); }
+        SkillInstallResult result;
+        try
+        {
+            result = await SkillInstaller.RunAsync(
+                root,
+                skills,
+                targets,
+                action == "check" ? SkillInstallMode.Check : SkillInstallMode.Install,
+                args.Has("force"),
+                cancellationToken);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            throw new CliException(
+                "path_outside_workspace",
+                "Skill installation does not follow symbolic links or junctions.",
+                2);
+        }
+        catch (ArgumentException error)
+        {
+            throw new CliException("usage_error", error.Message);
+        }
+
+        var files = result.Files.Select(file => new
+        {
+            target = file.Target,
+            path = file.Path,
+            status = file.Status.ToString().ToLowerInvariant(),
+        });
+        var report = new
+        {
+            action,
+            targets = result.Targets,
+            files,
+            changed = result.Changed,
+            conflicts = result.Conflicts,
+        };
+        await output.WriteLineAsync(args.Has("json") ? JsonSerializer.Serialize(report, JsonOptions) :
+            action == "check" ? $"Generated skills: {result.Changed} file(s) differ; {result.Conflicts} conflict(s)." :
+            $"Installed skills: {result.Changed} file(s) written; {result.Conflicts} modified file(s) left untouched.");
+        return result.Conflicts > 0 || action == "check" && result.Changed > 0 ? 5 : 0;
     }
 
     public static string Help(string? command)

@@ -25,6 +25,17 @@ Canvas Extension と同じレンダラーで描画し、Windows のファイル�
 - ページカウンター付きの前／次ボタン
 - Markdown の読み込み、スライド一覧の表示、投影用ウィンドウを開くコマンド
 
+## ワークスペースへ Agent Skills をインストールする
+
+フォルダーを開いた後、ワークスペース画面の **Install skills…** を選びます。
+Codex、Claude Code、GitHub Copilot から 1 つ以上を選択して **Install** を実行します。
+初期状態では 3 つすべてが選択されています。
+
+Desktop は Node.js を必要とせず、`markdstage skill install` と同じパッケージ内の
+MarkdStage Agent Skills を書き込みます。同じ内容のファイルは変更しません。
+ローカルで編集済みのファイルは既定では競合として報告し、上書きしません。編集内容を
+意図的に置き換える場合に限り、**Force overwrite modified skill files** を選択してください。
+
 ## スライドを移動する
 
 | 入力 | 操作 |

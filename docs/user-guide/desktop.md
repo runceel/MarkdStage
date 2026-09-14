@@ -23,6 +23,17 @@ The main window contains:
 - Previous and next buttons with a page counter
 - Commands for opening Markdown, opening the slide overview, and starting the audience window
 
+## Install Agent Skills in a workspace
+
+After opening a folder, select **Install skills…** on the workspace screen. Choose one or more
+targets—Codex, Claude Code, or GitHub Copilot—and select **Install**. All three targets are selected
+by default.
+
+Desktop writes the same packaged MarkdStage Agent Skills as `markdstage skill install`, without
+requiring Node.js. Files that already match are left unchanged. Files with local modifications are
+reported as conflicts and are not overwritten by default. Select **Force overwrite modified skill
+files** only when you intentionally want to replace those edits.
+
 ## Navigate
 
 | Input | Action |
