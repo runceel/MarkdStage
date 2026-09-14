@@ -1404,6 +1404,50 @@ function singleLineTextLayout(element, deck, bounds, textInsets, alignment) {
   };
 }
 
+// A shrink-to-fit paragraph - a flex item, an inline-block, or `width:
+// max-content` - is exactly as wide as the browser's own glyph advances, with
+// no room to spare. PowerPoint measures the same string a little wider, so
+// exporting that width alone pushes the last word, or the last character of a
+// long URL, onto a line the deck never shows. Restate the room the browser
+// actually had, which is what chose the wrap points to begin with: the
+// containing block's content box. Native lists already do this through
+// `availableBounds`. The text keeps its visual edge, so only slides where the
+// paragraph is narrower than its container change at all.
+function availableTextWidth(element, deck, bounds) {
+  const parent = element.parentElement;
+  if (!parent) return null;
+  const style = getComputedStyle(parent);
+  const edge = (padding, border) => {
+    const paddingValue = Number.parseFloat(style[padding]);
+    const borderValue = Number.parseFloat(style[border]);
+    return (
+      (Number.isFinite(paddingValue) ? paddingValue : 0) +
+      (Number.isFinite(borderValue) ? borderValue : 0)
+    );
+  };
+  const rect = parent.getBoundingClientRect();
+  const slide = deck.getBoundingClientRect();
+  const left = rect.left - slide.left + edge("paddingLeft", "borderLeftWidth");
+  const right = rect.right - slide.left - edge("paddingRight", "borderRightWidth");
+  const leftRoom = Math.max(0, bounds.x - left);
+  const rightRoom = Math.max(0, right - (bounds.x + bounds.width));
+  const alignment = pptxAlignment(getComputedStyle(element).textAlign);
+  // Grow away from the edge the text is pinned to, so nothing moves on screen.
+  // Centred text grows symmetrically for the same reason.
+  const grow =
+    alignment === "right"
+      ? { x: -leftRoom, width: leftRoom }
+      : alignment === "center"
+        ? { x: -Math.min(leftRoom, rightRoom), width: Math.min(leftRoom, rightRoom) * 2 }
+        : { x: 0, width: rightRoom };
+  if (grow.width <= 0) return null;
+  return {
+    ...bounds,
+    x: roundedMetric(bounds.x + grow.x),
+    width: roundedMetric(bounds.width + grow.width),
+  };
+}
+
 function directImageSupported(image) {
   const source = image.currentSrc || image.getAttribute("src") || "";
   if (["cover", "none"].includes(getComputedStyle(image).objectFit)) return false;
@@ -1656,16 +1700,22 @@ function renderedTextLineCount(element) {
   const lines = [];
   for (const rect of range.getClientRects()) {
     if (rect.width <= 0 || rect.height <= 0) continue;
+    // Consecutive lines overlap whenever the line height is tighter than the
+    // font's own box - a 36px heading on a 1.14 line height advances 41px but
+    // paints a 48px rect - so a plain box intersection merges a wrapped
+    // paragraph into one line and exports it as unwrappable. Group by how far
+    // apart the rects sit instead, measured near the baseline so that a smaller
+    // run sharing a line still lands in the same group.
     const line = lines.find(
       (candidate) =>
-        rect.top < candidate.bottom - 1 &&
-        rect.bottom > candidate.top + 1,
+        Math.abs(rect.bottom - candidate.bottom) <
+        Math.min(rect.height, candidate.height) / 2,
     );
     if (line) {
-      line.top = Math.min(line.top, rect.top);
       line.bottom = Math.max(line.bottom, rect.bottom);
+      line.height = Math.max(line.height, rect.height);
     } else {
-      lines.push({ top: rect.top, bottom: rect.bottom });
+      lines.push({ bottom: rect.bottom, height: rect.height });
     }
   }
   return Math.max(1, lines.length);
@@ -2671,7 +2721,10 @@ async function collectPptxSlide(slide, index, options = {}) {
           element.classList.contains("kicker") ? "left" : undefined,
         )
       : null;
-    const bounds = singleLineLayout?.bounds || baseBounds;
+    const bounds =
+      singleLineLayout?.bounds ||
+      (disableTextWrap ? null : availableTextWidth(element, deck, baseBounds)) ||
+      baseBounds;
     const fittedTextInsets = singleLineLayout?.textInsets || textInsets;
     elements.push({
       type: "text",
