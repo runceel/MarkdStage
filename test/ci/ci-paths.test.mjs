@@ -120,6 +120,7 @@ test("sample path predicate distinguishes decks from explanatory documents", () 
     "docs/user-guide/diagrams-and-media.md",
     "docs/user-guide/ja/diagrams-and-media.md",
     ".github/extensions/markdstage/README.md",
+    "docs/user-guide/examples/custom-theme-helioworks/themes/helioworks/assets/logo.svg",
   ]) {
     assert.equal(isSampleDeckPath(path), false, path);
   }
