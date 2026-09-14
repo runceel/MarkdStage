@@ -138,7 +138,7 @@ PDF export, and a timer remain outside the scope of the initial release.
 ## Desktop v4 package and Store cutover
 
 The v4 implementation targets MSIX; the Microsoft Store listing is coming soon for
-v3.8.4 and will be submitted after the GitHub release. Package identity/publisher values
+v4.0.0 and will be submitted after the GitHub release. Package identity/publisher values
 must match Partner Center before Store submission. The existing [MSIX specification](docs/desktop-behaviour-msix.md) stays
 in place until v4 ships.
 
