@@ -645,10 +645,6 @@ async function renderArchifyBlock(host, deckEl) {
   const src = host.dataset.archifySrc;
   const scene = archifySvgToScene(parseArchifySvg(await readArchifySvg(src)), {
     palette: derivePalette(archifyThemeTokens(deckEl)),
-    // Imported labels inherit the deck font on the slide, so the exported deck
-    // has to name it: without it PowerPoint falls back to the theme font and
-    // re-flows every label against metrics the imported box was not sized for.
-    fontFace: primaryFontFace(deckEl),
     path: src,
   }).scene;
   const svg = sceneToSvg(scene, {
@@ -2341,6 +2337,33 @@ function mermaidWholeElementFallbackRequired(scene, diagnostics) {
 }
 
 /**
+ * Name the deck's font on exported runs that do not carry one.
+ *
+ * This is an export-only concern. The rendered SVG inherits the deck's whole
+ * font stack through CSS, so Japanese labels fall back within it; writing a
+ * single family onto the scene would override that stack on the slide as well.
+ * PowerPoint needs one `latin` family instead, and pptx-package already pairs it
+ * with an East Asian typeface.
+ */
+function withExportFontFace(element, fontFace) {
+  if (!fontFace) return element;
+  const applyToRuns = (paragraphs) =>
+    paragraphs.map((paragraph) => ({
+      ...paragraph,
+      runs: paragraph.runs.map((run) =>
+        (run.fontFace === undefined ? { ...run, fontFace } : run)),
+    }));
+  const next = { ...element };
+  if (Array.isArray(next.paragraphs)) next.paragraphs = applyToRuns(next.paragraphs);
+  for (const key of ["text", "label"]) {
+    if (Array.isArray(next[key]?.paragraphs)) {
+      next[key] = { ...next[key], paragraphs: applyToRuns(next[key].paragraphs) };
+    }
+  }
+  return next;
+}
+
+/**
  * Map an imported Archify diagram onto native PowerPoint objects.
  *
  * The scene was already built when the slide rendered, so this only has to place
@@ -2369,13 +2392,14 @@ function collectArchifyObjects(host, deck, blockIndex) {
   const originX = svgRect.left - deckRect.left + (svgRect.width - scene.width * scale) / 2;
   const originY = svgRect.top - deckRect.top + (svgRect.height - scene.height * scale) / 2;
   const pathPrefix = `archify[${blockIndex}]`;
+  const fontFace = primaryFontFace(svg);
   const mapped = sceneToPptxElements(scene, {
     pathPrefix,
     zOrderBase: Number(host.dataset.pptxZOrder),
   });
   return {
     elements: mapped.elements.map((element) =>
-      placePptxElement(element, { originX, originY, scale })),
+      withExportFontFace(placePptxElement(element, { originX, originY, scale }), fontFace)),
     fallbacks: mapped.fallbacks.map((fallback) =>
       pptxFallback("archify", svg, deck, fallback.reason, { artwork: fallback.artwork }),
     ),
