@@ -32,6 +32,22 @@ test("root sample exports the full deck with Architecture foreground image sourc
     expect(rendered.model.slides.at(-1).layout).toBe("backcover");
     expect(rendered.model.slides.filter((slide) => slide.layout === "backcover")).toHaveLength(1);
     expect(result.fallbacks.filter((fallback) => fallback.type === "architecture")).toEqual([]);
+    const linksSlide = rendered.model.slides.find((slide) => slide.title === "Add images and links");
+    const externalLinkParagraph = linksSlide.elements.find((element) =>
+      element.type === "text" &&
+      element.paragraphs?.[0]?.runs.some((run) =>
+        run.text.includes("Use standard Markdown syntax")),
+    );
+    expect(externalLinkParagraph.textWrap).toBe("none");
+    expect(externalLinkParagraph.paragraphs[0].runs.map((run) => run.text).join("")).toBe(
+      "Use standard Markdown syntax for external links: MarkdStage repository",
+    );
+    expect(externalLinkParagraph.paragraphs[0].runs.find((run) => run.href)).toEqual(
+      expect.objectContaining({
+        text: "MarkdStage repository",
+        href: "https://github.com/runceel/markdstage",
+      }),
+    );
 
     const bytes = await readFile(output);
     const summary = inspectPptxPackage(bytes);

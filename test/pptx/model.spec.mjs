@@ -131,6 +131,41 @@ async function openPptx(page, harness) {
   return page.evaluate(() => window.__presentationPptxModel);
 }
 
+test("collapses Markdown source newlines around links like the browser preview", async ({ page }) => {
+  const harness = await startHarness({
+    slides: [
+      `## Add images and links
+
+Use standard Markdown syntax for external links:
+[MarkdStage repository](https://github.com/runceel/markdstage)`,
+    ],
+  });
+  try {
+    const model = await openPptx(page, harness);
+    const paragraph = model.slides[0].elements.find((element) =>
+      element.type === "text" &&
+      element.paragraphs?.[0]?.runs.some((run) =>
+        run.text.includes("Use standard Markdown syntax")),
+    );
+
+    expect(paragraph.textWrap).toBe("none");
+    expect(paragraph.paragraphs[0].runs).toEqual([
+      expect.objectContaining({
+        text: "Use standard Markdown syntax for external links: ",
+      }),
+      expect.objectContaining({
+        text: "MarkdStage repository",
+        href: "https://github.com/runceel/markdstage",
+      }),
+    ]);
+    expect(
+      paragraph.paragraphs[0].runs.map((run) => run.text).join(""),
+    ).not.toContain("\n");
+  } finally {
+    await harness.close();
+  }
+});
+
 for (const allowBlob of [false, true]) {
   test(`Architecture icon artwork under native image CSP (blob ${allowBlob ? "allowed" : "blocked"})`, async ({ page }) => {
     const harness = await startHarness({ slides: [SLIDES[2]], theme: "dark" });
