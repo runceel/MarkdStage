@@ -25,6 +25,7 @@ test("v4 release publishes portable and signed desktop packages independently of
   assert.match(workflow, /Package\.appxmanifest/);
   assert.match(workflow, /secrets\.MARKDSTAGE_SIGNING_CERTIFICATE_BASE64/);
   assert.match(workflow, /secrets\.MARKDSTAGE_SIGNING_CERTIFICATE_PASSWORD/);
+  assert.match(workflow, /winget install --id Microsoft\.WinAppCli --version 0\.6\.1/);
   assert.match(workflow, /Verify release package signatures/);
   assert.match(workflow, /needs: \[validate, desktop\]/);
   assert.doesNotMatch(publishScript, /Archive format is only supported for pre-v4 releases/);
