@@ -123,6 +123,11 @@ Upload the `.msixupload` file to Microsoft Store Partner Center only when
 submission is explicitly requested. Do not upload the GitHub Release signing
 certificate or the signed sideloading packages to Partner Center.
 
+The Partner Center listing text, screenshots, and Store art are maintained in
+`.github/store/`. Update `.github/store/listing-en-us.md` before editing the
+listing in Partner Center, and see `.github/store/README.md` for the asset
+inventory and regeneration commands.
+
 Store availability, the Store URL, and Store acceptance status are not prerequisites
 for a GitHub Release. After the GitHub Release is verified, create the local
 `.msixupload` package. Partner Center upload and submission remain separate,

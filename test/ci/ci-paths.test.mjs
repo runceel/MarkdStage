@@ -102,11 +102,25 @@ test("site content and sample decks select only their relevant checks", () => {
   );
 });
 
+test("store assets select no checks", () => {
+  assert.deepEqual(
+    classifyCiPaths([
+      ".github/store/README.md",
+      ".github/store/listing-en-us.md",
+      ".github/store/logos/BoxArt-2160x2160.png",
+      ".github/store/screenshots/01-architecture.png",
+      ".github/store/scripts/Render-Svg.ps1",
+    ]),
+    expected({}),
+  );
+});
+
 test("sample path predicate distinguishes decks from explanatory documents", () => {
   for (const path of [
     "docs/user-guide/diagrams-and-media.md",
     "docs/user-guide/ja/diagrams-and-media.md",
     ".github/extensions/markdstage/README.md",
+    "docs/user-guide/examples/custom-theme-helioworks/themes/helioworks/assets/logo.svg",
   ]) {
     assert.equal(isSampleDeckPath(path), false, path);
   }

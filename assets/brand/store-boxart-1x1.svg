@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2160" height="2160" viewBox="0 0 2160 2160" role="img" aria-label="MarkdStage">
+  <defs>
+    <linearGradient id="bg" x1="300" y1="0" x2="1860" y2="2160" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#151B2F"/>
+      <stop offset="0.58" stop-color="#0B1020"/>
+      <stop offset="1" stop-color="#070A14"/>
+    </linearGradient>
+    <linearGradient id="spot" x1="1080" y1="370" x2="1080" y2="1620" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFD77A" stop-opacity="0.72"/>
+      <stop offset="0.48" stop-color="#FFB547" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#FFB547" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="floor" cx="0" cy="0" r="1" gradientTransform="translate(1080 1610) scale(670 150)">
+      <stop stop-color="#FFD77A" stop-opacity="0.58"/>
+      <stop offset="0.55" stop-color="#FFB547" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#FFB547" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="word" x1="1120" y1="0" x2="1660" y2="0" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFD77A"/>
+      <stop offset="1" stop-color="#FFB547"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="2160" height="2160" fill="url(#bg)"/>
+
+  <path d="M900 370H1260L1860 1620H300L900 370Z" fill="url(#spot)"/>
+  <ellipse cx="1080" cy="1610" rx="670" ry="150" fill="url(#floor)"/>
+
+  <path d="M858 256H1302L1260 388H900L858 256Z" fill="#FFB547"/>
+  <rect x="912" y="220" width="336" height="72" rx="36" fill="#FFD77A"/>
+
+  <g transform="translate(1080 1000) scale(1.45) translate(-490 -525)"
+     fill="none" stroke="#F7F4ED" stroke-linecap="round" stroke-width="76">
+    <path d="M428 342L382 708"/>
+    <path d="M612 342L566 708"/>
+    <path d="M318 458H682"/>
+    <path d="M298 594H662"/>
+  </g>
+
+  <text x="1080" y="1920" text-anchor="middle"
+        font-family="Segoe UI Variable Display, Segoe UI, sans-serif"
+        font-size="212" font-weight="700" letter-spacing="-6" fill="#F7F4ED">Markd<tspan fill="url(#word)">Stage</tspan></text>
+</svg>

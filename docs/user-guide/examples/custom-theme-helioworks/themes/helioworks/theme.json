@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "cover": {
+    "logo": { "image": "assets/logo.svg", "alt": "Helioworks" }
+  },
+  "backcover": {
+    "logo": { "image": "assets/logo.svg", "alt": "Helioworks" },
+    "copyright": "© 2026 Helioworks, Inc."
+  }
+}
