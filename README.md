@@ -68,12 +68,12 @@ for supported elements and fallback details.
 ## Use the canvas Extension
 
 When you open this repository as a project, `.github/extensions/markdstage/` loads at project
-scope. To install the current **[v3.8.3 release](https://github.com/runceel/markdstage/releases/tag/v3.8.3)**
+scope. To install the current **[v3.8.4 release](https://github.com/runceel/markdstage/releases/tag/v3.8.4)**
 at user scope in another repository, ask GitHub Copilot:
 
 > Install MarkdStage at user scope from the following GitHub repository folder.
 >
-> `https://github.com/runceel/markdstage/tree/v3.8.3/.github/extensions/markdstage`
+> `https://github.com/runceel/markdstage/tree/v3.8.4/.github/extensions/markdstage`
 
 The Extension runs local code in the user's environment. Review its contents before installation,
 and use a trusted release tag or commit SHA for a reproducible install. The `main` branch tracks
@@ -115,7 +115,7 @@ terminals, and CI. The **npm CLI** requires **Node.js 24 or later** and an insta
 **Microsoft Edge, Google Chrome, or Chromium**; it does not download a browser.
 See the [installation guide](./docs/user-guide/installation.md) for prerequisites and offline installation.
 
-The **Windows packaged CLI (Desktop v4 / MSIX, not yet Store-released)** needs no
+The **Windows packaged CLI (Desktop v4 / MSIX, with Microsoft Store release coming soon)** needs no
 Node.js. Bare `markdstage`, a Markdown path, and `preview` open/reuse the native
 workspace window; `present` also opens the native audience window. Bare invocation
 uses caller CWD with no file selected. Native interaction requires only WebView2,
@@ -216,13 +216,16 @@ from a file picker. It displays the current and next slides with the current sli
 and launches a synchronized native presentation window without GitHub Copilot.
 
 It requires Windows and the Microsoft Edge WebView2 Runtime. The current
-**[v3.8.3 release](https://github.com/runceel/markdstage/releases/tag/v3.8.3)** includes portable
+**[v3.8.4 release](https://github.com/runceel/markdstage/releases/tag/v3.8.4)** includes portable
 builds and SHA-256 checksum files for Windows x64 and ARM64:
 
-- [MarkdStage-win-x64.zip](https://github.com/runceel/markdstage/releases/download/v3.8.3/MarkdStage-win-x64.zip)
-- [MarkdStage-win-arm64.zip](https://github.com/runceel/markdstage/releases/download/v3.8.3/MarkdStage-win-arm64.zip)
+- [MarkdStage-win-x64.zip](https://github.com/runceel/markdstage/releases/download/v3.8.4/MarkdStage-win-x64.zip)
+- [MarkdStage-win-arm64.zip](https://github.com/runceel/markdstage/releases/download/v3.8.4/MarkdStage-win-arm64.zip)
 
 Extract the whole folder, run `MarkdStageApp.exe`, and open your Markdown file.
+
+**Microsoft Store:** Coming soon for v3.8.4. The Store package will be submitted after this
+GitHub release is published.
 
 <a id="community-macos-app"></a>
 
