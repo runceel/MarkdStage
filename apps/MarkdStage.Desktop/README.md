@@ -103,9 +103,11 @@ scripts\CreateStorePackage.ps1 -Version <major.minor.patch.0>
 ```
 
 The script uses the Store identity in `Package.appxmanifest`, builds x64 and ARM64,
-and writes `artifacts\MarkdStage-Store.msixupload` plus its SHA-256 checksum. Upload
-the `.msixupload` file to Microsoft Store Partner Center. GitHub Release MSIX files
-are separately signed sideloading packages and are not Store submission inputs.
+and writes `artifacts\MarkdStage-Store.msixupload` plus its SHA-256 checksum. The
+standard release process runs this script as its final step after GitHub Release and
+npm verification. Upload the `.msixupload` file to Microsoft Store Partner Center
+only when submission is explicitly requested. GitHub Release MSIX files are
+separately signed sideloading packages and are not Store submission inputs.
 
 Microsoft Edge WebView2 Runtime is required on the target system. The audience view uses a native
 window built into the app, so a separate Edge, Chrome, or Chromium installation is not required.
@@ -139,9 +141,10 @@ PDF export, and a timer remain outside the scope of the initial release.
 
 The v4 implementation provides both portable Windows packages and MSIX packages.
 GitHub Releases contain the portable ZIPs and signed sideloading MSIX files. The
-Microsoft Store upload package is created locally after the GitHub Release and
-submitted separately through Partner Center. Package identity/publisher values must
-match Partner Center before Store submission.
+Microsoft Store upload package is created locally as the final release step after
+the GitHub Release is verified, then submitted separately through Partner Center
+only on explicit request. Package identity/publisher values must match Partner
+Center before Store submission.
 
 Portable packages are self-contained and include `MarkdStageApp.exe`,
 `MarkdStageCli.exe`, the Windows App SDK/.NET runtime, and the shared renderer

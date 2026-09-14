@@ -18,6 +18,7 @@ test("MSIX has one GUI application and a distinct console alias executable", asy
 
 test("v4 release publishes portable and signed desktop packages independently of Store submission", async () => {
   const workflow = await readFile(new URL("../../.github/workflows/npm-publish.yml", import.meta.url), "utf8");
+  const releaseProcess = await readFile(new URL("../../.github/RELEASING.md", import.meta.url), "utf8");
   const publishScript = await readFile(new URL("scripts/Publish.ps1", desktop), "utf8");
   assert.doesNotMatch(workflow, /MARKDSTAGE_STORE_ACCEPTED_SHA|MARKDSTAGE_STORE_URL/);
   assert.doesNotMatch(workflow, /vars\.MARKDSTAGE_PACKAGE_(?:NAME|PUBLISHER)/);
@@ -39,4 +40,9 @@ test("v4 release publishes portable and signed desktop packages independently of
   assert.match(publication, /MarkdStage-win-x64\.msix/);
   assert.match(publication, /MarkdStage-win-arm64\.msix/);
   assert.match(publication, /MarkdStage\.cer/);
+  const postRelease = releaseProcess.split("## Post-release verification")[1];
+  assert.match(postRelease, /final release step/);
+  assert.match(postRelease, /CreateStorePackage\.ps1 -Version <major\.minor\.patch\.0>/);
+  assert.match(postRelease, /MarkdStage-Store\.msixupload\.sha256/);
+  assert.match(postRelease, /does not submit it to Partner Center/);
 });
