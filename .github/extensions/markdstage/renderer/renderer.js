@@ -1805,6 +1805,7 @@ function pptxFallback(type, element, deck, reason, options = {}) {
     ...bounds,
     ...(captureId ? { captureId } : {}),
     ...(zOrder !== undefined ? { zOrder } : {}),
+    ...(options.behindNative ? { behindNative: true } : {}),
     ...(!artwork ? { artwork: false } : {}),
   };
 }
@@ -2415,6 +2416,7 @@ function collectMermaidObjects(element, deck, blockIndex) {
       captureElement: source,
       includeDescendants: true,
       artwork: fallback.artwork,
+      behindNative: fallback.behindNative,
       padding,
     });
     return {
@@ -4079,6 +4081,37 @@ async function requestPptxExport() {
   }
 }
 
+function pptxContentFallbackNotice(fallbacks) {
+  const content = Array.isArray(fallbacks)
+    ? fallbacks.filter((fallback) => fallback?.impact === "content")
+    : [];
+  if (!content.length) return "";
+  const pages = [...new Set(content.map((fallback) => fallback.page).filter(Number.isInteger))]
+    .sort((a, b) => a - b);
+  const location = pages.length === 1
+    ? `slide ${pages[0]}`
+    : `slides ${pages.join(", ")}`;
+  const types = new Set(content.map((fallback) => fallback.type));
+  const labels = {
+    mermaid: ["Mermaid diagram", "Mermaid diagrams"],
+    architecture: ["architecture diagram", "architecture diagrams"],
+    archify: ["architecture diagram", "architecture diagrams"],
+    code: ["code block", "code blocks"],
+    table: ["table", "tables"],
+    html: ["HTML element", "HTML elements"],
+  };
+  const [type] = types;
+  const label = types.size === 1 ? labels[type] : undefined;
+  if (label) {
+    return content.length === 1
+      ? `a ${label[0]} on ${location} is an image (not editable).`
+      : `${content.length} ${label[1]} on ${location} are images (not editable).`;
+  }
+  return content.length === 1
+    ? `an image on ${location} is not editable.`
+    : `images on ${location} are not editable.`;
+}
+
 async function exportFromCanvas(format, { mermaidImageFallback = false } = {}) {
   const isPdf = format === "pdf";
   if (exportPending || pptxOptionsPending || !(isPdf ? pdfExportAvailable : pptxExportAvailable)) return;
@@ -4116,9 +4149,10 @@ async function exportFromCanvas(format, { mermaidImageFallback = false } = {}) {
       throw new Error(`${label} export returned an invalid save location.`);
     }
     const filename = data.path.split(/[\\/]/).pop();
-    const fallback =
-      !isPdf && data.fallbackCount > 0 ? ` ${data.fallbackCount} fallback item(s) preserved.` : "";
-    const message = `${label} saved: ${filename}.${fallback}`;
+    const fallback = isPdf ? "" : pptxContentFallbackNotice(data.fallbacks);
+    const message = fallback
+      ? `${label} saved: ${filename} — ${fallback}`
+      : `${label} saved: ${filename}.`;
     showExportNotification("success", message, data.path);
   } catch (error) {
     const message = `Could not save ${label}. ${error?.message || "Export failed."}`;

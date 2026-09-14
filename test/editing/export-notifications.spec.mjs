@@ -76,7 +76,16 @@ for (const spec of FORMATS) {
 
     const path = `D:\\Exports\\saved.${spec.format}`;
     await expect.poll(() => exportRoute).toBeTruthy();
-    await exportRoute.fulfill({ json: { ok: true, path, fallbackCount: 2 } });
+    await exportRoute.fulfill({
+      json: {
+        ok: true,
+        path,
+        fallbackCount: 2,
+        fallbacks: spec.format === "pptx"
+          ? [{ page: 1, impact: "none" }, { page: 2, impact: "decoration" }]
+          : undefined,
+      },
+    });
     await expect(notification).toHaveAttribute("data-state", "success");
     await expect(notification).toContainText(`${spec.label} saved: saved.${spec.format}.`);
     await expect(page.locator("#exportNotificationPath")).toHaveText(`Saved to: ${path}`);
@@ -86,7 +95,7 @@ for (const spec of FORMATS) {
     await expectExportButtonsIdle(page);
     await expect(page.locator("#navMore")).toHaveAccessibleName("More controls");
     if (spec.format === "pptx") {
-      await expect(notification).toContainText("2 fallback item(s) preserved.");
+      await expect(notification).not.toContainText("not editable");
     } else {
       await expect(notification).not.toContainText("fallback");
     }
@@ -152,6 +161,28 @@ for (const spec of FORMATS) {
     expect(harness.index).toBe(0);
   });
 }
+
+test("PowerPoint names content fallbacks and their slides", async ({ page, harness }) => {
+  expect(harness.index).toBe(0);
+  const path = "D:\\Exports\\saved.pptx";
+  await page.route("**/export-pptx", (route) => route.fulfill({
+    json: {
+      ok: true,
+      path,
+      fallbackCount: 2,
+      fallbacks: [
+        { type: "mermaid", page: 5, impact: "content" },
+        { type: "decoration", page: 1, impact: "decoration" },
+      ],
+    },
+  }));
+  await clickMoreControl(page, "#navExportPptx");
+  const notification = page.getByRole("region", { name: "Export notification" });
+  await expect(notification).toHaveAttribute("data-state", "success");
+  await expect(notification).toContainText(
+    "PowerPoint saved: saved.pptx — a Mermaid diagram on slide 5 is an image (not editable).",
+  );
+});
 
 test("hover and keyboard focus independently pause the remaining success timeout", async ({ page, harness }) => {
   await succeed(page);

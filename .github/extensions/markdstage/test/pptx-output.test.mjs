@@ -10,6 +10,7 @@ import {
   MAX_PPTX_ASSET_BYTES,
   preparePptxPackageModel,
 } from "../runtime/output.mjs";
+import { pptxFallbackReport } from "../runtime/output-model.mjs";
 
 const PNG = Buffer.from([
   137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82,
@@ -71,6 +72,26 @@ function model(elements, notes, fallbacks = [], layoutElements = []) {
     ],
   };
 }
+
+test("classifies PowerPoint fallbacks by editing impact", () => {
+  const report = pptxFallbackReport({
+    slides: [
+      {
+        fallbacks: [
+          { type: "architecture", path: "icon", reason: "icon-rendered-as-foreground-picture", artwork: false },
+          { type: "effect", path: "pre", reason: "native-code-approximates: box-shadow", behindNative: true },
+          { type: "mermaid", path: "pre.mermaid", reason: "mermaid-rendered-as-artwork" },
+        ],
+      },
+    ],
+  });
+
+  assert.deepEqual(report, [
+    { slideIndex: 0, page: 1, type: "architecture", path: "icon", reason: "icon-rendered-as-foreground-picture", impact: "none" },
+    { slideIndex: 0, page: 1, type: "effect", path: "pre", reason: "native-code-approximates: box-shadow", behindNative: true, impact: "decoration" },
+    { slideIndex: 0, page: 1, type: "mermaid", path: "pre.mermaid", reason: "mermaid-rendered-as-artwork", impact: "content" },
+  ]);
+});
 
 test("prepares clipped fallback images, notes, and deduplicated native images", async () => {
   let requests = 0;
