@@ -224,6 +224,15 @@ builds and SHA-256 checksum files for Windows x64 and ARM64:
 
 Extract the whole folder, run `MarkdStageApp.exe`, and open your Markdown file.
 
+Signed sideloading packages are also available:
+
+- [MarkdStage-win-x64.msix](https://github.com/runceel/markdstage/releases/download/v4.0.0/MarkdStage-win-x64.msix)
+- [MarkdStage-win-arm64.msix](https://github.com/runceel/markdstage/releases/download/v4.0.0/MarkdStage-win-arm64.msix)
+- [MarkdStage.cer](https://github.com/runceel/markdstage/releases/download/v4.0.0/MarkdStage.cer)
+
+Import `MarkdStage.cer` into the local machine's **Trusted People** certificate store before
+installing the MSIX matching the device architecture.
+
 **Microsoft Store:** Coming soon for v4.0.0. The Store package will be submitted after this
 GitHub release is published.
 

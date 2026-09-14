@@ -128,14 +128,6 @@ if (-not $IsWindows) {
     throw "Desktop publishing requires Windows and the Windows SDK build tools."
 }
 if ($Format -eq "Archive") {
-    $repositoryRoot = Resolve-Path (Join-Path $appRoot "..\..")
-    $sourceVersion = (Get-Content -LiteralPath (Join-Path $repositoryRoot "packages\markdstage-cli\package.json") -Raw |
-        ConvertFrom-Json).version
-    if (([version]($sourceVersion -split '-')[0]).Major -ge 4 -or
-        ($Version -and ([version]$Version).Major -ge 4) -or
-        ($env:GITHUB_REF_NAME -match '^v?([0-9]+)\.' -and [int]$Matches[1] -ge 4)) {
-        throw "Archive format is only supported for pre-v4 releases. Use MSIX for the Store cutover."
-    }
     if ($CertificatePath -or $CertificatePassword -or $Unsigned -or $Publisher -or $PackageName -or $TimestampUrl) {
         throw "Signing and package-identity options apply only to -Format Msix."
     }
@@ -189,6 +181,26 @@ if ($Format -eq "Archive") {
     if ($LASTEXITCODE -ne 0) {
         exit $LASTEXITCODE
     }
+
+    $buildRoot = Join-Path $appRoot "src\MarkdStage.App\bin\$platform\$Configuration"
+    $runtimeOutput = Get-ChildItem -LiteralPath $buildRoot -Directory -Filter $runtime -Recurse |
+        Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName "App.xbf") -PathType Leaf } |
+        Sort-Object LastWriteTimeUtc -Descending |
+        Select-Object -First 1
+    if (-not $runtimeOutput) {
+        throw "Could not find compiled WinUI resources for $runtime."
+    }
+    foreach ($resource in Get-ChildItem -LiteralPath $runtimeOutput.FullName -Recurse -File -Include *.xbf, *.pri) {
+        $relative = [IO.Path]::GetRelativePath($runtimeOutput.FullName, $resource.FullName)
+        $destination = Join-Path $output $relative
+        New-Item -ItemType Directory -Path (Split-Path $destination) -Force | Out-Null
+        Copy-Item -LiteralPath $resource.FullName -Destination $destination -Force
+    }
+
+    $sourceAssets = Join-Path $appRoot "src\MarkdStage.App\Assets"
+    $publishedAssets = Join-Path $output "Assets"
+    New-Item -ItemType Directory -Path $publishedAssets -Force | Out-Null
+    Copy-Item -Path (Join-Path $sourceAssets "*") -Destination $publishedAssets -Recurse -Force
 }
 else {
     dotnet publish $project `
@@ -227,7 +239,6 @@ $required = @(
     "MarkdStageCli.exe",
     "MarkdStageCli.dll",
     "MarkdStageCli.runtimeconfig.json",
-    "appxmanifest.xml",
     "CliData\commands.json",
     "CliData\host.html",
     "CliData\host.mjs",
@@ -247,15 +258,19 @@ $required = @(
 $required += if ($Format -eq "Archive") {
     @(
         "App.xbf",
+        "ArchitectureEditorWindow.xbf",
         "Themes\Brand.xbf",
         "MainPage.xbf",
         "MainWindow.xbf",
         "PresenterWindow.xbf",
-        "MarkdStageApp.pri"
+        "resources.pri"
     )
 }
 else {
-    @("resources.pri")
+    @(
+        "AppxManifest.xml",
+        "resources.pri"
+    )
 }
 foreach ($relative in $required) {
     if (-not (Test-Path (Join-Path $output $relative) -PathType Leaf)) {

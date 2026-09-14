@@ -135,19 +135,19 @@ in a native window. It edits existing `architecture` fences only and writes chan
 **Save**, rejecting stale saves when the Markdown changed externally. General Markdown editing and
 PDF export, and a timer remain outside the scope of the initial release.
 
-## Desktop v4 package and Store cutover
+## Desktop v4 packages and Microsoft Store submission
 
-The v4 implementation targets MSIX; the Microsoft Store listing is coming soon for
-v4.0.0 and will be submitted after the GitHub release. Package identity/publisher values
-must match Partner Center before Store submission. The existing [MSIX specification](docs/desktop-behaviour-msix.md) stays
-in place until v4 ships.
+The v4 implementation provides both portable Windows packages and MSIX packages.
+GitHub Releases contain the portable ZIPs and signed sideloading MSIX files. The
+Microsoft Store upload package is created locally after the GitHub Release and
+submitted separately through Partner Center. Package identity/publisher values must
+match Partner Center before Store submission.
 
-The first Store release ends archive distribution immediately: no new archive
-builds or updates of any kind follow it. Install the Store version and remove the
-old extracted app folder; retaining both is not supported. There is no archive
-detection or state migration. Recent workspaces and window/theme settings start
-fresh, but decks, assets, and themes are unchanged. Uninstall removes package-owned
-settings and temporary data, never workspace files.
+Portable packages are self-contained and include `MarkdStageApp.exe`,
+`MarkdStageCli.exe`, the Windows App SDK/.NET runtime, and the shared renderer
+assets. They do not include Node.js. Extract the ZIP and run
+`MarkdStageApp.exe`. The portable packages remain available from GitHub Releases
+until a future Store cutover is explicitly announced.
 
 The packaged CLI uses the alias `markdstage` and does not bundle or acquire Node.
 Bare invocation, direct Markdown, `preview`, and `present` activate the installed
@@ -267,8 +267,8 @@ and does not indicate a deployment or release.
   with no browser and with remote debugging disabled by policy.
 - Confirm external Chromium can write the package temporary profile and produce
   inspection, PNG, PDF, and editable PowerPoint output. Repeat with the
-  Store-distributed package before submission approval; this remains a release
-  blocker until measured.
+  Store-distributed package before submission approval; this remains a Store
+  submission blocker until measured.
 - Test folder/file picker, file association, drag-and-drop, `.git` worktree files,
   explicit workspace containment, symlinks/junctions/mount points, and size limits.
 - Test recent-folder order/limit, unavailable-folder locate/remove, loss of an
@@ -284,6 +284,5 @@ and does not indicate a deployment or release.
 
 ## Specification lifetime
 
-This file documents what the app does today. The user-facing behaviour planned for the MSIX /
-Microsoft Store version is specified in
-[docs/desktop-behaviour-msix.md](docs/desktop-behaviour-msix.md) until that version ships.
+This file documents what the app does today. Store-specific acceptance behavior is specified in
+[docs/desktop-behaviour-msix.md](docs/desktop-behaviour-msix.md) until the Store listing ships.

@@ -53,13 +53,15 @@ user-facing JSON Schemas. Also include the split Mermaid assets and their manife
 
 ## MarkdStage Desktop
 
-Starting with v4, Desktop ships through Microsoft Store and as signed MSIX packages
-in GitHub Releases. The workflow signs x64 and ARM64 packages with the release
-certificate and publishes its public `.cer` file so users can trust sideloaded
-packages. Run local package validation with your development certificate and
-matching publisher:
+Starting with v4, Desktop is distributed through GitHub Releases as portable Windows
+packages and signed sideloading MSIX packages. The workflow signs x64 and ARM64 MSIX
+packages with the release certificate and publishes its public `.cer` file so users
+can trust sideloaded packages. Microsoft Store submission is a separate local
+Partner Center operation.
 
 ```powershell
+apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture x64 -Format Archive
+apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture arm64 -Format Archive
 apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture x64 -CertificatePath <certificate.pfx> -Publisher <certificate-subject> -Version <major.minor.patch.0>
 apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture arm64 -CertificatePath <certificate.pfx> -Publisher <certificate-subject> -Version <major.minor.patch.0>
 ```
@@ -70,6 +72,10 @@ Attach the following files to the release:
 - `markdstage-markdstage-<version>.tgz.sha256`
 - `markdstage-v<version>.zip` (Canvas Extension, not Desktop)
 - `markdstage-v<version>.zip.sha256`
+- `MarkdStage-win-x64.zip`
+- `MarkdStage-win-x64.zip.sha256`
+- `MarkdStage-win-arm64.zip`
+- `MarkdStage-win-arm64.zip.sha256`
 - `MarkdStage-win-x64.msix`
 - `MarkdStage-win-x64.msix.sha256`
 - `MarkdStage-win-arm64.msix`
@@ -88,21 +94,17 @@ package temporary profile under Store distribution, and verify the embedded
 WebView2 script-only `validate` path with no external browser installed. These
 measurements cannot be replaced by Linux source tests.
 
-The release workflow is deliberately blocked until these repository variables are
-configured for the verified release:
-
-- `MARKDSTAGE_PACKAGE_NAME` and `MARKDSTAGE_PACKAGE_PUBLISHER`: the Partner Center identity.
-- `MARKDSTAGE_STORE_URL`: the published `https://apps.microsoft.com/detail/<product-id>` URL.
-- `MARKDSTAGE_STORE_ACCEPTED_SHA`: the exact release commit that passed Windows/Store
-  acceptance. Do not set it merely because compilation or CI passed.
+The release workflow reads the package Identity Name and Publisher from the
+Store-associated `apps/MarkdStage.Desktop/src/MarkdStage.App/Package.appxmanifest`.
+Do not duplicate them in repository variables. The signing certificate Subject
+must exactly match the manifest Publisher.
 
 Configure these GitHub Actions secrets for GitHub Release package signing:
 
 - `MARKDSTAGE_SIGNING_CERTIFICATE_BASE64`: Base64-encoded PFX bytes.
 - `MARKDSTAGE_SIGNING_CERTIFICATE_PASSWORD`: password for that PFX.
 
-The certificate subject must exactly match `MARKDSTAGE_PACKAGE_PUBLISHER`. Never
-commit the PFX or its password. Only the exported public `.cer` is published.
+Never commit the PFX or its password. Only the exported public `.cer` is published.
 
 Create the unsigned multi-architecture package for Partner Center locally after
 the release commit is finalized:
@@ -116,18 +118,11 @@ This builds x64 and ARM64 packages with the checked-in Store identity and writes
 to Microsoft Store Partner Center. Do not upload the GitHub Release signing
 certificate or the signed sideloading packages to Partner Center.
 
-Update both README files to the real Store URL in release preparation, then set the
-acceptance SHA after the final release commit is verified. The tag workflow does not
-submit to Partner Center automatically. It reads the GitHub Release signing
-certificate only from the configured Actions secrets.
-
-The first Store release is the immediate archive cutover, with no parallel archive
-publication. The last archive release must announce that it receives no further
-updates of any kind; do not amend its notes retroactively after cutover. The first
-Store notes and installation guide tell users to install Store, open the same
-workspace, and remove the extracted archive folder. State does not migrate; user
-Markdown, assets, and themes remain untouched. List parser/title/notes corrections
-and the CLI's new explicit-workspace requirement in the compatibility section.
+Store availability, the Store URL, and Store acceptance status are not prerequisites
+for a GitHub Release. After the GitHub Release is verified, create and upload the
+local `.msixupload` package through Partner Center. Do not describe Store cutover or
+archive retirement in GitHub Release notes until the Store listing is actually
+published.
 
 ## Validation
 
@@ -140,8 +135,10 @@ npm pack --dry-run
 cd ..\..
 dotnet test apps\MarkdStage.Desktop\tests\MarkdStage.Core.Tests\MarkdStage.Core.Tests.csproj -c Release
 dotnet build apps\MarkdStage.Desktop\src\MarkdStage.App\MarkdStage.App.csproj -c Release -r win-x64 -p:Platform=x64
-apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture x64 -Unsigned -Publisher <package-publisher> -PackageName <package-name>
-apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture arm64 -Unsigned -Publisher <package-publisher> -PackageName <package-name>
+apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture x64 -Unsigned
+apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture arm64 -Unsigned
+apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture x64 -Format Archive
+apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture arm64 -Format Archive
 apps\MarkdStage.Desktop\scripts\CreateStorePackage.ps1 -Version <major.minor.patch.0>
 ```
 
@@ -180,7 +177,7 @@ The tag starts `.github/workflows/npm-publish.yml`. The workflow:
 1. Verifies the stable SemVer tag, package version, `main` ancestry, and README links.
 2. Runs the complete JavaScript, browser, CLI, accessibility, performance, and PDF test suite.
 3. Builds and checksums the Extension ZIP.
-4. Tests and builds signed x64 and ARM64 MSIX packages for GitHub Releases.
+4. Tests and builds x64 and ARM64 portable Windows packages plus signed x64 and ARM64 MSIX packages for GitHub Releases.
 5. Publishes `@markdstage/markdstage` with npm provenance.
 6. Packs and checksums the CLI tarball for offline installation.
 7. Generates release notes, creates the GitHub Release, uploads every asset, and verifies the
@@ -197,7 +194,7 @@ The workflow creates the GitHub Release and includes:
 - Shared Canvas Extension, Skill, npm CLI, and Desktop version
 - Breaking changes and migration table
 - Supported Windows architectures and the WebView2 Runtime prerequisite
-- SHA-256 for the Extension ZIP, CLI tarball, signed MSIX packages, and public certificate
+- SHA-256 for the Extension ZIP, CLI tarball, portable Windows packages, signed MSIX packages, and public certificate
 - Updated third-party notices when bundled open-source software changes
 
 ## Post-release verification
@@ -205,7 +202,7 @@ The workflow creates the GitHub Release and includes:
 After the workflow succeeds:
 
 1. Confirm the GitHub Release is marked latest and contains the Extension/CLI
-   files, signed x64 and ARM64 MSIX packages, the public signing certificate,
-   their checksums, and the Store link.
+   files, x64 and ARM64 portable Windows packages, signed x64 and ARM64 MSIX
+   packages, the public signing certificate, and their checksums.
 2. Confirm npm shows the matching `@markdstage/markdstage` version and provenance.
 3. Install the version-pinned Extension folder and verify the user-scoped Extension when applicable.

@@ -233,6 +233,15 @@ Windows x64 / ARM64 向けのポータブルビルドと SHA-256 チェックサ
 
 フォルダーごと展開し、`MarkdStageApp.exe` を実行して Markdown ファイルを開きます。
 
+署名済みのサイドローディング用パッケージも利用できます。
+
+- [MarkdStage-win-x64.msix](https://github.com/runceel/markdstage/releases/download/v4.0.0/MarkdStage-win-x64.msix)
+- [MarkdStage-win-arm64.msix](https://github.com/runceel/markdstage/releases/download/v4.0.0/MarkdStage-win-arm64.msix)
+- [MarkdStage.cer](https://github.com/runceel/markdstage/releases/download/v4.0.0/MarkdStage.cer)
+
+端末のアーキテクチャに合う MSIX をインストールする前に、`MarkdStage.cer` をローカル
+コンピューターの **信頼されたユーザー** 証明書ストアへインポートしてください。
+
 **Microsoft Store:** v4.0.0 の GitHub リリース後に提出予定です（近日公開）。
 
 <a id="community-macos-app"></a>

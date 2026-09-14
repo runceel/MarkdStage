@@ -34,11 +34,6 @@ jobs:
 
       - name: Verify version, tag, and release links
         shell: bash
-        env:
-          STORE_ACCEPTED_SHA: ${{ vars.MARKDSTAGE_STORE_ACCEPTED_SHA }}
-          STORE_URL: ${{ vars.MARKDSTAGE_STORE_URL }}
-          PACKAGE_NAME: ${{ vars.MARKDSTAGE_PACKAGE_NAME }}
-          PACKAGE_PUBLISHER: ${{ vars.MARKDSTAGE_PACKAGE_PUBLISHER }}
         run: |
           set -euo pipefail
           version=$(node -p "require('./packages/markdstage-cli/package.json').version")
@@ -49,13 +44,7 @@ jobs:
           fi
           expected="v${version}"
           if [ "${version%%.*}" -lt 4 ]; then
-            echo "This source implements the v4 Store cutover; do not publish it as an archive-era release."
-            exit 1
-          fi
-          if [ "$STORE_ACCEPTED_SHA" != "$GITHUB_SHA" ] ||
-             [[ ! "$STORE_URL" =~ ^https://apps\.microsoft\.com/detail/[A-Za-z0-9]+$ ]] ||
-             [ -z "$PACKAGE_NAME" ] || [ -z "$PACKAGE_PUBLISHER" ]; then
-            echo "Complete Windows/Store acceptance for this commit and configure the documented Store release variables."
+            echo "This source implements the v4 Desktop package set; do not publish it as a pre-v4 release."
             exit 1
           fi
           if [ "$GITHUB_REF_NAME" != "$expected" ]; then
@@ -76,7 +65,6 @@ jobs:
               exit 1
             }
             grep -F "tree/${GITHUB_REF_NAME}/.github/extensions/markdstage" "$readme"
-            grep -F "$STORE_URL" "$readme"
           done
           notes=".github/release-notes/${GITHUB_REF_NAME}.md"
           test -f "$notes" || {
@@ -191,12 +179,32 @@ jobs:
       - name: WinUI build
         run: dotnet build apps\MarkdStage.Desktop\src\MarkdStage.App\MarkdStage.App.csproj -c Release -r win-x64 -p:Platform=x64
 
+      - name: Read package identity
+        shell: pwsh
+        run: |
+          [xml]$manifest = Get-Content `
+            apps\MarkdStage.Desktop\src\MarkdStage.App\Package.appxmanifest -Raw
+          $identity = $manifest.Package.Identity
+          if ([string]::IsNullOrWhiteSpace($identity.Name) -or
+              [string]::IsNullOrWhiteSpace($identity.Publisher)) {
+            throw "Package.appxmanifest must define Identity Name and Publisher."
+          }
+          "MARKDSTAGE_PACKAGE_NAME=$($identity.Name)" >> $env:GITHUB_ENV
+          "MARKDSTAGE_PACKAGE_PUBLISHER=$($identity.Publisher)" >> $env:GITHUB_ENV
+
+      - name: x64 portable Windows package
+        shell: pwsh
+        run: apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture x64 -Format Archive
+
+      - name: ARM64 portable Windows package
+        shell: pwsh
+        run: apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture arm64 -Format Archive
+
       - name: Prepare release signing certificate
         shell: pwsh
         env:
           SIGNING_CERTIFICATE_BASE64: ${{ secrets.MARKDSTAGE_SIGNING_CERTIFICATE_BASE64 }}
           SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.MARKDSTAGE_SIGNING_CERTIFICATE_PASSWORD }}
-          PACKAGE_PUBLISHER: ${{ vars.MARKDSTAGE_PACKAGE_PUBLISHER }}
         run: |
           if ([string]::IsNullOrWhiteSpace($env:SIGNING_CERTIFICATE_BASE64) -or
               [string]::IsNullOrWhiteSpace($env:SIGNING_CERTIFICATE_PASSWORD)) {
@@ -210,8 +218,8 @@ jobs:
             $certificatePath,
             $env:SIGNING_CERTIFICATE_PASSWORD,
             [Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet)
-          if ($certificate.Subject -ne $env:PACKAGE_PUBLISHER) {
-            throw "The signing certificate subject must match MARKDSTAGE_PACKAGE_PUBLISHER."
+          if ($certificate.Subject -ne $env:MARKDSTAGE_PACKAGE_PUBLISHER) {
+            throw "The signing certificate subject must match Package.appxmanifest Publisher."
           }
           New-Item -ItemType Directory -Path apps\MarkdStage.Desktop\artifacts -Force | Out-Null
           $certificateOutput = "apps\MarkdStage.Desktop\artifacts\MarkdStage.cer"
@@ -227,18 +235,14 @@ jobs:
       - name: x64 signed release package
         shell: pwsh
         env:
-          PACKAGE_NAME: ${{ vars.MARKDSTAGE_PACKAGE_NAME }}
-          PACKAGE_PUBLISHER: ${{ vars.MARKDSTAGE_PACKAGE_PUBLISHER }}
           CERTIFICATE_PASSWORD: ${{ secrets.MARKDSTAGE_SIGNING_CERTIFICATE_PASSWORD }}
-        run: apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture x64 -CertificatePath $env:MARKDSTAGE_CERTIFICATE_PATH -CertificatePassword $env:CERTIFICATE_PASSWORD -PackageName $env:PACKAGE_NAME -Publisher $env:PACKAGE_PUBLISHER -Version "$($env:GITHUB_REF_NAME.TrimStart('v')).0"
+        run: apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture x64 -CertificatePath $env:MARKDSTAGE_CERTIFICATE_PATH -CertificatePassword $env:CERTIFICATE_PASSWORD -PackageName $env:MARKDSTAGE_PACKAGE_NAME -Publisher $env:MARKDSTAGE_PACKAGE_PUBLISHER -Version "$($env:GITHUB_REF_NAME.TrimStart('v')).0"
 
       - name: ARM64 signed release package
         shell: pwsh
         env:
-          PACKAGE_NAME: ${{ vars.MARKDSTAGE_PACKAGE_NAME }}
-          PACKAGE_PUBLISHER: ${{ vars.MARKDSTAGE_PACKAGE_PUBLISHER }}
           CERTIFICATE_PASSWORD: ${{ secrets.MARKDSTAGE_SIGNING_CERTIFICATE_PASSWORD }}
-        run: apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture arm64 -CertificatePath $env:MARKDSTAGE_CERTIFICATE_PATH -CertificatePassword $env:CERTIFICATE_PASSWORD -PackageName $env:PACKAGE_NAME -Publisher $env:PACKAGE_PUBLISHER -Version "$($env:GITHUB_REF_NAME.TrimStart('v')).0"
+        run: apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture arm64 -CertificatePath $env:MARKDSTAGE_CERTIFICATE_PATH -CertificatePassword $env:CERTIFICATE_PASSWORD -PackageName $env:MARKDSTAGE_PACKAGE_NAME -Publisher $env:MARKDSTAGE_PACKAGE_PUBLISHER -Version "$($env:GITHUB_REF_NAME.TrimStart('v')).0"
 
       - name: Verify release package signatures
         shell: pwsh
@@ -266,6 +270,10 @@ jobs:
         with:
           name: markdstage-desktop-release
           path: |
+            apps/MarkdStage.Desktop/artifacts/MarkdStage-win-x64.zip
+            apps/MarkdStage.Desktop/artifacts/MarkdStage-win-x64.zip.sha256
+            apps/MarkdStage.Desktop/artifacts/MarkdStage-win-arm64.zip
+            apps/MarkdStage.Desktop/artifacts/MarkdStage-win-arm64.zip.sha256
             apps/MarkdStage.Desktop/artifacts/MarkdStage-win-x64.msix
             apps/MarkdStage.Desktop/artifacts/MarkdStage-win-x64.msix.sha256
             apps/MarkdStage.Desktop/artifacts/MarkdStage-win-arm64.msix
@@ -377,11 +385,14 @@ jobs:
         run: |
           set -euo pipefail
           cd release-assets
+          sed -i 's/\r$//' MarkdStage-win-x64.zip.sha256 MarkdStage-win-arm64.zip.sha256
           sed -i 's/\r$//' MarkdStage-win-x64.msix.sha256 MarkdStage-win-arm64.msix.sha256
           sed -i 's/\r$//' MarkdStage.cer.sha256
           sed -i 's/\r$//' markdstage-markdstage-*.tgz.sha256
           sha256sum -c "markdstage-${GITHUB_REF_NAME}.zip.sha256"
           sha256sum -c markdstage-markdstage-*.tgz.sha256
+          sha256sum -c MarkdStage-win-x64.zip.sha256
+          sha256sum -c MarkdStage-win-arm64.zip.sha256
           sha256sum -c MarkdStage-win-x64.msix.sha256
           sha256sum -c MarkdStage-win-arm64.msix.sha256
           sha256sum -c MarkdStage.cer.sha256
@@ -390,12 +401,13 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          STORE_URL: ${{ vars.MARKDSTAGE_STORE_URL }}
         run: |
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
           extension_sha=$(awk '{print $1}' "release-assets/markdstage-${GITHUB_REF_NAME}.zip.sha256")
           cli_sha=$(awk '{print $1}' release-assets/markdstage-markdstage-*.tgz.sha256)
+          x64_zip_sha=$(awk '{print $1}' release-assets/MarkdStage-win-x64.zip.sha256)
+          arm64_zip_sha=$(awk '{print $1}' release-assets/MarkdStage-win-arm64.zip.sha256)
           x64_sha=$(awk '{print $1}' release-assets/MarkdStage-win-x64.msix.sha256)
           arm64_sha=$(awk '{print $1}' release-assets/MarkdStage-win-arm64.msix.sha256)
           certificate_sha=$(awk '{print $1}' release-assets/MarkdStage.cer.sha256)
@@ -418,14 +430,14 @@ jobs:
           - Desktop: Windows 10 or Windows 11, x64 or ARM64, and Microsoft Edge WebView2 Runtime
           - Packaged CLI: WebView2 for script execution; installed Chromium for presentation, inspection, capture, and export. Remote-debugging policy can disable inspection, capture, and export.
 
-          Install Desktop from Microsoft Store: ${STORE_URL}
-          For GitHub Release sideloading, import \`MarkdStage.cer\` into the trusted
-          people certificate store, then install the MSIX matching the device architecture.
-          The package includes the command-line alias and requires no Node runtime.
+          Windows portable packages contain the presenter and command-line executables and
+          require no Node runtime. For GitHub Release sideloading, import \`MarkdStage.cer\`
+          into the trusted people certificate store, then install the MSIX matching the device
+          architecture. The Microsoft Store upload package is created locally and submitted
+          separately through Partner Center.
           PDF/PowerPoint export remains CLI-only; the graphical app is a presenter.
-          Archive builds receive no further updates. Install the Store version, then remove the
-          old extracted app folder. Recent workspaces and window/theme settings do not migrate.
-          Your decks, assets, and themes are unchanged, and uninstall never removes workspace content.
+          Store availability and the Store URL will be announced separately after Partner Center
+          submission. Portable and sideloading packages remain available from this release.
           Third-party license information is included in each distribution.
 
           Install the version-pinned Extension from:
@@ -438,6 +450,8 @@ jobs:
           | --- | --- |
           | \`markdstage-${GITHUB_REF_NAME}.zip\` | \`${extension_sha}\` |
           | \`markdstage-markdstage-${version}.tgz\` | \`${cli_sha}\` |
+          | \`MarkdStage-win-x64.zip\` | \`${x64_zip_sha}\` |
+          | \`MarkdStage-win-arm64.zip\` | \`${arm64_zip_sha}\` |
           | \`MarkdStage-win-x64.msix\` | \`${x64_sha}\` |
           | \`MarkdStage-win-arm64.msix\` | \`${arm64_sha}\` |
           | \`MarkdStage.cer\` | \`${certificate_sha}\` |
@@ -460,6 +474,10 @@ jobs:
             "release-assets/markdstage-${GITHUB_REF_NAME}.zip.sha256"
             release-assets/markdstage-markdstage-*.tgz
             release-assets/markdstage-markdstage-*.tgz.sha256
+            "release-assets/MarkdStage-win-x64.zip"
+            "release-assets/MarkdStage-win-x64.zip.sha256"
+            "release-assets/MarkdStage-win-arm64.zip"
+            "release-assets/MarkdStage-win-arm64.zip.sha256"
             "release-assets/MarkdStage-win-x64.msix"
             "release-assets/MarkdStage-win-x64.msix.sha256"
             "release-assets/MarkdStage-win-arm64.msix"
@@ -487,7 +505,6 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          STORE_URL: ${{ vars.MARKDSTAGE_STORE_URL }}
         run: |
           set -euo pipefail
           assets=$(gh release view "$GITHUB_REF_NAME" \
@@ -499,6 +516,10 @@ jobs:
             "markdstage-${GITHUB_REF_NAME}.zip.sha256" \
             "markdstage-markdstage-${version}.tgz" \
             "markdstage-markdstage-${version}.tgz.sha256" \
+            "MarkdStage-win-x64.zip" \
+            "MarkdStage-win-x64.zip.sha256" \
+            "MarkdStage-win-arm64.zip" \
+            "MarkdStage-win-arm64.zip.sha256" \
             "MarkdStage-win-x64.msix" \
             "MarkdStage-win-x64.msix.sha256" \
             "MarkdStage-win-arm64.msix" \
@@ -513,4 +534,3 @@ jobs:
           curl -fsSIL \
             "https://github.com/${GITHUB_REPOSITORY}/tree/${GITHUB_REF_NAME}/.github/extensions/markdstage" \
             >/dev/null
-          curl -fsSIL "$STORE_URL" >/dev/null
