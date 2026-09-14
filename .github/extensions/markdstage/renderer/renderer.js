@@ -1400,6 +1400,17 @@ function runStyle(element) {
   };
 }
 
+function normalizedTextNodeValue(text, element) {
+  const whiteSpace = getComputedStyle(element).whiteSpace;
+  if (whiteSpace === "normal" || whiteSpace === "nowrap") {
+    return text.replace(/[ \t\n\f\r]+/g, " ");
+  }
+  if (whiteSpace === "pre-line") {
+    return text.replace(/\r\n?/g, "\n").replace(/[ \t\f]+/g, " ");
+  }
+  return text;
+}
+
 function collectTextRuns(root, { omitNestedLists = false } = {}) {
   const runs = [];
   const append = (text, element) => {
@@ -1421,7 +1432,8 @@ function collectTextRuns(root, { omitNestedLists = false } = {}) {
   };
   const visit = (node) => {
     if (node.nodeType === Node.TEXT_NODE) {
-      append(node.nodeValue || "", node.parentElement || root);
+      const element = node.parentElement || root;
+      append(normalizedTextNodeValue(node.nodeValue || "", element), element);
       return;
     }
     if (node.nodeType !== Node.ELEMENT_NODE) return;
