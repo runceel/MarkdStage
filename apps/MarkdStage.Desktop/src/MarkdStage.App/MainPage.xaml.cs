@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -27,8 +28,10 @@ public sealed partial class MainPage : Page
     private NativeRuntimeHost? _runtime;
     private WorkspaceIoService? _io;
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _workspaceTimer;
+    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _workspaceFilterTimer;
     private readonly List<ArchitectureEditorWindow> _architectureEditorWindows = [];
     private bool _recoveryOpen;
+    private readonly List<WorkspaceEntry> _workspaceEntries = [];
     private string _themePreference = App.StateStore.State.Theme;
     public string? WorkspaceRoot { get; private set; }
 
@@ -51,7 +54,6 @@ public sealed partial class MainPage : Page
         _server = new PresentationServer(
             session,
             () => _presenterWindowService.IsRunning,
-            mapAssets: true,
             openPresenter: OpenPresenterFromServerAsync,
             closePresenter: ClosePresenterFromServerAsync,
             reloadSource: ReloadAfterArchitectureSaveAsync,
@@ -68,6 +70,7 @@ public sealed partial class MainPage : Page
             () => WinRT.Interop.WindowNative.GetWindowHandle(_window));
         ViewModel.OpenRequested = path => App.OpenAsync(file: path, requestingWindow: _window);
         ViewModel.WorkspaceUnavailable = () => _ = RecoverWorkspaceAsync();
+        ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         _presenterWindowService.StatusChanged += (_, _) => _session.NotifyChanged();
         Loaded += OnLoaded;
         _workspaceTimer = DispatcherQueue.CreateTimer();
@@ -76,6 +79,13 @@ public sealed partial class MainPage : Page
         {
             if (WorkspaceRoot is not null && !Directory.Exists(WorkspaceRoot))
                 _ = RecoverWorkspaceAsync();
+        };
+        _workspaceFilterTimer = DispatcherQueue.CreateTimer();
+        _workspaceFilterTimer.Interval = TimeSpan.FromMilliseconds(250);
+        _workspaceFilterTimer.Tick += (_, _) =>
+        {
+            _workspaceFilterTimer.Stop();
+            RenderWorkspaceEntries();
         };
         RefreshRecents();
     }
@@ -137,8 +147,10 @@ public sealed partial class MainPage : Page
 
         _shutdownStarted = true;
         _workspaceTimer.Stop();
+        _workspaceFilterTimer.Stop();
         _ready.TrySetCanceled();
         Loaded -= OnLoaded;
+        ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
         StageWebView.Close();
         foreach (var editor in _architectureEditorWindows.ToArray()) editor.Close();
         _architectureEditorWindows.Clear();
@@ -230,7 +242,7 @@ public sealed partial class MainPage : Page
         _window.Title = $"MarkdStage — {Path.GetFileName(root)}";
         if (file is null)
         {
-            if (!ViewModel.IsDeckLoaded) await RefreshWorkspaceFilesAsync();
+            if (!ViewModel.IsDeckLoaded) await RefreshWorkspaceFilesAsync(resetFilter: true);
         }
         else
         {
@@ -246,7 +258,7 @@ public sealed partial class MainPage : Page
         {
             WorkspaceStartScreen.Visibility = Visibility.Visible;
             _window.SetBackToFilesVisible(false);
-            await RefreshWorkspaceFilesAsync();
+            await RefreshWorkspaceFilesAsync(resetFilter: false);
             return;
         }
         var source = new UriBuilder(_server.BaseUri!)
@@ -299,8 +311,9 @@ public sealed partial class MainPage : Page
         // Focus has to leave the WebView, otherwise the Escape accelerator never fires.
         if (WorkspaceItems.Items.Count > 0) WorkspaceItems.Focus(FocusState.Programmatic);
         else OpenFolderButton.Focus(FocusState.Programmatic);
-        // The folder may have gained or lost decks while the current one was on screen.
-        if (WorkspaceRoot is not null) await RefreshWorkspaceFilesAsync();
+        // The folder may have gained or lost decks while the current one was on screen. The list the
+        // user left is the list they come back to, so any filter they had applied is preserved.
+        if (WorkspaceRoot is not null) await RefreshWorkspaceFilesAsync(resetFilter: false);
     }
 
     private void HideLibrary()
@@ -332,26 +345,38 @@ public sealed partial class MainPage : Page
         { ShowOpenError("The theme preference could not be saved."); }
     }
 
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName == nameof(MainPageViewModel.IsBusy))
+            LoadingOverlay.Visibility = ViewModel.IsBusy ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     private void RefreshRecents()
     {
-        WorkspaceItems.Items.Clear();
+        ResetWorkspaceFilter();
+        EndWorkspaceListLoad();
+        _workspaceEntries.Clear();
         foreach (var root in App.StateStore.State.RecentWorkspaces)
         {
             var available = Directory.Exists(root);
-            var card = BuildEntryRow(
-                "\uE8B7",
+            _workspaceEntries.Add(new WorkspaceEntry(
+                root,
                 Path.GetFileName(root) is { Length: > 0 } name ? name : root,
-                available ? root : $"{root} — Unavailable");
-            card.Tag = root;
-            card.Opacity = available ? 1 : 0.5;
-            WorkspaceItems.Items.Add(card);
+                available ? root : $"{root} — Unavailable",
+                available,
+                "\uE8B7"));
         }
 
+        WorkspaceFilterBox.PlaceholderText = "Filter workspaces";
+        WorkspaceFilterBox.Visibility = _workspaceEntries.Count > 0
+            ? Visibility.Visible
+            : Visibility.Collapsed;
         WorkspaceListHeader.Text = "RECENT WORKSPACES";
-        WorkspaceListHeader.Visibility = WorkspaceItems.Items.Count > 0
+        WorkspaceListHeader.Visibility = _workspaceEntries.Count > 0
             ? Visibility.Visible
             : Visibility.Collapsed;
         BrandHero.Visibility = Visibility.Visible;
+        RenderWorkspaceEntries();
     }
 
     /// <summary>
@@ -404,44 +429,111 @@ public sealed partial class MainPage : Page
         };
     }
 
-    private async Task RefreshWorkspaceFilesAsync()
+    private async Task RefreshWorkspaceFilesAsync(bool resetFilter)
     {
         if (_io is null) return;
+        BeginWorkspaceListLoad("Finding Markdown files…", resetFilter);
         WorkspaceHeading.Text = WorkspaceRoot;
         RefreshWorkspaceButton.Visibility = Visibility.Visible;
-        WorkspaceItems.Items.Clear();
-        var result = await _io.ExecuteAsync("list", JsonSerializer.SerializeToElement(new object[]
+        try
         {
-                "", new { extensions = new[] { ".md", ".markdown" }, maxEntries = 10000, recursive = true },
-        }));
-        if (!result.Ok) { ShowOpenError(result.Message!); return; }
-        foreach (var item in JsonSerializer.SerializeToElement(result.Value).EnumerateArray())
-        {
-            if (item.GetProperty("kind").GetString() != "file") continue;
-            var path = item.GetProperty("path").GetString()!;
-            var folder = Path.GetDirectoryName(path);
-            var card = BuildEntryRow(
-                "\uE8A5",
-                Path.GetFileName(path),
-                string.IsNullOrEmpty(folder) ? null : folder.Replace('\\', '/'));
-            card.Tag = path;
-            WorkspaceItems.Items.Add(card);
-        }
+            var result = await _io.ExecuteAsync("list", JsonSerializer.SerializeToElement(new object[]
+            {
+                    "", new { extensions = new[] { ".md", ".markdown" }, maxEntries = 10000, recursive = true },
+            }));
+            if (!result.Ok) { ShowOpenError(result.Message!); return; }
+            _workspaceEntries.Clear();
+            foreach (var item in JsonSerializer.SerializeToElement(result.Value).EnumerateArray())
+            {
+                if (item.GetProperty("kind").GetString() != "file") continue;
+                var path = item.GetProperty("path").GetString()!;
+                var folder = Path.GetDirectoryName(path);
+                _workspaceEntries.Add(new WorkspaceEntry(
+                    path,
+                    Path.GetFileName(path),
+                    string.IsNullOrEmpty(folder) ? null : folder.Replace('\\', '/'),
+                    true,
+                    "\uE8A5"));
+            }
 
-        WorkspaceListHeader.Text = WorkspaceItems.Items.Count > 0
-            ? "MARKDOWN FILES"
-            : "NO MARKDOWN FILES IN THIS FOLDER";
-        WorkspaceListHeader.Visibility = Visibility.Visible;
-        // The lockup would push the file list below the fold once a workspace is open.
-        BrandHero.Visibility = Visibility.Collapsed;
+            WorkspaceFilterBox.PlaceholderText = "Filter Markdown files";
+            WorkspaceFilterBox.Visibility = _workspaceEntries.Count > 0
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            WorkspaceListHeader.Text = _workspaceEntries.Count > 0
+                ? "MARKDOWN FILES"
+                : "NO MARKDOWN FILES IN THIS FOLDER";
+            WorkspaceListHeader.Visibility = Visibility.Visible;
+            // The lockup would push the file list below the fold once a workspace is open.
+            BrandHero.Visibility = Visibility.Collapsed;
+            RenderWorkspaceEntries();
+        }
+        finally
+        {
+            EndWorkspaceListLoad();
+        }
     }
 
-    private async void OnRefreshWorkspaceClick(object sender, RoutedEventArgs args) => await RefreshWorkspaceFilesAsync();
+    /// <summary>
+    /// A list load is a context switch: the entries on screen are about to be replaced wholesale, so
+    /// the filter that selected them is cleared in the same frame the list empties. Clearing it once
+    /// the new entries arrive would instead flash the incoming list filtered, then unfiltered. A plain
+    /// refresh of the same list keeps the filter, because the user's context has not changed.
+    /// </summary>
+    private void BeginWorkspaceListLoad(string message, bool resetFilter)
+    {
+        if (resetFilter) ResetWorkspaceFilter();
+        WorkspaceItems.Items.Clear();
+        WorkspaceFilterBox.Visibility = Visibility.Collapsed;
+        WorkspaceListHeader.Visibility = Visibility.Collapsed;
+        WorkspaceListProgressText.Text = message;
+        WorkspaceListProgress.Visibility = Visibility.Visible;
+    }
+
+    private void EndWorkspaceListLoad() =>
+        WorkspaceListProgress.Visibility = Visibility.Collapsed;
+
+    private void ResetWorkspaceFilter()
+    {
+        _workspaceFilterTimer.Stop();
+        WorkspaceFilterBox.Text = string.Empty;
+    }
+
+    private async void OnRefreshWorkspaceClick(object sender, RoutedEventArgs args) =>
+        await RefreshWorkspaceFilesAsync(resetFilter: false);
+
+    private void OnWorkspaceFilterChanged(object sender, TextChangedEventArgs args)
+    {
+        _workspaceFilterTimer.Stop();
+        _workspaceFilterTimer.Start();
+    }
+
+    private void RenderWorkspaceEntries()
+    {
+        var filter = WorkspaceFilterBox.Text.Trim();
+        WorkspaceItems.Items.Clear();
+        foreach (var entry in _workspaceEntries.Where(entry =>
+                     filter.Length == 0 ||
+                     entry.Title.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
+                     entry.Subtitle?.Contains(filter, StringComparison.OrdinalIgnoreCase) == true))
+        {
+            var card = BuildEntryRow(entry.Glyph, entry.Title, entry.Subtitle);
+            card.Tag = entry.Path;
+            card.Opacity = entry.Available ? 1 : 0.5;
+            WorkspaceItems.Items.Add(card);
+        }
+    }
 
     private async void OnOpenFolderClick(object sender, RoutedEventArgs args)
     {
         var root = await new FilePickerService().PickFolderAsync(WinRT.Interop.WindowNative.GetWindowHandle(_window));
-        if (root is not null) await App.OpenAsync(workspace: root, requestingWindow: _window);
+        if (root is null) return;
+        if (WorkspaceRoot is not null)
+        {
+            await App.OpenAsync(workspace: root, requestingWindow: _window);
+            return;
+        }
+        await EnterWorkspaceAsync(root);
     }
 
     private async void OnWorkspaceItemClick(object sender, ItemClickEventArgs args)
@@ -452,9 +544,22 @@ public sealed partial class MainPage : Page
         if (WorkspaceRoot is not null)
             await App.OpenAsync(workspace: WorkspaceRoot, file: Path.Combine(WorkspaceRoot, path), requestingWindow: _window);
         else if (Directory.Exists(path))
-            await App.OpenAsync(workspace: path, requestingWindow: _window);
+            await EnterWorkspaceAsync(path);
         else
             await RecoverWorkspaceAsync(path);
+    }
+
+    /// <summary>
+    /// Entering a workspace replaces the recents list with the folder's decks, so the click is
+    /// acknowledged in this frame — before the folder walk starts — rather than after it finishes.
+    /// </summary>
+    private async Task EnterWorkspaceAsync(string path)
+    {
+        BeginWorkspaceListLoad("Opening folder…", resetFilter: true);
+        await App.OpenAsync(workspace: path, requestingWindow: _window);
+        // Another window may already own that workspace and take the request, which leaves this
+        // window on the recents screen: restore it instead of stranding the progress row.
+        if (WorkspaceRoot is null) RefreshRecents();
     }
 
     private async Task RecoverWorkspaceAsync(string? recent = null)
@@ -543,11 +648,52 @@ public sealed partial class MainPage : Page
             using var document = JsonDocument.Parse(args.WebMessageAsJson);
             if (document.RootElement.ValueKind != JsonValueKind.Object) return;
             if (!document.RootElement.TryGetProperty("type", out var type)) return;
+            if (type.GetString() == "shell:open-file" &&
+                document.RootElement.TryGetProperty("path", out var file) &&
+                file.GetString() is { } path)
+            {
+                _ = OpenExportFileAsync(path);
+                return;
+            }
             if (type.GetString() != "shell:escape") return;
         }
+
         catch (JsonException) { return; }
         ShowLibrary();
     }
+
+    /// <summary>
+    /// Exports open through ShellExecute rather than <c>Windows.System.Launcher.LaunchFileAsync</c>.
+    /// That WinRT API is documented to require an ASTA thread and to report refusal by returning
+    /// false rather than throwing; an unpackaged WinUI 3 window runs on a plain STA, so every export
+    /// silently came back as a failure. ShellExecute is the association contract a desktop app owns.
+    /// </summary>
+    private async Task OpenExportFileAsync(string path)
+    {
+        var name = Path.GetFileName(path);
+        try
+        {
+            // The renderer is web content, so its path is untrusted.
+            var file = PathSecurity.ResolveExport(
+                WorkspaceRoot ?? throw new UnauthorizedAccessException("No workspace is open."),
+                path);
+
+            // ShellExecute blocks while the shell resolves the association and starts the app.
+            await Task.Run(() => Process.Start(new ProcessStartInfo(file) { UseShellExecute = true })?.Dispose());
+        }
+        catch (Exception error) when (error is FileNotFoundException or UnauthorizedAccessException
+            or IOException or Win32Exception or ArgumentException)
+        {
+            ShowOpenError($"{name} could not be opened. {error.Message}");
+        }
+    }
+
+    private sealed record WorkspaceEntry(
+        string Path,
+        string Title,
+        string? Subtitle,
+        bool Available,
+        string Glyph);
 
     private async Task InitializeWebViewAsync(
         WebView2 webView,

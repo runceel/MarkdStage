@@ -77,6 +77,23 @@ internal static class PathSecurity
         }
     }
 
+    /// <summary>
+    /// The export the renderer offers to open arrives from web content, so it is untrusted. The
+    /// desktop runtime reports save locations workspace-relative with forward slashes, never
+    /// absolute, so resolve it against the workspace rather than the process working directory.
+    /// </summary>
+    public static string ResolveExport(string root, string relativePath)
+    {
+        var extension = Path.GetExtension(relativePath);
+        if (!extension.Equals(".pdf", StringComparison.OrdinalIgnoreCase) &&
+            !extension.Equals(".pptx", StringComparison.OrdinalIgnoreCase))
+            throw new UnauthorizedAccessException("Only PDF and PowerPoint exports can be opened.");
+        var file = WorkspaceResolver.ResolveRelative(root, relativePath.Replace('\\', '/'));
+        if (!File.Exists(file))
+            throw new FileNotFoundException("It is no longer on disk.", file);
+        return CanonicalizeExisting(file);
+    }
+
     private static string NormalizeDevicePath(string path)
     {
         const string uncPrefix = @"\\?\UNC\";
