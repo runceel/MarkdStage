@@ -16,6 +16,8 @@ renderer as the MarkdStage canvas, independently of the GitHub Copilot App.
   forward and right-click a margin to move back.
 - Reload automatically when the Markdown file is saved while preserving the current slide.
 - Preserve the last valid deck when a reload fails.
+- Install packaged MarkdStage Agent Skills for Codex, Claude Code, and GitHub Copilot into an open
+  workspace, with explicit force-overwrite control for locally modified files.
 - Open the audience view as a native WinUI 3 window from the shared MarkdStage controls.
 - Support dark, light, Microsoft, and custom themes; Mermaid; code highlighting; Architecture DSL;
   and local images.

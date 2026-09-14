@@ -106,6 +106,14 @@
                                 Content="Refresh"
                                 Padding="20,9"
                                 Visibility="Collapsed" />
+                            <Button
+                                x:Name="InstallSkillsButton"
+                                AutomationProperties.AutomationId="InstallSkillsButton"
+                                AutomationProperties.Name="Install Agent Skills"
+                                Click="OnInstallSkillsClick"
+                                Content="Install skills…"
+                                Padding="20,9"
+                                Visibility="Collapsed" />
                         </StackPanel>
 
                         <TextBlock

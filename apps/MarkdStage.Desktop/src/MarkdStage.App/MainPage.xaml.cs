@@ -240,6 +240,7 @@ public sealed partial class MainPage : Page
             _workspaceTimer.Start();
         }
         _window.Title = $"MarkdStage — {Path.GetFileName(root)}";
+        InstallSkillsButton.Visibility = Visibility.Visible;
         if (file is null)
         {
             if (!ViewModel.IsDeckLoaded) await RefreshWorkspaceFilesAsync(resetFilter: true);
@@ -501,6 +502,117 @@ public sealed partial class MainPage : Page
 
     private async void OnRefreshWorkspaceClick(object sender, RoutedEventArgs args) =>
         await RefreshWorkspaceFilesAsync(resetFilter: false);
+
+    private async void OnInstallSkillsClick(object sender, RoutedEventArgs args)
+    {
+        if (WorkspaceRoot is null) return;
+
+        var targetChecks = new Dictionary<string, CheckBox>(StringComparer.Ordinal)
+        {
+            ["codex"] = new CheckBox { Content = "Codex (.agents/skills/markdstage)", IsChecked = true },
+            ["claude"] = new CheckBox { Content = "Claude Code (.claude/skills/markdstage)", IsChecked = true },
+            ["copilot"] = new CheckBox { Content = "GitHub Copilot (.github/skills/markdstage)", IsChecked = true },
+        };
+        var content = new StackPanel { Spacing = 8 };
+        content.Children.Add(new TextBlock
+        {
+            Text = "Choose the Agent Skills to install in this workspace. Existing modified files will be left untouched.",
+            TextWrapping = TextWrapping.Wrap,
+        });
+        foreach (var checkBox in targetChecks.Values) content.Children.Add(checkBox);
+        var forceCheck = new CheckBox
+        {
+            Content = "Force overwrite modified skill files",
+            IsChecked = false,
+            Margin = new Thickness(0, 8, 0, 0),
+        };
+        content.Children.Add(forceCheck);
+        content.Children.Add(new TextBlock
+        {
+            Text = "Force overwrite replaces local edits in the selected skill directories.",
+            TextWrapping = TextWrapping.Wrap,
+            Opacity = 0.7,
+            FontSize = 12,
+        });
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = "Install MarkdStage skills",
+            Content = content,
+            PrimaryButtonText = "Install",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+        };
+        void UpdatePrimaryButton(object? _, RoutedEventArgs __) =>
+            dialog.IsPrimaryButtonEnabled = targetChecks.Values.Any(item => item.IsChecked == true);
+        foreach (var checkBox in targetChecks.Values)
+        {
+            checkBox.Checked += UpdatePrimaryButton;
+            checkBox.Unchecked += UpdatePrimaryButton;
+        }
+
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+        var targets = targetChecks
+            .Where(item => item.Value.IsChecked == true)
+            .Select(item => item.Key)
+            .ToArray();
+
+        InstallSkillsButton.IsEnabled = false;
+        ViewModel.BeginBusy("Installing Agent Skills…");
+        try
+        {
+            using var data = JsonDocument.Parse(await File.ReadAllTextAsync(
+                Path.Combine(AppContext.BaseDirectory, "CliData", "commands.json")));
+            var result = await SkillInstaller.RunAsync(
+                WorkspaceRoot,
+                data.RootElement.GetProperty("skills"),
+                targets,
+                force: forceCheck.IsChecked == true);
+            ViewModel.EndBusy();
+            var unchanged = result.Files.Count(file => file.Status == SkillFileStatus.Unchanged);
+            var title = result.Conflicts == 0 ? "Skills installed" : "Skills installed with conflicts";
+            var message = $"{result.Changed} file(s) written; {unchanged} already up to date.";
+            if (result.Conflicts > 0)
+            {
+                message += $"\n\n{result.Conflicts} modified file(s) were left untouched. " +
+                    "Run the installer again with Force overwrite selected if you intend to replace them.";
+            }
+            await ShowMessageDialogAsync(title, message);
+        }
+        catch (Exception error) when (
+            error is IOException or UnauthorizedAccessException or InvalidDataException or ArgumentException or JsonException)
+        {
+            ViewModel.EndBusy();
+            await ShowMessageDialogAsync(
+                "Skills couldn't be installed",
+                error is UnauthorizedAccessException
+                    ? "Skill installation does not follow symbolic links or junctions and must stay inside the workspace."
+                    : $"The packaged skills could not be written to this workspace.\n\n{error.Message}");
+        }
+        finally
+        {
+            ViewModel.EndBusy();
+            InstallSkillsButton.IsEnabled = true;
+        }
+    }
+
+    private async Task ShowMessageDialogAsync(string title, string message)
+    {
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = title,
+            Content = new TextBlock
+            {
+                Text = message,
+                TextWrapping = TextWrapping.Wrap,
+                IsTextSelectionEnabled = true,
+            },
+            CloseButtonText = "Close",
+        };
+        await dialog.ShowAsync();
+    }
 
     private void OnWorkspaceFilterChanged(object sender, TextChangedEventArgs args)
     {
