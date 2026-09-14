@@ -308,6 +308,101 @@ test("Archify connector coordinates are placed into the editable PowerPoint outp
   );
 });
 
+test("placement scales text, stroke and corner metrics with the geometry", () => {
+  // An Archify export is measured in its own viewBox, so the deck placement is
+  // also a resize. A font size or stroke width left at its authored value would
+  // arrive in PowerPoint too large for the box it was placed into - the cause of
+  // labels spilling out of imported components.
+  const { scene } = convert(
+    svg([
+      element("g", { "data-node-label": "Checkout API" }, [
+        element("rect", { class: "c-backend", x: 20, y: 30, width: 160, height: 60, rx: 12, "stroke-width": 1.2 }),
+        text("text", { class: "t-backend", x: 100, y: 65, "font-size": 13, "text-anchor": "middle" }, "Checkout API"),
+      ]),
+    ]),
+  );
+  const scale = 0.6;
+  const { elements } = sceneToPptxElements(scene, { pathPrefix: "archify[0]" });
+  const placed = elements.map((entry) => placePptxElement(entry, { originX: 100, originY: 50, scale }));
+  const shape = placed.find((entry) => entry.type === "shape");
+  const label = placed.find((entry) => entry.type === "text");
+
+  assert.deepEqual(
+    { x: shape.x, y: shape.y, width: shape.width, height: shape.height },
+    { x: 112, y: 68, width: 96, height: 36 },
+  );
+  assert.equal(shape.cornerRadius, 7.2);
+  assert.equal(shape.strokeWidth, 0.7);
+  assert.equal(label.paragraphs[0].runs[0].fontSize, 7.8);
+  // The label must still fit the box it annotates once both have been resized.
+  assert.ok(label.width <= shape.width, `${label.width} > ${shape.width}`);
+});
+
+test("placement scales a connector's stroke and its label runs", () => {
+  const { scene } = convert(
+    svg([
+      element("path", { class: "a-default", "data-composition-points": "10,10;90,10", "stroke-width": 2 }),
+    ]),
+  );
+  const { elements } = sceneToPptxElements(scene, { pathPrefix: "archify[0]" });
+  const [connector] = elements.map((entry) =>
+    placePptxElement(
+      { ...entry, label: { paragraphs: [{ runs: [{ text: "async", fontSize: 10 }] }] } },
+      { originX: 0, originY: 0, scale: 0.5 },
+    ));
+  assert.equal(connector.strokeWidth, 1);
+  assert.equal(connector.label.paragraphs[0].runs[0].fontSize, 5);
+});
+
+test("placement never rounds a positive metric away to zero", () => {
+  // The PowerPoint writer rejects a zero stroke width or font size, so a heavily
+  // shrunk diagram has to collapse to a hairline rather than an invalid model.
+  const placed = placePptxElement(
+    {
+      type: "shape",
+      shape: "rect",
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 50,
+      strokeWidth: 1.2,
+      text: { paragraphs: [{ runs: [{ text: "tiny", fontSize: 11 }] }] },
+    },
+    { originX: 0, originY: 0, scale: 0.005 },
+  );
+  assert.ok(placed.strokeWidth > 0);
+  assert.ok(placed.text.paragraphs[0].runs[0].fontSize > 0);
+  // A square corner is a real value and must not be floored into a rounded one.
+  assert.equal(placePptxElement(
+    { type: "shape", shape: "rect", x: 0, y: 0, width: 10, height: 10, cornerRadius: 0 },
+    { originX: 0, originY: 0, scale: 0.005 },
+  ).cornerRadius, 0);
+  assert.equal(
+    inspectPptxPackage(
+      buildPptxPackage({ title: "Hairline", slides: [{ elements: [placed] }] }),
+    ).valid,
+    true,
+  );
+});
+
+test("a full-width label is measured as full-width glyphs", () => {
+  // Charging a Japanese label the Latin average produced a box about 40% too
+  // narrow, so a centred label overflowed the component it sat on.
+  const { scene } = convert(
+    svg([
+      text("text", { class: "t-primary", x: 100, y: 50, "font-size": 10, "text-anchor": "middle" }, "決済サービス"),
+      text("text", { class: "t-primary", x: 100, y: 80, "font-size": 10, "text-anchor": "middle" }, "Paymnt"),
+    ]),
+  );
+  const [japanese, latin] = nodesOfKind(scene, "text");
+  assert.equal(japanese.bounds.width, 60);
+  assert.ok(latin.bounds.width < japanese.bounds.width, `${latin.bounds.width}`);
+  // Both stay centred on their anchor whatever width they are measured at.
+  for (const label of [japanese, latin]) {
+    assert.ok(Math.abs(label.bounds.x + label.bounds.width / 2 - 100) < 0.001);
+  }
+});
+
 test("a plain rule without edge identity still imports", () => {
   const { scene, diagnostics } = convert(
     svg([

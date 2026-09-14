@@ -604,6 +604,14 @@ function archifyErrorElement(error, documentRef = document) {
   return wrapper;
 }
 
+/** The first family of a computed `font-family`, as PowerPoint wants it named. */
+function primaryFontFace(element) {
+  return getComputedStyle(element).fontFamily
+    .split(",")[0]
+    .trim()
+    .replace(/^["']|["']$/g, "");
+}
+
 // The palette is derived from the deck's own custom properties, so a custom theme
 // drives imported diagrams exactly as it drives the built-in ones.
 function archifyThemeTokens(deckEl) {
@@ -637,6 +645,10 @@ async function renderArchifyBlock(host, deckEl) {
   const src = host.dataset.archifySrc;
   const scene = archifySvgToScene(parseArchifySvg(await readArchifySvg(src)), {
     palette: derivePalette(archifyThemeTokens(deckEl)),
+    // Imported labels inherit the deck font on the slide, so the exported deck
+    // has to name it: without it PowerPoint falls back to the theme font and
+    // re-flows every label against metrics the imported box was not sized for.
+    fontFace: primaryFontFace(deckEl),
     path: src,
   }).scene;
   const svg = sceneToSvg(scene, {
@@ -2213,10 +2225,7 @@ async function collectArchitectureObjects(wrapper, deck, blockIndex) {
     );
   }
 
-  const fontFace = getComputedStyle(svg).fontFamily
-    .split(",")[0]
-    .trim()
-    .replace(/^["']|["']$/g, "");
+  const fontFace = primaryFontFace(svg);
   const { scene } = architectureSnapshotToScene(snapshot, {
     path: `architecture[${blockIndex}]`,
     resolveColor: (value) => resolveModelColor(value, deck),

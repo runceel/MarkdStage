@@ -362,9 +362,47 @@ function parseStraightPath(value) {
  * label box has to be reconstructed. The estimate is deliberately generous: scene
  * text is not clipped, and a box slightly wider than the glyphs keeps centred
  * labels centred while giving PowerPoint room to re-shape the run in its own font.
+ *
+ * Advance width is measured per character rather than from the string length,
+ * because a full-width glyph is roughly a whole em while a Latin one averages
+ * well under two thirds of one. Charging a Japanese label the Latin average
+ * produced a box about 40% too narrow, which is what made imported labels spill
+ * out of the box they were centred in once PowerPoint re-flowed them.
  */
 const AVERAGE_GLYPH_RATIO = 0.62;
+const FULL_WIDTH_GLYPH_RATIO = 1;
 const LINE_HEIGHT_RATIO = 1.35;
+
+/**
+ * Code point ranges rendered at full width: CJK ideographs and their extensions,
+ * kana, Hangul, the CJK symbol and radical blocks, and the full-width forms.
+ */
+const FULL_WIDTH_RANGES = [
+  [0x1100, 0x115f],
+  [0x2e80, 0x303e],
+  [0x3041, 0x33ff],
+  [0x3400, 0x4dbf],
+  [0x4e00, 0x9fff],
+  [0xa000, 0xa4cf],
+  [0xac00, 0xd7a3],
+  [0xf900, 0xfaff],
+  [0xfe30, 0xfe4f],
+  [0xff00, 0xff60],
+  [0xffe0, 0xffe6],
+  [0x20000, 0x3fffd],
+];
+
+function isFullWidth(codePoint) {
+  return FULL_WIDTH_RANGES.some(([start, end]) => codePoint >= start && codePoint <= end);
+}
+
+function estimatedTextWidth(content, fontSize) {
+  let ems = 0;
+  for (const character of content) {
+    ems += isFullWidth(character.codePointAt(0)) ? FULL_WIDTH_GLYPH_RATIO : AVERAGE_GLYPH_RATIO;
+  }
+  return Math.max(ems * fontSize, fontSize);
+}
 
 function textAlignment(element) {
   return { middle: "center", end: "right" }[element.getAttribute?.("text-anchor")] || "left";
@@ -578,7 +616,7 @@ export function archifySvgToScene(svg, { palette, fontFace, path = "archify" } =
     }
     const fontSize = number(text, "font-size", 11);
     const alignment = textAlignment(text);
-    const boxWidth = Math.max(content.length * fontSize * AVERAGE_GLYPH_RATIO, fontSize);
+    const boxWidth = estimatedTextWidth(content, fontSize);
     const anchorX = number(text, "x");
     push({
       kind: "text",
