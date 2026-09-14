@@ -21,6 +21,9 @@ test("v4 release publishes portable and signed desktop packages independently of
   const publishScript = await readFile(new URL("scripts/Publish.ps1", desktop), "utf8");
   assert.doesNotMatch(workflow, /MARKDSTAGE_STORE_ACCEPTED_SHA|MARKDSTAGE_STORE_URL/);
   assert.doesNotMatch(workflow, /vars\.MARKDSTAGE_PACKAGE_(?:NAME|PUBLISHER)/);
+  assert.match(workflow, /Verify successful CI for release commit/);
+  assert.match(workflow, /actions\/workflows\/ci\.yml\/runs\?head_sha=\$\{GITHUB_SHA\}&status=success&event=push&branch=main/);
+  assert.doesNotMatch(workflow, /- name: Complete test suite/);
   assert.match(workflow, /Read package identity/);
   assert.match(workflow, /Package\.appxmanifest/);
   assert.match(workflow, /secrets\.MARKDSTAGE_SIGNING_CERTIFICATE_BASE64/);

@@ -174,17 +174,19 @@ git push origin v2.3.0
 
 The tag starts `.github/workflows/npm-publish.yml`. The workflow:
 
-1. Verifies the stable SemVer tag, package version, `main` ancestry, and README links.
-2. Runs the complete JavaScript, browser, CLI, accessibility, performance, and PDF test suite.
-3. Builds and checksums the Extension ZIP.
-4. Tests and builds x64 and ARM64 portable Windows packages plus signed x64 and ARM64 MSIX packages for GitHub Releases.
-5. Publishes `@markdstage/markdstage` with npm provenance.
-6. Packs and checksums the CLI tarball for offline installation.
-7. Generates release notes, creates the GitHub Release, uploads every asset, and verifies the
+1. Verifies the stable SemVer tag, package version, `main` ancestry, README links, and a successful
+   `CI` workflow run for the exact tagged commit.
+2. Builds and checksums the Extension ZIP.
+3. Tests and builds x64 and ARM64 portable Windows packages plus signed x64 and ARM64 MSIX packages for GitHub Releases.
+4. Publishes `@markdstage/markdstage` with npm provenance.
+5. Packs and checksums the CLI tarball for offline installation.
+6. Generates release notes, creates the GitHub Release, uploads every asset, and verifies the
    published URLs.
 
 The workflow is safe to rerun: existing npm versions are verified instead of republished, and
 existing GitHub Release assets are replaced with the newly verified artifacts.
+The complete JavaScript, browser, CLI, Desktop, accessibility, performance, PDF, and PowerPoint
+test suites run once in `ci.yml`; the release workflow does not repeat them.
 
 ## GitHub Release
 

@@ -19,6 +19,7 @@ jobs:
       image: mcr.microsoft.com/playwright:v1.62.1-noble
       options: --init --ipc=host
     permissions:
+      actions: read
       contents: read
 
     steps:
@@ -74,8 +75,20 @@ jobs:
           grep -qx '## Overview' "$notes"
           grep -qx '## Compatibility and migration' "$notes"
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Verify successful CI for release commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          successful_runs=$(gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${GITHUB_SHA}&status=success&event=push&branch=main&per_page=1" \
+            --jq '.total_count')
+          if [ "$successful_runs" -lt 1 ]; then
+            echo "The tagged commit must have a successful main-branch CI run before release."
+            echo "Commit: $GITHUB_SHA"
+            exit 1
+          fi
 
       - name: Verify the Extension has no runtime npm dependencies
         shell: bash
@@ -88,12 +101,6 @@ jobs:
             echo "$found"
             exit 1
           fi
-
-      - name: Complete test suite
-        run: npm test
-
-      - name: Generated Agent Skills are up to date
-        run: npm run skills:check
 
   extension:
     name: Package Extension
