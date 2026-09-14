@@ -106,23 +106,28 @@ Configure these GitHub Actions secrets for GitHub Release package signing:
 
 Never commit the PFX or its password. Only the exported public `.cer` is published.
 
-Create the unsigned multi-architecture package for Partner Center locally after
-the release commit is finalized:
+Create the unsigned multi-architecture package for Partner Center locally as the
+final release step, after the GitHub Release and npm publication are verified:
 
 ```powershell
 apps\MarkdStage.Desktop\scripts\CreateStorePackage.ps1 -Version <major.minor.patch.0>
 ```
 
 This builds x64 and ARM64 packages with the checked-in Store identity and writes
-`apps\MarkdStage.Desktop\artifacts\MarkdStage-Store.msixupload`. Upload that file
-to Microsoft Store Partner Center. Do not upload the GitHub Release signing
+`apps\MarkdStage.Desktop\artifacts\MarkdStage-Store.msixupload` and its SHA-256
+checksum. A requested release is not complete until these local files have been
+generated and verified. Report their full paths when handing off the completed
+release.
+
+Upload the `.msixupload` file to Microsoft Store Partner Center only when
+submission is explicitly requested. Do not upload the GitHub Release signing
 certificate or the signed sideloading packages to Partner Center.
 
 Store availability, the Store URL, and Store acceptance status are not prerequisites
-for a GitHub Release. After the GitHub Release is verified, create and upload the
-local `.msixupload` package through Partner Center. Do not describe Store cutover or
-archive retirement in GitHub Release notes until the Store listing is actually
-published.
+for a GitHub Release. After the GitHub Release is verified, create the local
+`.msixupload` package. Partner Center upload and submission remain separate,
+explicit operations. Do not describe Store cutover or archive retirement in GitHub
+Release notes until the Store listing is actually published.
 
 ## Validation
 
@@ -139,7 +144,6 @@ apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture x64 -Unsigned
 apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture arm64 -Unsigned
 apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture x64 -Format Archive
 apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture arm64 -Format Archive
-apps\MarkdStage.Desktop\scripts\CreateStorePackage.ps1 -Version <major.minor.patch.0>
 ```
 
 Then reload the Extension and verify that `MarkdStage` appears in the canvas list,
@@ -208,3 +212,16 @@ After the workflow succeeds:
    packages, the public signing certificate, and their checksums.
 2. Confirm npm shows the matching `@markdstage/markdstage` version and provenance.
 3. Install the version-pinned Extension folder and verify the user-scoped Extension when applicable.
+4. As the final release step, create the local Partner Center upload package using
+   the released version:
+
+   ```powershell
+   apps\MarkdStage.Desktop\scripts\CreateStorePackage.ps1 -Version <major.minor.patch.0>
+   ```
+
+5. Confirm both files exist and report their full paths:
+   - `apps\MarkdStage.Desktop\artifacts\MarkdStage-Store.msixupload`
+   - `apps\MarkdStage.Desktop\artifacts\MarkdStage-Store.msixupload.sha256`
+
+Do not consider a requested release complete until step 5 succeeds. Creating the
+package does not submit it to Partner Center.
