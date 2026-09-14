@@ -238,6 +238,27 @@ function applyAutoSize(deck, bodyEl) {
   }
 }
 
+// Auto sizing has to see the finished slide. An Archify fence is only an empty
+// `.archify-diagram` placeholder until renderDeferredDiagrams fills it in, and a
+// bare <div> matches none of the opt-out selectors above, so measuring too early
+// makes the body look short enough to promote a diagram slide to size-xlarge.
+// The preview reaches the right answer because it re-runs applyAutoSize once the
+// deferred pass settles (see refreshLayout); export has to size just as late.
+// applyAutoSize resets the deck to "normal" before deciding, so running it once
+// against the settled DOM is enough.
+function autoSizeSlides(slides) {
+  for (const slide of slides) {
+    if (
+      slide.sizeMode === "auto" &&
+      !slide.titleSlide &&
+      !slide.sectionSlide &&
+      !slide.backcoverSlide
+    ) {
+      applyAutoSize(slide.deck, slide.bodyEl);
+    }
+  }
+}
+
 // Slides that fit must not show a scrollbar, but genuinely tall or wide content
 // still has to stay reachable. The body is `overflow:hidden` by default and only
 // becomes scrollable once the overflow is larger than SCROLL_EPSILON. Measuring
@@ -3015,21 +3036,13 @@ async function renderPptxDeck(
 
   if (document.fonts?.ready) await document.fonts.ready;
   await afterLayout();
-  for (const slide of rendered) {
-    if (
-      slide.sizeMode === "auto" &&
-      !slide.titleSlide &&
-      !slide.sectionSlide &&
-      !slide.backcoverSlide
-    ) {
-      applyAutoSize(slide.deck, slide.bodyEl);
-    }
-  }
   const token = ++renderToken;
   for (const slide of rendered) {
     await renderDeferredDiagrams(slide.bodyEl, slide.deck, token, false);
   }
   await waitForImages(stage);
+  await afterLayout();
+  autoSizeSlides(rendered);
   await afterLayout();
 
   const pptxSlides = [];
@@ -3159,19 +3172,11 @@ async function renderPrintDeck(
   if (document.fonts?.ready) await document.fonts.ready;
   await afterLayout();
   for (const slide of rendered) {
-    if (
-      slide.sizeMode === "auto" &&
-      !slide.titleSlide &&
-      !slide.sectionSlide &&
-      !slide.backcoverSlide
-    ) {
-      applyAutoSize(slide.deck, slide.bodyEl);
-    }
-  }
-  for (const slide of rendered) {
     await renderDeferredDiagrams(slide.bodyEl, slide.deck, renderToken, false);
   }
   await waitForImages(stage);
+  await afterLayout();
+  autoSizeSlides(rendered);
   await afterLayout();
 
   const layout = collectDeckLayout(rendered, requestedIndex);
@@ -3240,18 +3245,12 @@ async function renderCaptureSlide(
 
   if (document.fonts?.ready) await document.fonts.ready;
   await afterLayout();
-  if (
-    slide.sizeMode === "auto" &&
-    !slide.titleSlide &&
-    !slide.sectionSlide &&
-    !slide.backcoverSlide
-  ) {
-    applyAutoSize(slide.deck, slide.bodyEl);
-  }
 
   const token = ++renderToken;
   await renderDeferredDiagrams(slide.bodyEl, slide.deck, token, false);
   await waitForImages(stage);
+  await afterLayout();
+  autoSizeSlides([slide]);
   await afterLayout();
 
   const diagnostic = collectSlideLayout(slide, index);
