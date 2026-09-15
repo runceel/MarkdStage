@@ -71,12 +71,12 @@ PowerPoint 側の変更は Markdown には逆反映されません。対応範�
 
 このリポジトリをプロジェクトとして開くと、`.github/extensions/markdstage/` がプロジェクトスコープで
 読み込まれます。別のリポジトリへユーザースコープでインストールする場合は、現在の
-**[v4.2.1 リリース](https://github.com/runceel/markdstage/releases/tag/v4.2.1)** を指定して
+**[v4.2.2 リリース](https://github.com/runceel/markdstage/releases/tag/v4.2.2)** を指定して
 GitHub Copilot に依頼します。
 
 > 次の GitHub リポジトリフォルダーから MarkdStage をユーザースコープへインストールしてください。
 >
-> `https://github.com/runceel/markdstage/tree/v4.2.1/.github/extensions/markdstage`
+> `https://github.com/runceel/markdstage/tree/v4.2.2/.github/extensions/markdstage`
 
 Extension は利用者の環境でローカルのコードを実行します。インストールする前に中身を確認し、
 同じ状態を再現できるよう、信頼できるリリースタグかコミット SHA を指定してください。
