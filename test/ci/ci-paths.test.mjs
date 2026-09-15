@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { isSampleDeckPath } from "../../scripts/ci-sample-path.mjs";
-import { classifyCiPaths } from "../../scripts/ci-paths.mjs";
+import { CI_AREAS, classifyCiPaths } from "../../scripts/ci-paths.mjs";
 
-const none = { docs: false, test: false, cli: false, desktop: false, samples: false };
-const all = { docs: true, test: true, cli: true, desktop: true, samples: true };
+const none = { docs: false, test: false, cli: false, desktop: false, samples: false, awesome: false };
+const all = { docs: true, test: true, cli: true, desktop: true, samples: true, awesome: true };
 
 function expected(overrides) {
   return { ...none, ...overrides };
@@ -33,22 +34,22 @@ test("component-only changes stay within their component", () => {
   );
   assert.deepEqual(
     classifyCiPaths([".github/extensions/markdstage/extension.mjs"]),
-    expected({ test: true }),
+    expected({ test: true, awesome: true }),
   );
 });
 
 test("canonical shared files select their real consumers", () => {
   assert.deepEqual(
     classifyCiPaths([".github/extensions/markdstage/renderer/slides.css"]),
-    expected({ test: true, cli: true, desktop: true }),
+    expected({ test: true, cli: true, desktop: true, awesome: true }),
   );
   assert.deepEqual(
     classifyCiPaths([".github/extensions/markdstage/runtime/output.mjs"]),
-    expected({ test: true, cli: true, desktop: true }),
+    expected({ test: true, cli: true, desktop: true, awesome: true }),
   );
   assert.deepEqual(
     classifyCiPaths([".github/extensions/markdstage/windows/pen-button-listener.ps1"]),
-    expected({ test: true, desktop: true }),
+    expected({ test: true, desktop: true, awesome: true }),
   );
 });
 
@@ -59,7 +60,7 @@ test("desktop hosting selects shared parsing, state, validation and runtime chan
   ]) {
     assert.deepEqual(
       classifyCiPaths([`.github/extensions/markdstage/${file}`]),
-      expected({ test: true, cli: true, desktop: true }),
+      expected({ test: true, cli: true, desktop: true, awesome: true }),
       file,
     );
   }
@@ -68,7 +69,7 @@ test("desktop hosting selects shared parsing, state, validation and runtime chan
 test("canonical documentation is not treated as a sample deck", () => {
   assert.deepEqual(
     classifyCiPaths([".github/extensions/markdstage/README.md"]),
-    expected({ docs: true, test: true, cli: true }),
+    expected({ docs: true, test: true, cli: true, awesome: true }),
   );
 });
 
@@ -102,16 +103,39 @@ test("site content and sample decks select only their relevant checks", () => {
   );
 });
 
-test("store assets select no checks", () => {
+test("store assets select no checks beyond the published plugin preview", () => {
   assert.deepEqual(
     classifyCiPaths([
       ".github/store/README.md",
       ".github/store/listing-en-us.md",
       ".github/store/logos/BoxArt-2160x2160.png",
-      ".github/store/screenshots/01-architecture.png",
       ".github/store/scripts/Render-Svg.ps1",
     ]),
     expected({}),
+  );
+  // This screenshot is the source of the plugin preview image.
+  assert.deepEqual(
+    classifyCiPaths([".github/store/screenshots/01-architecture.png"]),
+    expected({ awesome: true }),
+  );
+});
+
+test("the published plugin tree selects only its own verification", () => {
+  assert.deepEqual(
+    classifyCiPaths([
+      ".github/plugin/markdstage/plugin.json",
+      ".github/plugin/markdstage/com.github.copilot/extensions/markdstage/extension.mjs",
+    ]),
+    expected({ awesome: true }),
+  );
+  assert.deepEqual(
+    classifyCiPaths([".github/plugin/markdstage/README.md"]),
+    expected({ docs: true, awesome: true }),
+  );
+  // The manifest version must stay aligned with the CLI product version.
+  assert.deepEqual(
+    classifyCiPaths(["packages/markdstage-cli/package.json"]),
+    expected({ cli: true, awesome: true }),
   );
 });
 
@@ -140,7 +164,7 @@ test("deleted, renamed, and shared paths retain safe classifications", () => {
   );
   assert.deepEqual(
     classifyCiPaths(["assets/shared/theme.css"]),
-    { docs: true, test: true, cli: true, desktop: true, samples: true },
+    all,
   );
 });
 
@@ -159,4 +183,32 @@ test("infrastructure, unknown paths, empty diffs, and manual runs fail safe", ()
   assert.deepEqual(classifyCiPaths(["future-product/source.ts"]), all);
   assert.deepEqual(classifyCiPaths([]), all);
   assert.deepEqual(classifyCiPaths(["docs/user-guide/README.md"], { forceAll: true }), all);
+});
+
+test("every classified area is published, selectable, and verified by the workflow", async () => {
+  const workflow = await readFile(new URL("../../.github/workflows/ci.yml", import.meta.url), "utf8");
+  const gate = workflow.split("  gate:")[1];
+  for (const area of CI_AREAS) {
+    assert.match(workflow, new RegExp(`^      ${area}: \\$\\{\\{ steps\\.classify\\.outputs\\.${area} \\}\\}$`, "m"), area);
+    assert.match(workflow, new RegExp(`^    if: needs\\.changes\\.outputs\\.${area} == 'true'$`, "m"), area);
+    assert.match(gate, new RegExp(`^      - ${area}$`, "m"), area);
+    assert.match(gate, new RegExp(`needs\\.changes\\.outputs\\.${area}`), area);
+  }
+  assert.match(gate, /check_job "Awesome Copilot plugin" "\$AWESOME_SELECTED" "\$AWESOME_RESULT"/);
+});
+
+test("the Awesome Copilot plugin verification never writes during CI or release", async () => {
+  const scripts = JSON.parse(
+    await readFile(new URL("../../package.json", import.meta.url), "utf8"),
+  ).scripts;
+  assert.equal(scripts["awesome:sync"], "node scripts/sync-awesome-copilot-plugin.mjs");
+  assert.match(scripts["awesome:check"], /sync-awesome-copilot-plugin\.mjs --check/);
+  assert.doesNotMatch(scripts["awesome:check"], /awesome:sync/);
+
+  const release = await readFile(
+    new URL("../../.github/workflows/npm-publish.yml", import.meta.url),
+    "utf8",
+  );
+  assert.match(release, /Verify the published Awesome Copilot plugin tree/);
+  assert.match(release, /run: npm run awesome:check/);
 });

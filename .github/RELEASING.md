@@ -37,16 +37,25 @@ on which it depends.
 
 The awesome-copilot submission layout is generated under `.github/plugin/markdstage/` from the
 canonical Extension source. Keep normal development in `.github/extensions/markdstage/`; do not
-maintain a second hand-edited implementation. Before a release candidate is tagged, run:
+maintain a second hand-edited implementation. After changing the Extension, regenerate the
+committed tree:
+
+```powershell
+npm run awesome:sync
+```
+
+Verification is separate and never writes:
 
 ```powershell
 npm run awesome:check
 ```
 
-This verifies the Agent Plugins manifest, the `canvas` keyword, `assets/preview.png`, the
+This compares the committed tree byte-for-byte against freshly generated output and verifies the
+Agent Plugins manifest, the `canvas` keyword, `assets/preview.png`, the
 `com.github.copilot/extensions/markdstage/extension.mjs` entry point, the absence of the
-Extension test tree from the generated plugin, the vendor manifest, and product-version
-alignment with the CLI package.
+Extension test tree and of npm dependencies, the vendor manifest, and product-version alignment
+with the CLI package. CI runs it through the `Awesome Copilot plugin` job, and the release
+`validate` job runs it before a tag is accepted, so a stale plugin tree blocks the release.
 
 Do not update the awesome-copilot marketplace directly from this repository and do not create
 an awesome-copilot submission Issue as part of the release. If the project is later submitted

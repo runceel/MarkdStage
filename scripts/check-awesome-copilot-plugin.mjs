@@ -59,7 +59,14 @@ async function main() {
     fail("Generated plugin must not contain the extension test directory");
   }
   const files = await collectFiles(extensionRoot);
+  // The plugin is installed and executed directly from the repository, so it must run without an
+  // install step, exactly like the Extension ZIP.
+  const dependencyNames = new Set(["package.json", "package-lock.json", "node_modules"]);
   for (const file of files) {
+    const path = relative(root, file).replaceAll("\\", "/");
+    if (path.split("/").some((segment) => dependencyNames.has(segment))) {
+      fail(`Generated plugin must not contain npm dependencies: ${path}`);
+    }
     const content = await readFile(file).catch(() => null);
     if (content === null) continue;
     if (file.endsWith("vendor/vendor-assets.lock.json")) {

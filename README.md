@@ -111,12 +111,16 @@ canvasId: MarkdStage
 ### Install through Awesome Copilot
 
 This repository also contains the generated external-plugin layout used for an
-awesome-copilot submission at `.github/plugin/markdstage/`. It is synchronized from the
-canonical `.github/extensions/markdstage/` source and is checked with:
+awesome-copilot submission at `.github/plugin/markdstage/`. It is regenerated from the
+canonical `.github/extensions/markdstage/` source with `npm run awesome:sync` and verified
+without writing by:
 
 ```console
 npm run awesome:check
 ```
+
+CI and the release workflow run the verification, so the committed plugin tree cannot fall
+behind the Extension.
 
 The generated plugin runs locally in the Copilot host. It uses a loopback server bound to
 `127.0.0.1`, reads and writes Markdown and assets inside the selected workspace, and may launch

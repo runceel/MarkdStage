@@ -13,6 +13,7 @@ const DOCUMENTATION_PATHS = [
   ".github/extensions/markdstage/THIRD-PARTY-NOTICES.md",
   ".github/extensions/markdstage/docs",
   ".github/extensions/markdstage/schema/README.md",
+  ".github/plugin/markdstage/README.md",
   "docs/user-guide",
   "packages/markdstage-cli/README.md",
   "apps/MarkdStage.Desktop/README.md",
