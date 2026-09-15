@@ -60,6 +60,34 @@ public sealed class WorkspaceIoTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ListCanExcludeDirectoriesFromRecursiveResults()
+    {
+        Directory.CreateDirectory(Path.Combine(Root, ".agents", "skills"));
+        Directory.CreateDirectory(Path.Combine(Root, "docs"));
+        await File.WriteAllTextAsync(Path.Combine(Root, ".agents", "skills", "skill.md"), "# Skill");
+        await File.WriteAllTextAsync(Path.Combine(Root, "docs", "guide.md"), "# Guide");
+
+        var result = JsonSerializer.SerializeToElement(
+            (await Call(
+                "list",
+                "",
+                new
+                {
+                    extensions = new[] { ".md" },
+                    excludeDirectories = new[] { ".agents/skills" },
+                    maxEntries = 10,
+                    recursive = true,
+                })).Value);
+
+        Assert.DoesNotContain(
+            result.EnumerateArray(),
+            item => item.GetProperty("path").GetString()!.StartsWith(".agents/skills/", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(
+            result.EnumerateArray(),
+            item => item.GetProperty("path").GetString() == "docs/guide.md");
+    }
+
+    [Fact]
     public async Task ReadTextStripsExactlyOneBom()
     {
         await File.WriteAllTextAsync(Path.Combine(Root, "deck.md"), "\uFEFF\uFEFF# A");
@@ -92,7 +120,7 @@ public sealed class WorkspaceIoTests : IAsyncLifetime
             Assert.Equal("The destination file is in use.", result.Message);
         }
         Assert.Equal("existing", await File.ReadAllTextAsync(target));
-        Assert.Equal(["deck.pptx"], Directory.GetFiles(Root).Select(Path.GetFileName).ToArray());
+        Assert.Equal(["deck.pptx"], Directory.GetFiles(Root).Select(path => Path.GetFileName(path)!).ToArray());
     }
 
     [WindowsFact]
@@ -126,7 +154,7 @@ public sealed class WorkspaceIoTests : IAsyncLifetime
             new { base64 = "cmVwZWF0ZWQ=" },
             new { overwrite = true })).Ok);
         Assert.Equal("repeated", await File.ReadAllTextAsync(target));
-        Assert.Equal(["deck.pptx"], Directory.GetFiles(Root).Select(Path.GetFileName).ToArray());
+        Assert.Equal(["deck.pptx"], Directory.GetFiles(Root).Select(path => Path.GetFileName(path)!).ToArray());
     }
 
     [Fact]

@@ -103,7 +103,7 @@ scripts\CreateStorePackage.ps1 -Version <major.minor.patch.0>
 ```
 
 The script uses the Store identity in `Package.appxmanifest`, builds x64 and ARM64,
-and writes `artifacts\MarkdStage-Store.msixupload` plus its SHA-256 checksum. The
+and writes `artifacts\MarkdStage-Store-<version>.msixupload` plus its SHA-256 checksum. The
 standard release process runs this script as its final step after GitHub Release and
 npm verification. Upload the `.msixupload` file to Microsoft Store Partner Center
 only when submission is explicitly requested. GitHub Release MSIX files are

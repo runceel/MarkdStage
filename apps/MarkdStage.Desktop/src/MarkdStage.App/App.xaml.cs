@@ -12,10 +12,30 @@ public partial class App : Application
     private static readonly List<MainWindow> Windows = [];
     private static readonly SemaphoreSlim OpenGate = new(1, 1);
     public static DesktopStateStore StateStore { get; } = new(AppStorage.LocalRoot);
+    public static string VersionLabel { get; } = GetVersionLabel();
 
     public App()
     {
         InitializeComponent();
+    }
+
+    private static string GetVersionLabel()
+    {
+        try
+        {
+            var version = global::Windows.ApplicationModel.Package.Current.Id.Version;
+            return $"Version {version.Major}.{version.Minor}.{version.Build}";
+        }
+        catch (InvalidOperationException)
+        {
+            var informationalVersion = typeof(App).Assembly
+                .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), inherit: false)
+                .OfType<System.Reflection.AssemblyInformationalVersionAttribute>()
+                .FirstOrDefault()?.InformationalVersion;
+            return string.IsNullOrWhiteSpace(informationalVersion)
+                ? $"Version {typeof(App).Assembly.GetName().Version?.ToString(3) ?? "unknown"}"
+                : $"Version {informationalVersion}";
+        }
     }
 
     protected override async void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)

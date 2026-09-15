@@ -348,11 +348,17 @@ public sealed class WorkspaceIoService : IAsyncDisposable
         var max = options.ValueKind == JsonValueKind.Object && options.TryGetProperty("maxEntries", out var count)
             ? Math.Clamp(count.GetInt32(), 0, 10000) : 1000;
         var extensions = Extensions(options);
+        var excludedDirectories = ExcludedDirectories(options);
         var recursive = Bool(options, "recursive");
-        return Task.Run(() => List(path, max, extensions, recursive), cancellationToken);
+        return Task.Run(() => List(path, max, extensions, excludedDirectories, recursive), cancellationToken);
     }
 
-    private object List(string path, int max, HashSet<string> extensions, bool recursive)
+    private object List(
+        string path,
+        int max,
+        HashSet<string> extensions,
+        HashSet<string> excludedDirectories,
+        bool recursive)
     {
         var directory = WorkspaceResolver.ResolveRelative(Root, path, true);
         var pending = new Stack<string>();
@@ -370,9 +376,11 @@ public sealed class WorkspaceIoService : IAsyncDisposable
                 WorkspaceResolver.RejectLinks(entry);
                 using var entryLease = WorkspacePathLease.Acquire(entry, includeFile: true);
                 var isDirectory = Directory.Exists(entry);
+                var relativePath = Path.GetRelativePath(Root, entry).Replace('\\', '/');
+                if (isDirectory && IsExcludedDirectory(relativePath, excludedDirectories)) continue;
                 if (isDirectory && recursive) pending.Push(entry);
                 if (extensions.Count > 0 && (isDirectory || !extensions.Contains(Path.GetExtension(entry)))) continue;
-                result.Add(Describe(Path.GetRelativePath(Root, entry).Replace('\\', '/'), entry, true));
+                result.Add(Describe(relativePath, entry, true));
             }
         }
         return result;
@@ -420,6 +428,19 @@ public sealed class WorkspaceIoService : IAsyncDisposable
         options.ValueKind == JsonValueKind.Object && options.TryGetProperty("extensions", out var value)
             ? value.EnumerateArray().Select(item => item.GetString()!).ToHashSet(StringComparer.OrdinalIgnoreCase)
             : [];
+
+    private static HashSet<string> ExcludedDirectories(JsonElement options) =>
+        options.ValueKind == JsonValueKind.Object && options.TryGetProperty("excludeDirectories", out var value)
+            ? value.EnumerateArray()
+                .Select(item => item.GetString()!.Trim('/'))
+                .Where(path => path.Length > 0)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase)
+            : [];
+
+    private static bool IsExcludedDirectory(string path, HashSet<string> excludedDirectories) =>
+        excludedDirectories.Any(excluded =>
+            path.Equals(excluded, StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith($"{excluded}/", StringComparison.OrdinalIgnoreCase));
 
     private void CreateParents(string target)
     {
