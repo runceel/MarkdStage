@@ -370,6 +370,10 @@ test("writes a valid stored ZIP with the required editable PowerPoint parts", ()
     xml(files, "ppt/slideMasters/slideMaster1.xml"),
     /<p:sldLayoutId id="2147500001" r:id="rId1"\/>/,
   );
+  assert.match(
+    xml(files, "ppt/notesMasters/notesMaster1.xml"),
+    /<p:notesStyle>.*<\/p:notesStyle><\/p:notesMaster>/s,
+  );
 });
 
 test("writes theme-specific masters and five named layouts with shared artwork", () => {
