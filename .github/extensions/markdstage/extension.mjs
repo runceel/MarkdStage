@@ -680,7 +680,7 @@ async function applyDeckNow(
     if (!isPathInside(resolve(inst.workspaceRoot), candidate)) {
       throw new CanvasError("invalid_source_name", "sourceName must stay inside the workspace.");
     }
-    nextSourceName = relative(inst.workspaceRoot, candidate);
+    nextSourceName = relative(inst.workspaceRoot, candidate).replaceAll("\\", "/");
   }
   try {
     await loadSlideBackgrounds(inst.workspaceRoot, nextSourceName, slides);
