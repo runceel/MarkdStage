@@ -7,7 +7,9 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const source = join(root, ".github", "extensions", "markdstage");
 const pluginRoot = join(root, ".github", "plugin", "markdstage");
 const extensionRelative = join("com.github.copilot", "extensions", "markdstage");
-const previewSource = join(root, ".github", "store", "screenshots", "01-architecture.png");
+// The marketplace preview represents the Canvas Extension, so it uses a Canvas screenshot rather
+// than a MarkdStage Desktop one.
+const previewSource = join(root, "docs", "user-guide", "images", "canvas-architecture-edit.png");
 const previewRelative = join("assets", "preview.png");
 const generatedFromRelative = "GENERATED-FROM.txt";
 const generatedFrom =
