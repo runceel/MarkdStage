@@ -53,7 +53,7 @@ test("fixed output dimensions and decoration read theme tokens", () => {
   assert.match(css, /padding:var\(--table-cell-padding,\s*\.55em \.8em\)/);
   assert.match(
     css,
-    /\.deck :is\(h1,h2,h3,h4,h5,h6\)\{\s*font-family:var\(--heading-font,var\(--ms-font,"Segoe UI"\)\),"Segoe Pro"/,
+    /\.deck :is\(h1,h2,h3,h4,h5,h6\)\{\s*font-family:var\(--heading-font,var\(--ms-font,"Segoe UI","Segoe Pro"/,
   );
   assert.match(css, /code\{\s*font-family:var\(--code-font,\s*"Cascadia Code"/);
 });
@@ -61,7 +61,7 @@ test("fixed output dimensions and decoration read theme tokens", () => {
 test("uses the shared Latin and Japanese font fallback order", () => {
   assert.match(
     css,
-    /font-family:var\(--ms-font,"Segoe UI"\),"Segoe Pro","Yu Gothic UI","Yu Gothic",system-ui,\s*"Hiragino Kaku Gothic ProN",Meiryo,sans-serif;/,
+    /font-family:var\(--ms-font,"Segoe UI","Segoe Pro","Yu Gothic UI","Yu Gothic",system-ui,\s*"Hiragino Kaku Gothic ProN",Meiryo,sans-serif\);/,
   );
 });
 

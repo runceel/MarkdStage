@@ -135,8 +135,8 @@ body.surface-mode #nav,body.surface-mode .layout-warning{display:none!important;
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
          clip:rect(0,0,0,0);white-space:nowrap;border:0;}
 body{
-  font-family:var(--ms-font,"Segoe UI"),"Segoe Pro","Yu Gothic UI","Yu Gothic",system-ui,
-    "Hiragino Kaku Gothic ProN",Meiryo,sans-serif;
+  font-family:var(--ms-font,"Segoe UI","Segoe Pro","Yu Gothic UI","Yu Gothic",system-ui,
+    "Hiragino Kaku Gothic ProN",Meiryo,sans-serif);
   background:
     radial-gradient(1100px 720px at 88% -12%, var(--glow-1) 0%, transparent 60%),
     radial-gradient(900px 620px at -10% 112%, var(--glow-2) 0%, transparent 55%),
@@ -200,8 +200,8 @@ body.markdstage-empty{
     linear-gradient(var(--ms-yellow),var(--ms-yellow)) right bottom/47% 47% no-repeat;}
 /* Slide headings only: the product UI keeps the built-in font so a theme cannot
    restyle navigation, dialogs, or the slide list. */
-.deck :is(h1,h2,h3,h4,h5,h6){font-family:var(--heading-font,var(--ms-font,"Segoe UI")),"Segoe Pro",
-  "Yu Gothic UI","Yu Gothic",system-ui,"Hiragino Kaku Gothic ProN",Meiryo,sans-serif;}
+.deck :is(h1,h2,h3,h4,h5,h6){font-family:var(--heading-font,var(--ms-font,"Segoe UI","Segoe Pro",
+  "Yu Gothic UI","Yu Gothic",system-ui,"Hiragino Kaku Gothic ProN",Meiryo,sans-serif));}
 h1{font-size:var(--slide-h1-size);line-height:1.08;margin:.1em 0 .25em;
    font-weight:700;letter-spacing:-.01em;color:var(--fg);}
 h2{font-size:var(--slide-h2-size);line-height:1.14;margin:.1em 0 .45em;
