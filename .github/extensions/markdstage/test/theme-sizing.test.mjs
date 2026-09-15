@@ -51,8 +51,18 @@ test("fixed output dimensions and decoration read theme tokens", () => {
   assert.match(css, /font-size:var\(--table-font-size,\s*\.9em\)/);
   assert.match(css, /border:var\(--table-border-width,\s*1px\) solid var\(--border\)/);
   assert.match(css, /padding:var\(--table-cell-padding,\s*\.55em \.8em\)/);
-  assert.match(css, /\.deck :is\(h1,h2,h3,h4,h5,h6\)\{\s*font-family:var\(--heading-font,\s*inherit\);/);
+  assert.match(
+    css,
+    /\.deck :is\(h1,h2,h3,h4,h5,h6\)\{\s*font-family:var\(--heading-font,var\(--ms-font,"Segoe UI"\)\),"Segoe Pro"/,
+  );
   assert.match(css, /code\{\s*font-family:var\(--code-font,\s*"Cascadia Code"/);
+});
+
+test("uses the shared Latin and Japanese font fallback order", () => {
+  assert.match(
+    css,
+    /font-family:var\(--ms-font,"Segoe UI"\),"Segoe Pro","Yu Gothic UI","Yu Gothic",system-ui,\s*"Hiragino Kaku Gothic ProN",Meiryo,sans-serif;/,
+  );
 });
 
 test("custom theme loading warns about properties outside the theme schema", async () => {

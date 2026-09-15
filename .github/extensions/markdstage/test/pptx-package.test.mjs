@@ -710,11 +710,11 @@ test("uses Yu Gothic UI for Japanese theme fonts and native text", () => {
 
   assert.match(
     theme,
-    /<a:majorFont><a:latin typeface="Aptos Display"\/><a:ea typeface="Yu Gothic UI"\/><a:cs typeface=""\/><a:font script="Jpan" typeface="Yu Gothic UI"\/><\/a:majorFont>/,
+    /<a:majorFont><a:latin typeface="Segoe UI"\/><a:ea typeface="Yu Gothic UI"\/><a:cs typeface=""\/><a:font script="Jpan" typeface="Yu Gothic UI"\/><\/a:majorFont>/,
   );
   assert.match(
     theme,
-    /<a:minorFont><a:latin typeface="Aptos"\/><a:ea typeface="Yu Gothic UI"\/><a:cs typeface=""\/><a:font script="Jpan" typeface="Yu Gothic UI"\/><\/a:minorFont>/,
+    /<a:minorFont><a:latin typeface="Segoe UI"\/><a:ea typeface="Yu Gothic UI"\/><a:cs typeface=""\/><a:font script="Jpan" typeface="Yu Gothic UI"\/><\/a:minorFont>/,
   );
   assert.match(
     slide,
