@@ -3,7 +3,7 @@ import { pathToFileURL } from "node:url";
 
 import { isSampleDeckPath } from "./ci-sample-path.mjs";
 
-export const CI_AREAS = Object.freeze(["docs", "test", "cli", "desktop", "samples"]);
+export const CI_AREAS = Object.freeze(["docs", "test", "cli", "desktop", "samples", "awesome"]);
 
 function emptySelection() {
   return Object.fromEntries(CI_AREAS.map((area) => [area, false]));
@@ -32,7 +32,19 @@ function isPublishedDocumentation(path) {
     path === ".github/extensions/markdstage/README.md" ||
     path === ".github/extensions/markdstage/THIRD-PARTY-NOTICES.md" ||
     path === ".github/extensions/markdstage/schema/README.md" ||
-    path.startsWith(".github/extensions/markdstage/docs/")
+    path.startsWith(".github/extensions/markdstage/docs/") ||
+    path === ".github/plugin/markdstage/README.md"
+  );
+}
+
+// The published plugin tree is generated from the canonical Extension, so anything that feeds the
+// generated output or the manifest version must be re-verified against the committed tree.
+function isAwesomePluginInput(path) {
+  return (
+    path.startsWith(".github/plugin/markdstage/") ||
+    path.startsWith(".github/extensions/markdstage/") ||
+    path === "packages/markdstage-cli/package.json" ||
+    path === ".github/store/screenshots/01-architecture.png"
   );
 }
 
@@ -125,6 +137,11 @@ export function classifyCiPaths(paths, { forceAll = false } = {}) {
 
     if (isPublishedDocumentation(path)) {
       selection.docs = true;
+      recognized = true;
+    }
+
+    if (isAwesomePluginInput(path)) {
+      selection.awesome = true;
       recognized = true;
     }
 

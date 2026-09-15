@@ -23,6 +23,7 @@ jobs:
       cli: ${{ steps.classify.outputs.cli }}
       desktop: ${{ steps.classify.outputs.desktop }}
       samples: ${{ steps.classify.outputs.samples }}
+      awesome: ${{ steps.classify.outputs.awesome }}
 
     steps:
       - name: Checkout
@@ -97,6 +98,28 @@ jobs:
 
       - name: Validate local documentation links
         run: npm run test:docs
+
+  awesome:
+    name: Awesome Copilot plugin
+    needs: changes
+    if: needs.changes.outputs.awesome == 'true'
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24.x
+
+      - name: Verify the published plugin tree
+        # The tree under .github/plugin/markdstage is generated from the canonical Extension and
+        # committed, so it can go stale. awesome:check is verify-only and never writes; it also
+        # enforces the manifest, the Canvas entry point, and version alignment with the CLI.
+        # The scripts have no npm dependencies, so no install step is needed.
+        run: npm run awesome:check
 
   test:
     name: Test
@@ -389,6 +412,7 @@ jobs:
       - desktop
       - native-cli
       - samples
+      - awesome
     runs-on: ubuntu-24.04
 
     steps:
@@ -407,6 +431,8 @@ jobs:
           NATIVE_CLI_RESULT: ${{ needs.native-cli.result }}
           SAMPLES_SELECTED: ${{ needs.changes.outputs.samples }}
           SAMPLES_RESULT: ${{ needs.samples.result }}
+          AWESOME_SELECTED: ${{ needs.changes.outputs.awesome }}
+          AWESOME_RESULT: ${{ needs.awesome.result }}
         run: |
           set -euo pipefail
           if [ "$CHANGES_RESULT" != "success" ]; then
@@ -435,4 +461,5 @@ jobs:
           check_job "MarkdStage Desktop" "$DESKTOP_SELECTED" "$DESKTOP_RESULT"
           check_job "Native CLI" "$DESKTOP_SELECTED" "$NATIVE_CLI_RESULT"
           check_job "Sample decks" "$SAMPLES_SELECTED" "$SAMPLES_RESULT"
+          check_job "Awesome Copilot plugin" "$AWESOME_SELECTED" "$AWESOME_RESULT"
           echo "All selected CI jobs passed."

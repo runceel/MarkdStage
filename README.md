@@ -108,6 +108,28 @@ use canvas ID **`MarkdStage`**.
 canvasId: MarkdStage
 ```
 
+### Install through Awesome Copilot
+
+This repository also contains the generated external-plugin layout used for an
+awesome-copilot submission at `.github/plugin/markdstage/`. It is regenerated from the
+canonical `.github/extensions/markdstage/` source with `npm run awesome:sync` and verified
+without writing by:
+
+```console
+npm run awesome:check
+```
+
+CI and the release workflow run the verification, so the committed plugin tree cannot fall
+behind the Extension.
+
+The generated plugin runs locally in the Copilot host. It uses a loopback server bound to
+`127.0.0.1`, reads and writes Markdown and assets inside the selected workspace, and may launch
+an already-installed Edge, Chrome, or Chromium browser for the presenter and browser-backed
+exports. It does not download a browser or require a remote service or API key. The plugin
+manifest version must match the CLI product version; publish updates only from a new immutable
+release tag or commit SHA. Do not edit awesome-copilot's `plugins/external.json` from this
+repository; listing and approval are maintained by awesome-copilot.
+
 ## Use the CLI
 
 The [MarkdStage CLI](./docs/user-guide/cli.md) works without Canvas in Claude Code, Codex,

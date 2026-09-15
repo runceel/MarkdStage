@@ -107,6 +107,11 @@ jobs:
             exit 1
           fi
 
+      - name: Verify the published Awesome Copilot plugin tree
+        # awesome-copilot pins this tag and its commit SHA, so the committed plugin tree must be
+        # synchronized with the canonical Extension before the tag exists.
+        run: npm run awesome:check
+
   extension:
     name: Package Extension
     needs: validate

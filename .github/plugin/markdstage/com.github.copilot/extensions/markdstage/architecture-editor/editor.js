@@ -1,0 +1,2740 @@
+import {
+  ICONS,
+  LAYOUTS,
+  LAYOUT_DIRECTIONS,
+  THEME_TOKENS,
+  parseArchitecture,
+  renderArchitectureBlock,
+} from "../renderer/architecture.mjs";
+import { createArchitectureDocument } from "../renderer/architecture-document.mjs";
+
+const COLORS = [...Object.keys(THEME_TOKENS), "black", "white", "transparent", "none"];
+const PORTS = ["auto", "top", "right", "bottom", "left"];
+const ROUTING = ["straight", "orthogonal", "polyline"];
+const LABEL_LAYERS = [
+  { value: "front", label: "In front of boxes" },
+  { value: "behind", label: "Behind boxes" },
+];
+const SHAPES = [
+  "rect",
+  "rounded-rect",
+  "ellipse",
+  "diamond",
+  "triangle",
+  "hexagon",
+  "parallelogram",
+];
+const SHAPE_LABELS = new Map([
+  ["rect", "Rectangle"],
+  ["rounded-rect", "Rounded rectangle"],
+  ["ellipse", "Ellipse"],
+  ["diamond", "Diamond"],
+  ["triangle", "Triangle"],
+  ["hexagon", "Hexagon"],
+  ["parallelogram", "Parallelogram"],
+]);
+const LINE_STYLES = [
+  { value: "solid", label: "Solid" },
+  { value: "dotted", label: "Dotted" },
+  { value: "dashed", label: "Dashed" },
+  { value: "custom", label: "Custom" },
+];
+const LINE_STYLE_PATTERNS = {
+  solid: "",
+  dotted: "1 5",
+  dashed: "10 6",
+};
+const IMAGE_FITS = ["contain", "cover", "stretch"];
+const ASSET_MAX_BYTES = 10 * 1024 * 1024;
+const SNAP_SIZE = 10;
+const SVG_NS = "http://www.w3.org/2000/svg";
+const SHARED_LAYOUT_KEYS = ["gap", "rowGap", "columnGap", "padding"];
+
+const sourceLabel = document.getElementById("sourceLabel");
+const dirtyBadge = document.getElementById("dirtyBadge");
+const tree = document.getElementById("elementTree");
+const inspector = document.getElementById("inspector");
+const viewport = document.getElementById("viewport");
+const surface = document.getElementById("canvasSurface");
+const elementPanel = document.getElementById("elementPanel");
+const inspectorPanel = document.getElementById("inspectorPanel");
+const elementsPanelButton = document.getElementById("elementsPanelButton");
+const inspectorPanelButton = document.getElementById("inspectorPanelButton");
+const shapePaletteButton = document.getElementById("shapePaletteButton");
+const shapePalette = document.getElementById("shapePalette");
+const toolbarMoreButton = document.getElementById("toolbarMoreButton");
+const toolbarMoreMenu = document.getElementById("toolbarMoreMenu");
+const status = document.getElementById("status");
+const zoomStatus = document.getElementById("zoomStatus");
+const snapToggle = document.getElementById("snapToggle");
+const contextMenu = document.getElementById("contextMenu");
+const assetDialog = document.getElementById("assetDialog");
+const assetDialogTitle = document.getElementById("assetDialogTitle");
+const assetDialogClose = document.getElementById("assetDialogClose");
+const assetSearch = document.getElementById("assetSearch");
+const assetImportButton = document.getElementById("assetImportButton");
+const assetFileInput = document.getElementById("assetFileInput");
+const assetList = document.getElementById("assetList");
+const assetPreviewImageHost = document.getElementById("assetPreviewImageHost");
+const assetPreviewEmpty = document.getElementById("assetPreviewEmpty");
+const assetPreviewPath = document.getElementById("assetPreviewPath");
+const assetDialogStatus = document.getElementById("assetDialogStatus");
+const assetCancelButton = document.getElementById("assetCancelButton");
+const assetChooseButton = document.getElementById("assetChooseButton");
+const responsivePanels = window.matchMedia("(max-width: 1100px)");
+const compactPanels = window.matchMedia("(max-width: 620px)");
+
+let architecture = null;
+let selectedRef = null;
+let selectedRefs = new Set();
+let selectionAnchor = null;
+let sourcePath = "";
+let blockIndex = 0;
+let dirty = false;
+let zoom = 1;
+let fitToViewport = true;
+let draftRevision = 0;
+let targetGeneration = null;
+let draftQueue = Promise.resolve();
+let drag = null;
+let pan = null;
+let marquee = null;
+let spacePressed = false;
+let connectorTool = null;
+let serverVersion = -1;
+let contextMenuState = null;
+let assetPickerState = null;
+let availableAssets = [];
+let selectedAssetPath = "";
+let assetUploadPending = false;
+let assetLibraryRequest = 0;
+let dragFrame = 0;
+let responsivePanel = null;
+let desktopElementsOpen = true;
+let desktopInspectorOpen = false;
+let suppressCanvasClick = false;
+
+function announce(message, kind = "info") {
+  status.textContent = message;
+  status.dataset.kind = kind;
+}
+
+function syncResponsivePanels() {
+  const adaptive = responsivePanels.matches;
+  const elementsOpen = adaptive ? responsivePanel === "elements" : desktopElementsOpen;
+  const inspectorOpen = adaptive ? responsivePanel === "inspector" : desktopInspectorOpen;
+  document.body.dataset.elementsOpen = String(elementsOpen);
+  document.body.dataset.inspectorOpen = String(inspectorOpen);
+  elementsPanelButton.setAttribute("aria-expanded", String(elementsOpen));
+  inspectorPanelButton.setAttribute("aria-expanded", String(inspectorOpen));
+  elementPanel.inert = !elementsOpen;
+  inspectorPanel.inert = !inspectorOpen;
+  if (architecture && fitToViewport) requestAnimationFrame(fitZoom);
+}
+
+function toggleResponsivePanel(panel) {
+  let opened = false;
+  if (responsivePanels.matches) {
+    opened = responsivePanel !== panel;
+    responsivePanel = opened ? panel : null;
+  } else if (panel === "elements") {
+    desktopElementsOpen = !desktopElementsOpen;
+    opened = desktopElementsOpen;
+  } else {
+    desktopInspectorOpen = !desktopInspectorOpen;
+    opened = desktopInspectorOpen;
+  }
+  syncResponsivePanels();
+  if (opened) focusPanel(panel);
+}
+
+function focusPanel(panel) {
+  if (panel === "elements") {
+    (tree.querySelector('[aria-selected="true"]') || tree.querySelector(".tree-item"))?.focus();
+    return;
+  }
+  inspector.querySelector("input, select, textarea, button")?.focus();
+}
+
+function closeResponsivePanel(panel = responsivePanel, { restoreFocus = true } = {}) {
+  if (!panel) return;
+  if (responsivePanels.matches) {
+    if (responsivePanel !== panel) return;
+    responsivePanel = null;
+  } else if (panel === "elements") {
+    desktopElementsOpen = false;
+  } else {
+    desktopInspectorOpen = false;
+  }
+  syncResponsivePanels();
+  if (restoreFocus) {
+    (panel === "elements" ? elementsPanelButton : inspectorPanelButton).focus();
+  }
+}
+
+function positionShapePalette() {
+  if (shapePalette.hidden) return;
+  const trigger = shapePaletteButton.getBoundingClientRect();
+  const palette = shapePalette.getBoundingClientRect();
+  const left = Math.min(
+    Math.max(8, trigger.left),
+    Math.max(8, window.innerWidth - palette.width - 8),
+  );
+  const below = trigger.bottom + 6;
+  const top = below + palette.height <= window.innerHeight - 8
+    ? below
+    : Math.max(8, trigger.top - palette.height - 6);
+  shapePalette.style.left = `${left}px`;
+  shapePalette.style.top = `${top}px`;
+}
+
+function closeShapePalette({ restoreFocus = false } = {}) {
+  if (shapePalette.hidden) return;
+  shapePalette.hidden = true;
+  shapePaletteButton.setAttribute("aria-expanded", "false");
+  if (restoreFocus) shapePaletteButton.focus();
+}
+
+function openShapePalette() {
+  closeToolbarMore();
+  shapePalette.hidden = false;
+  shapePaletteButton.setAttribute("aria-expanded", "true");
+  positionShapePalette();
+  shapePalette.querySelector("button")?.focus();
+}
+
+function renderShapePalette() {
+  shapePalette.replaceChildren(
+    ...SHAPES.map((shape) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.role = "menuitem";
+      button.dataset.shape = shape;
+      button.innerHTML = `<span class="shape-swatch" data-shape="${shape}" aria-hidden="true"></span><span>${SHAPE_LABELS.get(shape)}</span>`;
+      return button;
+    }),
+  );
+}
+
+function positionToolbarMoreMenu() {
+  if (toolbarMoreMenu.hidden) return;
+  const trigger = toolbarMoreButton.getBoundingClientRect();
+  const menu = toolbarMoreMenu.getBoundingClientRect();
+  const left = Math.min(
+    Math.max(8, trigger.right - menu.width),
+    Math.max(8, window.innerWidth - menu.width - 8),
+  );
+  const below = trigger.bottom + 6;
+  const top = below + menu.height <= window.innerHeight - 8
+    ? below
+    : Math.max(8, trigger.top - menu.height - 6);
+  toolbarMoreMenu.style.left = `${left}px`;
+  toolbarMoreMenu.style.top = `${top}px`;
+}
+
+function toolbarMoreItems() {
+  return [
+    ...toolbarMoreMenu.querySelectorAll(
+      'button:not([disabled]), input:not([disabled])',
+    ),
+  ];
+}
+
+function closeToolbarMore({ restoreFocus = false } = {}) {
+  if (toolbarMoreMenu.hidden) return;
+  toolbarMoreMenu.hidden = true;
+  toolbarMoreButton.setAttribute("aria-expanded", "false");
+  if (restoreFocus) toolbarMoreButton.focus();
+}
+
+function openToolbarMore() {
+  closeShapePalette();
+  toolbarMoreMenu.hidden = false;
+  toolbarMoreButton.setAttribute("aria-expanded", "true");
+  positionToolbarMoreMenu();
+  toolbarMoreItems()[0]?.focus();
+}
+
+function setDirty(value) {
+  dirty = Boolean(value);
+  dirtyBadge.hidden = !dirty;
+  document.querySelector('[data-action="save"]').disabled = !dirty;
+}
+
+function snap(value) {
+  return snapToggle.checked ? Math.round(value / SNAP_SIZE) * SNAP_SIZE : value;
+}
+
+function viewBoxScale(svg) {
+  const ctm = svg?.getScreenCTM?.();
+  if (ctm && ctm.a && ctm.d) return { x: ctm.a, y: ctm.d };
+  return { x: 1, y: 1 };
+}
+
+function rawEntries(raw) {
+  const entries = [];
+  const walk = (items, depth, parentId, prefix) => {
+    if (!Array.isArray(items)) return;
+    items.forEach((element, index) => {
+      const sourcePath = `${prefix}[${index}]`;
+      entries.push({
+        element,
+        depth,
+        parentId,
+        sourcePath,
+        ref: element.id || sourcePath,
+      });
+      if (element.type === "group") {
+        walk(element.children, depth + 1, element.id, `${sourcePath}.children`);
+      }
+    });
+  };
+  walk(raw.elements, 0, null, "elements");
+  return entries;
+}
+
+function entryFor(ref) {
+  return rawEntries(architecture.raw).find(
+    (entry) => entry.ref === ref || entry.sourcePath === ref,
+  ) || null;
+}
+
+function modelFor(ref) {
+  return architecture.model.elements.find(
+    (element) => element.id === ref || element.sourcePath === ref,
+  ) || null;
+}
+
+function setSelection(refs, primary = refs.at(-1) ?? null) {
+  selectedRefs = new Set(refs.filter((ref) => modelFor(ref)));
+  selectedRef = selectedRefs.has(primary) ? primary : [...selectedRefs].at(-1) ?? null;
+}
+
+function selectOnly(ref) {
+  setSelection(ref ? [ref] : []);
+  selectionAnchor = ref;
+}
+
+function selectFromEvent(ref, event, { range = false } = {}) {
+  const additive = event.ctrlKey || event.metaKey;
+  if (range && event.shiftKey && selectionAnchor) {
+    const refs = rawEntries(architecture.raw).map((entry) => entry.ref);
+    const start = refs.indexOf(selectionAnchor);
+    const end = refs.indexOf(ref);
+    if (start !== -1 && end !== -1) {
+      const slice = refs.slice(Math.min(start, end), Math.max(start, end) + 1);
+      setSelection(additive ? [...selectedRefs, ...slice] : slice, ref);
+      return;
+    }
+  }
+  if (additive) {
+    setSelection([...selectedRefs, ref], ref);
+    selectionAnchor = ref;
+  } else {
+    selectOnly(ref);
+  }
+}
+
+function selectionRoots() {
+  const elements = [...selectedRefs].map(modelFor).filter(
+    (element) => element && element.type !== "connector",
+  );
+  return elements.filter((element) => !elements.some(
+    (parent) => parent.type === "group" &&
+      element.sourcePath.startsWith(`${parent.sourcePath}.children[`),
+  ));
+}
+
+function setSelectedProperty(path, value) {
+  return selectedRefs.size > 1
+    ? architecture.setElements([...selectedRefs], path, value)
+    : architecture.setElement(selectedRef, path, value);
+}
+
+function endpointLabel(endpoint) {
+  return typeof endpoint === "string" ? endpoint : `(${endpoint.x}, ${endpoint.y})`;
+}
+
+function endpointOptions(path) {
+  const points = new Map([...selectedRefs].map((ref) => readEndpoint(ref, path))
+    .filter((endpoint) => endpoint && typeof endpoint === "object")
+    .map((endpoint) => [JSON.stringify(endpoint), endpointLabel(endpoint)]));
+  return [...points].map(([value, label]) => ({ value, label })).concat(architecture.model.elements
+    .filter((element) => element.type !== "connector")
+    .map((element) => ({ value: element.id, label: element.id })));
+}
+
+function readEndpoint(ref, path) {
+  return entryFor(ref)?.element[path];
+}
+
+function queueDraft() {
+  const source = architecture.source;
+  const revision = ++draftRevision;
+  const generation = targetGeneration;
+  setDirty(true);
+  draftQueue = draftQueue
+    .catch(() => {})
+    .then(async () => {
+      const response = await fetch("./draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source, revision, generation }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result.ok !== true) {
+        throw new Error(result.message || "Could not retain draft");
+      }
+      serverVersion = Math.max(serverVersion, result.version ?? serverVersion);
+      return result;
+    })
+    .catch((error) => {
+      announce(`Could not retain edits: ${error.message}`, "error");
+      throw error;
+    });
+  return draftQueue;
+}
+
+function applyResult(result, { select = undefined, quiet = false } = {}) {
+  if (!result?.ok) {
+    if (result?.reason === "unchanged") return false;
+    const message =
+      result?.reason === "layout-managed"
+        ? `The layout of ${result.layoutOwner} controls the placement of ${result.id}.`
+        : result?.message || `Could not apply action (${result?.reason || "unknown"})`;
+    announce(message, "error");
+    return false;
+  }
+  if (select !== undefined) selectOnly(select);
+  else if (result.refs) setSelection(result.refs, selectedRef);
+  else if (result.ref) selectOnly(result.ref);
+  else setSelection([...selectedRefs]);
+  renderAll();
+  queueDraft();
+  if (!quiet) announce("Changed. The update will not affect the Markdown until you save.");
+  return true;
+}
+
+function iconFor(type) {
+  if (type === "node") return "▣";
+  if (type === "group") return "▤";
+  if (type === "image") return "▧";
+  return "→";
+}
+
+function labelFor(entry) {
+  const item = entry.element;
+  if (item.type === "connector") return `${endpointLabel(item.from)} → ${endpointLabel(item.to)}`;
+  const detail = item.text
+    ? String(item.text).split("\n")[0]
+    : item.title || (item.type === "image" ? item.src : "");
+  return item.id + (detail ? ` — ${detail}` : "");
+}
+
+function contextMenuReturnTarget(state) {
+  if (!state?.ref) return null;
+  const selector = CSS.escape(state.ref);
+  return state.origin === "tree"
+    ? tree.querySelector(`.tree-item[data-ref="${selector}"]`)
+    : surface.querySelector(`[data-editor-ref="${selector}"]`);
+}
+
+function closeContextMenu({ restoreFocus = false } = {}) {
+  const previous = contextMenuState;
+  contextMenuState = null;
+  contextMenu.hidden = true;
+  contextMenu.replaceChildren();
+  if (restoreFocus) contextMenuReturnTarget(previous)?.focus();
+}
+
+function releaseLayoutAvailable(ref) {
+  const entry = entryFor(ref);
+  return entry?.element.type === "group" && Boolean(entry.element.layout);
+}
+
+function layoutTypeFor(ref) {
+  const layout = entryFor(ref)?.element.layout;
+  return typeof layout === "string" ? layout : layout?.type || "";
+}
+
+function updateGroupLayout(ref, type) {
+  const entry = entryFor(ref);
+  if (entry?.element.type !== "group") {
+    return { ok: false, message: "Layouts can be changed only on groups." };
+  }
+  if (!type) return architecture.releaseLayout(ref);
+
+  const current =
+    typeof entry.element.layout === "string"
+      ? { type: entry.element.layout }
+      : entry.element.layout || {};
+  const next = { type };
+  for (const key of SHARED_LAYOUT_KEYS) {
+    if (current[key] !== undefined) next[key] = current[key];
+  }
+  if (type === "grid") {
+    if (current.columns !== undefined) next.columns = current.columns;
+    if (current.columnWidths !== undefined) next.columnWidths = current.columnWidths;
+  }
+  if (type === "layered" && current.direction !== undefined) {
+    next.direction = current.direction;
+  }
+  return architecture.setGroupLayout(ref, next);
+}
+
+function applyGroupLayout(ref, type) {
+  const changed = applyResult(updateGroupLayout(ref, type), { quiet: true });
+  if (changed) {
+    announce(
+      type
+        ? `Changed the layout of ${ref} to ${type}.`
+        : `Removed the layout from ${ref}.`,
+    );
+  }
+  return changed;
+}
+
+function menuItemsFor({ ref, point }) {
+  const entry = ref ? entryFor(ref) : null;
+  if (!entry) {
+    const suffix = point ? " here" : "";
+    return [
+      { label: `Add node${suffix}`, action: "add-node" },
+      { label: `Add group${suffix}`, action: "add-group" },
+      { label: `Add image${suffix}`, action: "add-image" },
+      { separator: true },
+      { label: "Undo", action: "undo", shortcut: "Ctrl+Z", disabled: !architecture.canUndo },
+      { label: "Redo", action: "redo", shortcut: "Ctrl+Y", disabled: !architecture.canRedo },
+      { separator: true },
+      { label: "Save to Markdown", action: "save", shortcut: "Ctrl+S", disabled: !dirty },
+    ];
+  }
+
+  if (selectedRefs.size > 1) {
+    return [
+      { label: "Duplicate", action: "duplicate", shortcut: "Ctrl+D" },
+      { label: "Bring forward", action: "order-front", disabled: true },
+      { label: "Send backward", action: "order-back", disabled: true },
+      { separator: true },
+      { label: "Delete", action: "delete", shortcut: "Delete", danger: true },
+    ];
+  }
+
+  const items = [];
+  if (entry.element.type === "group") {
+    const suffix = point ? " here" : "";
+    items.push(
+      { label: `Add child node${suffix}`, action: "add-node" },
+      { label: `Add child group${suffix}`, action: "add-group" },
+      { label: `Add child image${suffix}`, action: "add-image" },
+      { separator: true },
+      {
+        label: "Layout",
+        submenu: "layout",
+        choices: [
+          { label: "None", value: "" },
+          ...[...LAYOUTS].map((type) => ({ label: type, value: type })),
+        ],
+      },
+      { separator: true },
+    );
+  }
+  if (entry.element.type !== "connector") {
+    items.push({ label: "Start connector here", action: "start-connector" }, { separator: true });
+  }
+  items.push(
+    { label: "Duplicate", action: "duplicate", shortcut: "Ctrl+D" },
+    { label: "Bring forward", action: "order-front" },
+    { label: "Send backward", action: "order-back" },
+  );
+  items.push({ separator: true }, { label: "Delete", action: "delete", shortcut: "Delete", danger: true });
+  return items;
+}
+
+function activateContextMenuItem(button) {
+  if (button.disabled || !contextMenuState) return;
+  const action = button.dataset.action;
+  const actionContext = {
+    ref: contextMenuState.ref,
+    point: contextMenuState.point,
+    returnFocus: contextMenuReturnTarget(contextMenuState),
+  };
+  if (action === "set-layout") actionContext.layoutType = button.dataset.layoutType || "";
+  closeContextMenu();
+  invokeAction(action, actionContext);
+}
+
+function directMenuItems(menu) {
+  return [...menu.children]
+    .map((child) =>
+      child.matches(".context-menu-item")
+        ? child
+        : child.querySelector(":scope > .context-menu-item"),
+    )
+    .filter((item) => item && !item.disabled);
+}
+
+function closeContextSubmenu({ restoreFocus = false } = {}) {
+  const trigger = contextMenu.querySelector('.context-menu-item[aria-expanded="true"]');
+  if (!trigger) return;
+  trigger.setAttribute("aria-expanded", "false");
+  const submenu = trigger.parentElement.querySelector(":scope > .context-submenu");
+  if (submenu) submenu.hidden = true;
+  if (restoreFocus) trigger.focus();
+}
+
+function positionContextSubmenu(trigger, submenu) {
+  submenu.style.left = "0px";
+  submenu.style.top = "0px";
+  const margin = 8;
+  const gap = 4;
+  const triggerBounds = trigger.getBoundingClientRect();
+  const openRight = triggerBounds.right + gap + submenu.offsetWidth <= window.innerWidth - margin;
+  const left = openRight
+    ? triggerBounds.right + gap
+    : triggerBounds.left - submenu.offsetWidth - gap;
+  const top = Math.min(
+    triggerBounds.top,
+    window.innerHeight - submenu.offsetHeight - margin,
+  );
+  submenu.style.left = `${Math.max(margin, left)}px`;
+  submenu.style.top = `${Math.max(margin, top)}px`;
+}
+
+function openContextSubmenu(trigger, { focusFirst = false } = {}) {
+  if (trigger.disabled) return;
+  closeContextSubmenu();
+  const submenu = trigger.parentElement.querySelector(":scope > .context-submenu");
+  if (!submenu) return;
+  trigger.setAttribute("aria-expanded", "true");
+  submenu.hidden = false;
+  positionContextSubmenu(trigger, submenu);
+  if (focusFirst) directMenuItems(submenu)[0]?.focus();
+}
+
+function createContextMenuButton(item, role = "menuitem") {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "context-menu-item";
+  if (item.action) button.dataset.action = item.action;
+  button.dataset.danger = item.danger ? "true" : "false";
+  button.setAttribute("role", role);
+  button.disabled = Boolean(item.disabled);
+  button.setAttribute("aria-disabled", button.disabled ? "true" : "false");
+  const label = document.createElement("span");
+  label.textContent = item.label;
+  button.appendChild(label);
+  if (item.shortcut) {
+    const shortcut = document.createElement("span");
+    shortcut.className = "context-menu-shortcut";
+    shortcut.textContent = item.shortcut;
+    shortcut.setAttribute("aria-hidden", "true");
+    button.appendChild(shortcut);
+  }
+  return button;
+}
+
+function appendContextSubmenu(item, ref) {
+  const host = document.createElement("div");
+  host.className = "context-menu-submenu-host";
+  host.setAttribute("role", "none");
+  const trigger = createContextMenuButton(item);
+  trigger.dataset.submenu = item.submenu;
+  trigger.setAttribute("aria-haspopup", "menu");
+  trigger.setAttribute("aria-expanded", "false");
+  const indicator = document.createElement("span");
+  indicator.className = "context-menu-submenu-indicator";
+  indicator.textContent = "›";
+  indicator.setAttribute("aria-hidden", "true");
+  trigger.appendChild(indicator);
+
+  const submenu = document.createElement("div");
+  submenu.className = "context-menu context-submenu";
+  submenu.setAttribute("role", "menu");
+  submenu.setAttribute("aria-label", `Layout for ${ref}`);
+  submenu.hidden = true;
+  const selected = layoutTypeFor(ref);
+  for (const choice of item.choices) {
+    const button = createContextMenuButton(
+      { label: choice.label, action: "set-layout" },
+      "menuitemradio",
+    );
+    button.dataset.layoutType = choice.value;
+    const checked = choice.value === selected;
+    button.setAttribute("aria-checked", checked ? "true" : "false");
+    const mark = document.createElement("span");
+    mark.className = "context-menu-check";
+    mark.textContent = checked ? "✓" : "";
+    mark.setAttribute("aria-hidden", "true");
+    button.prepend(mark);
+    button.addEventListener("click", () => activateContextMenuItem(button));
+    submenu.appendChild(button);
+  }
+  trigger.addEventListener("click", () => openContextSubmenu(trigger, { focusFirst: true }));
+  trigger.addEventListener("pointerenter", () => openContextSubmenu(trigger));
+  host.addEventListener("pointerleave", () => {
+    closeContextSubmenu({ restoreFocus: submenu.contains(document.activeElement) });
+  });
+  host.append(trigger, submenu);
+  contextMenu.appendChild(host);
+}
+
+function openContextMenu({ clientX, clientY, ref = null, point = null, origin = "canvas" }) {
+  closeContextMenu();
+  contextMenuState = { ref, point, origin };
+  contextMenu.setAttribute(
+    "aria-label",
+    ref ? `Editing actions for ${labelFor(entryFor(ref))}` : "Drawing area editing actions",
+  );
+  for (const item of menuItemsFor({ ref, point })) {
+    if (item.separator) {
+      const separator = document.createElement("hr");
+      separator.className = "context-menu-separator";
+      separator.setAttribute("role", "separator");
+      contextMenu.appendChild(separator);
+      continue;
+    }
+    if (item.submenu) {
+      appendContextSubmenu(item, ref);
+      continue;
+    }
+    const button = createContextMenuButton(item);
+    button.addEventListener("click", () => activateContextMenuItem(button));
+    button.addEventListener("pointerenter", () => closeContextSubmenu());
+    contextMenu.appendChild(button);
+  }
+  contextMenu.hidden = false;
+  contextMenu.style.left = "0px";
+  contextMenu.style.top = "0px";
+  const margin = 8;
+  const left = Math.min(clientX, window.innerWidth - contextMenu.offsetWidth - margin);
+  const top = Math.min(clientY, window.innerHeight - contextMenu.offsetHeight - margin);
+  contextMenu.style.left = `${Math.max(margin, left)}px`;
+  contextMenu.style.top = `${Math.max(margin, top)}px`;
+  contextMenu.querySelector(".context-menu-item:not(:disabled)")?.focus();
+}
+
+function eventMenuPosition(target) {
+  const bounds = target.getBoundingClientRect();
+  return {
+    clientX: bounds.left + Math.min(bounds.width, 40),
+    clientY: bounds.top + Math.min(bounds.height, 24),
+  };
+}
+
+function architecturePoint(clientX, clientY) {
+  const svg = surface.querySelector("svg");
+  const matrix = svg?.getScreenCTM?.();
+  if (!svg || !matrix) return null;
+  const source = svg.createSVGPoint();
+  source.x = clientX;
+  source.y = clientY;
+  const point = source.matrixTransform(matrix.inverse());
+  return { x: point.x, y: point.y };
+}
+
+function openElementContextMenu(ref, options) {
+  const point =
+    options.origin === "diagram"
+      ? architecturePoint(options.clientX, options.clientY)
+      : null;
+  if (!selectedRefs.has(ref)) selectOnly(ref);
+  connectorTool = null;
+  renderAll();
+  openContextMenu({ ...options, ref, point });
+}
+
+function openBlankContextMenu(options) {
+  const point =
+    options.origin === "canvas"
+      ? architecturePoint(options.clientX, options.clientY)
+      : null;
+  selectOnly(null);
+  connectorTool = null;
+  renderAll();
+  openContextMenu({ ...options, point });
+}
+
+function setAssetDialogStatus(message, kind = "info") {
+  assetDialogStatus.textContent = message;
+  assetDialogStatus.dataset.kind = kind;
+}
+
+function selectAsset(path) {
+  selectedAssetPath = path || "";
+  assetChooseButton.disabled = !selectedAssetPath || assetUploadPending;
+  assetList.querySelectorAll(".asset-option").forEach((option) => {
+    option.setAttribute(
+      "aria-selected",
+      option.dataset.path === selectedAssetPath ? "true" : "false",
+    );
+  });
+  assetPreviewImageHost.replaceChildren();
+  assetPreviewEmpty.hidden = Boolean(selectedAssetPath);
+  assetPreviewPath.textContent = selectedAssetPath;
+  if (selectedAssetPath) {
+    const image = document.createElement("img");
+    image.src = `./${selectedAssetPath}`;
+    image.alt = "";
+    assetPreviewImageHost.appendChild(image);
+  }
+}
+
+function renderAssetLibrary() {
+  const query = assetSearch.value.trim().toLocaleLowerCase();
+  const matches = availableAssets.filter((asset) =>
+    asset.path.toLocaleLowerCase().includes(query),
+  );
+  assetList.replaceChildren();
+  if (!matches.length) {
+    const empty = document.createElement("p");
+    empty.className = "asset-list-empty";
+    empty.textContent = query
+      ? "No images match the search."
+      : "No images are available in assets/.";
+    assetList.appendChild(empty);
+  }
+  for (const asset of matches) {
+    const option = document.createElement("button");
+    option.type = "button";
+    option.className = "asset-option";
+    option.dataset.path = asset.path;
+    option.setAttribute("role", "option");
+    option.setAttribute("aria-selected", asset.path === selectedAssetPath ? "true" : "false");
+    option.title = asset.path;
+    const image = document.createElement("img");
+    image.src = `./${asset.path}`;
+    image.alt = "";
+    const label = document.createElement("span");
+    label.textContent = asset.path;
+    option.append(image, label);
+    option.addEventListener("click", () => selectAsset(asset.path));
+    option.addEventListener("dblclick", () => {
+      selectAsset(asset.path);
+      confirmAssetSelection();
+    });
+    assetList.appendChild(option);
+  }
+  setAssetDialogStatus(`${matches.length} images`);
+}
+
+async function loadAssetLibrary(preferredPath = "", request = assetLibraryRequest) {
+  setAssetDialogStatus("Loading images…");
+  assetChooseButton.disabled = true;
+  try {
+    const response = await fetch("./asset-library");
+    const result = await response.json().catch(() => ({}));
+    if (request !== assetLibraryRequest || !assetDialog.open) return false;
+    if (!response.ok || result.ok !== true || !Array.isArray(result.assets)) {
+      throw new Error(result.message || "Could not retrieve the image list.");
+    }
+    availableAssets = result.assets;
+    selectedAssetPath =
+      preferredPath && availableAssets.some((asset) => asset.path === preferredPath)
+        ? preferredPath
+        : "";
+    renderAssetLibrary();
+    selectAsset(selectedAssetPath);
+    return true;
+  } catch (error) {
+    if (request !== assetLibraryRequest || !assetDialog.open) return false;
+    availableAssets = [];
+    selectedAssetPath = "";
+    renderAssetLibrary();
+    setAssetDialogStatus(error.message, "error");
+    return false;
+  }
+}
+
+function restoreAssetPickerFocus(state) {
+  if (state?.returnFocus?.isConnected) {
+    state.returnFocus.focus();
+    return;
+  }
+  if (selectedRef) {
+    tree.querySelector(`.tree-item[data-ref="${CSS.escape(selectedRef)}"]`)?.focus();
+  }
+}
+
+function closeAssetPicker() {
+  if (assetDialog.open) assetDialog.close();
+}
+
+function openAssetPicker(state) {
+  assetPickerState = {
+    ...state,
+    returnFocus: state.returnFocus || document.activeElement,
+  };
+  assetDialogTitle.textContent =
+    state.mode === "add-image"
+      ? "Add image"
+      : state.mode === "node-icon"
+        ? "Select node image"
+        : "Replace image";
+  assetSearch.value = "";
+  availableAssets = [];
+  selectedAssetPath = "";
+  selectAsset("");
+  assetDialog.showModal();
+  const request = ++assetLibraryRequest;
+  void loadAssetLibrary(state.currentPath || "", request).then((loaded) => {
+    if (loaded && assetDialog.open && request === assetLibraryRequest) assetSearch.focus();
+  });
+}
+
+function confirmAssetSelection() {
+  if (!assetPickerState || !selectedAssetPath || assetUploadPending) return;
+  const state = assetPickerState;
+  let result;
+  if (state.mode === "add-image") {
+    result = architecture.addImage({
+      parentId: state.parentId,
+      src: selectedAssetPath,
+      ...addPosition(state.point, state.parentId, 340, 220),
+    });
+  } else if (state.mode === "node-icon") {
+    result = architecture.setElement(state.ref, "icon", selectedAssetPath);
+  } else {
+    result = architecture.setElement(state.ref, "src", selectedAssetPath);
+  }
+  if (applyResult(result)) closeAssetPicker();
+}
+
+function setAssetUploadPending(value) {
+  assetUploadPending = value;
+  assetImportButton.disabled = value;
+  assetSearch.disabled = value;
+  assetChooseButton.disabled = value || !selectedAssetPath;
+  assetList.querySelectorAll("button").forEach((button) => {
+    button.disabled = value;
+  });
+}
+
+async function uploadAsset(file) {
+  if (!file) return;
+  if (file.size > ASSET_MAX_BYTES) {
+    setAssetDialogStatus("Images must be 10 MB or smaller.", "error");
+    return;
+  }
+  setAssetUploadPending(true);
+  setAssetDialogStatus(`Importing ${file.name}…`);
+  try {
+    const response = await fetch(`./asset-upload?name=${encodeURIComponent(file.name)}`, {
+      method: "POST",
+      headers: { "Content-Type": file.type || "application/octet-stream" },
+      body: file,
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || result.ok !== true || !result.asset?.path) {
+      throw new Error(result.message || "Could not import the image.");
+    }
+    const request = ++assetLibraryRequest;
+    const loaded = await loadAssetLibrary(result.asset.path, request);
+    if (loaded) setAssetDialogStatus(`Imported as ${result.asset.path}.`);
+  } catch (error) {
+    setAssetDialogStatus(error.message, "error");
+  } finally {
+    setAssetUploadPending(false);
+    assetFileInput.value = "";
+  }
+}
+
+function renderTree() {
+  tree.replaceChildren();
+  for (const entry of rawEntries(architecture.raw)) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "tree-item";
+    button.style.paddingLeft = `${10 + entry.depth * 16}px`;
+    button.dataset.ref = entry.ref;
+    button.setAttribute("role", "treeitem");
+    button.setAttribute("aria-level", String(entry.depth + 1));
+    button.setAttribute("aria-selected", selectedRefs.has(entry.ref) ? "true" : "false");
+    button.setAttribute("aria-haspopup", "menu");
+    const icon = document.createElement("span");
+    icon.className = "tree-icon";
+    icon.textContent = iconFor(entry.element.type);
+    const label = document.createElement("span");
+    label.className = "tree-label";
+    label.textContent = labelFor(entry);
+    button.append(icon, label);
+    button.addEventListener("click", (event) => {
+      selectFromEvent(entry.ref, event, { range: true });
+      connectorTool = null;
+      renderAll();
+      tree.querySelector(`[data-ref="${CSS.escape(entry.ref)}"]`)?.focus({ preventScroll: true });
+    });
+    button.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openElementContextMenu(entry.ref, {
+        clientX: event.clientX,
+        clientY: event.clientY,
+        origin: "tree",
+      });
+    });
+    button.addEventListener("keydown", (event) => {
+      if (event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10")) return;
+      event.preventDefault();
+      event.stopPropagation();
+      openElementContextMenu(entry.ref, {
+        ...eventMenuPosition(event.currentTarget),
+        origin: "tree",
+      });
+    });
+    tree.appendChild(button);
+  }
+}
+
+function addResizeHandles(svg, element) {
+  if (!element || element.type === "connector") return;
+  if (!architecture.describe(element.id).movable) return;
+  const corners = {
+    nw: [element.x, element.y],
+    ne: [element.x + element.width, element.y],
+    sw: [element.x, element.y + element.height],
+    se: [element.x + element.width, element.y + element.height],
+  };
+  for (const [corner, [cx, cy]] of Object.entries(corners)) {
+    const handle = document.createElementNS(SVG_NS, "circle");
+    handle.classList.add("editor-resize-handle");
+    handle.dataset.corner = corner;
+    handle.dataset.ref = element.id;
+    handle.setAttribute("cx", String(cx));
+    handle.setAttribute("cy", String(cy));
+    handle.setAttribute("r", "10");
+    handle.setAttribute("tabindex", "0");
+    handle.setAttribute("role", "button");
+    handle.setAttribute("aria-label", `${element.id} ${corner} resize handle`);
+    handle.addEventListener("pointerdown", beginResize);
+    handle.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openElementContextMenu(element.id, {
+        clientX: event.clientX,
+        clientY: event.clientY,
+        origin: "diagram",
+      });
+    });
+    svg.appendChild(handle);
+  }
+}
+
+function decorateDiagram(svg) {
+  addGrid(svg);
+  const byOrder = new Map(
+    architecture.model.elements.map((element) => [
+      String(element.order),
+      element.id || element.sourcePath,
+    ]),
+  );
+  svg.removeAttribute("tabindex");
+  svg.querySelectorAll("[data-architecture-type]").forEach((node) => {
+    const ref =
+      node.dataset.architectureId ||
+      byOrder.get(node.dataset.architectureOrder || "") ||
+      "";
+    if (!ref) return;
+    const element = modelFor(ref);
+    node.dataset.editorRef = ref;
+    node.dataset.editorMovable =
+      element?.type !== "connector" && architecture.describe(ref).movable ? "true" : "false";
+    node.setAttribute("tabindex", "0");
+    node.setAttribute("aria-haspopup", "menu");
+    if (selectedRefs.has(ref)) node.dataset.editorSelected = "true";
+    node.addEventListener("click", (event) => {
+      event.stopPropagation();
+      chooseElement(ref, event);
+    });
+    node.addEventListener("pointerdown", beginMove);
+    node.addEventListener("keydown", onElementKeyDown);
+    node.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openElementContextMenu(ref, {
+        clientX: event.clientX,
+        clientY: event.clientY,
+        origin: "diagram",
+      });
+    });
+  });
+  if (connectorTool?.from) {
+    svg
+      .querySelector(`[data-editor-ref="${CSS.escape(connectorTool.from)}"]`)
+      ?.classList.add("connector-source");
+  }
+  if (selectedRefs.size === 1) addResizeHandles(svg, modelFor(selectedRef));
+  svg.addEventListener("click", (event) => {
+    if (event.target === svg) {
+      selectOnly(null);
+      renderAll();
+    }
+  });
+}
+
+function addGrid(svg) {
+  const defs = document.createElementNS(SVG_NS, "defs");
+  const pattern = document.createElementNS(SVG_NS, "pattern");
+  pattern.id = "editor-grid-pattern";
+  pattern.setAttribute("patternUnits", "userSpaceOnUse");
+  pattern.setAttribute("width", String(SNAP_SIZE));
+  pattern.setAttribute("height", String(SNAP_SIZE));
+  const path = document.createElementNS(SVG_NS, "path");
+  path.setAttribute("d", `M ${SNAP_SIZE} 0 H 0 V ${SNAP_SIZE}`);
+  path.setAttribute("fill", "none");
+  path.setAttribute("stroke", "var(--editor-grid)");
+  path.setAttribute("stroke-width", "0.5");
+  pattern.appendChild(path);
+  defs.appendChild(pattern);
+  const grid = document.createElementNS(SVG_NS, "rect");
+  grid.classList.add("editor-grid");
+  grid.setAttribute("aria-hidden", "true");
+  const box = svg.viewBox.baseVal;
+  for (const key of ["x", "y", "width", "height"]) grid.setAttribute(key, String(box[key]));
+  grid.setAttribute("fill", "url(#editor-grid-pattern)");
+  svg.prepend(defs, grid);
+}
+
+function renderSurface() {
+  if (!architecture.model.elements.length) {
+    const empty = document.createElement("section");
+    empty.className = "editor-empty-state";
+    empty.setAttribute("aria-labelledby", "emptyStateTitle");
+    empty.innerHTML = `
+      <span class="empty-state-shape" aria-hidden="true"></span>
+      <h2 id="emptyStateTitle">Build your first diagram</h2>
+      <p>Add a shape, then connect elements to describe the architecture.</p>
+      <button type="button" class="save-button">Add first shape</button>
+      <small>Right-click the canvas to add at a specific location.</small>
+    `;
+    empty.querySelector("button").addEventListener("click", () => {
+      invokeAction("add-node", { shape: "rounded-rect" });
+    });
+    surface.replaceChildren(empty);
+    return;
+  }
+  const wrapper = renderArchitectureBlock(architecture.source, document);
+  wrapper.style.width = `${960 * zoom}px`;
+  surface.replaceChildren(wrapper);
+  decorateDiagram(wrapper.querySelector("svg"));
+}
+
+function section(title) {
+  const container = document.createElement("section");
+  container.className = "inspector-section";
+  const heading = document.createElement("h3");
+  heading.textContent = title;
+  container.appendChild(heading);
+  inspector.appendChild(container);
+  return container;
+}
+
+function readValue(path) {
+  const entry = entryFor(selectedRef);
+  let value = entry?.element;
+  for (const part of path.split(".")) value = value?.[part];
+  return value;
+}
+
+function fieldApplies(entry, path) {
+  const type = entry.element.type;
+  if (["id", "parent", "layout"].includes(path) || path.startsWith("layout.")) return false;
+  if (path.startsWith("style.")) {
+    return path !== "style.dash-preset" || type === "connector";
+  }
+  if (["ariaLabel", "z"].includes(path)) return true;
+  if (["x", "y", "width", "height"].includes(path)) {
+    return type !== "connector" && architecture.describe(entry.ref).movable;
+  }
+  const byType = {
+    node: ["text", "shape", "icon"],
+    image: ["src", "fit"],
+    group: ["title"],
+    connector: ["from", "to", "fromPort", "toPort", "label", "labelLayer", "routing", "arrow", "lane", "points"],
+  };
+  return byType[type]?.includes(path) &&
+    (path !== "points" || entry.element.routing === "polyline");
+}
+
+function effectiveValue(ref, path) {
+  const entry = entryFor(ref);
+  const model = modelFor(ref);
+  if (path === "style.dash-preset") {
+    return lineStyleForDash(effectiveValue(ref, "style.dash"));
+  }
+  const get = (value) => path.split(".").reduce((owner, key) => owner?.[key], value);
+  let value = get(entry.element) ?? get(model);
+  if (["style.fill", "style.stroke", "style.textColor"].includes(path)) {
+    const color = THEME_TOKENS[value] ?? value;
+    value = Object.entries(THEME_TOKENS).find(([, resolved]) => resolved === color)?.[0] ?? color;
+  }
+  if (["x", "y"].includes(path) && entry.element[path] === undefined) {
+    value = model[path] - (modelFor(entry.parentId)?.[path] ?? 0);
+  }
+  return value;
+}
+
+function addField(container, {
+  label,
+  path,
+  value,
+  type = "text",
+  options = null,
+  min,
+  max,
+  step,
+  multiline = false,
+  suggestions = null,
+  onChange,
+}) {
+  const multiple = selectedRefs.size > 1;
+  if (multiple && ![...selectedRefs].every((ref) => fieldApplies(entryFor(ref), path))) return;
+  let mixed = false;
+  if (multiple) {
+    const values = [...selectedRefs].map((ref) => effectiveValue(ref, path));
+    mixed = values.some((item) => JSON.stringify(item) !== JSON.stringify(values[0]));
+    value = mixed ? undefined : values[0];
+    if (path === "points" && value !== undefined) value = JSON.stringify(value, null, 2);
+  }
+  if (["from", "to"].includes(path) && value && typeof value === "object") {
+    value = JSON.stringify(value);
+  }
+  const id = `field-${path.replace(/[^A-Za-z0-9_-]/g, "-")}-${container.children.length}`;
+  const caption = document.createElement("label");
+  caption.htmlFor = id;
+  caption.textContent = label;
+  let input;
+  if (multiline) input = document.createElement("textarea");
+  else if (options) {
+    input = document.createElement("select");
+    for (const option of options) {
+      const item = document.createElement("option");
+      item.value = typeof option === "string" ? option : option.value;
+      item.textContent = typeof option === "string" ? option : option.label;
+      input.appendChild(item);
+    }
+  } else {
+    input = document.createElement("input");
+    input.type = type;
+    if (suggestions?.length) {
+      const list = document.createElement("datalist");
+      list.id = `${id}-list`;
+      for (const suggestion of suggestions) {
+        const option = document.createElement("option");
+        option.value = suggestion;
+        list.appendChild(option);
+      }
+      input.setAttribute("list", list.id);
+      container.appendChild(list);
+    }
+  }
+  input.id = id;
+  if (min !== undefined) input.min = String(min);
+  if (max !== undefined) input.max = String(max);
+  if (step !== undefined) input.step = String(step);
+  if (type === "checkbox") input.checked = Boolean(value);
+  else input.value = value ?? "";
+  if (mixed) {
+    input.dataset.mixed = "true";
+    if (type === "checkbox") input.indeterminate = true;
+    else if (options) {
+      const option = document.createElement("option");
+      option.value = "__mixed__";
+      option.textContent = "Multiple values";
+      option.disabled = true;
+      input.prepend(option);
+      input.value = option.value;
+    } else input.placeholder = "Multiple values";
+    const hint = document.createElement("span");
+    hint.id = `${id}-mixed`;
+    hint.className = "visually-hidden";
+    hint.textContent = "Multiple values";
+    input.setAttribute("aria-describedby", hint.id);
+    container.appendChild(hint);
+  }
+  input.addEventListener("change", () => {
+    input.setCustomValidity("");
+    if (!input.reportValidity()) return;
+    if (options && input.value === "__mixed__") return;
+    let next;
+    if (type === "checkbox") next = input.checked;
+    else if (type === "number") next = input.value === "" ? undefined : Number(input.value);
+    else next = input.value === "" ? undefined : input.value;
+    if (onChange) onChange(next, input);
+    else applyResult(setSelectedProperty(path, next));
+  });
+  container.append(caption, input);
+  return input;
+}
+
+function addInspectorAction(container, label, onClick) {
+  if (selectedRefs.size > 1) return;
+  const row = document.createElement("div");
+  row.className = "inspector-action-row";
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = label;
+  button.addEventListener("click", onClick);
+  row.appendChild(button);
+  container.appendChild(row);
+  return button;
+}
+
+function lineStyleForDash(value) {
+  const dash = String(value || "").trim();
+  if (!dash) return "solid";
+  if (dash === LINE_STYLE_PATTERNS.dotted) return "dotted";
+  if (dash === LINE_STYLE_PATTERNS.dashed) return "dashed";
+  return "custom";
+}
+
+function addStyleFields(container, { connector = false } = {}) {
+  for (const [label, path] of [
+    ["Fill", "style.fill"],
+    ["Stroke", "style.stroke"],
+    ["Text color", "style.textColor"],
+  ]) {
+    addField(container, {
+      label,
+      path,
+      value: readValue(path),
+      suggestions: COLORS,
+    });
+  }
+  for (const [label, path, min, max, step] of [
+    ["Stroke width", "style.strokeWidth", 0.5, 20, 0.5],
+    ["Font size", "style.fontSize", 8, 160, 1],
+    ["Font weight", "style.fontWeight", 100, 900, 100],
+    ["Line height", "style.lineHeight", 0.5, 4, 0.1],
+    ["Text padding", "style.padding", 0, 400, 1],
+    ["Opacity", "style.opacity", 0, 1, 0.05],
+    ["Corner radius", "style.cornerRadius", 0, 200, 1],
+  ]) {
+    addField(container, {
+      label,
+      path,
+      value: readValue(path),
+      type: "number",
+      min,
+      max,
+      step,
+    });
+  }
+  addField(container, { label: "Font family", path: "style.fontFamily", value: readValue("style.fontFamily") });
+  for (const [label, path, values] of [
+    ["Text alignment", "style.textAlign", ["left", "center", "right"]],
+    ["Vertical alignment", "style.verticalAlign", ["top", "middle", "bottom"]],
+    ["Text auto fit", "style.autoFit", ["shrink", "none"]],
+  ]) {
+    addField(container, {
+      label,
+      path,
+      value: readValue(path),
+      options: [{ value: "", label: "Default" }, ...values],
+    });
+  }
+  if (connector) {
+    const currentDash = readValue("style.dash");
+    const currentLineStyle = lineStyleForDash(currentDash);
+    addField(container, {
+      label: "Line style",
+      path: "style.dash-preset",
+      value: currentLineStyle,
+      options: LINE_STYLES,
+      onChange: (value) => {
+        if (value === "custom") {
+          applyResult(setSelectedProperty("style.dash", "6 3"));
+          return;
+        }
+        applyResult(
+          setSelectedProperty("style.dash", LINE_STYLE_PATTERNS[value]),
+        );
+      },
+    });
+    if (currentLineStyle === "custom") {
+      addField(container, {
+        label: "Dash pattern",
+        path: "style.dash",
+        value: currentDash,
+      });
+    }
+  } else {
+    addField(container, {
+      label: "Dash pattern",
+      path: "style.dash",
+      value: readValue("style.dash"),
+    });
+  }
+}
+
+function renderRootInspector() {
+  const raw = architecture.raw;
+  const general = section("Diagram");
+  addField(general, {
+    label: "Title",
+    path: "root-title",
+    value: raw.title,
+    onChange: (value) => applyResult(architecture.setRoot("title", value), { select: null }),
+  });
+  addField(general, {
+    label: "Description",
+    path: "root-description",
+    value: raw.description,
+    multiline: true,
+    onChange: (value) => applyResult(architecture.setRoot("description", value), { select: null }),
+  });
+  addField(general, {
+    label: "Width",
+    path: "canvas-width",
+    value: raw.canvas?.width ?? architecture.model.canvas.width,
+    type: "number",
+    min: 320,
+    max: 4000,
+    onChange: (value) => applyResult(architecture.setRoot("canvas.width", value), { select: null }),
+  });
+  addField(general, {
+    label: "Height",
+    path: "canvas-height",
+    value: raw.canvas?.height ?? architecture.model.canvas.height,
+    type: "number",
+    min: 180,
+    max: 4000,
+    onChange: (value) => applyResult(architecture.setRoot("canvas.height", value), { select: null }),
+  });
+  const help = document.createElement("p");
+  help.className = "inspector-help";
+  help.textContent = "Select an element to edit properties specific to its type.";
+  general.appendChild(help);
+}
+
+function renderInspector() {
+  inspector.replaceChildren();
+  const entry = entryFor(selectedRef);
+  const model = modelFor(selectedRef);
+  if (!entry || !model) {
+    renderRootInspector();
+    return;
+  }
+
+  const general = section(selectedRefs.size > 1 ? `${selectedRefs.size} selected` : entry.element.type);
+  if (entry.element.type !== "connector") {
+    addField(general, { label: "ID", path: "id", value: entry.element.id });
+    addField(general, {
+      label: "Parent",
+      path: "parent",
+      value: entry.parentId || "",
+      options: [
+        { value: "", label: "(root)" },
+        ...architecture.model.elements
+          .filter(
+            (element) =>
+              element.type === "group" &&
+              element.id !== entry.element.id &&
+              !element.sourcePath.startsWith(`${entry.sourcePath}.children`),
+          )
+          .map((element) => ({ value: element.id, label: element.id })),
+      ],
+      onChange: (value) =>
+        applyResult(architecture.reparent(selectedRef, value || null), {
+          select: entry.element.id,
+        }),
+    });
+  }
+
+  if (entry.element.type === "node") {
+    addField(general, { label: "Text", path: "text", value: entry.element.text, multiline: true });
+    addField(general, {
+      label: "Shape",
+      path: "shape",
+      value: entry.element.shape || "rounded-rect",
+      options: SHAPES,
+    });
+    addField(general, {
+      label: "Icon",
+      path: "icon",
+      value: entry.element.icon,
+      suggestions: [...ICONS],
+    });
+    addInspectorAction(general, "Select image from assets/", (event) => {
+      openAssetPicker({
+        mode: "node-icon",
+        ref: selectedRef,
+        currentPath: entry.element.icon,
+        returnFocus: event.currentTarget,
+      });
+    });
+  } else if (entry.element.type === "image") {
+    addField(general, {
+      label: "Image",
+      path: "src",
+      value: entry.element.src,
+    });
+    addInspectorAction(general, "Replace image", (event) => {
+      openAssetPicker({
+        mode: "image-src",
+        ref: selectedRef,
+        currentPath: entry.element.src,
+        returnFocus: event.currentTarget,
+      });
+    });
+    addField(general, {
+      label: "Display mode",
+      path: "fit",
+      value: entry.element.fit || "contain",
+      options: IMAGE_FITS,
+    });
+  } else if (entry.element.type === "group") {
+    addField(general, { label: "Title", path: "title", value: entry.element.title });
+    addField(general, {
+      label: "Layout",
+      path: "layout",
+      value:
+        typeof entry.element.layout === "string"
+          ? entry.element.layout
+          : entry.element.layout?.type || "",
+      options: [{ value: "", label: "(None)" }, ...LAYOUTS],
+      onChange: (value) => {
+        applyGroupLayout(selectedRef, value);
+      },
+    });
+    if (entry.element.layout) {
+      const layout = typeof entry.element.layout === "string" ? { type: entry.element.layout } : entry.element.layout;
+      for (const [label, key, min, max] of [
+        ["Gap", "gap", 0, 240],
+        ["Row gap", "rowGap", 0, 240],
+        ["Column gap", "columnGap", 0, 240],
+        ["Padding", "padding", 0, 400],
+      ]) {
+        addField(general, {
+          label,
+          path: `layout.${key}`,
+          value: layout[key],
+          type: "number",
+          min,
+          max,
+          onChange: (value) =>
+            applyResult(
+              architecture.setElement(selectedRef, "layout", {
+                ...layout,
+                [key]: value,
+              }),
+            ),
+        });
+      }
+      if (layout.type === "grid") {
+        addField(general, {
+          label: "Columns",
+          path: "layout.columns",
+          value: layout.columns,
+          type: "number",
+          min: 1,
+          max: 12,
+          onChange: (value) =>
+            applyResult(
+              architecture.setElement(selectedRef, "layout", {
+                ...layout,
+                columns: value,
+                ...(layout.columnWidths ? {
+                  columnWidths: Array.from({ length: Math.trunc(value ?? 3) },
+                    (_, index) => layout.columnWidths[index] ?? 1),
+                } : {}),
+              }),
+            ),
+        });
+        addField(general, {
+          label: "Column widths JSON",
+          path: "layout.columnWidths",
+          value: layout.columnWidths === undefined ? "" : JSON.stringify(layout.columnWidths),
+          onChange: (value, input) => {
+            let columnWidths;
+            try {
+              columnWidths = value === undefined ? undefined : JSON.parse(value);
+            } catch (error) {
+              if (!(error instanceof SyntaxError)) throw error;
+              const message = "Enter a JSON array with one positive ratio per column.";
+              input.setCustomValidity(message);
+              input.reportValidity();
+              announce(message, "error");
+              return;
+            }
+            applyResult(architecture.setElement(selectedRef, "layout", {
+              ...layout,
+              columnWidths,
+            }));
+          },
+        });
+      }
+      if (layout.type === "layered") {
+        addField(general, {
+          label: "Direction",
+          path: "layout.direction",
+          value: layout.direction || "down",
+          options: LAYOUT_DIRECTIONS,
+          onChange: (value) =>
+            applyResult(
+              architecture.setElement(selectedRef, "layout", {
+                ...layout,
+                direction: value,
+              }),
+            ),
+        });
+      }
+    }
+  } else {
+    for (const [label, path] of [["Source", "from"], ["Target", "to"]]) {
+      addField(general, {
+        label,
+        path,
+        value: entry.element[path],
+        options: endpointOptions(path),
+        onChange: (value) => applyResult(setSelectedProperty(
+          path, value?.startsWith("{") ? JSON.parse(value) : value,
+        )),
+      });
+    }
+    addField(general, {
+      label: "Source port",
+      path: "fromPort",
+      value: entry.element.fromPort || "auto",
+      options: PORTS,
+    });
+    addField(general, {
+      label: "Target port",
+      path: "toPort",
+      value: entry.element.toPort || "auto",
+      options: PORTS,
+    });
+    addField(general, { label: "Label", path: "label", value: entry.element.label });
+    addField(general, {
+      label: "Label stacking",
+      path: "labelLayer",
+      value: entry.element.labelLayer || "front",
+      options: LABEL_LAYERS,
+    });
+    addField(general, {
+      label: "Routing",
+      path: "routing",
+      value: entry.element.routing || "orthogonal",
+      options: ROUTING,
+    });
+    addField(general, {
+      label: "Arrow",
+      path: "arrow",
+      value: entry.element.arrow !== false,
+      type: "checkbox",
+    });
+    addField(general, {
+      label: "Lane",
+      path: "lane",
+      value: entry.element.lane,
+      type: "number",
+      min: -12,
+      max: 12,
+      step: 1,
+    });
+    if (entry.element.routing === "polyline") {
+      addField(general, {
+        label: "Waypoints JSON",
+        path: "points",
+        value: JSON.stringify(entry.element.points || [], null, 2),
+        multiline: true,
+        onChange: (value, input) => {
+          try {
+            input.setCustomValidity("");
+            applyResult(setSelectedProperty("points", JSON.parse(value || "[]")));
+          } catch (_) {
+            input.setCustomValidity("Enter a JSON array of points containing x/y values.");
+            input.reportValidity();
+          }
+        },
+      });
+    }
+  }
+
+  if (entry.element.type !== "connector") {
+    const geometry = section("Geometry");
+    for (const [label, key, min, max] of [
+      ["X", "x", -4000, 4000],
+      ["Y", "y", -4000, 4000],
+      ["Width", "width", 1, 4000],
+      ["Height", "height", 1, 4000],
+    ]) {
+      const autoExtent = entry.element.type === "node" && ["width", "height"].includes(key);
+      addField(geometry, {
+        label,
+        path: key,
+        value: entry.element[key] ?? model[key],
+        type: autoExtent ? "text" : "number",
+        suggestions: autoExtent ? ["auto"] : null,
+        min,
+        max,
+        ...(autoExtent ? {
+          onChange: (value) => applyResult(setSelectedProperty(
+            key, value === "auto" ? value : value === undefined ? undefined : Number(value),
+          )),
+        } : {}),
+      });
+    }
+  }
+
+  const accessibility = section("Accessibility / order");
+  addField(accessibility, {
+    label: "Accessible name",
+    path: "ariaLabel",
+    value: entry.element.ariaLabel,
+    multiline: true,
+  });
+  addField(accessibility, {
+    label: "Z",
+    path: "z",
+    value: entry.element.z,
+    type: "number",
+    min: -100,
+    max: 100,
+    step: 1,
+  });
+
+  const style = section("Style");
+  addStyleFields(style, {
+    connector: [...selectedRefs].every((ref) => modelFor(ref).type === "connector"),
+  });
+  for (const empty of inspector.querySelectorAll(".inspector-section")) {
+    if (empty !== general && empty.children.length === 1) empty.remove();
+  }
+}
+
+function refreshToolbar() {
+  const entry = entryFor(selectedRef);
+  document.querySelector('[data-action="undo"]').disabled = !architecture.canUndo;
+  document.querySelector('[data-action="redo"]').disabled = !architecture.canRedo;
+  for (const action of ["duplicate", "delete", "order-back", "order-front"]) {
+    document.querySelector(`[data-action="${action}"]`).disabled =
+      !entry || (selectedRefs.size > 1 && action.startsWith("order-"));
+  }
+  document.querySelector('[data-action="release-layout"]').disabled =
+    selectedRefs.size !== 1 || !releaseLayoutAvailable(selectedRef);
+  setDirty(dirty);
+}
+
+function renderAll() {
+  const focused = document.activeElement;
+  const ref = focused?.dataset?.ref || focused?.dataset?.editorRef;
+  const inTree = tree.contains(focused);
+  setSelection([...selectedRefs], selectedRef);
+  closeContextMenu();
+  renderTree();
+  renderSurface();
+  renderInspector();
+  refreshToolbar();
+  zoomStatus.textContent = `${Math.round(zoom * 100)}%`;
+  if (ref) {
+    const selector = inTree ? `.tree-item[data-ref="${CSS.escape(ref)}"]` : `[data-editor-ref="${CSS.escape(ref)}"]`;
+    (inTree ? tree : surface).querySelector(selector)?.focus({ preventScroll: true });
+  }
+}
+
+function chooseElement(ref, event) {
+  const element = modelFor(ref);
+  if (connectorTool && element?.type !== "connector") {
+    if (!connectorTool.from) {
+      connectorTool.from = element.id;
+      announce(`Set ${element.id} as the source. Select a target.`);
+      renderAll();
+      return;
+    }
+    if (connectorTool.from === element.id) {
+      announce("Select a target different from the source.", "error");
+      return;
+    }
+    const from = connectorTool.from;
+    connectorTool = null;
+    applyResult(architecture.addConnector({ from, to: element.id }), { select: null });
+    return;
+  }
+  connectorTool = null;
+  selectFromEvent(ref, event);
+  renderAll();
+}
+
+function beginMove(event) {
+  if (event.button !== 0 || spacePressed || event.ctrlKey || event.metaKey ||
+      event.currentTarget.dataset.architectureType === "connector") return;
+  if (connectorTool) return;
+  const ref = event.currentTarget.dataset.editorRef;
+  if (!ref) return;
+  event.preventDefault();
+  event.stopPropagation();
+  event.currentTarget.focus({ preventScroll: true });
+  if (!selectedRefs.has(ref)) selectOnly(ref);
+  viewport.setPointerCapture?.(event.pointerId);
+  const roots = selectionRoots();
+  const targets = architecture.model.elements.filter((element) =>
+    element.type !== "connector" && roots.some((root) =>
+      root === element || element.sourcePath.startsWith(`${root.sourcePath}.children[`),
+    ),
+  ).map((element) => surface.querySelector(
+    `[data-editor-ref="${CSS.escape(element.id)}"]`,
+  )).filter(Boolean);
+  for (const target of targets) target.classList.add("editor-drag-target");
+  for (const node of surface.querySelectorAll("[data-editor-ref]")) {
+    node.dataset.editorSelected = String(selectedRefs.has(node.dataset.editorRef));
+  }
+  surface.querySelectorAll(".editor-resize-handle").forEach((handle) => handle.remove());
+  renderTree();
+  renderInspector();
+  refreshToolbar();
+  viewport.classList.add("is-dragging");
+  drag = {
+    kind: "move",
+    ref,
+    refs: [...selectedRefs],
+    roots,
+    targets: targets.map((target) => ({ target, baseTransform: target.getAttribute("transform") })),
+    captureTarget: viewport,
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    startPoint: architecturePoint(event.clientX, event.clientY),
+    moved: false,
+    dx: 0,
+    dy: 0,
+  };
+}
+
+function beginResize(event) {
+  if (event.button !== 0 || spacePressed || selectedRefs.size !== 1) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const ref = event.currentTarget.dataset.ref;
+  const element = modelFor(ref);
+  if (!element) return;
+  event.currentTarget.setPointerCapture?.(event.pointerId);
+  const targets = [
+    surface.querySelector(`[data-editor-ref="${CSS.escape(ref)}"]`),
+    ...surface.querySelectorAll(`.editor-resize-handle[data-ref="${CSS.escape(ref)}"]`),
+  ].filter(Boolean);
+  targets[0]?.classList.add("editor-drag-target");
+  viewport.classList.add("is-dragging");
+  drag = {
+    kind: "resize",
+    ref,
+    corner: event.currentTarget.dataset.corner,
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    startPoint: architecturePoint(event.clientX, event.clientY),
+    box: { x: element.x, y: element.y, width: element.width, height: element.height },
+    targets: targets.map((target) => ({
+      target,
+      baseTransform: target.getAttribute("transform"),
+    })),
+    captureTarget: event.currentTarget,
+    dx: 0,
+    dy: 0,
+    moved: false,
+  };
+}
+
+function moveDelta(roots, dx, dy, snapping = true) {
+  const blocked = roots.find((root) => !architecture.describe(root.id).movable);
+  if (blocked || !roots.length) return { dx: 0, dy: 0 };
+  const x = Math.min(...roots.map((root) => root.x));
+  const y = Math.min(...roots.map((root) => root.y));
+  if (snapping) {
+    dx = snap(x + dx) - x;
+    dy = snap(y + dy) - y;
+  }
+  for (const axis of ["x", "y"]) {
+    const positions = roots.map((root) =>
+      root[axis] - architecture.describe(root.id).origin[axis],
+    );
+    const value = axis === "x" ? dx : dy;
+    const clamped = Math.max(-4000 - Math.min(...positions),
+      Math.min(4000 - Math.max(...positions), value));
+    if (axis === "x") dx = clamped;
+    else dy = clamped;
+  }
+  return { dx, dy };
+}
+
+function resizedBox(pending, shouldSnap) {
+  let { x, y, width, height } = pending.box;
+  const right = x + width;
+  const bottom = y + height;
+  const normalize = shouldSnap ? snap : (value) => value;
+  const nextX = normalize(x + pending.dx);
+  const nextY = normalize(y + pending.dy);
+  const nextRight = normalize(right + pending.dx);
+  const nextBottom = normalize(bottom + pending.dy);
+  if (pending.corner.includes("w")) {
+    x = Math.min(nextX, right - 20);
+    width = right - x;
+  }
+  if (pending.corner.includes("e")) width = Math.max(20, nextRight - x);
+  if (pending.corner.includes("n")) {
+    y = Math.min(nextY, bottom - 20);
+    height = bottom - y;
+  }
+  if (pending.corner.includes("s")) height = Math.max(20, nextBottom - y);
+  return { x, y, width, height };
+}
+
+function restoreTransform(target, transform) {
+  if (transform == null) target.removeAttribute("transform");
+  else target.setAttribute("transform", transform);
+}
+
+function renderDragPreview() {
+  dragFrame = 0;
+  if (!drag || !drag.moved) return;
+  if (drag.kind === "move") {
+    const { dx, dy } = moveDelta(drag.roots, drag.dx, drag.dy);
+    const translation = `translate(${dx} ${dy})`;
+    for (const item of drag.targets) {
+      item.target.setAttribute(
+        "transform", item.baseTransform ? `${item.baseTransform} ${translation}` : translation,
+      );
+    }
+    return;
+  }
+  const next = resizedBox(drag, true);
+  const sx = next.width / drag.box.width;
+  const sy = next.height / drag.box.height;
+  const tx = next.x - drag.box.x * sx;
+  const ty = next.y - drag.box.y * sy;
+  const transform = `matrix(${sx} 0 0 ${sy} ${tx} ${ty})`;
+  for (const item of drag.targets) {
+    item.target.setAttribute(
+      "transform",
+      item.baseTransform ? `${item.baseTransform} ${transform}` : transform,
+    );
+  }
+}
+
+function updateDrag(event) {
+  if (!drag || event.pointerId !== drag.pointerId) return;
+  const svg = surface.querySelector("svg");
+  const scale = viewBoxScale(svg);
+  const point = architecturePoint(event.clientX, event.clientY);
+  drag.dx = point && drag.startPoint ? point.x - drag.startPoint.x : (event.clientX - drag.startX) / scale.x;
+  drag.dy = point && drag.startPoint ? point.y - drag.startPoint.y : (event.clientY - drag.startY) / scale.y;
+  if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 3) drag.moved = true;
+  if (!dragFrame) dragFrame = requestAnimationFrame(renderDragPreview);
+}
+
+function settleElement(ref) {
+  const target = surface.querySelector(`[data-editor-ref="${CSS.escape(ref)}"]`);
+  if (!target || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  target.classList.add("editor-settle");
+  target.addEventListener("animationend", () => target.classList.remove("editor-settle"), {
+    once: true,
+  });
+}
+
+function finishDrag(event, cancelled = false) {
+  if (!drag || event.pointerId !== drag.pointerId) return;
+  if (!cancelled) updateDrag(event);
+  const pending = drag;
+  drag = null;
+  if (dragFrame) {
+    cancelAnimationFrame(dragFrame);
+    dragFrame = 0;
+  }
+  viewport.classList.remove("is-dragging");
+  suppressCanvasClick = true;
+  if (pending.captureTarget?.hasPointerCapture?.(pending.pointerId)) {
+    pending.captureTarget.releasePointerCapture(pending.pointerId);
+  }
+  for (const item of pending.targets) {
+    item.target.classList.remove("editor-drag-target");
+    restoreTransform(item.target, item.baseTransform);
+  }
+  if (cancelled || !pending.moved) {
+    if (!cancelled && pending.kind === "move") selectOnly(pending.ref);
+    renderAll();
+    return;
+  }
+  if (pending.kind === "move") {
+    const blocked = pending.roots.find((root) => !architecture.describe(root.id).movable);
+    if (blocked) {
+      renderAll();
+      announce(`${blocked.id} cannot move because it is managed by a layout.`, "error");
+      return;
+    }
+    const { dx, dy } = moveDelta(pending.roots, pending.dx, pending.dy);
+    if (dx || dy) {
+      if (applyResult(architecture.moveMany(pending.refs, dx, dy))) {
+        pending.roots.forEach((root) => settleElement(root.id));
+      }
+    } else renderAll();
+    return;
+  }
+  const next = resizedBox(pending, true);
+  const changed = Object.entries(next).some(
+    ([key, value]) => value !== pending.box[key],
+  );
+  if (changed && applyResult(architecture.resize(pending.ref, next))) settleElement(pending.ref);
+  else renderAll();
+}
+
+function beginMarquee(event) {
+  const point = architecturePoint(event.clientX, event.clientY);
+  if (!point) return;
+  event.preventDefault();
+  const rect = document.createElementNS(SVG_NS, "rect");
+  rect.classList.add("editor-marquee");
+  rect.setAttribute("aria-hidden", "true");
+  surface.querySelector("svg").appendChild(rect);
+  marquee = {
+    pointerId: event.pointerId,
+    point,
+    clientX: event.clientX,
+    clientY: event.clientY,
+    startX: event.clientX,
+    startY: event.clientY,
+    initial: [...selectedRefs],
+    primary: selectedRef,
+    additive: event.ctrlKey || event.metaKey,
+    rect,
+    moved: false,
+  };
+  viewport.setPointerCapture?.(event.pointerId);
+  viewport.classList.add("is-selecting");
+}
+
+function updateMarquee(event) {
+  if (!marquee || marquee.pointerId !== event.pointerId) return;
+  marquee.clientX = event.clientX;
+  marquee.clientY = event.clientY;
+  const point = architecturePoint(event.clientX, event.clientY);
+  if (!point) return;
+  if (Math.hypot(event.clientX - marquee.startX, event.clientY - marquee.startY) > 3) marquee.moved = true;
+  if (!marquee.moved) return;
+  const x = Math.min(point.x, marquee.point.x);
+  const y = Math.min(point.y, marquee.point.y);
+  const right = Math.max(point.x, marquee.point.x);
+  const bottom = Math.max(point.y, marquee.point.y);
+  for (const [key, value] of Object.entries({ x, y, width: right - x, height: bottom - y })) {
+    marquee.rect.setAttribute(key, String(value));
+  }
+  const refs = architecture.model.elements.filter((element) =>
+    element.type !== "connector" && element.x >= x && element.y >= y &&
+      element.x + element.width <= right && element.y + element.height <= bottom,
+  ).map((element) => element.id);
+  setSelection(marquee.additive ? [...marquee.initial, ...refs] : refs);
+  for (const node of surface.querySelectorAll("[data-editor-ref]")) {
+    node.dataset.editorSelected = String(selectedRefs.has(node.dataset.editorRef));
+  }
+  for (const node of tree.querySelectorAll("[data-ref]")) {
+    node.setAttribute("aria-selected", String(selectedRefs.has(node.dataset.ref)));
+  }
+}
+
+function finishMarquee(event, cancelled = false) {
+  if (!marquee || marquee.pointerId !== event.pointerId) return;
+  if (!cancelled) updateMarquee(event);
+  const pending = marquee;
+  marquee = null;
+  pending.rect.remove();
+  viewport.classList.remove("is-selecting");
+  suppressCanvasClick = true;
+  if (viewport.hasPointerCapture?.(pending.pointerId)) viewport.releasePointerCapture(pending.pointerId);
+  if (cancelled) setSelection(pending.initial, pending.primary);
+  else if (!pending.moved && !pending.additive) selectOnly(null);
+  renderAll();
+  if (!cancelled) {
+    const target = selectedRef
+      ? surface.querySelector(`[data-editor-ref="${CSS.escape(selectedRef)}"]`)
+      : viewport;
+    target?.focus({ preventScroll: true });
+    announce(`${selectedRefs.size} elements selected.`);
+  }
+}
+
+function cancelGestures() {
+  if (drag) finishDrag({ pointerId: drag.pointerId }, true);
+  if (marquee) finishMarquee({ pointerId: marquee.pointerId }, true);
+  if (pan) {
+    const pending = pan;
+    pan = null;
+    viewport.classList.remove("is-panning");
+    if (viewport.hasPointerCapture?.(pending.pointerId)) viewport.releasePointerCapture(pending.pointerId);
+  }
+}
+
+function onElementKeyDown(event) {
+  if (["INPUT", "TEXTAREA", "SELECT"].includes(event.target.tagName)) return;
+  const ref = event.currentTarget.dataset.editorRef;
+  if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+    event.preventDefault();
+    event.stopPropagation();
+    openElementContextMenu(ref, {
+      ...eventMenuPosition(event.currentTarget),
+      origin: "diagram",
+    });
+    return;
+  }
+  if (event.key.startsWith("Arrow") && modelFor(ref)?.type !== "connector") {
+    event.preventDefault();
+    if (!selectedRefs.has(ref)) selectOnly(ref);
+    const step = event.shiftKey ? 1 : SNAP_SIZE;
+    const delta = {
+      ArrowLeft: [-step, 0],
+      ArrowRight: [step, 0],
+      ArrowUp: [0, -step],
+      ArrowDown: [0, step],
+    }[event.key];
+    if (delta) {
+      const roots = selectionRoots();
+      const blocked = roots.find((root) => !architecture.describe(root.id).movable);
+      if (blocked) {
+        announce(`${blocked.id} cannot move because it is managed by a layout.`, "error");
+        return;
+      }
+      const { dx, dy } = moveDelta(roots, delta[0], delta[1], !event.shiftKey);
+      applyResult(architecture.moveMany([...selectedRefs], dx, dy));
+    }
+  }
+}
+
+async function save() {
+  try {
+    await draftQueue;
+  } catch (_) {
+    announce("Cannot save because the draft could not be retained.", "error");
+    return;
+  }
+  const generation = targetGeneration;
+  const revision = draftRevision;
+  announce("Saving to Markdown…");
+  let response;
+  try {
+    response = await fetch("./save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ generation, revision }),
+    });
+  } catch (_) {
+    announce("Could not connect to the Markdown save server.", "error");
+    return;
+  }
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || result.ok !== true) {
+    announce(result.message || "Could not save to Markdown.", "error");
+    return;
+  }
+  if (generation !== targetGeneration || result.generation !== targetGeneration) return;
+  draftRevision = Math.max(draftRevision, result.savedRevision ?? draftRevision);
+  const hasNewerLocalDraft = draftRevision > (result.savedRevision ?? -1);
+  setDirty(Boolean(result.dirty || hasNewerLocalDraft));
+  announce(
+    dirty
+      ? "Changes made while saving are still unsaved. Save again."
+      : "Saved to the source Markdown.",
+  );
+}
+
+async function reloadFromMarkdown() {
+  await draftQueue.catch(() => {});
+  if (dirty && !window.confirm("Discard unsaved changes and reload from Markdown?")) return;
+  announce("Reloading from Markdown…");
+  let response;
+  try {
+    response = await fetch("./reload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ discard: dirty }),
+    });
+  } catch (_) {
+    announce("Could not connect to the Markdown reload server.", "error");
+    return;
+  }
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || result.ok !== true) {
+    announce(result.message || "Could not reload from Markdown.", "error");
+    return;
+  }
+  draftQueue = Promise.resolve();
+  await refreshState();
+  announce("Reloaded from the source Markdown.");
+}
+
+function setZoom(value, { fit = false } = {}) {
+  cancelGestures();
+  zoom = Math.min(2.5, Math.max(0.3, value));
+  fitToViewport = fit;
+  renderSurface();
+  zoomStatus.textContent = `${Math.round(zoom * 100)}%`;
+}
+
+function fitZoom() {
+  const available = Math.max(320, viewport.clientWidth - 96);
+  setZoom(Math.min(1, available / 996), { fit: true });
+  viewport.scrollTo({ left: 0, top: 0 });
+}
+
+function visibleCanvasCenter() {
+  const bounds = viewport.getBoundingClientRect();
+  return (
+    architecturePoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2) || {
+      x: architecture.model.canvas.width / 2,
+      y: architecture.model.canvas.height / 2,
+    }
+  );
+}
+
+function siblingBoxes(parentId) {
+  return rawEntries(architecture.raw)
+    .filter((entry) => entry.parentId === parentId)
+    .map((entry) => entry.element)
+    .filter(
+      (element) =>
+        element.type !== "connector" &&
+        [element.x, element.y, element.width, element.height].every(Number.isFinite),
+    );
+}
+
+function boxesOverlap(left, right, gap = 20) {
+  return !(
+    left.x + left.width + gap <= right.x ||
+    right.x + right.width + gap <= left.x ||
+    left.y + left.height + gap <= right.y ||
+    right.y + right.height + gap <= left.y
+  );
+}
+
+function avoidSiblingOverlap(box, parentId) {
+  const occupied = siblingBoxes(parentId);
+  const step = 40;
+  for (let ring = 0; ring <= 12; ring += 1) {
+    for (let y = -ring; y <= ring; y += 1) {
+      for (let x = -ring; x <= ring; x += 1) {
+        if (Math.max(Math.abs(x), Math.abs(y)) !== ring) continue;
+        const candidate = {
+          ...box,
+          x: snap(box.x + x * step),
+          y: snap(box.y + y * step),
+        };
+        if (!occupied.some((item) => boxesOverlap(candidate, item))) return candidate;
+      }
+    }
+  }
+  return box;
+}
+
+function addPosition(point, parentId, width, height) {
+  const explicitPoint = Boolean(point);
+  const target = point || visibleCanvasCenter();
+  const parent = parentId ? modelFor(parentId) : null;
+  const box = {
+    x: snap(target.x - (parent?.x || 0) - width / 2),
+    y: snap(target.y - (parent?.y || 0) - height / 2),
+    width,
+    height,
+  };
+  return explicitPoint ? box : avoidSiblingOverlap(box, parentId);
+}
+
+function invokeAction(action, context = {}) {
+  cancelGestures();
+  const ref = Object.hasOwn(context, "ref") ? context.ref : selectedRef;
+  if (selectedRefs.size > 1 &&
+      ["order-front", "order-back", "release-layout", "set-layout", "start-connector"].includes(action)) {
+    announce("Select a single element for this action.", "error");
+    return;
+  }
+  if (action === "undo") {
+    setSelection([...selectedRefs].filter((item) => modelFor(item)?.type !== "connector"));
+    applyResult(architecture.undo(), { quiet: true });
+  } else if (action === "redo") {
+    setSelection([...selectedRefs].filter((item) => modelFor(item)?.type !== "connector"));
+    applyResult(architecture.redo(), { quiet: true });
+  } else if (action === "toggle-shape-palette") {
+    if (shapePalette.hidden) openShapePalette();
+    else closeShapePalette({ restoreFocus: true });
+  } else if (action === "add-node") {
+    const parentId = selectedRefs.size <= 1 && entryFor(ref)?.element.type === "group" ? ref : null;
+    applyResult(architecture.addNode({
+      parentId,
+      shape: SHAPES.includes(context.shape) ? context.shape : "rounded-rect",
+      ...addPosition(context.point, parentId, 260, 140),
+    }));
+  } else if (action === "add-group") {
+    const parentId = selectedRefs.size <= 1 && entryFor(ref)?.element.type === "group" ? ref : null;
+    applyResult(architecture.addGroup({
+      parentId,
+      ...addPosition(context.point, parentId, 520, 320),
+    }));
+  } else if (action === "add-image") {
+    const parentId = selectedRefs.size <= 1 && entryFor(ref)?.element.type === "group" ? ref : null;
+    openAssetPicker({
+      mode: "add-image",
+      parentId,
+      point: context.point,
+      returnFocus: context.returnFocus || document.activeElement,
+    });
+  } else if (action === "add-connector") {
+    connectorTool = { from: null };
+    announce("Select the connector source.");
+    renderAll();
+  } else if (action === "start-connector" && ref) {
+    const element = modelFor(ref);
+    if (!element || element.type === "connector") return;
+    selectOnly(ref);
+    connectorTool = { from: element.id };
+    announce(`Set ${element.id} as the source. Select a target.`);
+    renderAll();
+  } else if (action === "duplicate" && ref) {
+    applyResult(selectedRefs.size > 1
+      ? architecture.duplicateMany([...selectedRefs])
+      : architecture.duplicate(ref));
+  } else if (action === "delete" && ref) {
+    const deleted = selectedRefs.size > 1 ? `${selectedRefs.size} elements` : ref;
+    const result = selectedRefs.size > 1
+      ? architecture.removeMany([...selectedRefs])
+      : architecture.remove(ref);
+    if (applyResult(result, { select: null })) {
+      announce(`Deleted ${deleted}.`);
+    }
+  } else if (action === "release-layout" && ref) {
+    applyGroupLayout(ref, "");
+  } else if (action === "set-layout" && ref) {
+    applyGroupLayout(ref, context.layoutType || "");
+  } else if (action === "order-back" && ref) {
+    applyResult(architecture.reorder(ref, -1), { select: null });
+  } else if (action === "order-front" && ref) {
+    applyResult(architecture.reorder(ref, 1), { select: null });
+  } else if (action === "zoom-out") {
+    setZoom(zoom - 0.1);
+  } else if (action === "zoom-in") {
+    setZoom(zoom + 0.1);
+  } else if (action === "zoom-fit") {
+    fitZoom();
+  } else if (action === "save") {
+    void save();
+  } else if (action === "reload") {
+    void reloadFromMarkdown();
+  }
+}
+
+function wireControls() {
+  renderShapePalette();
+  syncResponsivePanels();
+  document.querySelectorAll("[data-action]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const insideMore = toolbarMoreMenu.contains(button);
+      const keepMoreOpen = ["zoom-out", "zoom-in"].includes(button.dataset.action);
+      if (insideMore && !keepMoreOpen) closeToolbarMore({ restoreFocus: true });
+      invokeAction(
+        button.dataset.action,
+        insideMore ? { returnFocus: toolbarMoreButton } : {},
+      );
+    });
+  });
+  elementsPanelButton.addEventListener("click", () => toggleResponsivePanel("elements"));
+  inspectorPanelButton.addEventListener("click", () => toggleResponsivePanel("inspector"));
+  document.querySelectorAll("[data-panel-close]").forEach((button) => {
+    button.addEventListener("click", () => {
+      closeResponsivePanel(button.dataset.panelClose);
+    });
+  });
+  responsivePanels.addEventListener("change", () => {
+    if (responsivePanels.matches) {
+      const focusedPanel = elementPanel.contains(document.activeElement)
+        ? "elements"
+        : inspectorPanel.contains(document.activeElement)
+          ? "inspector"
+          : null;
+      responsivePanel =
+        focusedPanel ||
+        (desktopInspectorOpen ? "inspector" : desktopElementsOpen ? "elements" : null);
+    } else if (responsivePanel === "elements") {
+      desktopElementsOpen = true;
+    } else if (responsivePanel === "inspector") {
+      desktopInspectorOpen = true;
+    }
+    if (!responsivePanels.matches) responsivePanel = null;
+    syncResponsivePanels();
+  });
+  toolbarMoreButton.addEventListener("click", () => {
+    if (toolbarMoreMenu.hidden) openToolbarMore();
+    else closeToolbarMore({ restoreFocus: true });
+  });
+  toolbarMoreMenu.addEventListener("keydown", (event) => {
+    const items = toolbarMoreItems();
+    const current = items.indexOf(document.activeElement);
+    let next = null;
+    if (event.key === "ArrowDown" || event.key === "ArrowRight") {
+      next = items[(current + 1 + items.length) % items.length];
+    } else if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
+      next = items[(current - 1 + items.length) % items.length];
+    } else if (event.key === "Home") {
+      next = items[0];
+    } else if (event.key === "End") {
+      next = items.at(-1);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      closeToolbarMore({ restoreFocus: true });
+      return;
+    } else if (event.key === "Tab") {
+      closeToolbarMore();
+      return;
+    }
+    if (next) {
+      event.preventDefault();
+      next.focus();
+    }
+  });
+  window.addEventListener("resize", () => {
+    positionShapePalette();
+    positionToolbarMoreMenu();
+    if (fitToViewport) requestAnimationFrame(fitZoom);
+  });
+  shapePalette.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-shape]");
+    if (!button) return;
+    closeShapePalette({ restoreFocus: true });
+    invokeAction("add-node", { shape: button.dataset.shape });
+  });
+  shapePalette.addEventListener("keydown", (event) => {
+    const items = [...shapePalette.querySelectorAll("button[data-shape]")];
+    const current = items.indexOf(document.activeElement);
+    let next = null;
+    if (event.key === "ArrowDown" || event.key === "ArrowRight") {
+      next = items[(current + 1 + items.length) % items.length];
+    } else if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
+      next = items[(current - 1 + items.length) % items.length];
+    } else if (event.key === "Home") {
+      next = items[0];
+    } else if (event.key === "End") {
+      next = items.at(-1);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      closeShapePalette({ restoreFocus: true });
+      return;
+    }
+    if (next) {
+      event.preventDefault();
+      next.focus();
+    }
+  });
+  document.addEventListener("pointermove", updateDrag);
+  document.addEventListener("pointerup", finishDrag);
+  document.addEventListener("pointercancel", (event) => finishDrag(event, true));
+  document.addEventListener("lostpointercapture", (event) => finishDrag(event, true));
+  document.addEventListener("pointermove", updateMarquee);
+  document.addEventListener("pointerup", finishMarquee);
+  document.addEventListener("pointercancel", (event) => finishMarquee(event, true));
+  document.addEventListener("lostpointercapture", (event) => finishMarquee(event, true));
+  assetSearch.addEventListener("input", renderAssetLibrary);
+  assetImportButton.addEventListener("click", () => assetFileInput.click());
+  assetFileInput.addEventListener("change", () => {
+    void uploadAsset(assetFileInput.files?.[0]);
+  });
+  assetChooseButton.addEventListener("click", confirmAssetSelection);
+  assetCancelButton.addEventListener("click", closeAssetPicker);
+  assetDialogClose.addEventListener("click", closeAssetPicker);
+  assetDialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    closeAssetPicker();
+  });
+  assetDialog.addEventListener("close", () => {
+    assetLibraryRequest += 1;
+    const previous = assetPickerState;
+    assetPickerState = null;
+    availableAssets = [];
+    selectedAssetPath = "";
+    assetPreviewImageHost.replaceChildren();
+    restoreAssetPickerFocus(previous);
+  });
+  document.addEventListener("pointerdown", (event) => {
+    if (!contextMenu.hidden && !contextMenu.contains(event.target)) closeContextMenu();
+    if (
+      !shapePalette.hidden &&
+      !shapePalette.contains(event.target) &&
+      !shapePaletteButton.contains(event.target)
+    ) {
+      closeShapePalette();
+    }
+    if (
+      !toolbarMoreMenu.hidden &&
+      !toolbarMoreMenu.contains(event.target) &&
+      !toolbarMoreButton.contains(event.target)
+    ) {
+      closeToolbarMore();
+    }
+    if (
+      compactPanels.matches &&
+      responsivePanel &&
+      !(responsivePanel === "elements" ? elementPanel : inspectorPanel).contains(event.target) &&
+      !event.target.closest(".editor-panel-actions")
+    ) {
+      closeResponsivePanel(responsivePanel, { restoreFocus: false });
+    }
+  }, true);
+  contextMenu.addEventListener("keydown", (event) => {
+    const activeMenu = document.activeElement.closest('[role="menu"]');
+    const items = activeMenu ? directMenuItems(activeMenu) : [];
+    const current = items.indexOf(document.activeElement);
+    let next = null;
+    if (event.key === "ArrowDown") next = items[(current + 1 + items.length) % items.length];
+    else if (event.key === "ArrowUp") next = items[(current - 1 + items.length) % items.length];
+    else if (event.key === "Home") next = items[0];
+    else if (event.key === "End") next = items.at(-1);
+    else if (
+      event.key === "ArrowRight" &&
+      document.activeElement.matches('[aria-haspopup="menu"]')
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+      openContextSubmenu(document.activeElement, { focusFirst: true });
+      return;
+    } else if (event.key === "ArrowLeft" && activeMenu?.classList.contains("context-submenu")) {
+      event.preventDefault();
+      event.stopPropagation();
+      closeContextSubmenu({ restoreFocus: true });
+      return;
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      closeContextMenu({ restoreFocus: true });
+      return;
+    } else if (event.key === "Tab") {
+      closeContextMenu({ restoreFocus: true });
+      return;
+    }
+    if (next) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (activeMenu === contextMenu && !next.matches('[aria-haspopup="menu"]')) {
+        closeContextSubmenu();
+      }
+      next.focus();
+      return;
+    }
+    event.stopPropagation();
+  });
+  tree.closest(".element-panel")?.addEventListener("contextmenu", (event) => {
+    if (event.target.closest(".tree-item")) return;
+    event.preventDefault();
+    openBlankContextMenu({
+      clientX: event.clientX,
+      clientY: event.clientY,
+      origin: "tree",
+    });
+  });
+  viewport.addEventListener("contextmenu", (event) => {
+    if (event.target.closest("[data-editor-ref]")) return;
+    event.preventDefault();
+    openBlankContextMenu({
+      clientX: event.clientX,
+      clientY: event.clientY,
+      origin: "canvas",
+    });
+  });
+  viewport.addEventListener("pointerdown", () => { suppressCanvasClick = false; }, true);
+  viewport.addEventListener("pointerdown", (event) => {
+    const interactiveTarget = event.target.closest(
+      "[data-editor-ref], .editor-resize-handle, button, input, select, textarea, a",
+    );
+    const bounds = viewport.getBoundingClientRect();
+    if (event.clientX >= bounds.left + viewport.clientWidth ||
+        event.clientY >= bounds.top + viewport.clientHeight) return;
+    const primaryBlankDrag = event.button === 0 && !interactiveTarget;
+    const panning = event.button === 1 || (event.button === 0 && spacePressed);
+    if (!panning) {
+      if (primaryBlankDrag) beginMarquee(event);
+      return;
+    }
+    event.preventDefault();
+    viewport.setPointerCapture?.(event.pointerId);
+    pan = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      left: viewport.scrollLeft,
+      top: viewport.scrollTop,
+    };
+    viewport.classList.add("is-panning");
+  });
+  viewport.addEventListener("pointermove", (event) => {
+    if (!pan || pan.pointerId !== event.pointerId) return;
+    const dx = event.clientX - pan.x;
+    const dy = event.clientY - pan.y;
+    viewport.scrollLeft = pan.left - dx;
+    viewport.scrollTop = pan.top - dy;
+  });
+  const finishPan = (event) => {
+    if (!pan || pan.pointerId !== event.pointerId) return;
+    suppressCanvasClick = true;
+    pan = null;
+    viewport.classList.remove("is-panning");
+    if (viewport.hasPointerCapture?.(event.pointerId)) {
+      viewport.releasePointerCapture(event.pointerId);
+    }
+  };
+  viewport.addEventListener("pointerup", finishPan);
+  viewport.addEventListener("pointercancel", finishPan);
+  viewport.addEventListener("lostpointercapture", (event) => {
+    if (pan?.pointerId !== event.pointerId) return;
+    suppressCanvasClick = true;
+    pan = null;
+    viewport.classList.remove("is-panning");
+  });
+  viewport.addEventListener("click", (event) => {
+    if (!suppressCanvasClick) return;
+    suppressCanvasClick = false;
+    event.preventDefault();
+    event.stopPropagation();
+  }, true);
+  viewport.addEventListener("auxclick", (event) => {
+    if (event.button === 1) event.preventDefault();
+  });
+  viewport.addEventListener("scroll", () => closeContextMenu(), { passive: true });
+  tree.closest(".editor-sidebar")?.addEventListener("scroll", () => closeContextMenu(), {
+    passive: true,
+  });
+  viewport.addEventListener(
+    "wheel",
+    (event) => {
+      if (!event.ctrlKey) return;
+      event.preventDefault();
+      setZoom(zoom + (event.deltaY < 0 ? 0.1 : -0.1));
+    },
+    { passive: false },
+  );
+  window.addEventListener("keydown", (event) => {
+    if (assetDialog.open) return;
+    const editable = ["INPUT", "TEXTAREA", "SELECT"].includes(event.target.tagName);
+    if (event.code === "Space" && !editable) {
+      spacePressed = true;
+      if (viewport.contains(event.target) || tree.contains(event.target) ||
+          event.target === document.body) event.preventDefault();
+    }
+    const modifier = event.ctrlKey || event.metaKey;
+    const key = event.key.toLowerCase();
+    if (event.key === "Escape" && (drag || marquee || pan)) {
+      event.preventDefault();
+      cancelGestures();
+      return;
+    }
+    if (event.key === "Escape" && !toolbarMoreMenu.hidden) {
+      event.preventDefault();
+      closeToolbarMore({ restoreFocus: true });
+      return;
+    }
+    if (event.key === "Escape" && !shapePalette.hidden) {
+      event.preventDefault();
+      closeShapePalette({ restoreFocus: true });
+      return;
+    }
+    if (event.key === "Escape" && responsivePanels.matches && responsivePanel) {
+      event.preventDefault();
+      closeResponsivePanel();
+      return;
+    }
+    if (modifier && key === "s") {
+      event.preventDefault();
+      if (editable) event.target.blur();
+      void save();
+      return;
+    }
+    if (editable) return;
+    if (modifier && key === "z") {
+      event.preventDefault();
+      invokeAction(event.shiftKey ? "redo" : "undo");
+    } else if (modifier && key === "y") {
+      event.preventDefault();
+      invokeAction("redo");
+    } else if (modifier && key === "d") {
+      event.preventDefault();
+      invokeAction("duplicate");
+    } else if (event.key === "Delete") {
+      event.preventDefault();
+      invokeAction("delete");
+    } else if (event.key === "Escape") {
+      connectorTool = null;
+      selectOnly(null);
+      renderAll();
+    }
+  });
+  window.addEventListener("keyup", (event) => {
+    if (event.code === "Space") spacePressed = false;
+  });
+  window.addEventListener("resize", () => closeContextMenu(), { passive: true });
+  window.addEventListener("blur", () => {
+    spacePressed = false;
+    cancelGestures();
+    closeContextMenu();
+  });
+  window.addEventListener("beforeunload", (event) => {
+    if (!dirty) return;
+    event.preventDefault();
+    event.returnValue = "";
+  });
+}
+
+async function refreshState() {
+  const response = await fetch("./state", { cache: "no-store" });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const state = await response.json();
+  if (!Number.isInteger(state.version) || state.version < serverVersion) return;
+  serverVersion = state.version;
+  sourcePath = state.sourcePath;
+  blockIndex = state.blockIndex;
+  const stateRevision = state.draftRevision ?? 0;
+  const stateGeneration = state.generation ?? 0;
+  document.documentElement.dataset.theme = state.theme || "dark";
+  sourceLabel.textContent = `${sourcePath} — diagram ${blockIndex + 1}`;
+  sourceLabel.title = sourceLabel.textContent;
+  if (targetGeneration !== stateGeneration) {
+    targetGeneration = stateGeneration;
+    draftRevision = stateRevision;
+    architecture = createArchitectureDocument(state.source);
+    cancelGestures();
+    selectOnly(null);
+    setDirty(state.dirty);
+    renderAll();
+    return;
+  }
+  if (stateRevision < draftRevision) {
+    setDirty(true);
+    refreshToolbar();
+    return;
+  }
+  draftRevision = stateRevision;
+  if (!architecture || architecture.source !== state.source) {
+    architecture = createArchitectureDocument(state.source);
+    cancelGestures();
+    selectOnly(null);
+    setDirty(state.dirty);
+    renderAll();
+  } else {
+    setDirty(state.dirty);
+    refreshToolbar();
+  }
+}
+
+async function init() {
+  wireControls();
+  await refreshState();
+  fitZoom();
+  announce(
+    architecture.model.elements.length
+      ? "Select an element to edit it. The Markdown remains unchanged until you save."
+      : "Add the first shape to start the diagram. The Markdown remains unchanged until you save.",
+  );
+  const events = new EventSource("./events");
+  events.onmessage = () => {
+    void refreshState().catch((error) => announce(error.message, "error"));
+  };
+}
+
+init().catch((error) => {
+  announce(`Could not start the editor: ${error.message}`, "error");
+  try {
+    parseArchitecture("{}");
+  } catch (_) {
+    // Keep the status visible; there is no editable document to render.
+  }
+});
