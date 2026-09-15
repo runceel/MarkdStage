@@ -104,6 +104,7 @@ import {
   sendChunkedVendorAsset as sendRuntimeChunkedVendorAsset,
   sendFile,
 } from "./hosts/node/static-files.mjs";
+import { openExportFile } from "./hosts/node/open-export.mjs";
 
 const EXT_DIR = dirname(fileURLToPath(import.meta.url));
 const PEN_LISTENER_SCRIPT = join(EXT_DIR, "windows", "pen-button-listener.ps1");
@@ -1836,6 +1837,32 @@ async function startServer(inst) {
     }
     if (pathname === "/events") {
       handleSse(req, res, inst);
+      return;
+    }
+
+    if (pathname === "/open-export") {
+      if (req.method !== "POST") {
+        res.statusCode = 405;
+        res.setHeader("Allow", "POST");
+        res.end("Method not allowed");
+        return;
+      }
+      try {
+        const body = await readJsonBody(req);
+        const result = await openExportFile(inst.workspaceRoot, body.path);
+        res.statusCode = 200;
+        res.setHeader("Content-Type", "application/json; charset=utf-8");
+        res.setHeader("Cache-Control", "no-store");
+        res.end(JSON.stringify(result));
+      } catch (error) {
+        res.statusCode = error?.message === "payload_too_large" ? 413 : 400;
+        res.setHeader("Content-Type", "application/json; charset=utf-8");
+        res.end(JSON.stringify({
+          ok: false,
+          error: error?.code || error?.message || "open_export_failed",
+          message: error?.message || "The exported file could not be opened.",
+        }));
+      }
       return;
     }
     if (pathname === "/vendor/mermaid.min.js") {

@@ -4136,10 +4136,30 @@ function showExportNotification(state, message, path = "") {
   resumeExportNotification();
 }
 
-document.getElementById("exportNotificationLink")?.addEventListener("click", (event) => {
+document.getElementById("exportNotificationLink")?.addEventListener("click", async (event) => {
   event.preventDefault();
   const path = event.currentTarget.dataset.path;
-  if (path) window.chrome?.webview?.postMessage({ type: "shell:open-file", path });
+  if (!path) return;
+  if (
+    window.__markdstageNativeShell === true &&
+    typeof window.chrome?.webview?.postMessage === "function"
+  ) {
+    window.chrome.webview.postMessage({ type: "shell:open-file", path });
+    return;
+  }
+  try {
+    const response = await fetch("./open-export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ path }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data?.ok !== true) {
+      throw new Error(data?.message || `Could not open the exported file (${response.status}).`);
+    }
+  } catch (error) {
+    showExportNotification("error", error?.message || "Could not open the exported file.");
+  }
 });
 
 let pptxOptionsPending = false;

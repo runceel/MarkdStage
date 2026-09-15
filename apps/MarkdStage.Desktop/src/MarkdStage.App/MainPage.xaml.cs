@@ -831,7 +831,8 @@ public sealed partial class MainPage : Page
             NativeAssetMappings.ConfigurePackage(webView);
             if (webView == StageWebView)
             {
-                await webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(StageEscapeScript);
+                await webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(
+                    "window.__markdstageNativeShell = true;\n" + StageEscapeScript);
                 webView.CoreWebView2.WebMessageReceived += OnStageWebMessageReceived;
             }
             if (source is not null)

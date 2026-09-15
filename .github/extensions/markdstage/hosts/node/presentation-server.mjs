@@ -35,6 +35,7 @@ import {
   pptxNameForSource,
 } from "../../runtime/output-paths.mjs";
 import { safeJoin, sendChunkedVendorAsset, sendFile } from "./static-files.mjs";
+import { openExportFile } from "./open-export.mjs";
 
 const HOST_DIR = dirname(fileURLToPath(import.meta.url));
 const EXT_DIR = resolve(HOST_DIR, "..", "..");
@@ -339,6 +340,30 @@ export async function startPresentationServer(
         clearInterval(heartbeat);
         session.clients.delete(res);
       });
+      return;
+    }
+
+    if (applicationMode && route === "/open-export") {
+      if (req.method !== "POST") {
+        res.setHeader("Allow", "POST");
+        json(res, 405, { ok: false, error: "method_not_allowed" });
+        return;
+      }
+      if (!sameOrigin()) {
+        json(res, 403, { ok: false, error: "origin_not_allowed" });
+        return;
+      }
+      try {
+        const body = await readJsonBody(req);
+        const result = await openExportFile(session.workspaceRoot, body.path);
+        json(res, 200, result);
+      } catch (error) {
+        json(res, error?.message === "payload_too_large" ? 413 : 400, {
+          ok: false,
+          error: error?.code || error?.message || "open_export_failed",
+          message: error?.message || "The exported file could not be opened.",
+        });
+      }
       return;
     }
 
