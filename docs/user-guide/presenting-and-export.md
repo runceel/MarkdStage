@@ -137,7 +137,7 @@ bars live in layout artwork, while supported cover logos are separate layout pic
 Slide-specific decorations such as footer rules, page-number frames, and kicker marks are cropped to
 their painted bounds.
 
-Native Japanese text uses Yu Gothic as its primary East Asian font, while Latin text keeps the font
+Native Japanese text uses Yu Gothic UI as its primary East Asian font, while Latin text keeps the font
 selected by the rendered slide. Exported native text is marked as not requiring proofing, so
 PowerPoint does not add spelling or grammar underlines.
 

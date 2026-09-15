@@ -676,7 +676,7 @@ test("uses the renderer-provided CSS bullet offset when available", () => {
   );
 });
 
-test("uses Yu Gothic for Japanese theme fonts and native text", () => {
+test("uses Yu Gothic UI for Japanese theme fonts and native text", () => {
   const files = readStoredZip(
     buildPptxPackage({
       slides: [
@@ -710,20 +710,20 @@ test("uses Yu Gothic for Japanese theme fonts and native text", () => {
 
   assert.match(
     theme,
-    /<a:majorFont><a:latin typeface="Aptos Display"\/><a:ea typeface="Yu Gothic"\/><a:cs typeface=""\/><a:font script="Jpan" typeface="Yu Gothic"\/><\/a:majorFont>/,
+    /<a:majorFont><a:latin typeface="Aptos Display"\/><a:ea typeface="Yu Gothic UI"\/><a:cs typeface=""\/><a:font script="Jpan" typeface="Yu Gothic UI"\/><\/a:majorFont>/,
   );
   assert.match(
     theme,
-    /<a:minorFont><a:latin typeface="Aptos"\/><a:ea typeface="Yu Gothic"\/><a:cs typeface=""\/><a:font script="Jpan" typeface="Yu Gothic"\/><\/a:minorFont>/,
+    /<a:minorFont><a:latin typeface="Aptos"\/><a:ea typeface="Yu Gothic UI"\/><a:cs typeface=""\/><a:font script="Jpan" typeface="Yu Gothic UI"\/><\/a:minorFont>/,
   );
   assert.match(
     slide,
-    /<a:latin typeface="Segoe UI"\/><a:ea typeface="Yu Gothic"\/>[\s\S]*?<a:t>日本語の編集可能テキスト<\/a:t>/,
+    /<a:latin typeface="Segoe UI"\/><a:ea typeface="Yu Gothic UI"\/>[\s\S]*?<a:t>日本語の編集可能テキスト<\/a:t>/,
   );
   assert.match(slide, /<a:rPr[^>]*lang="en-US"[^>]*noProof="1"/);
   assert.match(
     slide,
-    /<a:endParaRPr lang="en-US" noProof="1"><a:ea typeface="Yu Gothic"\/><\/a:endParaRPr>/,
+    /<a:endParaRPr lang="en-US" noProof="1"><a:ea typeface="Yu Gothic UI"\/><\/a:endParaRPr>/,
   );
 });
 
@@ -750,7 +750,7 @@ test("keeps explicit transparent text runs unpainted instead of defaulting to bl
   const slide = xml(files, "ppt/slides/slide1.xml");
   assert.match(
     slide,
-    /<a:rPr[^>]*><a:noFill\/><a:ea typeface="Yu Gothic"\/><\/a:rPr><a:t>Hidden<\/a:t>/,
+    /<a:rPr[^>]*><a:noFill\/><a:ea typeface="Yu Gothic UI"\/><\/a:rPr><a:t>Hidden<\/a:t>/,
   );
   assert.match(
     slide,

@@ -17,7 +17,7 @@ const NS_R =
   "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 const NS_REL =
   "http://schemas.openxmlformats.org/package/2006/relationships";
-const JAPANESE_FONT_FACE = "Yu Gothic";
+const JAPANESE_FONT_FACE = "Yu Gothic UI";
 const HUNDREDTH_POINTS_PER_PIXEL = 75;
 const SLIDE_LAYOUT_ID_BASE = 2147500000;
 const DRAWINGML_ANGLE_UNITS_PER_DEGREE = 60000;
