@@ -1226,7 +1226,7 @@ function notesMasterXml() {
     cx: 5486400,
     cy: 4114800,
   });
-  return `${XML}<p:notesMaster xmlns:a="${NS_A}" xmlns:r="${NS_R}" xmlns:p="${NS_P}"><p:cSld name="Notes Master"><p:spTree>${baseShapeTree()}${slideImage}${body}</p:spTree></p:cSld><p:clrMap accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" bg1="lt1" bg2="lt2" folHlink="folHlink" hlink="hlink" tx1="dk1" tx2="dk2"/><p:notesStyle><a:lvl1pPr marL="0" algn="l"><a:defRPr sz="1200"><a:latin typeface="${LATIN_FONT_FACE}"/><a:ea typeface="${JAPANESE_FONT_FACE}"/></a:defRPr></a:lvl1pPr></p:notesMaster>`;
+  return `${XML}<p:notesMaster xmlns:a="${NS_A}" xmlns:r="${NS_R}" xmlns:p="${NS_P}"><p:cSld name="Notes Master"><p:spTree>${baseShapeTree()}${slideImage}${body}</p:spTree></p:cSld><p:clrMap accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" bg1="lt1" bg2="lt2" folHlink="folHlink" hlink="hlink" tx1="dk1" tx2="dk2"/><p:notesStyle><a:lvl1pPr marL="0" algn="l"><a:defRPr sz="1200"><a:latin typeface="${LATIN_FONT_FACE}"/><a:ea typeface="${JAPANESE_FONT_FACE}"/></a:defRPr></a:lvl1pPr></p:notesStyle></p:notesMaster>`;
 }
 
 function notesSlideXml(notes) {
