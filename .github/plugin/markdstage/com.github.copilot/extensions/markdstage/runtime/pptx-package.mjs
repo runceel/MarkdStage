@@ -1,0 +1,1773 @@
+const UTF8_ENCODER = new TextEncoder();
+const UTF8_DECODER = new TextDecoder("utf-8", { ignoreBOM: true });
+
+export const PPTX_DIMENSIONS = Object.freeze({
+  widthPx: 1280,
+  heightPx: 720,
+  emusPerPx: 9525,
+  widthEmu: 12192000,
+  heightEmu: 6858000,
+});
+
+const XML =
+  '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+const NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main";
+const NS_P = "http://schemas.openxmlformats.org/presentationml/2006/main";
+const NS_R =
+  "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+const NS_REL =
+  "http://schemas.openxmlformats.org/package/2006/relationships";
+const LATIN_FONT_FACE = "Segoe UI";
+const JAPANESE_FONT_FACE = "Yu Gothic UI";
+const HUNDREDTH_POINTS_PER_PIXEL = 75;
+const SLIDE_LAYOUT_ID_BASE = 2147500000;
+const DRAWINGML_ANGLE_UNITS_PER_DEGREE = 60000;
+const DRAWINGML_HALF_TURN = 180 * DRAWINGML_ANGLE_UNITS_PER_DEGREE;
+const DRAWINGML_FULL_TURN = 360 * DRAWINGML_ANGLE_UNITS_PER_DEGREE;
+
+const REL = {
+  officeDocument: `${NS_R}/officeDocument`,
+  core: `${NS_REL}/metadata/core-properties`,
+  app: `${NS_R}/extended-properties`,
+  slide: `${NS_R}/slide`,
+  slideMaster: `${NS_R}/slideMaster`,
+  slideLayout: `${NS_R}/slideLayout`,
+  theme: `${NS_R}/theme`,
+  image: `${NS_R}/image`,
+  hyperlink: `${NS_R}/hyperlink`,
+  notesSlide: `${NS_R}/notesSlide`,
+  notesMaster: `${NS_R}/notesMaster`,
+};
+
+const CONTENT_TYPES = {
+  "image/png": { extension: "png", contentType: "image/png" },
+  "image/jpeg": { extension: "jpeg", contentType: "image/jpeg" },
+  "image/gif": { extension: "gif", contentType: "image/gif" },
+  "image/svg+xml": { extension: "svg", contentType: "image/svg+xml" },
+};
+
+const CRC_TABLE = new Uint32Array(256);
+for (let i = 0; i < 256; i += 1) {
+  let value = i;
+  for (let bit = 0; bit < 8; bit += 1) {
+    value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+  }
+  CRC_TABLE[i] = value >>> 0;
+}
+
+function fail(message) {
+  throw new TypeError(`Invalid PowerPoint model: ${message}`);
+}
+
+function isXmlCodePoint(codePoint) {
+  return (
+    codePoint === 0x9 ||
+    codePoint === 0xa ||
+    codePoint === 0xd ||
+    (codePoint >= 0x20 && codePoint <= 0xd7ff) ||
+    (codePoint >= 0xe000 && codePoint <= 0xfffd) ||
+    (codePoint >= 0x10000 && codePoint <= 0x10ffff)
+  );
+}
+
+function xmlEscape(value) {
+  return [...String(value)]
+    .map((character) => (isXmlCodePoint(character.codePointAt(0)) ? character : "\uFFFD"))
+    .join("")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
+}
+
+function xmlUnescape(value) {
+  return value
+    .replaceAll("&apos;", "'")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&gt;", ">")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&amp;", "&");
+}
+
+function finiteNumber(value, path) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    fail(`${path} must be a finite number`);
+  }
+  return value;
+}
+
+function positiveNumber(value, path) {
+  const number = finiteNumber(value, path);
+  if (number <= 0) fail(`${path} must be greater than zero`);
+  return number;
+}
+
+function nonNegativeNumber(value, path) {
+  const number = finiteNumber(value, path);
+  if (number < 0) fail(`${path} must be zero or greater`);
+  return number;
+}
+
+function optionalUnitInterval(value, path, fallback = 1) {
+  if (value === undefined) return fallback;
+  const number = finiteNumber(value, path);
+  if (number < 0 || number > 1) fail(`${path} must be between 0 and 1`);
+  return number;
+}
+
+function optionalOwnUnitInterval(value, key, path, fallback = 1) {
+  if (!Object.hasOwn(value, key)) {
+    if (key in value) fail(`${path}.${key} must be an own property`);
+    return fallback;
+  }
+  return optionalUnitInterval(value[key], `${path}.${key}`, fallback);
+}
+
+function optionalOwnRotationUnits(value, path) {
+  if (!Object.hasOwn(value, "rotation")) {
+    if ("rotation" in value) fail(`${path}.rotation must be an own property`);
+    return 0;
+  }
+  const rotation = finiteNumber(value.rotation, `${path}.rotation`);
+  let units = Math.round((((rotation % 360) + 360) % 360) * DRAWINGML_ANGLE_UNITS_PER_DEGREE);
+  if (units >= DRAWINGML_HALF_TURN) units -= DRAWINGML_FULL_TURN;
+  return units === 0 ? 0 : units;
+}
+
+function paintOpacities(element, path) {
+  return {
+    opacity: optionalOwnUnitInterval(element, "opacity", path),
+    fillOpacity: optionalOwnUnitInterval(element, "fillOpacity", path),
+    strokeOpacity: optionalOwnUnitInterval(element, "strokeOpacity", path),
+  };
+}
+
+function boundsOf(value, path) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    fail(`${path} must be an object`);
+  }
+  return {
+    x: finiteNumber(value.x, `${path}.x`),
+    y: finiteNumber(value.y, `${path}.y`),
+    width: positiveNumber(value.width, `${path}.width`),
+    height: positiveNumber(value.height, `${path}.height`),
+  };
+}
+
+function emu(value) {
+  return Math.round(value * PPTX_DIMENSIONS.emusPerPx);
+}
+
+function xfrmXml(bounds, tag = "a:xfrm", rotationUnits = 0) {
+  const rotation = rotationUnits ? ` rot="${rotationUnits}"` : "";
+  return `<${tag}${rotation}><a:off x="${emu(bounds.x)}" y="${emu(bounds.y)}"/><a:ext cx="${emu(bounds.width)}" cy="${emu(bounds.height)}"/></${tag}>`;
+}
+
+function parseChannel(value, path) {
+  const text = String(value).trim();
+  const number = text.endsWith("%")
+    ? (Number.parseFloat(text) * 255) / 100
+    : Number.parseFloat(text);
+  if (!Number.isFinite(number) || number < 0 || number > 255) {
+    fail(`${path} contains an invalid RGB channel`);
+  }
+  return Math.round(number);
+}
+
+function parseAlpha(value, path) {
+  if (value === undefined) return 1;
+  const text = String(value).trim();
+  const number = text.endsWith("%")
+    ? Number.parseFloat(text) / 100
+    : Number.parseFloat(text);
+  if (!Number.isFinite(number) || number < 0 || number > 1) {
+    fail(`${path} contains an invalid alpha channel`);
+  }
+  return number;
+}
+
+function colorOf(value, path) {
+  if (value === null || value === undefined || value === "transparent") return null;
+  if (typeof value !== "string") fail(`${path} must be a CSS color string or null`);
+  const text = value.trim();
+  const hex = /^#([0-9a-f]{3,8})$/i.exec(text);
+  if (hex) {
+    let digits = hex[1];
+    if (digits.length === 3 || digits.length === 4) {
+      digits = [...digits].map((digit) => digit + digit).join("");
+    }
+    if (digits.length !== 6 && digits.length !== 8) {
+      fail(`${path} must use #RGB, #RGBA, #RRGGBB, or #RRGGBBAA`);
+    }
+    return {
+      hex: digits.slice(0, 6).toUpperCase(),
+      alpha:
+        digits.length === 8 ? Number.parseInt(digits.slice(6), 16) / 255 : 1,
+    };
+  }
+  const rgb = /^rgba?\((.*)\)$/i.exec(text);
+  if (!rgb) fail(`${path} must be a hex, rgb(), or rgba() color`);
+  const inner = rgb[1].trim();
+  let channels;
+  let alpha;
+  if (inner.includes(",")) {
+    const parts = inner.split(",").map((part) => part.trim());
+    if (parts.length !== 3 && parts.length !== 4) fail(`${path} is invalid`);
+    channels = parts.slice(0, 3);
+    alpha = parts[3];
+  } else {
+    const [channelText, alphaText] = inner.split("/").map((part) => part.trim());
+    channels = channelText.split(/\s+/);
+    alpha = alphaText;
+  }
+  if (channels.length !== 3) fail(`${path} is invalid`);
+  const values = channels.map((part) => parseChannel(part, path));
+  return {
+    hex: values.map((part) => part.toString(16).padStart(2, "0")).join("").toUpperCase(),
+    alpha: parseAlpha(alpha, path),
+  };
+}
+
+function colorChoiceXml(value, path, opacity = 1) {
+  const color = colorOf(value, path);
+  if (!color) return null;
+  const alpha = Math.round(color.alpha * opacity * 100000);
+  return `<a:srgbClr val="${color.hex}">${
+    alpha < 100000 ? `<a:alpha val="${alpha}"/>` : ""
+  }</a:srgbClr>`;
+}
+
+function colorXml(value, path, opacity = 1) {
+  const color = colorChoiceXml(value, path, opacity);
+  return color ? `<a:solidFill>${color}</a:solidFill>` : "<a:noFill/>";
+}
+
+function lineCapXml(value, path) {
+  if (value === undefined) return "";
+  const caps = { butt: "flat", round: "rnd", square: "sq" };
+  if (typeof value !== "string" || !Object.hasOwn(caps, value)) fail(`${path} is not a supported line cap`);
+  return ` cap="${caps[value]}"`;
+}
+
+function lineXml(element, path, opacities = paintOpacities(element, path)) {
+  const width = element.strokeWidth === undefined
+    ? 1
+    : positiveNumber(element.strokeWidth, `${path}.strokeWidth`);
+  const color = colorOf(element.stroke, `${path}.stroke`);
+  const cap = lineCapXml(element.lineCap, `${path}.lineCap`);
+  if (!color) return `<a:ln w="${emu(width)}"${cap}><a:noFill/></a:ln>`;
+  const alpha = Math.round(
+    color.alpha * opacities.opacity * opacities.strokeOpacity * 100000,
+  );
+  const dash = dashXml(element.dash, `${path}.dash`);
+  return `<a:ln w="${emu(width)}"${cap}><a:solidFill><a:srgbClr val="${color.hex}">${
+    alpha < 100000 ? `<a:alpha val="${alpha}"/>` : ""
+  }</a:srgbClr></a:solidFill>${dash}</a:ln>`;
+}
+
+function dashXml(value, path) {
+  if (value === undefined || value === null || value === "solid") return "";
+  const normalized = {
+    dash: "dash",
+    dashed: "dash",
+    dot: "dot",
+    dotted: "dot",
+    dashDot: "dashDot",
+    longDash: "lgDash",
+  }[value];
+  if (!normalized) fail(`${path} is not a supported dash style`);
+  return `<a:prstDash val="${normalized}"/>`;
+}
+
+function detectContentType(data) {
+  if (
+    data.length >= 8 &&
+    [137, 80, 78, 71, 13, 10, 26, 10].every((byte, index) => data[index] === byte)
+  ) {
+    return "image/png";
+  }
+  if (data.length >= 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff) {
+    return "image/jpeg";
+  }
+  if (
+    data.length >= 6 &&
+    (String.fromCharCode(...data.subarray(0, 6).map((byte) => byte & 0x7f)) === "GIF87a" ||
+      String.fromCharCode(...data.subarray(0, 6).map((byte) => byte & 0x7f)) === "GIF89a")
+  ) {
+    return "image/gif";
+  }
+  if (/^\s*<svg[\s>]/i.test(UTF8_DECODER.decode(data.subarray(0, 512)))) {
+    return "image/svg+xml";
+  }
+  return null;
+}
+
+function bytesOf(value, path) {
+  if (value instanceof ArrayBuffer) return new Uint8Array(value);
+  if (ArrayBuffer.isView(value)) {
+    return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+  }
+  throw new TypeError(`${path} must be an ArrayBuffer or typed array view`);
+}
+
+function normalizeAssets(assets) {
+  if (assets === undefined) return new Map();
+  if (!Array.isArray(assets)) fail("assets must be an array");
+  const result = new Map();
+  for (let index = 0; index < assets.length; index += 1) {
+    const asset = assets[index];
+    const path = `assets[${index}]`;
+    if (!asset || typeof asset !== "object" || Array.isArray(asset)) {
+      fail(`${path} must be an object`);
+    }
+    if (typeof asset.id !== "string" || !asset.id.trim()) {
+      fail(`${path}.id must be a non-empty string`);
+    }
+    if (result.has(asset.id)) fail(`duplicate asset id "${asset.id}"`);
+    const data = bytesOf(asset.data, `Invalid PowerPoint model: ${path}.data`);
+    if (!data.length) fail(`${path}.data must not be empty`);
+    const detected = detectContentType(data);
+    const contentType = asset.contentType || detected;
+    if (!CONTENT_TYPES[contentType]) {
+      fail(`${path}.contentType must be PNG, JPEG, GIF, or SVG`);
+    }
+    if (asset.contentType && detected && asset.contentType !== detected) {
+      fail(`${path}.contentType does not match its data`);
+    }
+    result.set(asset.id, {
+      id: asset.id,
+      data,
+      contentType,
+      extension: CONTENT_TYPES[contentType].extension,
+      mediaPath: "",
+    });
+  }
+  let mediaIndex = 1;
+  for (const asset of result.values()) {
+    asset.mediaPath = `ppt/media/image${mediaIndex}.${asset.extension}`;
+    mediaIndex += 1;
+  }
+  return result;
+}
+
+function requireAsset(assets, id, path) {
+  if (typeof id !== "string" || !id) fail(`${path} must be a non-empty asset id`);
+  const asset = assets.get(id);
+  if (!asset) fail(`${path} references missing asset "${id}"`);
+  return asset;
+}
+
+function fontSizeOf(run, path) {
+  let value = run.fontSize;
+  let unit = run.fontSizeUnit || "px";
+  if (run.fontSizePx !== undefined) {
+    value = run.fontSizePx;
+    unit = "px";
+  } else if (run.fontSizePt !== undefined) {
+    value = run.fontSizePt;
+    unit = "pt";
+  }
+  if (value === undefined) return 1800;
+  if (typeof value === "string") {
+    const match = /^(\d+(?:\.\d+)?)\s*(px|pt)$/i.exec(value.trim());
+    if (!match) fail(`${path}.fontSize must be a px or pt value`);
+    value = Number(match[1]);
+    unit = match[2].toLowerCase();
+  }
+  value = positiveNumber(value, `${path}.fontSize`);
+  if (unit !== "px" && unit !== "pt") {
+    fail(`${path}.fontSizeUnit must be "px" or "pt"`);
+  }
+  return Math.round((unit === "px" ? value * 0.75 : value) * 100);
+}
+
+function normalizeText(value, path) {
+  if (typeof value === "string") {
+    return { paragraphs: [{ runs: [{ text: value }] }] };
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    fail(`${path} must be a string or rich text object`);
+  }
+  if (!Array.isArray(value.paragraphs) || value.paragraphs.length === 0) {
+    fail(`${path}.paragraphs must be a non-empty array`);
+  }
+  return value;
+}
+
+function bulletTextOffsetPx(paragraph, path) {
+  if (
+    !paragraph ||
+    typeof paragraph !== "object" ||
+    Array.isArray(paragraph) ||
+    !paragraph.bullet ||
+    !Array.isArray(paragraph.runs) ||
+    paragraph.runs.length === 0
+  ) {
+    return 0;
+  }
+  if (paragraph.bulletOffsetPx !== undefined) {
+    return nonNegativeNumber(paragraph.bulletOffsetPx, `${path}.bulletOffsetPx`);
+  }
+  const largestRunSize = Math.max(
+    ...paragraph.runs.map((run, index) =>
+      fontSizeOf(run, `${path}.runs[${index}]`),
+    ),
+  );
+  return largestRunSize / HUNDREDTH_POINTS_PER_PIXEL;
+}
+
+function paragraphSpacingXml(paragraph, path) {
+  const entries = [
+    ["lineSpacing", "a:lnSpc", true],
+    ["spaceBefore", "a:spcBef", false],
+    ["spaceAfter", "a:spcAft", false],
+  ];
+  return entries
+    .map(([property, tag, positive]) => {
+      if (paragraph[property] === undefined) return "";
+      const value = positive
+        ? positiveNumber(paragraph[property], `${path}.${property}`)
+        : nonNegativeNumber(paragraph[property], `${path}.${property}`);
+      return `<${tag}><a:spcPts val="${Math.round(value * HUNDREDTH_POINTS_PER_PIXEL)}"/></${tag}>`;
+    })
+    .join("");
+}
+
+function paragraphXml(paragraph, path, relationships, leftMarginPx = 0) {
+  if (!paragraph || typeof paragraph !== "object" || Array.isArray(paragraph)) {
+    fail(`${path} must be an object`);
+  }
+  if (!Array.isArray(paragraph.runs) || paragraph.runs.length === 0) {
+    fail(`${path}.runs must be a non-empty array`);
+  }
+  const align = {
+    left: "l",
+    center: "ctr",
+    right: "r",
+    justify: "just",
+  }[paragraph.alignment || "left"];
+  if (!align) fail(`${path}.alignment is invalid`);
+  const level = paragraph.level === undefined ? 0 : paragraph.level;
+  if (!Number.isInteger(level) || level < 0 || level > 8) {
+    fail(`${path}.level must be an integer between 0 and 8`);
+  }
+  let bullet = "";
+  if (paragraph.bullet) {
+    const bulletValue =
+      typeof paragraph.bullet === "string" ? null : paragraph.bullet;
+    const character =
+      !bulletValue
+        ? paragraph.bullet
+        : bulletValue.character || "•";
+    const bulletColor =
+      bulletValue?.color === undefined
+        ? null
+        : colorChoiceXml(bulletValue.color, `${path}.bullet.color`);
+    bullet = `${
+      bulletColor ? `<a:buClr>${bulletColor}</a:buClr>` : ""
+    }<a:buChar char="${xmlEscape(character)}"/>`;
+  }
+  const bulletOffsetPx = bulletTextOffsetPx(paragraph, path);
+  const leftMargin =
+    paragraph.leftMargin === undefined
+      ? 0
+      : nonNegativeNumber(paragraph.leftMargin, `${path}.leftMargin`);
+  const paragraphMarginPx = Math.max(
+    leftMarginPx + leftMargin,
+    bulletOffsetPx,
+  );
+  const indentation = [
+    paragraphMarginPx > 0 ? `marL="${emu(paragraphMarginPx)}"` : "",
+    bulletOffsetPx > 0 ? `indent="-${emu(bulletOffsetPx)}"` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const indentationAttributes = indentation ? ` ${indentation}` : "";
+  const spacing = paragraphSpacingXml(paragraph, path);
+  const runs = paragraph.runs
+    .map((run, index) =>
+      runXml(run, `${path}.runs[${index}]`, relationships),
+    )
+    .join("");
+  return `<a:p><a:pPr algn="${align}" lvl="${level}"${indentationAttributes}>${spacing}${bullet}</a:pPr>${runs}<a:endParaRPr lang="en-US" noProof="1"><a:ea typeface="${JAPANESE_FONT_FACE}"/></a:endParaRPr></a:p>`;
+}
+
+function runXml(run, path, relationships) {
+  if (!run || typeof run !== "object" || Array.isArray(run)) {
+    fail(`${path} must be an object`);
+  }
+  if (typeof run.text !== "string") fail(`${path}.text must be a string`);
+  const size = fontSizeOf(run, path);
+  const attributes = [
+    'lang="en-US"',
+    'noProof="1"',
+    `sz="${size}"`,
+    run.bold ? 'b="1"' : "",
+    run.italic ? 'i="1"' : "",
+    run.underline ? 'u="sng"' : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  let properties = colorXml(
+    run.color === undefined ? "#000000" : run.color,
+    `${path}.color`,
+    optionalOwnUnitInterval(run, "opacity", path),
+  );
+  if (run.fontFace !== undefined) {
+    if (typeof run.fontFace !== "string" || !run.fontFace) {
+      fail(`${path}.fontFace must be a non-empty string`);
+    }
+    properties += `<a:latin typeface="${xmlEscape(run.fontFace)}"/>`;
+  }
+  properties += `<a:ea typeface="${JAPANESE_FONT_FACE}"/>`;
+  if (run.href !== undefined) {
+    if (typeof run.href !== "string" || !run.href) {
+      fail(`${path}.href must be a non-empty string`);
+    }
+    const relationshipId = relationships.hyperlink(run.href);
+    properties += `<a:hlinkClick r:id="${relationshipId}"/>`;
+  }
+  const preserve = /^\s|\s$|\s{2}/.test(run.text) ? ' xml:space="preserve"' : "";
+  return `<a:r><a:rPr ${attributes}>${properties}</a:rPr><a:t${preserve}>${xmlEscape(run.text)}</a:t></a:r>`;
+}
+
+function textBodyPropertiesXml(options, path) {
+  const anchor = {
+    top: "t",
+    middle: "ctr",
+    bottom: "b",
+  }[options.verticalAlignment];
+  if (options.verticalAlignment !== undefined && !anchor) {
+    fail(`${path}.verticalAlignment must be "top", "middle", or "bottom"`);
+  }
+  const wrap = options.textWrap === undefined ? "square" : options.textWrap;
+  if (wrap !== "square" && wrap !== "none") {
+    fail(`${path}.textWrap must be "square" or "none"`);
+  }
+  const insets = { left: 0, top: 0, right: 0, bottom: 0 };
+  if (options.textInsets !== undefined) {
+    if (
+      !options.textInsets ||
+      typeof options.textInsets !== "object" ||
+      Array.isArray(options.textInsets)
+    ) {
+      fail(`${path}.textInsets must be an object`);
+    }
+    for (const side of Object.keys(insets)) {
+      if (options.textInsets[side] !== undefined) {
+        insets[side] = nonNegativeNumber(
+          options.textInsets[side],
+          `${path}.textInsets.${side}`,
+        );
+      }
+    }
+  }
+  const anchorAttribute = anchor ? ` anchor="${anchor}"` : "";
+  return `<a:bodyPr wrap="${wrap}" lIns="${emu(insets.left)}" tIns="${emu(insets.top)}" rIns="${emu(insets.right)}" bIns="${emu(insets.bottom)}"${anchorAttribute}/>`;
+}
+
+function textBodyXml(
+  value,
+  path,
+  relationships,
+  tag = "p:txBody",
+  bodyOptions = {},
+  bodyPath = path,
+  leftMarginPx = 0,
+) {
+  const text = normalizeText(value, path);
+  const paragraphs = text.paragraphs
+    .map((paragraph, index) =>
+      paragraphXml(
+        paragraph,
+        `${path}.paragraphs[${index}]`,
+        relationships,
+        leftMarginPx,
+      ),
+    )
+    .join("");
+  return `<${tag}>${textBodyPropertiesXml(bodyOptions, bodyPath)}<a:lstStyle/>${paragraphs}</${tag}>`;
+}
+
+function shapeBase(id, name, bounds, properties, text = "", rotationUnits = 0) {
+  return `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${xmlEscape(name)}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr>${xfrmXml(bounds, "a:xfrm", rotationUnits)}${properties}</p:spPr>${text}</p:sp>`;
+}
+
+function textShapeXml(element, path, id, relationships) {
+  const bounds = boundsOf(element, path);
+  const rotationUnits = optionalOwnRotationUnits(element, path);
+  const text = { paragraphs: element.paragraphs };
+  const paragraphs = Array.isArray(text.paragraphs) ? text.paragraphs : [];
+  const bulletInsetPx = Math.max(
+    0,
+    ...paragraphs.map((paragraph, index) =>
+      bulletTextOffsetPx(paragraph, `${path}.paragraphs[${index}]`),
+    ),
+  );
+  const adjustedBounds =
+    bulletInsetPx > 0
+      ? {
+          ...bounds,
+          x: bounds.x - bulletInsetPx,
+          width: bounds.width + bulletInsetPx,
+        }
+      : bounds;
+  return shapeBase(
+    id,
+    `Text ${id}`,
+    adjustedBounds,
+    '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln>',
+    textBodyXml(
+      text,
+      `${path}`,
+      relationships,
+      "p:txBody",
+      element,
+      path,
+      bulletInsetPx,
+    ),
+    rotationUnits,
+  );
+}
+
+function shapeTextOf(element, path) {
+  const hasText = element.text !== undefined;
+  const hasParagraphs = element.paragraphs !== undefined;
+  if (hasText && hasParagraphs) {
+    fail(`${path} must specify either text or paragraphs, not both`);
+  }
+  if (hasParagraphs) {
+    return { value: { paragraphs: element.paragraphs }, path };
+  }
+  if (hasText) {
+    return { value: element.text, path: `${path}.text` };
+  }
+  return null;
+}
+
+function nativeShapeXml(element, path, id, relationships) {
+  const bounds = boundsOf(element, path);
+  const rotationUnits = optionalOwnRotationUnits(element, path);
+  const presets = {
+    rect: "rect",
+    roundedRect: "roundRect",
+    ellipse: "ellipse",
+    diamond: "diamond",
+    triangle: "triangle",
+    hexagon: "hexagon",
+    parallelogram: "parallelogram",
+  };
+  const customGeometries = {
+    quarterHeightHexagon: '<a:custGeom><a:avLst/><a:gdLst><a:gd name="dx" fmla="*/ h 1 4"/><a:gd name="rx" fmla="+- w 0 dx"/><a:gd name="cy" fmla="*/ h 1 2"/></a:gdLst><a:ahLst/><a:cxnLst/><a:rect l="l" t="t" r="r" b="b"/><a:pathLst><a:path><a:moveTo><a:pt x="dx" y="h"/></a:moveTo><a:lnTo><a:pt x="rx" y="h"/></a:lnTo><a:lnTo><a:pt x="w" y="cy"/></a:lnTo><a:lnTo><a:pt x="rx" y="0"/></a:lnTo><a:lnTo><a:pt x="dx" y="0"/></a:lnTo><a:lnTo><a:pt x="0" y="cy"/></a:lnTo><a:close/></a:path></a:pathLst></a:custGeom>',
+    sequenceTab: '<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="l" t="t" r="r" b="b"/><a:pathLst><a:path w="50000" h="20000"><a:moveTo><a:pt x="0" y="0"/></a:moveTo><a:lnTo><a:pt x="50000" y="0"/></a:lnTo><a:lnTo><a:pt x="50000" y="13000"/></a:lnTo><a:lnTo><a:pt x="41600" y="20000"/></a:lnTo><a:lnTo><a:pt x="0" y="20000"/></a:lnTo><a:close/></a:path></a:pathLst></a:custGeom>',
+    reverseParallelogram: '<a:custGeom><a:avLst/><a:gdLst><a:gd name="dx" fmla="*/ h 1 2"/><a:gd name="rx" fmla="+- w 0 dx"/></a:gdLst><a:ahLst/><a:cxnLst/><a:rect l="l" t="t" r="r" b="b"/><a:pathLst><a:path><a:moveTo><a:pt x="dx" y="h"/></a:moveTo><a:lnTo><a:pt x="w" y="h"/></a:lnTo><a:lnTo><a:pt x="rx" y="0"/></a:lnTo><a:lnTo><a:pt x="0" y="0"/></a:lnTo><a:close/></a:path></a:pathLst></a:custGeom>',
+    trapezoid: '<a:custGeom><a:avLst/><a:gdLst><a:gd name="dx" fmla="*/ h 1 2"/><a:gd name="rx" fmla="+- w 0 dx"/></a:gdLst><a:ahLst/><a:cxnLst/><a:rect l="l" t="t" r="r" b="b"/><a:pathLst><a:path><a:moveTo><a:pt x="0" y="h"/></a:moveTo><a:lnTo><a:pt x="w" y="h"/></a:lnTo><a:lnTo><a:pt x="rx" y="0"/></a:lnTo><a:lnTo><a:pt x="dx" y="0"/></a:lnTo><a:close/></a:path></a:pathLst></a:custGeom>',
+    invertedTrapezoid: '<a:custGeom><a:avLst/><a:gdLst><a:gd name="dx" fmla="*/ h 1 2"/><a:gd name="rx" fmla="+- w 0 dx"/></a:gdLst><a:ahLst/><a:cxnLst/><a:rect l="l" t="t" r="r" b="b"/><a:pathLst><a:path><a:moveTo><a:pt x="dx" y="h"/></a:moveTo><a:lnTo><a:pt x="rx" y="h"/></a:lnTo><a:lnTo><a:pt x="w" y="0"/></a:lnTo><a:lnTo><a:pt x="0" y="0"/></a:lnTo><a:close/></a:path></a:pathLst></a:custGeom>',
+  };
+  const adjustedGeometries = {
+    stadium: '<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val 50000"/></a:avLst></a:prstGeom>',
+  };
+  if (element.shape === "topRoundedRect") {
+    const radius = Math.min(nonNegativeNumber(element.cornerRadius === undefined ? 5 : element.cornerRadius, `${path}.cornerRadius`),
+      bounds.width / 2, bounds.height / 2);
+    const r = Math.round(radius * 9525);
+    // This bounded preset retains Mermaid's two quadratic top corners and square bottom.
+    customGeometries.topRoundedRect = `<a:custGeom><a:avLst/><a:gdLst><a:gd name="r" fmla="val ${r}"/><a:gd name="rx" fmla="+- w 0 r"/></a:gdLst><a:ahLst/><a:cxnLst/><a:rect l="l" t="t" r="r" b="b"/><a:pathLst><a:path><a:moveTo><a:pt x="0" y="h"/></a:moveTo><a:lnTo><a:pt x="0" y="r"/></a:lnTo><a:quadBezTo><a:pt x="0" y="0"/><a:pt x="r" y="0"/></a:quadBezTo><a:lnTo><a:pt x="rx" y="0"/></a:lnTo><a:quadBezTo><a:pt x="w" y="0"/><a:pt x="w" y="r"/></a:quadBezTo><a:lnTo><a:pt x="w" y="h"/></a:lnTo><a:close/></a:path></a:pathLst></a:custGeom>`;
+  }
+  if (element.shape === "roundedRect" && element.cornerRadius !== undefined) {
+    const radius = nonNegativeNumber(element.cornerRadius, `${path}.cornerRadius`);
+    const adjustment = Math.round(Math.min(50000,
+      radius / Math.min(bounds.width, bounds.height) * 100000));
+    adjustedGeometries.roundedRect =
+      `<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val ${adjustment}"/></a:avLst></a:prstGeom>`;
+  }
+  const shape = Object.hasOwn(element, "shape") ? element.shape : undefined;
+  const preset = typeof shape === "string" && Object.hasOwn(presets, shape) ? presets[shape] : "";
+  const customGeometry = typeof shape === "string" && Object.hasOwn(customGeometries, shape)
+    ? customGeometries[shape]
+    : "";
+  const adjustedGeometry = typeof shape === "string" && Object.hasOwn(adjustedGeometries, shape)
+    ? adjustedGeometries[shape]
+    : "";
+  const geometry = adjustedGeometry || customGeometry || (preset
+      ? `<a:prstGeom prst="${preset}"><a:avLst/></a:prstGeom>`
+      : "");
+  if (!geometry) {
+    fail(
+      `${path}.shape must be rect, roundedRect, topRoundedRect, stadium, ellipse, diamond, triangle, hexagon, quarterHeightHexagon, parallelogram, reverseParallelogram, trapezoid, invertedTrapezoid, or sequenceTab`,
+    );
+  }
+  const opacities = paintOpacities(element, path);
+  const properties = `${xfrmXml(bounds, "a:xfrm", rotationUnits)}${geometry}${colorXml(
+    element.fill,
+    `${path}.fill`,
+    opacities.opacity * opacities.fillOpacity,
+  )}${lineXml(element, path, opacities)}`;
+  const shapeText = shapeTextOf(element, path);
+  if (!shapeText) textBodyPropertiesXml(element, path);
+  const text = shapeText
+     ? textBodyXml(
+         shapeText.value,
+         shapeText.path,
+         relationships,
+         "p:txBody",
+         element,
+         path,
+       )
+     : "";
+  return `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="Shape ${id}"/><p:cNvSpPr txBox="0"/><p:nvPr/></p:nvSpPr><p:spPr>${properties}</p:spPr>${text}</p:sp>`;
+}
+
+function pictureXml(
+  asset,
+  bounds,
+  id,
+  relationshipId,
+  name = `Image ${id}`,
+  userDrawn = false,
+  shape = "rect",
+) {
+  const preset = shape === "roundedRect" ? "roundRect" : "rect";
+  return `<p:pic><p:nvPicPr><p:cNvPr id="${id}" name="${xmlEscape(name)}"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr${userDrawn ? ' userDrawn="1"' : ""}/></p:nvPicPr><p:blipFill><a:blip r:embed="${relationshipId}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>${xfrmXml(bounds)}<a:prstGeom prst="${preset}"><a:avLst/></a:prstGeom></p:spPr></p:pic>`;
+}
+
+function tableXml(element, path, id, relationships) {
+  const bounds = boundsOf(element, path);
+  if (!Array.isArray(element.rows) || element.rows.length === 0) {
+    fail(`${path}.rows must be a non-empty array`);
+  }
+  const columnCount = element.rows[0]?.cells?.length;
+  if (!Number.isInteger(columnCount) || columnCount === 0) {
+    fail(`${path}.rows[0].cells must be a non-empty array`);
+  }
+  const rowHeight = emu(bounds.height) / element.rows.length;
+  const columnWidth = emu(bounds.width) / columnCount;
+  const rows = element.rows
+    .map((row, rowIndex) => {
+      const rowPath = `${path}.rows[${rowIndex}]`;
+      if (!row || !Array.isArray(row.cells) || row.cells.length !== columnCount) {
+        fail(`${rowPath}.cells must contain exactly ${columnCount} cells`);
+      }
+      const cells = row.cells
+        .map((cell, cellIndex) => {
+          const cellPath = `${rowPath}.cells[${cellIndex}]`;
+          if (!cell || typeof cell !== "object" || Array.isArray(cell)) {
+            fail(`${cellPath} must be an object`);
+          }
+          const text =
+            cell.text !== undefined
+              ? cell.text
+              : { paragraphs: cell.paragraphs };
+          const fill = colorXml(cell.fill, `${cellPath}.fill`);
+          const strokeColor = colorOf(cell.stroke, `${cellPath}.stroke`);
+          const strokeWidth =
+            cell.strokeWidth === undefined
+              ? 1
+              : positiveNumber(cell.strokeWidth, `${cellPath}.strokeWidth`);
+          const borderFill = strokeColor
+            ? `<a:solidFill><a:srgbClr val="${strokeColor.hex}"/></a:solidFill>`
+            : "<a:noFill/>";
+          const borders = ["L", "R", "T", "B"]
+            .map(
+              (side) =>
+                `<a:ln${side} w="${emu(strokeWidth)}">${borderFill}</a:ln${side}>`,
+            )
+            .join("");
+          return `<a:tc>${textBodyXml(text, `${cellPath}.text`, relationships, "a:txBody")}<a:tcPr>${borders}${fill}</a:tcPr></a:tc>`;
+        })
+        .join("");
+      return `<a:tr h="${Math.round(rowHeight)}">${cells}</a:tr>`;
+    })
+    .join("");
+  const columns = Array.from(
+    { length: columnCount },
+    () => `<a:gridCol w="${Math.round(columnWidth)}"/>`,
+  ).join("");
+  return `<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="${id}" name="Table ${id}"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>${xfrmXml(bounds, "p:xfrm")}<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl><a:tblPr firstRow="1" bandRow="1"/><a:tblGrid>${columns}</a:tblGrid>${rows}</a:tbl></a:graphicData></a:graphic></p:graphicFrame>`;
+}
+
+function arrowXml(value, path, end = "tailEnd") {
+  if (value === undefined || value === null || value === false || value === "none") {
+    return "";
+  }
+  const type =
+    value === true
+      ? "triangle"
+      : {
+          triangle: "triangle",
+          arrow: "arrow",
+          stealth: "stealth",
+          diamond: "diamond",
+          oval: "oval",
+        }[value];
+  if (!type) fail(`${path} is not a supported arrow end`);
+  return `<a:${end} type="${type}"/>`;
+}
+
+function connectorXml(element, path, nextId, relationships) {
+  if (!Array.isArray(element.points) || element.points.length < 2) {
+    fail(`${path}.points must contain at least two points`);
+  }
+  const points = element.points.map((point, index) => {
+    if (!point || typeof point !== "object") fail(`${path}.points[${index}] must be an object`);
+    return {
+      x: finiteNumber(point.x, `${path}.points[${index}].x`),
+      y: finiteNumber(point.y, `${path}.points[${index}].y`),
+    };
+  });
+  const width = element.strokeWidth === undefined
+    ? 1
+    : positiveNumber(element.strokeWidth, `${path}.strokeWidth`);
+  const color = colorOf(element.stroke ?? "#000000", `${path}.stroke`);
+  if (!color) fail(`${path}.stroke cannot be null`);
+  const opacities = paintOpacities(element, path);
+  const alpha = Math.round(
+    color.alpha * opacities.opacity * opacities.strokeOpacity * 100000,
+  );
+  const dash = dashXml(element.dash, `${path}.dash`);
+  const cap = lineCapXml(element.lineCap, `${path}.lineCap`);
+  const shapes = [];
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const start = points[index];
+    const end = points[index + 1];
+    if (start.x === end.x && start.y === end.y) {
+      fail(`${path}.points[${index}] and points[${index + 1}] must differ`);
+    }
+    const id = nextId();
+    const x = Math.min(start.x, end.x);
+    const y = Math.min(start.y, end.y);
+    const flipH = end.x < start.x ? ' flipH="1"' : "";
+    const flipV = end.y < start.y ? ' flipV="1"' : "";
+    const head = index === 0 ? arrowXml(element.arrowStart, `${path}.arrowStart`, "headEnd") : "";
+    const tail =
+      index === points.length - 2
+        ? arrowXml(element.arrowEnd, `${path}.arrowEnd`)
+        : "";
+    shapes.push(
+      `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="Connector ${id}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm${flipH}${flipV}><a:off x="${emu(x)}" y="${emu(y)}"/><a:ext cx="${emu(Math.abs(end.x - start.x))}" cy="${emu(Math.abs(end.y - start.y))}"/></a:xfrm><a:prstGeom prst="line"><a:avLst/></a:prstGeom><a:ln w="${emu(width)}"${cap}><a:solidFill><a:srgbClr val="${color.hex}">${
+        alpha < 100000 ? `<a:alpha val="${alpha}"/>` : ""
+      }</a:srgbClr></a:solidFill>${dash}${head}${tail}</a:ln></p:spPr></p:sp>`,
+    );
+  }
+  if (element.label !== undefined) {
+    const id = nextId();
+    const labelBounds = element.labelBounds
+      ? boundsOf(element.labelBounds, `${path}.labelBounds`)
+      : {
+          x: (Math.min(...points.map((point) => point.x)) +
+            Math.max(...points.map((point) => point.x))) /
+            2 -
+            60,
+          y: (Math.min(...points.map((point) => point.y)) +
+            Math.max(...points.map((point) => point.y))) /
+            2 -
+            12,
+          width: 120,
+          height: 24,
+        };
+    shapes.push(
+      shapeBase(
+        id,
+        `Connector label ${id}`,
+        labelBounds,
+        '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln>',
+        textBodyXml(element.label, `${path}.label`, relationships),
+      ),
+    );
+  }
+  return shapes.join("");
+}
+
+function relationshipRegistry(layoutNumber, notesSlideNumber = null) {
+  const entries = [
+    {
+      id: "rId1",
+      type: REL.slideLayout,
+      target: `../slideLayouts/slideLayout${layoutNumber}.xml`,
+      external: false,
+    },
+  ];
+  if (notesSlideNumber !== null) {
+    entries.push({
+      id: `rId${entries.length + 1}`,
+      type: REL.notesSlide,
+      target: `../notesSlides/notesSlide${notesSlideNumber}.xml`,
+      external: false,
+    });
+  }
+  const images = new Map();
+  const hyperlinks = new Map();
+  const add = (type, target, external) => {
+    const id = `rId${entries.length + 1}`;
+    entries.push({ id, type, target, external });
+    return id;
+  };
+  return {
+    image(asset) {
+      if (!images.has(asset.id)) {
+        images.set(
+          asset.id,
+          add(REL.image, `../media/${asset.mediaPath.split("/").at(-1)}`, false),
+        );
+      }
+      return images.get(asset.id);
+    },
+    hyperlink(href) {
+      if (!hyperlinks.has(href)) {
+        hyperlinks.set(href, add(REL.hyperlink, href, true));
+      }
+      return hyperlinks.get(href);
+    },
+    xml() {
+      return relationshipsXml(entries);
+    },
+  };
+}
+
+function baseShapeTree() {
+  return '<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>';
+}
+
+function buildSlide(
+  slide,
+  slideIndex,
+  assets,
+  layoutNumber,
+  notesSlideNumber = null,
+) {
+  const path = `slides[${slideIndex}]`;
+  if (!slide || typeof slide !== "object" || Array.isArray(slide)) {
+    fail(`${path} must be an object`);
+  }
+  if (!Array.isArray(slide.elements)) fail(`${path}.elements must be an array`);
+  const relationships = relationshipRegistry(layoutNumber, notesSlideNumber);
+  let shapeId = 2;
+  const nextId = () => shapeId++;
+  const shapes = [];
+  const artworkAssetId = slide.artworkAssetId ?? slide.backgroundAssetId;
+  if (artworkAssetId !== undefined) {
+    const asset = requireAsset(
+      assets,
+      artworkAssetId,
+      slide.artworkAssetId !== undefined
+        ? `${path}.artworkAssetId`
+        : `${path}.backgroundAssetId`,
+    );
+    if (asset.contentType !== "image/png") {
+      fail(`${path}.artworkAssetId must reference a PNG asset`);
+    }
+    const id = nextId();
+    shapes.push(
+      pictureXml(
+        asset,
+        {
+          x: 0,
+          y: 0,
+          width: PPTX_DIMENSIONS.widthPx,
+          height: PPTX_DIMENSIONS.heightPx,
+        },
+        id,
+        relationships.image(asset),
+        slide.artworkAssetId !== undefined ? "Slide artwork" : "Slide background",
+      ),
+    );
+  }
+  for (let index = 0; index < slide.elements.length; index += 1) {
+    const element = slide.elements[index];
+    const elementPath = `${path}.elements[${index}]`;
+    if (!element || typeof element !== "object" || Array.isArray(element)) {
+      fail(`${elementPath} must be an object`);
+    }
+    if (element.type === "text") {
+      shapes.push(textShapeXml(element, elementPath, nextId(), relationships));
+    } else if (element.type === "table") {
+      shapes.push(tableXml(element, elementPath, nextId(), relationships));
+    } else if (element.type === "image") {
+      const asset = requireAsset(assets, element.assetId, `${elementPath}.assetId`);
+      shapes.push(
+        pictureXml(
+          asset,
+          boundsOf(element, elementPath),
+          nextId(),
+          relationships.image(asset),
+          element.name || element.alt || undefined,
+          false,
+          element.shape,
+        ),
+      );
+    } else if (element.type === "shape") {
+      shapes.push(nativeShapeXml(element, elementPath, nextId(), relationships));
+    } else if (element.type === "connector" || element.type === "polyline") {
+      shapes.push(connectorXml(element, elementPath, nextId, relationships));
+    } else {
+      fail(`${elementPath}.type is not supported`);
+    }
+  }
+  return {
+    xml: `${XML}<p:sld xmlns:a="${NS_A}" xmlns:r="${NS_R}" xmlns:p="${NS_P}"><p:cSld><p:spTree>${baseShapeTree()}${shapes.join("")}</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>`,
+    rels: relationships.xml(),
+  };
+}
+
+function relationshipsXml(entries) {
+  return `${XML}<Relationships xmlns="${NS_REL}">${entries
+    .map(
+      (entry) =>
+        `<Relationship Id="${xmlEscape(entry.id)}" Type="${xmlEscape(entry.type)}" Target="${xmlEscape(entry.target)}"${
+          entry.external ? ' TargetMode="External"' : ""
+        }/>`,
+    )
+    .join("")}</Relationships>`;
+}
+
+function contentTypesXml(
+  slideCount,
+  assets,
+  notesCount,
+  masterCount,
+  layoutCount,
+) {
+  const imageTypes = new Map();
+  for (const asset of assets.values()) {
+    imageTypes.set(asset.extension, asset.contentType);
+  }
+  const defaults = [...imageTypes]
+    .map(
+      ([extension, contentType]) =>
+        `<Default Extension="${extension}" ContentType="${contentType}"/>`,
+    )
+    .join("");
+  const slides = Array.from(
+    { length: slideCount },
+    (_, index) =>
+      `<Override PartName="/ppt/slides/slide${index + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>`,
+  ).join("");
+  const notes = Array.from(
+    { length: notesCount },
+    (_, index) =>
+      `<Override PartName="/ppt/notesSlides/notesSlide${index + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.notesSlide+xml"/>`,
+  ).join("");
+  const notesMaster =
+    notesCount > 0
+      ? '<Override PartName="/ppt/notesMasters/notesMaster1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.notesMaster+xml"/>'
+      : "";
+  const notesTheme =
+    notesCount > 0
+      ? `<Override PartName="/ppt/theme/theme${masterCount + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>`
+      : "";
+  const masters = Array.from(
+    { length: masterCount },
+    (_, index) =>
+      `<Override PartName="/ppt/slideMasters/slideMaster${index + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"/><Override PartName="/ppt/theme/theme${index + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>`,
+  ).join("");
+  const layouts = Array.from(
+    { length: layoutCount },
+    (_, index) =>
+      `<Override PartName="/ppt/slideLayouts/slideLayout${index + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"/>`,
+  ).join("");
+  return `${XML}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>${defaults}<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/><Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/><Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>${masters}${layouts}${notesTheme}${slides}${notesMaster}${notes}</Types>`;
+}
+
+function presentationXml(masterCount, slideCount, notesCount) {
+  const masters = Array.from(
+    { length: masterCount },
+    (_, index) =>
+      `<p:sldMasterId id="${2147483648 + index}" r:id="rId${index + 1}"/>`,
+  ).join("");
+  const slides = Array.from(
+    { length: slideCount },
+    (_, index) =>
+      `<p:sldId id="${256 + index}" r:id="rId${masterCount + index + 1}"/>`,
+  ).join("");
+  const notesMaster =
+    notesCount > 0
+      ? `<p:notesMasterIdLst><p:notesMasterId r:id="rId${masterCount + slideCount + 1}"/></p:notesMasterIdLst>`
+      : "";
+  return `${XML}<p:presentation xmlns:a="${NS_A}" xmlns:r="${NS_R}" xmlns:p="${NS_P}"><p:sldMasterIdLst>${masters}</p:sldMasterIdLst>${notesMaster}<p:sldIdLst>${slides}</p:sldIdLst><p:sldSz cx="${PPTX_DIMENSIONS.widthEmu}" cy="${PPTX_DIMENSIONS.heightEmu}" type="screen16x9"/><p:notesSz cx="6858000" cy="9144000"/><p:defaultTextStyle/></p:presentation>`;
+}
+
+function presentationRelsXml(masterCount, slideCount, notesCount) {
+  const entries = [
+    ...Array.from({ length: masterCount }, (_, index) => ({
+      id: `rId${index + 1}`,
+      type: REL.slideMaster,
+      target: `slideMasters/slideMaster${index + 1}.xml`,
+    })),
+    ...Array.from({ length: slideCount }, (_, index) => ({
+      id: `rId${masterCount + index + 1}`,
+      type: REL.slide,
+      target: `slides/slide${index + 1}.xml`,
+    })),
+  ];
+  if (notesCount > 0) {
+    entries.push({
+      id: `rId${masterCount + slideCount + 1}`,
+      type: REL.notesMaster,
+      target: "notesMasters/notesMaster1.xml",
+    });
+  }
+  return relationshipsXml(entries);
+}
+
+function coreXml(title) {
+  return `${XML}<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>${xmlEscape(title)}</dc:title><dc:creator>MarkdStage</dc:creator><cp:lastModifiedBy>MarkdStage</cp:lastModifiedBy></cp:coreProperties>`;
+}
+
+function appXml(slideCount, notesCount) {
+  return `${XML}<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"><Application>MarkdStage</Application><PresentationFormat>On-screen Show (16:9)</PresentationFormat><Slides>${slideCount}</Slides><Notes>${notesCount}</Notes><HiddenSlides>0</HiddenSlides><MMClips>0</MMClips><ScaleCrop>false</ScaleCrop><Company/><LinksUpToDate>false</LinksUpToDate><SharedDoc>false</SharedDoc><HyperlinksChanged>false</HyperlinksChanged><AppVersion>1.0</AppVersion></Properties>`;
+}
+
+function themeXml(name = "MarkdStage") {
+  const themeName = xmlEscape(name);
+  return `${XML}<a:theme xmlns:a="${NS_A}" name="${themeName}"><a:themeElements><a:clrScheme name="${themeName}"><a:dk1><a:sysClr val="windowText" lastClr="000000"/></a:dk1><a:lt1><a:sysClr val="window" lastClr="FFFFFF"/></a:lt1><a:dk2><a:srgbClr val="1F1F1F"/></a:dk2><a:lt2><a:srgbClr val="F2F2F2"/></a:lt2><a:accent1><a:srgbClr val="4472C4"/></a:accent1><a:accent2><a:srgbClr val="ED7D31"/></a:accent2><a:accent3><a:srgbClr val="A5A5A5"/></a:accent3><a:accent4><a:srgbClr val="FFC000"/></a:accent4><a:accent5><a:srgbClr val="5B9BD5"/></a:accent5><a:accent6><a:srgbClr val="70AD47"/></a:accent6><a:hlink><a:srgbClr val="0563C1"/></a:hlink><a:folHlink><a:srgbClr val="954F72"/></a:folHlink></a:clrScheme><a:fontScheme name="${themeName}"><a:majorFont><a:latin typeface="${LATIN_FONT_FACE}"/><a:ea typeface="${JAPANESE_FONT_FACE}"/><a:cs typeface=""/><a:font script="Jpan" typeface="${JAPANESE_FONT_FACE}"/></a:majorFont><a:minorFont><a:latin typeface="${LATIN_FONT_FACE}"/><a:ea typeface="${JAPANESE_FONT_FACE}"/><a:cs typeface=""/><a:font script="Jpan" typeface="${JAPANESE_FONT_FACE}"/></a:minorFont></a:fontScheme><a:fmtScheme name="${themeName}"><a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="accent1"/></a:solidFill><a:solidFill><a:schemeClr val="accent2"/></a:solidFill></a:fillStyleLst><a:lnStyleLst><a:ln w="9525"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln><a:ln w="19050"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln><a:ln w="28575"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst><a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst><a:bgFillStyleLst><a:solidFill><a:schemeClr val="lt1"/></a:solidFill><a:solidFill><a:schemeClr val="lt2"/></a:solidFill><a:solidFill><a:schemeClr val="dk1"/></a:solidFill></a:bgFillStyleLst></a:fmtScheme></a:themeElements></a:theme>`;
+}
+
+function slideMasterXml(master, layoutNumbers) {
+  const layouts = layoutNumbers
+    .map(
+      (layoutNumber, index) =>
+        `<p:sldLayoutId id="${SLIDE_LAYOUT_ID_BASE + layoutNumber}" r:id="rId${index + 1}"/>`,
+    )
+    .join("");
+  return `${XML}<p:sldMaster xmlns:a="${NS_A}" xmlns:r="${NS_R}" xmlns:p="${NS_P}"><p:cSld name="${xmlEscape(`MarkdStage ${master.theme}`)}"><p:spTree>${baseShapeTree()}</p:spTree></p:cSld><p:clrMap accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" bg1="lt1" bg2="lt2" folHlink="folHlink" hlink="hlink" tx1="dk1" tx2="dk2"/><p:sldLayoutIdLst>${layouts}</p:sldLayoutIdLst><p:txStyles><p:titleStyle/><p:bodyStyle/><p:otherStyle/></p:txStyles></p:sldMaster>`;
+}
+
+function buildSlideLayout(layout, layoutIndex, assets) {
+  const path = `layouts[${layoutIndex}]`;
+  const shapes = [];
+  const imageRelationships = [];
+  let shapeId = 2;
+  let relationshipId = 2;
+  const addImage = (asset, bounds, name) => {
+    const id = `rId${relationshipId}`;
+    relationshipId += 1;
+    imageRelationships.push({ id, asset });
+    shapes.push(pictureXml(asset, bounds, shapeId, id, name, true));
+    shapeId += 1;
+  };
+  if (layout.artworkAssetId !== undefined) {
+    const asset = requireAsset(
+      assets,
+      layout.artworkAssetId,
+      `${path}.artworkAssetId`,
+    );
+    if (asset.contentType !== "image/png") {
+      fail(`${path}.artworkAssetId must reference a PNG asset`);
+    }
+    addImage(
+      asset,
+      {
+        x: 0,
+        y: 0,
+        width: PPTX_DIMENSIONS.widthPx,
+        height: PPTX_DIMENSIONS.heightPx,
+      },
+      "Layout artwork",
+    );
+  }
+  const elements = layout.elements ?? [];
+  if (!Array.isArray(elements)) fail(`${path}.elements must be an array`);
+  for (let index = 0; index < elements.length; index += 1) {
+    const element = elements[index];
+    const elementPath = `${path}.elements[${index}]`;
+    if (!element || typeof element !== "object" || Array.isArray(element)) {
+      fail(`${elementPath} must be an object`);
+    }
+    if (element.type !== "image") fail(`${elementPath}.type is not supported`);
+    const asset = requireAsset(assets, element.assetId, `${elementPath}.assetId`);
+    addImage(
+      asset,
+      boundsOf(element, elementPath),
+      element.name || element.alt || `Layout image ${index + 1}`,
+    );
+  }
+  return {
+    xml: `${XML}<p:sldLayout xmlns:a="${NS_A}" xmlns:r="${NS_R}" xmlns:p="${NS_P}" type="blank" preserve="1" matchingName="${xmlEscape(layout.name)}"><p:cSld name="${xmlEscape(layout.name)}"><p:spTree>${baseShapeTree()}${shapes.join("")}</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sldLayout>`,
+    imageRelationships,
+  };
+}
+
+function notesPlaceholderXml({ id, name, type, idx, x, y, cx, cy, paragraphs = "" }) {
+  return `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${xmlEscape(name)}"/><p:cNvSpPr txBox="1"/><p:nvPr><p:ph type="${type}" idx="${idx}"/></p:nvPr></p:nvSpPr><p:spPr><a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></p:spPr><p:txBody><a:bodyPr/><a:lstStyle/>${paragraphs || "<a:p/>"}</p:txBody></p:sp>`;
+}
+
+function notesParagraphsXml(notes) {
+  return notes
+    .split("\n")
+    .map((line) => {
+      if (!line) {
+        return `<a:p><a:endParaRPr lang="en-US"><a:ea typeface="${JAPANESE_FONT_FACE}"/></a:endParaRPr></a:p>`;
+      }
+      const preserve = /^\s|\s$|\s{2}/.test(line) ? ' xml:space="preserve"' : "";
+      return `<a:p><a:r><a:rPr lang="en-US" dirty="0"><a:ea typeface="${JAPANESE_FONT_FACE}"/></a:rPr><a:t${preserve}>${xmlEscape(line)}</a:t></a:r><a:endParaRPr lang="en-US"><a:ea typeface="${JAPANESE_FONT_FACE}"/></a:endParaRPr></a:p>`;
+    })
+    .join("");
+}
+
+function notesMasterXml() {
+  const slideImage = notesPlaceholderXml({
+    id: 2,
+    name: "Slide Image Placeholder 1",
+    type: "sldImg",
+    idx: 1,
+    x: 1143000,
+    y: 685800,
+    cx: 4572000,
+    cy: 3429000,
+  });
+  const body = notesPlaceholderXml({
+    id: 3,
+    name: "Notes Placeholder 2",
+    type: "body",
+    idx: 2,
+    x: 685800,
+    y: 4343400,
+    cx: 5486400,
+    cy: 4114800,
+  });
+  return `${XML}<p:notesMaster xmlns:a="${NS_A}" xmlns:r="${NS_R}" xmlns:p="${NS_P}"><p:cSld name="Notes Master"><p:spTree>${baseShapeTree()}${slideImage}${body}</p:spTree></p:cSld><p:clrMap accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" bg1="lt1" bg2="lt2" folHlink="folHlink" hlink="hlink" tx1="dk1" tx2="dk2"/><p:notesStyle><a:lvl1pPr marL="0" algn="l"><a:defRPr sz="1200"><a:latin typeface="${LATIN_FONT_FACE}"/><a:ea typeface="${JAPANESE_FONT_FACE}"/></a:defRPr></a:lvl1pPr></p:notesStyle></p:notesMaster>`;
+}
+
+function notesSlideXml(notes) {
+  const slideImage = notesPlaceholderXml({
+    id: 2,
+    name: "Slide Image Placeholder 1",
+    type: "sldImg",
+    idx: 1,
+    x: 1143000,
+    y: 685800,
+    cx: 4572000,
+    cy: 3429000,
+  });
+  const body = notesPlaceholderXml({
+    id: 3,
+    name: "Notes Placeholder 2",
+    type: "body",
+    idx: 2,
+    x: 685800,
+    y: 4343400,
+    cx: 5486400,
+    cy: 4114800,
+    paragraphs: notesParagraphsXml(notes),
+  });
+  return `${XML}<p:notes xmlns:a="${NS_A}" xmlns:r="${NS_R}" xmlns:p="${NS_P}"><p:cSld><p:spTree>${baseShapeTree()}${slideImage}${body}</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:notes>`;
+}
+
+function notesSlideRelsXml(slideIndex) {
+  return relationshipsXml([
+    {
+      id: "rId1",
+      type: REL.notesMaster,
+      target: "../notesMasters/notesMaster1.xml",
+    },
+    {
+      id: "rId2",
+      type: REL.slide,
+      target: `../slides/slide${slideIndex + 1}.xml`,
+    },
+  ]);
+}
+
+function normalizedNotes(slide, slideIndex) {
+  const path = `slides[${slideIndex}]`;
+  if (!slide || typeof slide !== "object" || Array.isArray(slide)) {
+    fail(`${path} must be an object`);
+  }
+  if (slide.notes === undefined || slide.notes === null || slide.notes === "") return "";
+  if (typeof slide.notes !== "string") fail(`${path}.notes must be a string`);
+  return slide.notes.replace(/\r\n?/g, "\n").trim();
+}
+
+function crc32(data) {
+  let crc = 0xffffffff;
+  for (const byte of data) crc = CRC_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function concatBytes(parts) {
+  const result = new Uint8Array(parts.reduce((size, part) => size + part.byteLength, 0));
+  let offset = 0;
+  for (const part of parts) {
+    result.set(part, offset);
+    offset += part.byteLength;
+  }
+  return result;
+}
+
+function zipStored(entries) {
+  if (entries.length > 0xffff) throw new RangeError("ZIP contains too many entries");
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+  let centralSize = 0;
+  for (const entry of entries) {
+    const name = UTF8_ENCODER.encode(entry.name);
+    const data = typeof entry.data === "string"
+      ? UTF8_ENCODER.encode(entry.data)
+      : entry.data;
+    if (name.length > 0xffff || data.length > 0xffffffff) {
+      throw new RangeError("ZIP entry is too large");
+    }
+    const nextOffset = offset + 30 + name.length + data.length;
+    const nextCentralSize = centralSize + 46 + name.length;
+    if (nextOffset > 0xffffffff || nextCentralSize > 0xffffffff) {
+      throw new RangeError("ZIP package exceeds the ZIP32 size limit");
+    }
+    const crc = crc32(data);
+    const local = new Uint8Array(30);
+    const localView = new DataView(local.buffer);
+    localView.setUint32(0, 0x04034b50, true);
+    localView.setUint16(4, 20, true);
+    localView.setUint16(6, 0x0800, true);
+    localView.setUint16(8, 0, true);
+    localView.setUint16(10, 0, true);
+    localView.setUint16(12, 0x0021, true);
+    localView.setUint32(14, crc, true);
+    localView.setUint32(18, data.length, true);
+    localView.setUint32(22, data.length, true);
+    localView.setUint16(26, name.length, true);
+    localView.setUint16(28, 0, true);
+    localParts.push(local, name, data);
+
+    const central = new Uint8Array(46);
+    const centralView = new DataView(central.buffer);
+    centralView.setUint32(0, 0x02014b50, true);
+    centralView.setUint16(4, 20, true);
+    centralView.setUint16(6, 20, true);
+    centralView.setUint16(8, 0x0800, true);
+    centralView.setUint16(10, 0, true);
+    centralView.setUint16(12, 0, true);
+    centralView.setUint16(14, 0x0021, true);
+    centralView.setUint32(16, crc, true);
+    centralView.setUint32(20, data.length, true);
+    centralView.setUint32(24, data.length, true);
+    centralView.setUint16(28, name.length, true);
+    centralView.setUint16(30, 0, true);
+    centralView.setUint16(32, 0, true);
+    centralView.setUint16(34, 0, true);
+    centralView.setUint16(36, 0, true);
+    centralView.setUint32(38, 0, true);
+    centralView.setUint32(42, offset, true);
+    centralParts.push(central, name);
+    offset = nextOffset;
+    centralSize = nextCentralSize;
+  }
+  const centralDirectory = concatBytes(centralParts);
+  const eocd = new Uint8Array(22);
+  const eocdView = new DataView(eocd.buffer);
+  eocdView.setUint32(0, 0x06054b50, true);
+  eocdView.setUint16(4, 0, true);
+  eocdView.setUint16(6, 0, true);
+  eocdView.setUint16(8, entries.length, true);
+  eocdView.setUint16(10, entries.length, true);
+  eocdView.setUint32(12, centralDirectory.length, true);
+  eocdView.setUint32(16, offset, true);
+  eocdView.setUint16(20, 0, true);
+  return concatBytes([...localParts, centralDirectory, eocd]);
+}
+
+function packageEntries(buffer) {
+  const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  let eocdOffset = -1;
+  const minimum = Math.max(0, buffer.length - 65557);
+  for (let offset = buffer.length - 22; offset >= minimum; offset -= 1) {
+    if (view.getUint32(offset, true) === 0x06054b50) {
+      eocdOffset = offset;
+      break;
+    }
+  }
+  if (eocdOffset < 0) throw new Error("Invalid ZIP: EOCD record is missing");
+  const count = view.getUint16(eocdOffset + 10, true);
+  const centralSize = view.getUint32(eocdOffset + 12, true);
+  const centralOffset = view.getUint32(eocdOffset + 16, true);
+  const commentLength = view.getUint16(eocdOffset + 20, true);
+  if (eocdOffset + 22 + commentLength !== buffer.length) {
+    throw new Error("Invalid ZIP: EOCD length is inconsistent");
+  }
+  if (centralOffset + centralSize !== eocdOffset) {
+    throw new Error("Invalid ZIP: central directory is inconsistent");
+  }
+  const files = new Map();
+  let cursor = centralOffset;
+  for (let index = 0; index < count; index += 1) {
+    if (cursor + 46 > eocdOffset || view.getUint32(cursor, true) !== 0x02014b50) {
+      throw new Error("Invalid ZIP: central directory entry is missing");
+    }
+    const method = view.getUint16(cursor + 10, true);
+    const crc = view.getUint32(cursor + 16, true);
+    const compressedSize = view.getUint32(cursor + 20, true);
+    const size = view.getUint32(cursor + 24, true);
+    const nameLength = view.getUint16(cursor + 28, true);
+    const extraLength = view.getUint16(cursor + 30, true);
+    const entryCommentLength = view.getUint16(cursor + 32, true);
+    const localOffset = view.getUint32(cursor + 42, true);
+    const name = UTF8_DECODER.decode(buffer.subarray(cursor + 46, cursor + 46 + nameLength));
+    if (files.has(name)) throw new Error(`Invalid ZIP: duplicate entry "${name}"`);
+    if (method !== 0 || compressedSize !== size) {
+      throw new Error(`Invalid ZIP: "${name}" is not stored`);
+    }
+    if (
+      localOffset + 30 > centralOffset ||
+      view.getUint32(localOffset, true) !== 0x04034b50
+    ) {
+      throw new Error(`Invalid ZIP: local header for "${name}" is missing`);
+    }
+    const localNameLength = view.getUint16(localOffset + 26, true);
+    const localExtraLength = view.getUint16(localOffset + 28, true);
+    const localName = UTF8_DECODER.decode(buffer.subarray(localOffset + 30, localOffset + 30 + localNameLength));
+    const dataOffset = localOffset + 30 + localNameLength + localExtraLength;
+    const data = buffer.subarray(dataOffset, dataOffset + size);
+    if (localName !== name || data.length !== size || crc32(data) !== crc) {
+      throw new Error(`Invalid ZIP: local data for "${name}" is inconsistent`);
+    }
+    files.set(name, { data, size, crc32: crc });
+    cursor += 46 + nameLength + extraLength + entryCommentLength;
+  }
+  if (cursor !== eocdOffset) {
+    throw new Error("Invalid ZIP: central directory size is inconsistent");
+  }
+  return files;
+}
+
+function normalizePresentationStructure(masters, layouts, slides) {
+  let normalizedMasters = masters;
+  let normalizedLayouts = layouts;
+  let normalizedSlides = slides;
+  if (normalizedMasters === undefined && normalizedLayouts === undefined) {
+    normalizedMasters = [
+      {
+        id: "default",
+        theme: "default",
+        layoutIds: ["default"],
+      },
+    ];
+    normalizedLayouts = [
+      {
+        id: "default",
+        name: "default",
+        theme: "default",
+      },
+    ];
+    normalizedSlides = slides.map((slide) => ({
+      ...slide,
+      layoutId: slide.layoutId ?? "default",
+    }));
+  }
+  if (!Array.isArray(normalizedMasters) || normalizedMasters.length === 0) {
+    fail("masters must be a non-empty array");
+  }
+  if (!Array.isArray(normalizedLayouts) || normalizedLayouts.length === 0) {
+    fail("layouts must be a non-empty array");
+  }
+
+  const layoutById = new Map();
+  normalizedLayouts.forEach((layout, index) => {
+    const path = `layouts[${index}]`;
+    if (!layout || typeof layout !== "object" || Array.isArray(layout)) {
+      fail(`${path} must be an object`);
+    }
+    if (typeof layout.id !== "string" || !layout.id) {
+      fail(`${path}.id must be a non-empty string`);
+    }
+    if (layoutById.has(layout.id)) fail(`duplicate layout id "${layout.id}"`);
+    if (typeof layout.name !== "string" || !layout.name) {
+      fail(`${path}.name must be a non-empty string`);
+    }
+    if (typeof layout.theme !== "string" || !layout.theme) {
+      fail(`${path}.theme must be a non-empty string`);
+    }
+    layoutById.set(layout.id, {
+      ...layout,
+      number: index + 1,
+      masterNumber: 0,
+    });
+  });
+
+  const masterIds = new Set();
+  const assignedLayouts = new Set();
+  const preparedMasters = normalizedMasters.map((master, index) => {
+    const path = `masters[${index}]`;
+    if (!master || typeof master !== "object" || Array.isArray(master)) {
+      fail(`${path} must be an object`);
+    }
+    if (typeof master.id !== "string" || !master.id) {
+      fail(`${path}.id must be a non-empty string`);
+    }
+    if (masterIds.has(master.id)) fail(`duplicate master id "${master.id}"`);
+    masterIds.add(master.id);
+    if (typeof master.theme !== "string" || !master.theme) {
+      fail(`${path}.theme must be a non-empty string`);
+    }
+    if (!Array.isArray(master.layoutIds) || master.layoutIds.length === 0) {
+      fail(`${path}.layoutIds must be a non-empty array`);
+    }
+    const layoutNumbers = master.layoutIds.map((layoutId, layoutIndex) => {
+      if (typeof layoutId !== "string" || !layoutId) {
+        fail(`${path}.layoutIds[${layoutIndex}] must be a non-empty string`);
+      }
+      const layout = layoutById.get(layoutId);
+      if (!layout) fail(`${path} references missing layout "${layoutId}"`);
+      if (assignedLayouts.has(layoutId)) {
+        fail(`layout "${layoutId}" belongs to more than one master`);
+      }
+      if (layout.theme !== master.theme) {
+        fail(`layout "${layoutId}" does not match master theme "${master.theme}"`);
+      }
+      assignedLayouts.add(layoutId);
+      layout.masterNumber = index + 1;
+      return layout.number;
+    });
+    return { ...master, number: index + 1, layoutNumbers };
+  });
+  if (assignedLayouts.size !== normalizedLayouts.length) {
+    fail("every layout must belong to exactly one master");
+  }
+
+  const preparedSlides = normalizedSlides.map((slide, index) => {
+    const layoutId = slide?.layoutId;
+    if (typeof layoutId !== "string" || !layoutId) {
+      fail(`slides[${index}].layoutId must be a non-empty string`);
+    }
+    const layout = layoutById.get(layoutId);
+    if (!layout) fail(`slides[${index}] references missing layout "${layoutId}"`);
+    return { slide, layoutNumber: layout.number };
+  });
+
+  return {
+    masters: preparedMasters,
+    layouts: [...layoutById.values()],
+    slides: preparedSlides,
+  };
+}
+
+export function buildPptxPackage({
+  title = "Presentation",
+  masters,
+  layouts,
+  slides,
+  assets = [],
+} = {}) {
+  if (typeof title !== "string") fail("title must be a string");
+  if (!Array.isArray(slides) || slides.length === 0) {
+    fail("slides must be a non-empty array");
+  }
+  if (slides.length > 0x7ffffeff) fail("slides contains too many items");
+  const normalizedAssets = normalizeAssets(assets);
+  const structure = normalizePresentationStructure(masters, layouts, slides);
+  const notesSlides = [];
+  const builtSlides = structure.slides.map(({ slide, layoutNumber }, index) => {
+    const notes = normalizedNotes(slide, index);
+    const notesSlideNumber = notes ? notesSlides.length + 1 : null;
+    const built = buildSlide(
+      slide,
+      index,
+      normalizedAssets,
+      layoutNumber,
+      notesSlideNumber,
+    );
+    if (notes) {
+      notesSlides.push({
+        notes,
+        slideIndex: index,
+        number: notesSlideNumber,
+      });
+    }
+    return built;
+  });
+  const builtLayouts = structure.layouts.map((layout, index) =>
+    buildSlideLayout(layout, index, normalizedAssets),
+  );
+  const entries = [
+    {
+      name: "[Content_Types].xml",
+      data: contentTypesXml(
+        slides.length,
+        normalizedAssets,
+        notesSlides.length,
+        structure.masters.length,
+        structure.layouts.length,
+      ),
+    },
+    {
+      name: "_rels/.rels",
+      data: relationshipsXml([
+        { id: "rId1", type: REL.officeDocument, target: "ppt/presentation.xml" },
+        { id: "rId2", type: REL.core, target: "docProps/core.xml" },
+        { id: "rId3", type: REL.app, target: "docProps/app.xml" },
+      ]),
+    },
+    { name: "docProps/core.xml", data: coreXml(title) },
+    { name: "docProps/app.xml", data: appXml(slides.length, notesSlides.length) },
+    {
+      name: "ppt/presentation.xml",
+      data: presentationXml(
+        structure.masters.length,
+        slides.length,
+        notesSlides.length,
+      ),
+    },
+    {
+      name: "ppt/_rels/presentation.xml.rels",
+      data: presentationRelsXml(
+        structure.masters.length,
+        slides.length,
+        notesSlides.length,
+      ),
+    },
+    ...structure.masters.flatMap((master) => [
+      {
+        name: `ppt/theme/theme${master.number}.xml`,
+        data: themeXml(`MarkdStage ${master.theme}`),
+      },
+      {
+        name: `ppt/slideMasters/slideMaster${master.number}.xml`,
+        data: slideMasterXml(master, master.layoutNumbers),
+      },
+      {
+        name: `ppt/slideMasters/_rels/slideMaster${master.number}.xml.rels`,
+        data: relationshipsXml([
+          ...master.layoutNumbers.map((layoutNumber, index) => ({
+            id: `rId${index + 1}`,
+            type: REL.slideLayout,
+            target: `../slideLayouts/slideLayout${layoutNumber}.xml`,
+          })),
+          {
+            id: `rId${master.layoutNumbers.length + 1}`,
+            type: REL.theme,
+            target: `../theme/theme${master.number}.xml`,
+          },
+        ]),
+      },
+    ]),
+    ...structure.layouts.flatMap((layout, index) => {
+      const builtLayout = builtLayouts[index];
+      const entries = [
+        {
+          id: "rId1",
+          type: REL.slideMaster,
+          target: `../slideMasters/slideMaster${layout.masterNumber}.xml`,
+        },
+        ...builtLayout.imageRelationships.map(({ id, asset }) => ({
+          id,
+          type: REL.image,
+          target: `../media/${asset.mediaPath.split("/").at(-1)}`,
+        })),
+      ];
+      return [
+        {
+          name: `ppt/slideLayouts/slideLayout${layout.number}.xml`,
+          data: builtLayout.xml,
+        },
+        {
+          name: `ppt/slideLayouts/_rels/slideLayout${layout.number}.xml.rels`,
+          data: relationshipsXml(entries),
+        },
+      ];
+    }),
+    ...(notesSlides.length
+      ? [
+          {
+            name: `ppt/theme/theme${structure.masters.length + 1}.xml`,
+            data: themeXml("MarkdStage Notes"),
+          },
+          { name: "ppt/notesMasters/notesMaster1.xml", data: notesMasterXml() },
+          {
+            name: "ppt/notesMasters/_rels/notesMaster1.xml.rels",
+            data: relationshipsXml([
+              {
+                id: "rId1",
+                type: REL.theme,
+                target: `../theme/theme${structure.masters.length + 1}.xml`,
+              },
+            ]),
+          },
+        ]
+      : []),
+    ...builtSlides.flatMap((slide, index) => [
+      { name: `ppt/slides/slide${index + 1}.xml`, data: slide.xml },
+      {
+        name: `ppt/slides/_rels/slide${index + 1}.xml.rels`,
+        data: slide.rels,
+      },
+    ]),
+    ...notesSlides.flatMap((notesSlide) => [
+      {
+        name: `ppt/notesSlides/notesSlide${notesSlide.number}.xml`,
+        data: notesSlideXml(notesSlide.notes),
+      },
+      {
+        name: `ppt/notesSlides/_rels/notesSlide${notesSlide.number}.xml.rels`,
+        data: notesSlideRelsXml(notesSlide.slideIndex),
+      },
+    ]),
+    ...[...normalizedAssets.values()].map((asset) => ({
+      name: asset.mediaPath,
+      data: asset.data,
+    })),
+  ];
+  return zipStored(entries);
+}
+
+export function inspectPptxPackage(buffer) {
+  buffer = bytesOf(buffer, "PowerPoint package");
+  const files = packageEntries(buffer);
+  const presentation = UTF8_DECODER.decode(files.get("ppt/presentation.xml")?.data);
+  if (!presentation) throw new Error("Invalid PowerPoint package: presentation.xml is missing");
+  const dimensions = /<p:sldSz\b[^>]*\bcx="(\d+)"[^>]*\bcy="(\d+)"/.exec(
+    presentation,
+  );
+  if (!dimensions) throw new Error("Invalid PowerPoint package: slide dimensions are missing");
+  const slideNames = [...files.keys()]
+    .filter((name) => /^ppt\/slides\/slide\d+\.xml$/.test(name))
+    .sort((left, right) => {
+      const number = (name) => Number(/\d+/.exec(name)[0]);
+      return number(left) - number(right);
+    });
+  const notesNames = [...files.keys()].filter((name) =>
+    /^ppt\/notesSlides\/notesSlide\d+\.xml$/.test(name),
+  );
+  const masterNames = [...files.keys()].filter((name) =>
+    /^ppt\/slideMasters\/slideMaster\d+\.xml$/.test(name),
+  );
+  const layoutNames = [...files.keys()].filter((name) =>
+    /^ppt\/slideLayouts\/slideLayout\d+\.xml$/.test(name),
+  );
+  const slideLayoutTargets = slideNames.map((name) => {
+    const number = Number(/\d+/.exec(name)[0]);
+    const relationships = UTF8_DECODER.decode(files
+      .get(`ppt/slides/_rels/slide${number}.xml.rels`)?.data);
+    const target =
+      relationships &&
+      /<Relationship\b[^>]*Type="[^"]*\/slideLayout"[^>]*Target="\.\.\/slideLayouts\/(slideLayout\d+\.xml)"/.exec(
+        relationships,
+      )?.[1];
+    if (!target || !files.has(`ppt/slideLayouts/${target}`)) {
+      throw new Error(`Invalid PowerPoint package: slide ${number} layout is missing`);
+    }
+    return target;
+  });
+  const core = UTF8_DECODER.decode(files.get("docProps/core.xml")?.data);
+  const title = /<dc:title>([\s\S]*?)<\/dc:title>/.exec(core);
+  return {
+    valid: true,
+    byteLength: buffer.length,
+    entries: [...files].map(([name, entry]) => ({
+      name,
+      size: entry.size,
+      crc32: entry.crc32,
+    })),
+    slideCount: slideNames.length,
+    notesCount: notesNames.length,
+    masterCount: masterNames.length,
+    layoutCount: layoutNames.length,
+    slideLayoutTargets,
+    mediaCount: [...files.keys()].filter((name) => name.startsWith("ppt/media/"))
+      .length,
+    dimensions: {
+      widthEmu: Number(dimensions[1]),
+      heightEmu: Number(dimensions[2]),
+    },
+    title: title ? xmlUnescape(title[1]) : "",
+  };
+}

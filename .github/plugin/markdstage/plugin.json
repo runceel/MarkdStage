@@ -1,0 +1,30 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "markdstage",
+  "description": "Create, edit, present, and export Markdown slides in a GitHub Copilot Canvas.",
+  "version": "4.2.1",
+  "author": {
+    "name": "runceel",
+    "url": "https://github.com/runceel"
+  },
+  "repository": "https://github.com/runceel/markdstage",
+  "homepage": "https://github.com/runceel/markdstage",
+  "license": "MIT",
+  "keywords": [
+    "canvas",
+    "copilot-canvas",
+    "markdown",
+    "slides",
+    "presentation"
+  ],
+  "extensions": {
+    "com.github.copilot": {
+      "logo": "assets/preview.png"
+    },
+    "com.github.awesome-copilot": {
+      "extensions": [
+        "./com.github.copilot/extensions/markdstage"
+      ]
+    }
+  }
+}

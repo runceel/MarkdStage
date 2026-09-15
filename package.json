@@ -12,6 +12,8 @@
     "test:samples": "node scripts/ci-samples.mjs",
     "test:docs": "node scripts/check-markdown-links.mjs",
     "test:vendor": "cd .github/extensions/markdstage && node scripts/vendor-assets.mjs verify vendor vendor/vendor-assets.lock.json",
+    "awesome:sync": "node scripts/sync-awesome-copilot-plugin.mjs",
+    "awesome:check": "npm run awesome:sync && node scripts/check-awesome-copilot-plugin.mjs",
     "generate:architecture": "node .github/extensions/markdstage/scripts/generate-architecture-contract.mjs",
     "check:architecture": "node .github/extensions/markdstage/scripts/generate-architecture-contract.mjs --check",
     "test:schema": "npm run check:architecture && node --test test/schema/*.test.mjs",

@@ -33,6 +33,27 @@ The shared manifest is `.github/extensions/markdstage/copilot-extension.json`. U
 `name`, and update the manifest-format `version` according to the GitHub Copilot App specification
 on which it depends.
 
+### Awesome Copilot external plugin
+
+The awesome-copilot submission layout is generated under `.github/plugin/markdstage/` from the
+canonical Extension source. Keep normal development in `.github/extensions/markdstage/`; do not
+maintain a second hand-edited implementation. Before a release candidate is tagged, run:
+
+```powershell
+npm run awesome:check
+```
+
+This verifies the Agent Plugins manifest, the `canvas` keyword, `assets/preview.png`, the
+`com.github.copilot/extensions/markdstage/extension.mjs` entry point, the absence of the
+Extension test tree from the generated plugin, the vendor manifest, and product-version
+alignment with the CLI package.
+
+Do not update the awesome-copilot marketplace directly from this repository and do not create
+an awesome-copilot submission Issue as part of the release. If the project is later submitted
+or updated by a maintainer, use the new product tag and its full commit SHA as immutable source
+locators. Small changes may remain on `main` and be grouped into the next publication; security,
+installation, startup, or data-integrity fixes should be prioritized for the next update.
+
 Distribute the Extension through a folder URL or a ZIP for manual installation.
 
 ```text
