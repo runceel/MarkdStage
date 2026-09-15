@@ -114,7 +114,7 @@ apps\MarkdStage.Desktop\scripts\CreateStorePackage.ps1 -Version <major.minor.pat
 ```
 
 This builds x64 and ARM64 packages with the checked-in Store identity and writes
-`apps\MarkdStage.Desktop\artifacts\MarkdStage-Store.msixupload` and its SHA-256
+`apps\MarkdStage.Desktop\artifacts\MarkdStage-Store-<version>.msixupload` and its SHA-256
 checksum. A requested release is not complete until these local files have been
 generated and verified. Report their full paths when handing off the completed
 release.
@@ -225,8 +225,8 @@ After the workflow succeeds:
    ```
 
 5. Confirm both files exist and report their full paths:
-   - `apps\MarkdStage.Desktop\artifacts\MarkdStage-Store.msixupload`
-   - `apps\MarkdStage.Desktop\artifacts\MarkdStage-Store.msixupload.sha256`
+   - `apps\MarkdStage.Desktop\artifacts\MarkdStage-Store-<version>.msixupload`
+   - `apps\MarkdStage.Desktop\artifacts\MarkdStage-Store-<version>.msixupload.sha256`
 
 Do not consider a requested release complete until step 5 succeeds. Creating the
 package does not submit it to Partner Center.

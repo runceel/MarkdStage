@@ -43,7 +43,6 @@ $storeBuild = Join-Path $artifacts "store-upload"
 $bundleInput = Join-Path $storeBuild "bundle"
 $bundle = Join-Path $storeBuild "MarkdStage-Store.msixbundle"
 $bundleValidation = Join-Path $storeBuild "validation"
-$upload = Join-Path $artifacts "MarkdStage-Store.msixupload"
 
 [xml]$manifest = Get-Content -LiteralPath $manifestPath -Raw
 $identity = $manifest.Package.Identity
@@ -64,6 +63,8 @@ $parsedVersion = [version]$Version
 if ($parsedVersion.Revision -ne 0 -or $parsedVersion.Major -lt 1) {
     throw "Store package versions must use major.minor.patch.0 with a nonzero major."
 }
+$uploadVersion = "$($parsedVersion.Major).$($parsedVersion.Minor).$($parsedVersion.Build)"
+$upload = Join-Path $artifacts "MarkdStage-Store-$uploadVersion.msixupload"
 
 if (Test-Path -LiteralPath $storeBuild) {
     Remove-Item -LiteralPath $storeBuild -Recurse -Force

@@ -440,7 +440,13 @@ public sealed partial class MainPage : Page
         {
             var result = await _io.ExecuteAsync("list", JsonSerializer.SerializeToElement(new object[]
             {
-                    "", new { extensions = new[] { ".md", ".markdown" }, maxEntries = 10000, recursive = true },
+                    "", new
+                    {
+                        extensions = new[] { ".md", ".markdown" },
+                        excludeDirectories = new[] { ".agents/skills", ".claude/skills", ".github/skills" },
+                        maxEntries = 10000,
+                        recursive = true,
+                    },
             }));
             if (!result.Ok) { ShowOpenError(result.Message!); return; }
             _workspaceEntries.Clear();

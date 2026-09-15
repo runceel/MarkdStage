@@ -43,6 +43,6 @@ test("v4 release publishes portable and signed desktop packages independently of
   const postRelease = releaseProcess.split("## Post-release verification")[1];
   assert.match(postRelease, /final release step/);
   assert.match(postRelease, /CreateStorePackage\.ps1 -Version <major\.minor\.patch\.0>/);
-  assert.match(postRelease, /MarkdStage-Store\.msixupload\.sha256/);
+  assert.match(postRelease, /MarkdStage-Store-<version>\.msixupload\.sha256/);
   assert.match(postRelease, /does not submit it to Partner Center/);
 });

@@ -45,14 +45,14 @@ internal sealed class BrowserAutomation : IAsyncDisposable
     {
         RequireLoopback(url);
         return BrowserProcess.Start(FindBrowser(),
-            [$"--user-data-dir={profile}", "--no-first-run", "--no-default-browser-check", "--window-size=1280,720", $"--app={url}"]);
+            (string[])[$"--user-data-dir={profile}", "--no-first-run", "--no-default-browser-check", "--window-size=1280,720", $"--app={url}"]);
     }
 
     public static async Task<BrowserAutomation> OpenAsync(string url, string profile, CancellationToken cancellationToken)
     {
         RequireLoopback(url);
         var process = BrowserProcess.Start(FindBrowser(),
-            [$"--user-data-dir={profile}", "--headless=new", "--remote-debugging-address=127.0.0.1",
+            (string[])[$"--user-data-dir={profile}", "--headless=new", "--remote-debugging-address=127.0.0.1",
              "--remote-debugging-port=0", "--no-first-run", "--no-default-browser-check", "--disable-background-networking",
              "--force-device-scale-factor=1", "--hide-scrollbars", "--window-size=1280,720", "about:blank"]);
         var cdp = new CdpConnection();

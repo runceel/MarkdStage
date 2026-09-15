@@ -66,6 +66,7 @@
                                 Foreground="{ThemeResource BrandMutedBrush}"
                                 Text="Markdown, ready for the stage."
                                 TextAlignment="Center" />
+
                         </StackPanel>
 
                         <TextBlock

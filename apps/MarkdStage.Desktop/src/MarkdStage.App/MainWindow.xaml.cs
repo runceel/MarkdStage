@@ -19,6 +19,7 @@ public sealed partial class MainWindow : Window
 
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
+        AppTitleBar.Subtitle = $"Markdown, ready for the stage. · {App.VersionLabel}";
         AppWindow.SetIcon("Assets/AppIcon.ico");
         WindowSizing.ResizeToDips(AppWindow, 1400, 860);
         Page = new MainPage(this);
