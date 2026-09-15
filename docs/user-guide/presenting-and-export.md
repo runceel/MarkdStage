@@ -137,8 +137,10 @@ bars live in layout artwork, while supported cover logos are separate layout pic
 Slide-specific decorations such as footer rules, page-number frames, and kicker marks are cropped to
 their painted bounds.
 
-Native Japanese text uses Yu Gothic as its primary East Asian font, while Latin text keeps the font
-selected by the rendered slide. Exported native text is marked as not requiring proofing, so
+The default font stack is Segoe UI, Segoe Pro, Yu Gothic UI, Yu Gothic, then the system's generic
+Latin/Japanese sans-serif fallback. Native Japanese text uses Yu Gothic UI as its primary East Asian
+font, while Latin text keeps the font selected by the rendered slide. Exported native text is marked
+as not requiring proofing, so
 PowerPoint does not add spelling or grammar underlines.
 
 PowerPoint export uses the same 13.333333 x 7.5 inch page size and frozen in-memory deck snapshot as
