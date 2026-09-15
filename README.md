@@ -68,12 +68,12 @@ for supported elements and fallback details.
 ## Use the canvas Extension
 
 When you open this repository as a project, `.github/extensions/markdstage/` loads at project
-scope. To install the current **[v4.2.0 release](https://github.com/runceel/markdstage/releases/tag/v4.2.0)**
+scope. To install the current **[v4.2.1 release](https://github.com/runceel/markdstage/releases/tag/v4.2.1)**
 at user scope in another repository, ask GitHub Copilot:
 
 > Install MarkdStage at user scope from the following GitHub repository folder.
 >
-> `https://github.com/runceel/markdstage/tree/v4.2.0/.github/extensions/markdstage`
+> `https://github.com/runceel/markdstage/tree/v4.2.1/.github/extensions/markdstage`
 
 The Extension runs local code in the user's environment. Review its contents before installation,
 and use a trusted release tag or commit SHA for a reproducible install. The `main` branch tracks
@@ -216,24 +216,24 @@ from a file picker. It displays the current and next slides with the current sli
 and launches a synchronized native presentation window without GitHub Copilot.
 
 It requires Windows and the Microsoft Edge WebView2 Runtime. The current
-**[v4.2.0 release](https://github.com/runceel/markdstage/releases/tag/v4.2.0)** includes portable
+**[v4.2.1 release](https://github.com/runceel/markdstage/releases/tag/v4.2.1)** includes portable
 builds and SHA-256 checksum files for Windows x64 and ARM64:
 
-- [MarkdStage-win-x64.zip](https://github.com/runceel/markdstage/releases/download/v4.2.0/MarkdStage-win-x64.zip)
-- [MarkdStage-win-arm64.zip](https://github.com/runceel/markdstage/releases/download/v4.2.0/MarkdStage-win-arm64.zip)
+- [MarkdStage-win-x64.zip](https://github.com/runceel/markdstage/releases/download/v4.2.1/MarkdStage-win-x64.zip)
+- [MarkdStage-win-arm64.zip](https://github.com/runceel/markdstage/releases/download/v4.2.1/MarkdStage-win-arm64.zip)
 
 Extract the whole folder, run `MarkdStageApp.exe`, and open your Markdown file.
 
 Signed sideloading packages are also available:
 
-- [MarkdStage-win-x64.msix](https://github.com/runceel/markdstage/releases/download/v4.2.0/MarkdStage-win-x64.msix)
-- [MarkdStage-win-arm64.msix](https://github.com/runceel/markdstage/releases/download/v4.2.0/MarkdStage-win-arm64.msix)
-- [MarkdStage.cer](https://github.com/runceel/markdstage/releases/download/v4.2.0/MarkdStage.cer)
+- [MarkdStage-win-x64.msix](https://github.com/runceel/markdstage/releases/download/v4.2.1/MarkdStage-win-x64.msix)
+- [MarkdStage-win-arm64.msix](https://github.com/runceel/markdstage/releases/download/v4.2.1/MarkdStage-win-arm64.msix)
+- [MarkdStage.cer](https://github.com/runceel/markdstage/releases/download/v4.2.1/MarkdStage.cer)
 
 Import `MarkdStage.cer` into the local machine's **Trusted People** certificate store before
 installing the MSIX matching the device architecture.
 
-**Microsoft Store:** Coming soon for v4.2.0. The Store package will be submitted after this
+**Microsoft Store:** Coming soon for v4.2.1. The Store package will be submitted after this
 GitHub release is published.
 
 <a id="community-macos-app"></a>
