@@ -225,24 +225,24 @@ WinUI 3 アプリです。現在のスライドと次のスライド、スピー
 GitHub Copilot を開かずに、操作が同期するネイティブの投影用ウィンドウで発表できます。
 
 Windows と Microsoft Edge WebView2 Runtime が必要です。
-現在の **[v4.2.1 リリース](https://github.com/runceel/markdstage/releases/tag/v4.2.1)** には、
+現在の **[v4.2.2 リリース](https://github.com/runceel/markdstage/releases/tag/v4.2.2)** には、
 Windows x64 / ARM64 向けのポータブルビルドと SHA-256 チェックサムファイルが含まれます。
 
-- [MarkdStage-win-x64.zip](https://github.com/runceel/markdstage/releases/download/v4.2.1/MarkdStage-win-x64.zip)
-- [MarkdStage-win-arm64.zip](https://github.com/runceel/markdstage/releases/download/v4.2.1/MarkdStage-win-arm64.zip)
+- [MarkdStage-win-x64.zip](https://github.com/runceel/markdstage/releases/download/v4.2.2/MarkdStage-win-x64.zip)
+- [MarkdStage-win-arm64.zip](https://github.com/runceel/markdstage/releases/download/v4.2.2/MarkdStage-win-arm64.zip)
 
 フォルダーごと展開し、`MarkdStageApp.exe` を実行して Markdown ファイルを開きます。
 
 署名済みのサイドローディング用パッケージも利用できます。
 
-- [MarkdStage-win-x64.msix](https://github.com/runceel/markdstage/releases/download/v4.2.1/MarkdStage-win-x64.msix)
-- [MarkdStage-win-arm64.msix](https://github.com/runceel/markdstage/releases/download/v4.2.1/MarkdStage-win-arm64.msix)
-- [MarkdStage.cer](https://github.com/runceel/markdstage/releases/download/v4.2.1/MarkdStage.cer)
+- [MarkdStage-win-x64.msix](https://github.com/runceel/markdstage/releases/download/v4.2.2/MarkdStage-win-x64.msix)
+- [MarkdStage-win-arm64.msix](https://github.com/runceel/markdstage/releases/download/v4.2.2/MarkdStage-win-arm64.msix)
+- [MarkdStage.cer](https://github.com/runceel/markdstage/releases/download/v4.2.2/MarkdStage.cer)
 
 端末のアーキテクチャに合う MSIX をインストールする前に、`MarkdStage.cer` をローカル
 コンピューターの **信頼されたユーザー** 証明書ストアへインポートしてください。
 
-**Microsoft Store:** v4.2.1 の GitHub リリース後に提出予定です（近日公開）。
+**Microsoft Store:** v4.2.2 の GitHub リリース後に提出予定です（近日公開）。
 
 <a id="community-macos-app"></a>
 
