@@ -4,12 +4,20 @@ This directory records architecture-level decisions for MarkdStage: the ones tha
 constrain more than one surface, move a trust or ownership boundary, or would be
 expensive to reverse.
 
-An ADR answers *why the current architecture is the way it is*. It is append-only.
-Superseded records stay in place; a later ADR supersedes them.
+This file is the canonical policy for maintaining architecture documentation.
 
-The current structure and invariants are documented in
-[`docs/architecture.md`](../architecture.md). ADRs explain the decisions behind
-that current design without duplicating it.
+## Documentation policy
+
+| Document | Responsibility | Maintenance |
+| --- | --- | --- |
+| [`docs/architecture.md`](../architecture.md) | Current cross-surface structure, boundaries, ownership, and invariants | Rewrite when the current design changes. Do not retain decision history or an ADR index. |
+| ADRs in this directory | Context, alternatives, decisions, and consequences that explain why the architecture was chosen | Append only. Keep superseded records and supersede them with a later ADR. |
+| [`docs/specs/`](../specs/README.md) | Temporary implementation requirements for cross-surface work | Revise during implementation, then remove or reduce to a compatibility redirect after the work ships. |
+| Component documentation and code | Local behavior and implementation details | Keep authoritative details close to the component that implements them. |
+
+The architecture document and ADRs may link to each other, but must not duplicate
+the same explanation. Link from the current architecture to an ADR only where an
+implementer needs the rationale for a specific rule.
 
 Anything that can be learned by reading the code — function names, algorithms,
 file layouts, local UI behaviour — does not belong here.

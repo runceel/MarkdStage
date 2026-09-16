@@ -152,14 +152,3 @@ files. Generated mirrors must not be edited by hand.
   engine; equivalent implementation does not imply identical engine versions.
 - The product never downloads or installs Node.js, WebView2, or Chromium at run
   time.
-
-## Decision history
-
-- [ADR 0001](adr/0001-windows-native-app-packaging-and-runtime-hosting.md):
-  Windows packaging, shared runtime hosting, and the host-owned trust boundary.
-- [ADR 0002](adr/0002-cli-current-directory-workspace.md): CLI workspace
-  defaults.
-- [ADR 0003](adr/0003-packaged-cli-native-app-activation.md): packaged CLI
-  activation and acknowledgement.
-- [ADR 0004](adr/0004-agent-skills-as-installation-artifacts.md): generated
-  Agent Skills and repository discovery boundaries.
