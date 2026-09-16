@@ -22,7 +22,7 @@ MarkdStage release as a major version.
 | canvas ID `presentation` | canvas ID `MarkdStage` |
 | tool `presentation_guide` | tool `markdstage_guide` |
 | `.github/extensions/presentation/` | `.github/extensions/markdstage/` |
-| `.github/skills/presentation/` | `.github/skills/markdstage/` |
+| `.github/skills/presentation/` | `markdstage skill install --target copilot` |
 | `Presentation-win-*.zip` | `MarkdStage-win-*.zip` |
 
 Do not provide a compatibility alias for the former canvas ID.
@@ -118,11 +118,12 @@ the packaged CLI's installed-Chromium/remote-debugging requirements in the listi
 installation guide, and release notes. The desktop GUI is a presenter; exports are
 CLI-only.
 
-Before the first Store submission, complete the Windows checklist in
-`apps/MarkdStage.Desktop/README.md`. Record the external browser's ability to use the
-package temporary profile under Store distribution, and verify the embedded
-WebView2 script-only `validate` path with no external browser installed. These
-measurements cannot be replaced by Linux source tests.
+Before each Store submission, complete the Windows checklist in
+`apps/MarkdStage.Desktop/README.md`, including the external browser's ability to
+use the package temporary profile and the embedded WebView2 script-only
+`validate` path with no external browser installed. These measurements cannot be
+replaced by Linux source tests. The published listing is
+https://apps.microsoft.com/detail/9N9DG772RM03.
 
 The release workflow reads the package Identity Name and Publisher from the
 Store-associated `apps/MarkdStage.Desktop/src/MarkdStage.App/Package.appxmanifest`.
@@ -161,15 +162,15 @@ inventory and regeneration commands.
 Store availability, the Store URL, and Store acceptance status are not prerequisites
 for a GitHub Release. After the GitHub Release is verified, create the local
 `.msixupload` package. Partner Center upload and submission remain separate,
-explicit operations. Do not describe Store cutover or archive retirement in GitHub
-Release notes until the Store listing is actually published.
+explicit operations. Store publication does not itself retire archive distribution.
+Do not describe a Store cutover or archive retirement in GitHub Release notes
+unless that distribution change has been explicitly decided.
 
 ## Validation
 
 ```powershell
 npm ci
 npm test
-npm run skills:check
 cd packages\markdstage-cli
 npm pack --dry-run
 cd ..\..
@@ -200,7 +201,8 @@ Before tagging:
    the new tag. Do not change historical migration references.
 3. Add `.github/release-notes/vMAJOR.MINOR.PATCH.md` with the overview, compatibility statement,
    breaking changes, and migration table described in `.github/release-notes/README.md`.
-4. Regenerate Agent Skills if their source changed.
+4. Verify Agent Skill generation and packaged installation through the CLI and
+   Desktop tests; generated Skill trees are not checked into this repository.
 5. Run the validation commands above.
 6. Commit and merge all release preparation changes to `main`.
 

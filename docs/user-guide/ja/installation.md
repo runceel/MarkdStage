@@ -23,7 +23,8 @@ GitHub Copilot に次のように依頼します。
 ## MarkdStage CLI（npm 版）
 
 ここではブラウザーで動く npm 版を導入します。Windows パッケージ版のネイティブアプリ用 CLI は、
-後述の「Desktop v4 / Microsoft Store への移行」を参照してください。
+[Microsoft Store から MarkdStage](https://apps.microsoft.com/detail/9N9DG772RM03)を
+インストールし、後述の「Windows パッケージの動作」を参照してください。
 
 ### 必要なもの
 
@@ -64,6 +65,13 @@ npm install --global .\markdstage-markdstage-<version>.tgz
 
 ### インストールして起動する
 
+[Microsoft Store から MarkdStage](https://apps.microsoft.com/detail/9N9DG772RM03)をインストール
+します。Store パッケージにはネイティブアプリと `markdstage` コンソールエイリアスが
+含まれます。
+
+Store からインストールできない場合は、既存の GitHub Release にあるポータブル版と
+署名済みサイドローディング版も利用できます。
+
 1. [最新リリース](https://github.com/runceel/markdstage/releases/latest)から x64 または ARM64 の
    ポータブル ZIP をダウンロードします。
 2. フォルダーごと展開します。
@@ -71,12 +79,11 @@ npm install --global .\markdstage-markdstage-<version>.tgz
 
 発表と操作方法は [MarkdStage Desktop](desktop.md) を参照してください。
 
-### Desktop v4 / Microsoft Store への移行
+### Windows パッケージの動作
 
-MSIX 版は開発中です。上記は公開済みアーカイブ版の手順であり、Store 公開はパッケージの
-受け入れ確認後に案内します。v4 パッケージには `markdstage` コマンドが含まれ、Node.js は
-不要です。Desktop は発表用アプリであり、PDF／PowerPoint の出力ボタンは追加しません。
-エクスポートは CLI の機能です。
+Store パッケージには `markdstage` コマンドが含まれ、Node.js は不要です。Desktop は
+発表用アプリであり、PDF／PowerPoint の出力ボタンは追加しません。エクスポートは CLI の
+機能です。
 
 アプリとパッケージ版 CLI のスクリプト実行には WebView2 Runtime が必要です。
 引数なし、Markdown の直接指定、`preview`、`present` はインストール済みのネイティブアプリを
@@ -103,9 +110,9 @@ npm 版はブラウザーで動くままです。両方が `markdstage` を提�
 `Get-Command markdstage` で解決先を確認します。`npx @markdstage/markdstage` は
 npm 版を明示的に実行します。
 
-最初の Store 公開で配布を切り替え、**以後アーカイブ版への更新は一切提供しません**。
-Store 版をインストールして同じワークスペースを開き、旧アプリの展開フォルダーを削除して
-ください。両方を残す構成はサポートしません。旧版の検出や自動移行は行わず、最近使った
-フォルダー・ウィンドウ・テーマ設定は初期状態から始まります。Markdown・アセット・テーマは
-変更しません。パッケージのアンインストールで削除されるのは専用の設定と一時データであり、
-ワークスペース内のファイルは残ります。
+展開したポータブル版から Store 版へ移行する場合は、同じワークスペースを開いた後、
+コマンドの解決先が曖昧にならないよう旧アプリの展開フォルダーを削除してください。
+旧版の検出や設定の自動移行は行わず、最近使ったフォルダー・ウィンドウ・テーマ設定は
+初期状態から始まります。Markdown・アセット・テーマは変更しません。パッケージの
+アンインストールで削除されるのは専用の設定と一時データであり、ワークスペース内の
+ファイルは残ります。

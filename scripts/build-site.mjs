@@ -82,7 +82,7 @@ export async function buildSite({ outputDir = OUTPUT_DIR, siteUrl = process.env.
   if (!/^v\d+\.\d+\.\d+$/.test(product.releaseTag)) {
     throw new Error("The Canvas installation must reference a stable release tag.");
   }
-  for (const key of ["repository", "macUrl"]) {
+  for (const key of ["repository", "storeUrl", "macUrl"]) {
     if (new URL(product[key]).protocol !== "https:") throw new Error(`${key} must use HTTPS.`);
   }
   const ja = await readJson(join(REPO_ROOT, "site/content/ja.json"));

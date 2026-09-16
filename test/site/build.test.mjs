@@ -148,6 +148,7 @@ test("both pages connect needs and workflow to examples, sharing, and actionable
       assert.ok(html.includes(`${product.repository}/blob/main/docs/user-guide/${copy.lang === "ja" ? "ja/" : ""}${guide}`));
     }
     assert.ok(html.includes(`${product.repository}/tree/${product.releaseTag}/.github/extensions/markdstage`));
+    assert.ok(html.includes(`href="${product.storeUrl}"`));
     assert.ok(html.includes('id="examples"'));
     assert.ok(html.includes('id="get-started"'));
     assert.ok(html.includes(`${copy.heroLine1}<br><span>${copy.heroLine2}</span>`), "Keep the intentional tagline break");

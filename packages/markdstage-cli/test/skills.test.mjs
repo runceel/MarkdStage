@@ -6,7 +6,6 @@ import test from "node:test";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { fileURLToPath } from "node:url";
 
 import { buildSkillFiles, SKILL_TARGETS } from "../src/skills.mjs";
 import { skillCommand } from "../src/commands/skill.mjs";
@@ -70,13 +69,10 @@ test("every skill exposes Archify imports and the canonical guidance", async () 
     assert.match(files.get("references/slide-format.md"), /```archify\nassets\//);
   }
 
-  const canvasSkill = await readFile(
-    new URL("../../../.github/skills/markdstage/SKILL.md", import.meta.url),
-    "utf8",
-  );
+  const canvasSkill = (await buildSkillFiles("copilot")).get("SKILL.md");
   assert.match(canvasSkill, /import an Archify SVG/);
   assert.match(canvasSkill, /```archify\nassets\/checkout-architecture\.svg\n```/);
-  assert.match(canvasSkill, /pass `sourceName`/);
+  assert.match(canvasSkill, /pass every slide to the `open` input/);
   assert.match(canvasSkill, /markdstage guide slide-format/);
 });
 
@@ -148,18 +144,4 @@ test("check never writes files", async () => {
 test("unknown targets and actions are rejected", async () => {
   await assert.rejects(skillCommand({ target: "emacs" }), /Unknown skill target/);
   await assert.rejects(skillCommand({ action: "remove" }), /Unknown skill action/);
-});
-
-test("the repository skills are in sync with the guide", async () => {
-  const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
-  const report = await skillCommand({
-    action: "check",
-    target: "codex,claude",
-    root: repoRoot,
-  });
-  assert.equal(
-    report.changed,
-    0,
-    "Run `npm run skills` from the repository root and commit the result.",
-  );
 });

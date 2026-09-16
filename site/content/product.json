@@ -2,6 +2,7 @@
   "name": "MarkdStage",
   "tagline": "Markdown, ready for the stage.",
   "repository": "https://github.com/runceel/markdstage",
+  "storeUrl": "https://apps.microsoft.com/detail/9N9DG772RM03",
   "releaseTag": "v3.8.3",
   "cliSetupCommand": "npm install --global @markdstage/markdstage\nmarkdstage skill install --target claude",
   "cliAlternativeCommand": "markdstage skill install --target codex",

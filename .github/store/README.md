@@ -4,6 +4,8 @@ Everything needed to fill in the MarkdStage listing in Microsoft Store Partner
 Center. The release steps that use these files are in
 [`../RELEASING.md`](../RELEASING.md).
 
+Published listing: [MarkdStage in Microsoft Store](https://apps.microsoft.com/detail/9N9DG772RM03).
+
 Nothing in this folder ships inside the app package or the Extension ZIP.
 
 ## Contents

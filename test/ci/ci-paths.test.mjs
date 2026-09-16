@@ -21,6 +21,14 @@ test("published documentation runs only documentation validation", () => {
     classifyCiPaths(["packages\\markdstage-cli\\README.md"]),
     expected({ docs: true }),
   );
+  assert.deepEqual(
+    classifyCiPaths([
+      "docs/architecture.md",
+      "docs/adr/0004-agent-skills-as-installation-artifacts.md",
+      "docs/specs/README.md",
+    ]),
+    expected({ docs: true }),
+  );
 });
 
 test("component-only changes stay within their component", () => {
@@ -36,6 +44,21 @@ test("component-only changes stay within their component", () => {
     classifyCiPaths([".github/extensions/markdstage/extension.mjs"]),
     expected({ test: true, awesome: true }),
   );
+});
+
+test("the Agent Skill generator selects every packaging consumer", () => {
+  for (const path of [
+    "packages/markdstage-cli/src/commands/guide.mjs",
+    "packages/markdstage-cli/src/exit.mjs",
+    "packages/markdstage-cli/src/runtime.mjs",
+    "packages/markdstage-cli/src/skills.mjs",
+  ]) {
+    assert.deepEqual(
+      classifyCiPaths([path]),
+      expected({ cli: true, desktop: true }),
+      path,
+    );
+  }
 });
 
 test("canonical shared files select their real consumers", () => {
@@ -135,7 +158,7 @@ test("the published plugin tree selects only its own verification", () => {
   // The manifest version must stay aligned with the CLI product version.
   assert.deepEqual(
     classifyCiPaths(["packages/markdstage-cli/package.json"]),
-    expected({ cli: true, awesome: true }),
+    expected({ cli: true, desktop: true, awesome: true }),
   );
 });
 

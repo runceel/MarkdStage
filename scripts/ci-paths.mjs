@@ -24,6 +24,9 @@ function isPublishedDocumentation(path) {
     path === "DESIGN.md" ||
     path === "PRODUCT.md" ||
     path === "LICENSE" ||
+    path === "docs/architecture.md" ||
+    path.startsWith("docs/adr/") ||
+    path.startsWith("docs/specs/") ||
     path.startsWith("docs/user-guide/") ||
     path === "packages/markdstage-cli/README.md" ||
     path === "apps/MarkdStage.Desktop/README.md" ||
@@ -73,6 +76,14 @@ function isFullSuiteInfrastructure(path) {
     path.startsWith("test/ci/")
   );
 }
+
+const desktopSkillGeneratorInputs = new Set([
+  "packages/markdstage-cli/package.json",
+  "packages/markdstage-cli/src/commands/guide.mjs",
+  "packages/markdstage-cli/src/exit.mjs",
+  "packages/markdstage-cli/src/runtime.mjs",
+  "packages/markdstage-cli/src/skills.mjs",
+]);
 
 function classifyExtensionPath(path, selection) {
   const root = ".github/extensions/markdstage/";
@@ -164,16 +175,12 @@ export function classifyCiPaths(paths, { forceAll = false } = {}) {
     }
 
     if (path.startsWith("packages/markdstage-cli/")) {
-      if (path !== "packages/markdstage-cli/README.md") selection.cli = true;
-      continue;
-    }
-
-    if (
-      path.startsWith(".agents/skills/markdstage/") ||
-      path.startsWith(".claude/skills/markdstage/") ||
-      path.startsWith(".github/skills/markdstage/")
-    ) {
-      selection.cli = true;
+      if (path !== "packages/markdstage-cli/README.md") {
+        selection.cli = true;
+        if (desktopSkillGeneratorInputs.has(path)) {
+          selection.desktop = true;
+        }
+      }
       continue;
     }
 

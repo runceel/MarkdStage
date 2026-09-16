@@ -251,7 +251,7 @@ export function renderPage({ copy: c, product, sources, siteUrl }) {
             <a class="text-link" href="${prefix}examples/markdown.md" download>${e(c.downloadSource)}${arrow}</a>
             <h3 class="native-title">${e(c.desktopTitle)}</h3>
             <p>${e(c.desktopDescription)}</p>
-            ${link(`${product.repository}/releases/latest`, c.desktopLink)}
+            ${link(product.storeUrl, c.desktopLink)}
             <p class="requirements">${e(c.desktopDetail)}</p>
           </article>
         </div>

@@ -8,8 +8,9 @@ Canvas Extension と同じレンダラーで描画し、Windows のファイル�
 
 ## インストールして起動する
 
-ポータブルパッケージのダウンロードと必要なものは
-[インストールガイド](installation.md)を参照してください。
+[Microsoft Store から MarkdStage](https://apps.microsoft.com/detail/9N9DG772RM03)を
+インストールするか、ポータブル版・サイドローディング版と必要なものを
+[インストールガイド](installation.md)で確認してください。
 
 ## Markdown ファイルを開く
 
