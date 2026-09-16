@@ -9,14 +9,14 @@ canvas**. The `markdstage` skill uses this extension to run presentations.
 
 ```text
 Agent
-  | open_canvas("MarkdStage", { input: { slides: [...] } })
-  |   opens and registers the complete deck at startup
+  | open_canvas("MarkdStage", { input: { sourcePath: "slides.md" } })
+  |   opens the workspace Markdown file in live mode at startup
   | invoke_canvas_action("load_deck", { slides: [...] })
-  |   replaces the deck during a presentation
+  |   replaces the deck during a presentation when an unsaved snapshot is explicit
   v
 extension.mjs (Node / @github/copilot-sdk)
   | starts one loopback HTTP server per instance
-  | applies input.slides before open returns its URL, avoiding a placeholder
+  | applies input.sourcePath or input.slides before open returns its URL, avoiding a placeholder
   | stores the complete deck and current index and exposes the current slide at /state
   | accepts canvas navigation through POST /navigate
   | monitors Surface Pen Win+F20 / Win+F18 shortcuts on Windows
@@ -34,13 +34,15 @@ Canvas iframe (renderer/)
 The themed slide is displayed and updates automatically
 ```
 
-- **Register every slide at startup** in the `slides` field of `open_canvas`
-  `input`. The open handler applies the deck before returning the URL, so the
-  first slide appears immediately without a "deck not loaded" placeholder.
-  Use `load_deck` only to replace content or theme during the presentation. Omit
-  open input when only refocusing an existing instance; every non-empty open
-  input must include `slides`. `sourceName` is resolution/output metadata only:
-  it never reads or watches the named Markdown file.
+- **Open workspace Markdown at startup** with `sourcePath` in `open_canvas`
+  `input`. This is the default authoring path: the open handler reads and splits
+  the file before returning the URL, enables automatic refresh, associates the
+  source for write-back, and makes the detailed Architecture designer available.
+  Use `slides` or `show_slide` only when the user explicitly asks for an
+  unsaved/in-memory display. Use `load_deck` only to replace content or theme
+  during the presentation. Omit open input when only refocusing an existing
+  instance. `sourceName` is resolution/output metadata for unsaved snapshots:
+  it never reads or watches the named Markdown file by itself.
   Users navigate through ◀ ▶, left-click/right-click on empty slide margins,
   arrow keys, or ☰. The canvas posts navigation to `POST /navigate`, and every
   client stays synchronized. Left-click advances; right-click goes back.
@@ -296,15 +298,22 @@ Do not place a top-level HTML comment immediately before a slide separator. End
 the comment, leave a blank line, and then write `---`; without the blank line,
 the separator may not be recognized as a slide boundary.
 
-To have MarkdStage read and split a workspace Markdown file, use **More controls >
-Open Markdown**. This file-loading workflow is separate from the Canvas API.
+To have MarkdStage read and split a workspace Markdown file from chat, pass
+`sourcePath` to `open_canvas`. Users can also use **More controls > Open
+Markdown** in the canvas.
 
-### Canvas API `slides` array
+### Canvas API file and `slides` inputs
 
-For canvas `open` and `load_deck`, each element of the `slides` array is exactly
-one slide. The caller must read, split, or generate the deck before invoking the
-Canvas API. Do not pass a complete multi-slide Markdown file as one array element
-and expect its `---` lines to be split.
+For canvas `open`, prefer `{ sourcePath: "slides.md" }` so MarkdStage reads a
+workspace Markdown file, splits it into slides, opens it in live auto-refresh
+mode, and enables source-backed Architecture editing. Pass `sourceMode:
+"snapshot"` only when automatic refresh is explicitly not wanted.
+
+Use the `slides` array for canvas `open` or `load_deck` only when an
+unsaved/in-memory display is explicit. Each element of the `slides` array is
+exactly one slide. The caller must read, split, or generate the deck before
+invoking the `slides` path. Do not pass a complete multi-slide Markdown file as
+one array element and expect its `---` lines to be split.
 
 Each array element is one Markdown string. It may start with front matter
 delimited by `---`, followed by GFM-compatible content.
@@ -412,8 +421,10 @@ Archify source code. Blank lines and lines starting with `#` are ignored.
 Use `assets/...` without a leading slash, with ASCII filenames and `/`
 separators; remote URLs, data URIs, spaces, backslashes, and `.` / `..` path
 segments are rejected. Lookup tries Markdown-adjacent `assets/` before
-workspace-root `assets/`. Pass `sourceName` with canvas `open` / `load_deck` so
-adjacent assets resolve; it remains metadata and does not load the Markdown.
+workspace-root `assets/`. File-backed `open` derives this location from
+`sourcePath`; for an explicit unsaved `slides` snapshot, pass `sourceName` with
+canvas `open` / `load_deck` so adjacent assets resolve. It remains metadata and
+does not load the Markdown by itself.
 
 MarkdStage preserves the exported geometry but replaces Archify's colors,
 preset styling, and embedded font with the deck theme. Role markers use
@@ -432,10 +443,12 @@ error** on the slide.
 
 `sourceName` is workspace-relative metadata used to resolve adjacent themes and
 images and to derive output filenames. It does not read, parse, split, or watch
-Markdown content. Passing `sourceName` does not load a deck; non-empty canvas
-input must still include the complete `slides` array.
+Markdown content. Passing `sourceName` does not load a deck; use `sourcePath`
+when MarkdStage should read a Markdown file, or pass the complete `slides` array
+when an unsaved snapshot is explicit.
 
-To have MarkdStage load a Markdown file, use **More controls > Open Markdown**.
+To have MarkdStage load a Markdown file, pass `sourcePath` to canvas `open` or
+use **More controls > Open Markdown**.
 
 Write local images as `![Alternative text](/assets/foo.png)`. With `sourceName`,
 lookup tries `assets/` beside the Markdown before workspace-root `assets/`.
@@ -1193,19 +1206,18 @@ Canvas buttons and keyboard continue to work when pen input is unavailable.
 
 ## Actions
 
-Start with `open_canvas` (`canvasId: "MarkdStage"`) and complete-deck input:
-`{ slides: string[], index?: number, theme?: "dark" | "light" | "microsoft" |
-"custom", sourceName?: string }`. Pass the source Markdown filename in
-`sourceName`; the PDF and PowerPoint controls derive output names from it. This is
-metadata for resolution and output naming only and never reads or watches the
-file. The open handler applies the deck before returning its URL. Omit input
-when only refocusing an existing canvas. Any non-empty input without `slides`
-fails with `invalid_input`; pass the complete `slides` array or call
-`load_deck` to replace the registered snapshot.
+Start with `open_canvas` (`canvasId: "MarkdStage"`) and file-backed input:
+`{ sourcePath: string, index?: number, theme?: "dark" | "light" | "microsoft" |
+"custom", sourceMode?: "live" | "snapshot" }`. The open handler reads the
+Markdown, applies the deck before returning its URL, defaults to live automatic
+refresh, and associates the source so the detailed Architecture designer can
+open. Omit input when only refocusing an existing canvas. Use
+`{ slides: string[], index?: number, theme?: ..., sourceName?: string }` only
+when the user explicitly asks for an unsaved/in-memory display.
 
 | Action | Input and behavior |
 | --- | --- |
-| `load_deck` | `{ slides: string[], index?: number, theme?: "dark" | "light" | "microsoft" | "custom", sourceName?: string }`. Replace/reload the deck for mid-presentation content or theme changes. `index` defaults to `0`; theme defaults to `dark`. `sourceName` is metadata only and never reads or watches Markdown. Appends one back cover without duplication. Returns `{ ok, version, index, total, theme, validationFeedback? }`. Missing front matter or Architecture errors do not prevent display; remediation is returned in `validationFeedback` and logged for open. |
+| `load_deck` | `{ slides: string[], index?: number, theme?: "dark" | "light" | "microsoft" | "custom", sourceName?: string }`. Replace/reload the deck for explicit unsaved mid-presentation content or theme changes. `index` defaults to `0`; theme defaults to `dark`. `sourceName` is metadata only and never reads or watches Markdown by itself; use `open_canvas` with `sourcePath` for normal file-backed authoring. Appends one back cover without duplication. Returns `{ ok, version, index, total, theme, validationFeedback? }`. Missing front matter or Architecture errors do not prevent display; remediation is returned in `validationFeedback` and logged for open. |
 | `goto_slide` | `{ index: number }`. Select a clamped zero-based index. Intended for explicit chat requests, not normal navigation. Returns `{ ok, changed, version, index, total }`. |
 | `show_slide` | `{ markdown: string }`. Temporarily replace the current slide. Supports front matter keys `deck`, `kicker`, `page`, `total`, `title`, `layout`, `size`, and `theme`. Omitted theme inherits the deck theme. The override is included in output snapshots until navigation or deck replacement resumes the registered deck. |
 | `get_architecture_errors` | `{ index?: number }`. Validate the complete deck or one zero-based slide, including temporary content. Preserves `{ ok, scope, index?, page?, total, errorCount, errors }` and legacy block errors; adds `valid`, `complete`, `truncated`, detailed `diagnostics`, and block-stage results from the same validator as `markdstage_validate`. No deck and out-of-range indexes are errors. |
