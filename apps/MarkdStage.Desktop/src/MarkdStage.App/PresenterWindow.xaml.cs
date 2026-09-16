@@ -83,7 +83,7 @@ public sealed partial class PresenterWindow : Window
                 return;
             }
 
-            WebViewPolicy.Configure(PresenterWebView, () => _presenterUri);
+            await WebViewPolicy.Configure(PresenterWebView, () => _presenterUri);
             NativeAssetMappings.ConfigurePackage(PresenterWebView);
             if (_workspaceRoot is not null) NativeAssetMappings.ConfigureWorkspace(PresenterWebView, _workspaceRoot);
             var webView = PresenterWebView.CoreWebView2;

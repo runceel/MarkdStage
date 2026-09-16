@@ -35,7 +35,7 @@ public sealed partial class ArchitectureEditorWindow : Window
             EditorWebView.Close();
             return;
         }
-        WebViewPolicy.Configure(EditorWebView, _allowedOrigin);
+        await WebViewPolicy.Configure(EditorWebView, _allowedOrigin);
         NativeAssetMappings.ConfigurePackage(EditorWebView);
         if (_workspaceRoot is not null)
             NativeAssetMappings.ConfigureWorkspace(EditorWebView, _workspaceRoot);

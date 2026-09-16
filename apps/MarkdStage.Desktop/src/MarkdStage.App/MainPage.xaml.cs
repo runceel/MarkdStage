@@ -827,7 +827,7 @@ public sealed partial class MainPage : Page
                 return;
             }
 
-            WebViewPolicy.Configure(webView, () => _server.BaseUri, OnNewWindowRequested);
+            await WebViewPolicy.Configure(webView, () => _server.BaseUri, OnNewWindowRequested);
             NativeAssetMappings.ConfigurePackage(webView);
             if (webView == StageWebView)
             {
@@ -867,15 +867,22 @@ public sealed partial class MainPage : Page
                 return;
             }
             if (!string.IsNullOrWhiteSpace(args.Uri) &&
-                !args.Uri.Equals("about:blank", StringComparison.OrdinalIgnoreCase) &&
-                (!Uri.TryCreate(args.Uri, UriKind.Absolute, out var requested) ||
-                 _server.BaseUri is null ||
-                 !requested.GetLeftPart(UriPartial.Authority).Equals(
-                     _server.BaseUri.GetLeftPart(UriPartial.Authority),
-                     StringComparison.OrdinalIgnoreCase)))
+                !args.Uri.Equals("about:blank", StringComparison.OrdinalIgnoreCase))
             {
-                args.Handled = true;
-                return;
+                var isSameOrigin =
+                    Uri.TryCreate(args.Uri, UriKind.Absolute, out var requested) &&
+                    _server.BaseUri is not null &&
+                    requested.GetLeftPart(UriPartial.Authority).Equals(
+                        _server.BaseUri.GetLeftPart(UriPartial.Authority),
+                        StringComparison.OrdinalIgnoreCase);
+                if (!isSameOrigin)
+                {
+                    // A slide-embedded link to a real external site: hand it to the default
+                    // browser instead of leaving the popup request blocked with nowhere to go.
+                    if (requested is not null) WebViewPolicy.TryOpenExternally(requested);
+                    args.Handled = true;
+                    return;
+                }
             }
             var editor = new ArchitectureEditorWindow(
                 _webViewEnvironment, () => _server.BaseUri, WorkspaceRoot);
