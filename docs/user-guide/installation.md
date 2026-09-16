@@ -24,7 +24,8 @@ reproducible installation.
 ## MarkdStage CLI (npm)
 
 These instructions install the browser-based npm CLI. For the Windows package's
-native-app CLI, see [Desktop v4 / Microsoft Store transition](#desktop-v4--microsoft-store-transition).
+native-app CLI, install [MarkdStage from Microsoft Store](https://apps.microsoft.com/detail/9N9DG772RM03)
+and see [Windows package behavior](#windows-package-behavior).
 
 ### Requirements
 
@@ -64,6 +65,12 @@ The portable package already includes the required .NET and Windows App SDK comp
 
 ### Install and start
 
+Install [MarkdStage from Microsoft Store](https://apps.microsoft.com/detail/9N9DG772RM03).
+The Store package includes the native app and the `markdstage` console alias.
+
+Portable and signed sideloading packages from existing GitHub releases remain
+available when Store installation is not suitable:
+
 1. Download the x64 or ARM64 portable ZIP from the
    [latest release](https://github.com/runceel/markdstage/releases/latest).
 2. Extract the complete folder.
@@ -71,13 +78,11 @@ The portable package already includes the required .NET and Windows App SDK comp
 
 See [MarkdStage Desktop](desktop.md) for presenting and navigation instructions.
 
-### Desktop v4 / Microsoft Store transition
+### Windows package behavior
 
-The MSIX conversion is in development; the instructions above remain for the
-published archive release. Store availability must be announced only after package
-acceptance. The v4 package includes the `markdstage` console alias and does not
-require Node.js. The desktop app is a **presenter**, with no PDF or PowerPoint
-export buttons; exports remain CLI-only.
+The Store package includes the `markdstage` console alias and does not require
+Node.js. The desktop app is a **presenter**, with no PDF or PowerPoint export
+buttons; exports remain CLI-only.
 
 WebView2 Runtime is required for the app and the packaged CLI's script execution.
 Bare invocation, direct Markdown, `preview`, and `present` activate the installed
@@ -106,10 +111,9 @@ The npm CLI remains browser-based. If npm and the package both provide
 `markdstage`, check command resolution with `Get-Command markdstage`;
 `npx @markdstage/markdstage` explicitly runs npm.
 
-The first Store release is the archive cutover: **no further archive updates of any
-kind will be published after it**. Install the Store version, open the same workspace,
-then delete the old extracted application folder. Keeping both installations is not
-a supported configuration. There is no archive detection or automatic migration:
-recent folders and window/theme preferences start fresh. Your Markdown, assets,
-and themes remain unchanged. Uninstalling the package removes its private settings
-and temporary data, not files in your workspaces.
+When moving from an extracted portable package to the Store package, open the
+same workspace and then remove the old extracted application folder to avoid
+command ambiguity. There is no archive detection or automatic preference
+migration: recent folders and window/theme preferences start fresh. Your
+Markdown, assets, and themes remain unchanged. Uninstalling the package removes
+its private settings and temporary data, not files in your workspaces.

@@ -21,6 +21,14 @@ test("published documentation runs only documentation validation", () => {
     classifyCiPaths(["packages\\markdstage-cli\\README.md"]),
     expected({ docs: true }),
   );
+  assert.deepEqual(
+    classifyCiPaths([
+      "docs/architecture.md",
+      "docs/adr/0004-agent-skills-as-installation-artifacts.md",
+      "docs/specs/README.md",
+    ]),
+    expected({ docs: true }),
+  );
 });
 
 test("component-only changes stay within their component", () => {

@@ -7,7 +7,9 @@ Canvas Extension and opens `.md` and `.markdown` files through the Windows file 
 
 ## Install and start
 
-See the [installation guide](installation.md) for the portable package download and prerequisites.
+Install [MarkdStage from Microsoft Store](https://apps.microsoft.com/detail/9N9DG772RM03),
+or see the [installation guide](installation.md) for portable and sideloading
+options and prerequisites.
 
 ## Open a Markdown file
 

@@ -118,11 +118,12 @@ the packaged CLI's installed-Chromium/remote-debugging requirements in the listi
 installation guide, and release notes. The desktop GUI is a presenter; exports are
 CLI-only.
 
-Before the first Store submission, complete the Windows checklist in
-`apps/MarkdStage.Desktop/README.md`. Record the external browser's ability to use the
-package temporary profile under Store distribution, and verify the embedded
-WebView2 script-only `validate` path with no external browser installed. These
-measurements cannot be replaced by Linux source tests.
+Before each Store submission, complete the Windows checklist in
+`apps/MarkdStage.Desktop/README.md`, including the external browser's ability to
+use the package temporary profile and the embedded WebView2 script-only
+`validate` path with no external browser installed. These measurements cannot be
+replaced by Linux source tests. The published listing is
+https://apps.microsoft.com/detail/9N9DG772RM03.
 
 The release workflow reads the package Identity Name and Publisher from the
 Store-associated `apps/MarkdStage.Desktop/src/MarkdStage.App/Package.appxmanifest`.
@@ -161,8 +162,9 @@ inventory and regeneration commands.
 Store availability, the Store URL, and Store acceptance status are not prerequisites
 for a GitHub Release. After the GitHub Release is verified, create the local
 `.msixupload` package. Partner Center upload and submission remain separate,
-explicit operations. Do not describe Store cutover or archive retirement in GitHub
-Release notes until the Store listing is actually published.
+explicit operations. Store publication does not itself retire archive distribution.
+Do not describe a Store cutover or archive retirement in GitHub Release notes
+unless that distribution change has been explicitly decided.
 
 ## Validation
 

@@ -120,7 +120,8 @@ CI から利用できます。**npm 版 CLI** は **Node.js 24 以降**と、イ
 Google Chrome、または Chromium** が必要です。ブラウザーの自動ダウンロードは行いません。
 前提条件やオフライン導入は[インストールガイド](./docs/user-guide/ja/installation.md)を参照してください。
 
-**Windows パッケージ版 CLI（Desktop v4 / MSIX、Microsoft Store 公開予定）**は Node.js が不要です。
+**[Microsoft Store の MarkdStage](https://apps.microsoft.com/detail/9N9DG772RM03) に
+含まれる Windows パッケージ版 CLI** は Node.js が不要です。
 引数なしの `markdstage`、Markdown の直接指定、`preview` はネイティブのワークスペース
 ウィンドウを開くか再利用し、`present` はネイティブの投影用ウィンドウも開きます。
 引数なしでは呼び出し元の現在のディレクトリをファイル未選択で開きます。
@@ -242,7 +243,8 @@ Windows x64 / ARM64 向けのポータブルビルドと SHA-256 チェックサ
 端末のアーキテクチャに合う MSIX をインストールする前に、`MarkdStage.cer` をローカル
 コンピューターの **信頼されたユーザー** 証明書ストアへインポートしてください。
 
-**Microsoft Store:** v4.2.3 の GitHub リリース後に提出予定です（近日公開）。
+**Microsoft Store:** [MarkdStage をインストール](https://apps.microsoft.com/detail/9N9DG772RM03)。
+Store パッケージにはネイティブアプリと `markdstage` 実行エイリアスが含まれます。
 
 <a id="community-macos-app"></a>
 
@@ -365,6 +367,7 @@ layout: title
 - [カスタムテーマ作成](./.github/extensions/markdstage/docs/custom-theme-authoring.md)
 - [プロダクト原則](./PRODUCT.md)
 - [ブランドとデザインシステム](./DESIGN.md)
+- [現在のアーキテクチャ](./docs/architecture.md)
 - [アーキテクチャ決定記録 (ADR)](./docs/adr/README.md)
 - [リリース手順](./.github/RELEASING.md)
 - [サードパーティ通知](./.github/extensions/markdstage/THIRD-PARTY-NOTICES.md)

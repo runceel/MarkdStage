@@ -24,6 +24,9 @@ function isPublishedDocumentation(path) {
     path === "DESIGN.md" ||
     path === "PRODUCT.md" ||
     path === "LICENSE" ||
+    path === "docs/architecture.md" ||
+    path.startsWith("docs/adr/") ||
+    path.startsWith("docs/specs/") ||
     path.startsWith("docs/user-guide/") ||
     path === "packages/markdstage-cli/README.md" ||
     path === "apps/MarkdStage.Desktop/README.md" ||

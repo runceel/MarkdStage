@@ -137,20 +137,20 @@ in a native window. It edits existing `architecture` fences only and writes chan
 **Save**, rejecting stale saves when the Markdown changed externally. General Markdown editing and
 PDF export, and a timer remain outside the scope of the initial release.
 
-## Desktop v4 packages and Microsoft Store submission
+## Desktop packages and Microsoft Store distribution
 
-The v4 implementation provides both portable Windows packages and MSIX packages.
-GitHub Releases contain the portable ZIPs and signed sideloading MSIX files. The
-Microsoft Store upload package is created locally as the final release step after
-the GitHub Release is verified, then submitted separately through Partner Center
-only on explicit request. Package identity/publisher values must match Partner
-Center before Store submission.
+MarkdStage is available from the
+[Microsoft Store](https://apps.microsoft.com/detail/9N9DG772RM03). GitHub Releases
+also contain portable ZIPs and signed sideloading MSIX files. The Microsoft Store
+upload package is created locally as the final release step after the GitHub
+Release is verified, then submitted separately through Partner Center only on
+explicit request. Package identity/publisher values must match Partner Center.
 
 Portable packages are self-contained and include `MarkdStageApp.exe`,
 `MarkdStageCli.exe`, the Windows App SDK/.NET runtime, and the shared renderer
 assets. They do not include Node.js. Extract the ZIP and run
-`MarkdStageApp.exe`. The portable packages remain available from GitHub Releases
-until a future Store cutover is explicitly announced.
+`MarkdStageApp.exe`. These packages remain available when Store installation is
+not suitable.
 
 The packaged CLI uses the alias `markdstage` and does not bundle or acquire Node.
 Bare invocation, direct Markdown, `preview`, and `present` activate the installed
@@ -197,10 +197,10 @@ additionally require installed Microsoft Edge, Google Chrome, or Chromium.
 Organization policy disabling remote debugging prevents inspection, capture, and
 export. No browser or runtime is downloaded or installed by MarkdStage.
 
-### Windows acceptance before submission
+### Windows package acceptance
 
-Run these checks on a locally registered package for both supported architectures;
-a successful source build is not a substitute for package activation tests.
+Run these checks for package changes and before Store submission. A successful
+source build is not a substitute for package activation tests.
 
 From the repository root, run the durable packaged-activation harness:
 
@@ -215,10 +215,10 @@ directory for each architecture/run. The script exercises an **already registere
 package** in an interactive Windows desktop session. It does not install or
 register a package. Review its artifacts alongside the manual checks below.
 
-**Local verification:** all eight behavioral acceptance groups passed for ARM64
-and x64 using isolated registered test packages on an ARM64 host. This does not
-establish native x64 hardware coverage or Store-distributed package acceptance,
-and does not indicate a deployment or release.
+**Verification:** all eight behavioral acceptance groups passed for ARM64 and x64
+using isolated registered test packages. The published Store package has also
+completed Store-distributed activation, WebView2, and external-browser
+verification. Repeat the relevant checks for future package submissions.
 
 - Verify the package has one application entry, Start-menu activation opens the
   native window, and `markdstage` resolves to the console launcher. Run from a
@@ -269,9 +269,8 @@ and does not indicate a deployment or release.
 - Test `validate` with no external browser installed. Test layout/export commands
   with no browser and with remote debugging disabled by policy.
 - Confirm external Chromium can write the package temporary profile and produce
-  inspection, PNG, PDF, and editable PowerPoint output. Repeat with the
-  Store-distributed package before submission approval; this remains a Store
-  submission blocker until measured.
+  inspection, PNG, PDF, and editable PowerPoint output. Repeat this check with
+  the Store-distributed candidate before future submission approval.
 - Test folder/file picker, file association, drag-and-drop, `.git` worktree files,
   explicit workspace containment, symlinks/junctions/mount points, and size limits.
 - Test recent-folder order/limit, unavailable-folder locate/remove, loss of an
@@ -285,7 +284,6 @@ and does not indicate a deployment or release.
   theme; uninstall leaves workspace content intact. Check that no GUI export
   controls or archive detection/migration appear.
 
-## Specification lifetime
-
-This file documents what the app does today. Store-specific acceptance behavior is specified in
-[docs/desktop-behaviour-msix.md](docs/desktop-behaviour-msix.md) until the Store listing ships.
+Cross-surface boundaries and invariants are documented in
+[`docs/architecture.md`](../../docs/architecture.md). This file remains the
+current source for Desktop-specific behavior and package acceptance checks.

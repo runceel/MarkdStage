@@ -137,8 +137,9 @@ terminals, and CI. The **npm CLI** requires **Node.js 24 or later** and an insta
 **Microsoft Edge, Google Chrome, or Chromium**; it does not download a browser.
 See the [installation guide](./docs/user-guide/installation.md) for prerequisites and offline installation.
 
-The **Windows packaged CLI (Desktop v4 / MSIX, with Microsoft Store release coming soon)** needs no
-Node.js. Bare `markdstage`, a Markdown path, and `preview` open/reuse the native
+The **Windows packaged CLI installed with
+[MarkdStage from Microsoft Store](https://apps.microsoft.com/detail/9N9DG772RM03)**
+needs no Node.js. Bare `markdstage`, a Markdown path, and `preview` open/reuse the native
 workspace window; `present` also opens the native audience window. Bare invocation
 uses caller CWD with no file selected. Native interaction requires only WebView2,
 while `inspect`, `capture`, and `export` still require external Chromium.
@@ -255,8 +256,8 @@ Signed sideloading packages are also available:
 Import `MarkdStage.cer` into the local machine's **Trusted People** certificate store before
 installing the MSIX matching the device architecture.
 
-**Microsoft Store:** Coming soon for v4.2.3. The Store package will be submitted after this
-GitHub release is published.
+**Microsoft Store:** [Install MarkdStage](https://apps.microsoft.com/detail/9N9DG772RM03).
+The Store package includes the native app and the `markdstage` execution alias.
 
 <a id="community-macos-app"></a>
 
@@ -373,6 +374,7 @@ PowerPoint notes pane. They remain absent from regular slides, the audience wind
 - [Custom theme authoring](./.github/extensions/markdstage/docs/custom-theme-authoring.md)
 - [Product principles](./PRODUCT.md)
 - [Brand and design system](./DESIGN.md)
+- [Current architecture](./docs/architecture.md)
 - [Architecture decision records](./docs/adr/README.md)
 - [Release process](./.github/RELEASING.md)
 - [Third-party notices](./.github/extensions/markdstage/THIRD-PARTY-NOTICES.md)

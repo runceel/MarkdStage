@@ -17,6 +17,8 @@ or edit a deck.
   or `.claude/skills/` directories.
 - `.github/plugin/markdstage/` is generated from the canonical Extension. Use
   `npm run awesome:sync` to update it and `npm run awesome:check` to verify it.
+- Current cross-surface structure and invariants live in
+  `docs/architecture.md`.
 - Architecture decisions live in `docs/adr/`. Temporary cross-surface
   implementation specifications live in `docs/specs/`.
 
