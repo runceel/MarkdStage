@@ -185,7 +185,8 @@ edit オプションはありません。
 
 `markdstage skill install` は、MarkdStage の Markdown 形式と CLI コマンドを AI エージェントに
 伝える Agent Skill を書き出します。参照ファイルは `markdstage guide` と同じガイドから生成される
-ため、内容がずれることはありません。
+ため、内容がずれることはありません。ファイルはコマンド実行時に生成され、MarkdStage の
+ソースリポジトリにある Agent Skill 自動検出ディレクトリからコピーされるものではありません。
 
 | ターゲット | ディレクトリ |
 | --- | --- |

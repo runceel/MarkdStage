@@ -144,8 +144,11 @@ The package mirrors the canonical runtime from
 ```console
 npm run sync    # refresh shared/
 npm test        # node --test
-npm run skills  # regenerate the repository Agent Skills
 ```
+
+Agent Skills are generated from `src/skills.mjs` and the canonical guide topics
+when `markdstage skill install` runs; generated Skill trees are not checked into
+this development repository.
 
 ## License
 

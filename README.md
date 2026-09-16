@@ -364,7 +364,7 @@ PowerPoint notes pane. They remain absent from regular slides, the audience wind
 - [Installation and prerequisites](./docs/user-guide/installation.md)
 - [Create slides with GitHub Copilot](./docs/user-guide/ai-assisted-authoring.md)
 - [GitHub Copilot hands-on](./docs/user-guide/copilot-hands-on.md)
-- [MarkdStage Skill](./.github/skills/markdstage/SKILL.md)
+- [Agent Skill installation](./docs/user-guide/cli.md#agent-skills)
 - [Canvas Extension specification and actions](./.github/extensions/markdstage/README.md)
 - [MarkdStage Desktop](./apps/MarkdStage.Desktop/README.md)
 - [MarkdStage CLI](./docs/user-guide/cli.md)
@@ -383,8 +383,7 @@ PowerPoint notes pane. They remain absent from regular slides, the audience wind
 | Path | Contents |
 | --- | --- |
 | `.github/extensions/markdstage/` | Canvas Extension, renderer, bundled open-source software, and schemas |
-| `.github/skills/markdstage/SKILL.md` | Skill that formats Markdown into slide fragments and opens MarkdStage |
-| `packages/markdstage-cli/` | `@markdstage/markdstage` CLI package and portable Agent Skill generation |
+| `packages/markdstage-cli/` | `@markdstage/markdstage` CLI package and the Agent Skill generator used by CLI and Desktop installers |
 | `apps/MarkdStage.Desktop/` | WinUI 3 desktop app |
 | `assets/brand/` | MarkdStage logo, lockup, and README banner |
 | `assets/readme/` | Rendered slide and Architecture Editor images used in this README |
@@ -430,7 +429,7 @@ The MarkdStage migration does not provide compatibility aliases for the former b
 | canvas ID `presentation` | canvas ID `MarkdStage` |
 | tool `presentation_guide` | tool `markdstage_guide` |
 | `.github/extensions/presentation/` | `.github/extensions/markdstage/` |
-| `.github/skills/presentation/` | `.github/skills/markdstage/` |
+| `.github/skills/presentation/` | `markdstage skill install --target copilot` |
 | `Presentation-win-*.zip` | `MarkdStage-win-*.zip` |
 
 Existing Markdown syntax, themes, Architecture DSL, and action contracts such as `load_deck` and

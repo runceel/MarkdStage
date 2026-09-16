@@ -356,7 +356,7 @@ layout: title
 - [インストールと前提条件](./docs/user-guide/ja/installation.md)
 - [GitHub Copilot とスライドを作成する](./docs/user-guide/ja/ai-assisted-authoring.md)
 - [GitHub Copilot ハンズオン](./docs/user-guide/ja/copilot-hands-on.md)
-- [MarkdStage Skill](./.github/skills/markdstage/SKILL.md)
+- [Agent Skill のインストール](./docs/user-guide/ja/cli.md#agent-skills)
 - [Canvas Extension の仕様とアクション](./.github/extensions/markdstage/README.md)
 - [MarkdStage Desktop](./apps/MarkdStage.Desktop/README.md)
 - [MarkdStage CLI](./docs/user-guide/ja/cli.md)
@@ -375,8 +375,7 @@ layout: title
 | パス | 内容 |
 | --- | --- |
 | `.github/extensions/markdstage/` | Canvas Extension、レンダラー、同梱オープンソースソフトウェア、スキーマ |
-| `.github/skills/markdstage/SKILL.md` | Markdown をスライド断片へ整形して MarkdStage を開く Skill |
-| `packages/markdstage-cli/` | `@markdstage/markdstage` CLI パッケージと Agent Skills の生成 |
+| `packages/markdstage-cli/` | `@markdstage/markdstage` CLI パッケージと CLI・Desktop が使う Agent Skill 生成処理 |
 | `apps/MarkdStage.Desktop/` | WinUI 3 Desktop アプリ |
 | `assets/brand/` | MarkdStage のロゴ、ロックアップ、README バナー |
 | `assets/readme/` | この README に掲載しているスライドと Architecture Editor の画像 |
@@ -421,7 +420,7 @@ MarkdStage への移行にあたり、旧ブランド名の互換エイリアス
 | Canvas ID `presentation` | Canvas ID `MarkdStage` |
 | ツール `presentation_guide` | ツール `markdstage_guide` |
 | `.github/extensions/presentation/` | `.github/extensions/markdstage/` |
-| `.github/skills/presentation/` | `.github/skills/markdstage/` |
+| `.github/skills/presentation/` | `markdstage skill install --target copilot` |
 | `Presentation-win-*.zip` | `MarkdStage-win-*.zip` |
 
 既存の Markdown 構文、テーマ、Architecture DSL、`load_deck` や `goto_slide` などの

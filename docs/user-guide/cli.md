@@ -187,7 +187,9 @@ validation failures retain their normal error codes and the same failure shape.
 
 `markdstage skill install` writes a portable Agent Skill that teaches an AI agent the MarkdStage
 Markdown format and the CLI commands. Reference files are generated from the same guide topics as
-`markdstage guide`, so they never drift from the product.
+`markdstage guide`, so they never drift from the product. The files are generated when the command
+runs; they are not copied from Agent Skill discovery directories in the MarkdStage source
+repository.
 
 | Target | Directory |
 | --- | --- |

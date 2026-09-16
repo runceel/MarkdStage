@@ -40,8 +40,6 @@
     "sync": "node scripts/sync-shared.mjs",
     "pretest": "node scripts/sync-shared.mjs",
     "test": "node --test \"test/*.test.mjs\"",
-    "skills": "node scripts/generate-skills.mjs",
-    "skills:check": "node scripts/generate-skills.mjs --check",
     "prepack": "node scripts/sync-shared.mjs"
   }
 }

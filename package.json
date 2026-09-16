@@ -19,8 +19,6 @@
     "test:schema": "npm run check:architecture && node --test test/schema/*.test.mjs",
     "test:unit": "cd .github/extensions/markdstage && node --test",
     "test:cli": "cd packages/markdstage-cli && npm test",
-    "skills": "cd packages/markdstage-cli && npm run skills",
-    "skills:check": "cd packages/markdstage-cli && npm run skills:check",
     "test:visual": "playwright test --project=visual",
     "test:editing": "playwright test --project=editing",
     "test:pdf": "playwright test --project=pdf",

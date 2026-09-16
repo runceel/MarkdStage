@@ -22,7 +22,7 @@ MarkdStage release as a major version.
 | canvas ID `presentation` | canvas ID `MarkdStage` |
 | tool `presentation_guide` | tool `markdstage_guide` |
 | `.github/extensions/presentation/` | `.github/extensions/markdstage/` |
-| `.github/skills/presentation/` | `.github/skills/markdstage/` |
+| `.github/skills/presentation/` | `markdstage skill install --target copilot` |
 | `Presentation-win-*.zip` | `MarkdStage-win-*.zip` |
 
 Do not provide a compatibility alias for the former canvas ID.
@@ -169,7 +169,6 @@ Release notes until the Store listing is actually published.
 ```powershell
 npm ci
 npm test
-npm run skills:check
 cd packages\markdstage-cli
 npm pack --dry-run
 cd ..\..
@@ -200,7 +199,8 @@ Before tagging:
    the new tag. Do not change historical migration references.
 3. Add `.github/release-notes/vMAJOR.MINOR.PATCH.md` with the overview, compatibility statement,
    breaking changes, and migration table described in `.github/release-notes/README.md`.
-4. Regenerate Agent Skills if their source changed.
+4. Verify Agent Skill generation and packaged installation through the CLI and
+   Desktop tests; generated Skill trees are not checked into this repository.
 5. Run the validation commands above.
 6. Commit and merge all release preparation changes to `main`.
 
