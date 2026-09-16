@@ -1,10 +1,12 @@
 const DEFAULT_BACKCOVER = ["---", "layout: backcover", "---", ""].join("\n");
 
 export const OPEN_INPUT_REQUIRES_SLIDES_MESSAGE =
-  "Non-empty open input must include slides (a non-empty array of strings). " +
+  "Non-empty open input must include sourcePath (a workspace-relative Markdown file) " +
+  "or slides (a non-empty array of strings for an explicit unsaved snapshot). " +
   "To refocus the current canvas, call open_canvas with no input. " +
-  "To replace the registered snapshot, pass slides or call load_deck. " +
-  "sourceName is metadata for asset/theme resolution and output naming; it never reads or watches a Markdown file.";
+  "To use the default editable workflow, pass sourcePath and the canvas will read " +
+  "the Markdown file with automatic refresh enabled. sourceName remains metadata " +
+  "for asset/theme resolution and output naming when using slides.";
 
 function readLayout(markdown) {
   if (typeof markdown !== "string") return "";
@@ -53,7 +55,25 @@ export function classifyOpenInput(input) {
     };
   }
   if (Object.keys(input).length === 0) return { kind: "refocus" };
-  if (!Object.prototype.hasOwnProperty.call(input, "slides")) {
+  const hasSlides = Object.prototype.hasOwnProperty.call(input, "slides");
+  const hasSourcePath = Object.prototype.hasOwnProperty.call(input, "sourcePath");
+  if (hasSlides && hasSourcePath) {
+    return {
+      kind: "invalid",
+      message: "Pass either sourcePath or slides to open MarkdStage, not both.",
+    };
+  }
+  if (hasSourcePath) {
+    const sourcePath = input.sourcePath;
+    if (typeof sourcePath !== "string" || !sourcePath.trim()) {
+      return {
+        kind: "invalid",
+        message: "sourcePath must be a non-empty workspace-relative Markdown path.",
+      };
+    }
+    return { kind: "source", sourcePath: sourcePath.trim().replaceAll("\\", "/") };
+  }
+  if (!hasSlides) {
     return { kind: "invalid", message: OPEN_INPUT_REQUIRES_SLIDES_MESSAGE };
   }
   const slides = input.slides;

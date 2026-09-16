@@ -40,8 +40,10 @@ test("readGuide returns every document-backed topic", async () => {
   assert.match(slideFormatGuide, /top level/);
   assert.match(slideFormatGuide, /`<!-- slide -->` are not slide separators/);
   assert.match(slideFormatGuide, /leave a blank line/);
-  assert.match(slideFormatGuide, /### Canvas API `slides` array/);
-  assert.match(slideFormatGuide, /each element of the `slides` array is exactly\s+one slide/);
+  assert.match(slideFormatGuide, /### Canvas API file and `slides` inputs/);
+  assert.match(slideFormatGuide, /prefer `\{ sourcePath: "slides\.md" \}`/i);
+  assert.match(slideFormatGuide, /live auto-refresh/);
+  assert.match(slideFormatGuide, /Each element of the `slides` array is\s+exactly one slide/);
   assert.match(slideFormatGuide, /### `sourceName` role/);
   assert.match(slideFormatGuide, /does not read, parse, split, or watch/);
   assert.match(slideFormatGuide, /More controls >\s+Open Markdown/);
@@ -59,6 +61,8 @@ test("readGuide returns every document-backed topic", async () => {
   assert.match(await readGuide("custom-themes"), /workspace root/);
   assert.match(await readGuide("custom-themes"), /`sourceName`/);
   assert.match(await readGuide("overview"), /architecture-editor/);
+  assert.match(await readGuide("overview"), /Prefer `open_canvas` with `sourcePath`/);
+  assert.match(await readGuide("overview"), /Use `slides` only when the user explicitly asks/);
   assert.match(await readGuide("overview"), /`assets\/` beside the Markdown/);
   assert.match(await readGuide("overview"), /`sourceName`/);
   assert.match(await readGuide("overview"), /never reads or watches/);
@@ -88,7 +92,7 @@ test("overview and slide-format explain usable Archify imports", async () => {
   assert.match(guide, /exactly one `\.svg` asset path/);
   assert.match(guide, /without a leading slash/);
   assert.match(guide, /Markdown-adjacent `assets\/` before\s+workspace-root `assets\/`/);
-  assert.match(guide, /Pass `sourceName`/);
+  assert.match(guide, /pass `sourceName` with\s+canvas `open` \/ `load_deck`/);
   assert.match(guide, /deck theme/);
   assert.match(guide, /editable\s+PowerPoint objects/);
   assert.match(guide, /cannot be\s+edited in the Architecture Editor/);

@@ -1,11 +1,10 @@
 // Extension: MarkdStage
 // MarkdStage extension for displaying Markdown slides in a native canvas.
 //
-// The agent loads the whole deck up front by calling the `load_deck` action
-// with an array of small markdown fragments (optional front matter + body), then
-// flips pages by calling `goto_slide` with an index — no per-page markdown
-// regeneration, so navigation is fast. (`show_slide` remains for ad-hoc single
-// slide updates.) Each open canvas instance gets its own loopback HTTP server
+// The agent normally opens a workspace Markdown file through open input.sourcePath
+// so Architecture diagrams can use the detailed designer and live refresh.
+// Explicit unsaved snapshots can still pass slides or call load_deck. Each open
+// canvas instance gets its own loopback HTTP server
 // that serves a tiny iframe shell (renderer/) plus the vendored markdown/diagram
 // libraries (vendor/), exposes the current slide at /state, pushes "changed"
 // nudges over SSE (/events), and serves deck-local or workspace-root images at
@@ -2141,18 +2140,23 @@ const session = await joinSession({
       id: "MarkdStage",
       displayName: "MarkdStage",
       description:
-        "Markdown, ready for the stage. A MarkdStage canvas that displays themed Markdown slides. Read markdstage_guide before authoring; for Architecture DSL, request architecture-schema and use markdstage_validate before display. Pass slides/index/theme to open the deck immediately; omit input only to refocus an existing instance. Any non-empty open input must include slides. sourceName is metadata and never reads or watches Markdown. Use More controls for output preview, editing, presentation, import, refresh, and export; inspect_layout provides compact clipping diagnostics, capture_slides creates selected 1280x720 PNGs, open_presenter opens an external presentation window, export_pdf produces final PDF output, and export_pptx produces hybrid editable PowerPoint output. Navigate within the canvas with ◀ ▶, arrow keys, the slide list, or a Surface Pen on supported Windows systems.",
+        "Markdown, ready for the stage. A MarkdStage canvas that displays themed Markdown slides. Read markdstage_guide before authoring; for Architecture DSL, request architecture-schema and use markdstage_validate before display. Prefer sourcePath/index/theme to open a workspace Markdown file with automatic refresh and detailed Architecture designer support. Use slides only when the user explicitly asks for an unsaved/in-memory display. Omit input only to refocus an existing instance. sourceName is metadata for unsaved snapshots and never reads Markdown by itself. Use More controls for output preview, editing, presentation, import, refresh, and export; inspect_layout provides compact clipping diagnostics, capture_slides creates selected 1280x720 PNGs, open_presenter opens an external presentation window, export_pdf produces final PDF output, and export_pptx produces hybrid editable PowerPoint output. Navigate within the canvas with ◀ ▶, arrow keys, the slide list, or a Surface Pen on supported Windows systems.",
       inputSchema: {
         type: "object",
         description:
-          "Omit input or pass an empty object only to refocus the current instance. Every non-empty input must include slides to register or replace the in-memory deck snapshot.",
+          "Omit input or pass an empty object only to refocus the current instance. By default pass sourcePath to open a workspace Markdown file with automatic refresh. Pass slides only for an explicit unsaved in-memory snapshot.",
         properties: {
+          sourcePath: {
+            type: "string",
+            description:
+              "Workspace-relative Markdown file to read, split into slides, associate with the source, and open with automatic refresh enabled by default. Use this unless the user explicitly asks not to save or read from a file.",
+          },
           slides: {
             type: "array",
             items: { type: "string" },
             minItems: 1,
             description:
-              "Array of Markdown fragments, one per slide. Passing it to open registers the deck and immediately displays the first slide without a placeholder. Each item may start with deck/kicker/page/total/title/layout/theme front matter. layout accepts title / section / backcover / center. When omitted, headings and body content align to the top; center vertically centers the heading and body as a unit. Order items by display sequence.",
+              "Array of Markdown fragments, one per slide. Use only when the user explicitly asks for an unsaved/in-memory display. Passing it to open registers the deck and immediately displays the first slide without a placeholder. Each item may start with deck/kicker/page/total/title/layout/theme front matter. layout accepts title / section / backcover / center. When omitted, headings and body content align to the top; center vertically centers the heading and body as a unit. Order items by display sequence.",
           },
           index: {
             type: "integer",
@@ -2173,7 +2177,13 @@ const session = await joinSession({
           sourceName: {
             type: "string",
             description:
-              "Workspace-relative source path used only as metadata for adjacent assets/, Markdown-relative theme-file resolution, PDF naming, and capture directories. It never reads or watches the named Markdown file; pass slides or call load_deck to replace the registered snapshot.",
+              "Workspace-relative source path used only with slides as metadata for adjacent assets/, Markdown-relative theme-file resolution, PDF naming, and capture directories. It never reads or watches the named Markdown file by itself; pass sourcePath to read a Markdown file.",
+          },
+          sourceMode: {
+            type: "string",
+            enum: ["live", "snapshot"],
+            description:
+              "File-backed source mode for sourcePath. Defaults to live, which watches the Markdown file and refreshes automatically. Use snapshot only when automatic refresh is explicitly not wanted.",
           },
         },
         additionalProperties: false,
@@ -2182,7 +2192,7 @@ const session = await joinSession({
         {
           name: "load_deck",
           description:
-            "Register or replace the complete in-memory presentation snapshot. Pass one Markdown fragment per slide in slides to retain and display the deck. Resolve theme/themeFile in the order explicit value > front matter > dark. A custom theme also loads an optional theme.json beside its CSS file. sourceName is metadata and never loads or watches Markdown.",
+            "Register or replace the complete in-memory presentation snapshot for an explicit unsaved display. Prefer open input.sourcePath for normal file-backed live authoring. Pass one Markdown fragment per slide in slides to retain and display the deck. Resolve theme/themeFile in the order explicit value > front matter > dark. A custom theme also loads an optional theme.json beside its CSS file. sourceName is metadata and never loads or watches Markdown by itself.",
           inputSchema: {
             type: "object",
             properties: {
@@ -2211,7 +2221,7 @@ const session = await joinSession({
               sourceName: {
                 type: "string",
                 description:
-                  "Workspace-relative source path used only as metadata for adjacent assets/, Markdown-relative theme-file resolution, PDF naming, and capture directories. It never reads or watches the named Markdown file.",
+                  "Workspace-relative source path used only as metadata for adjacent assets/, Markdown-relative theme-file resolution, PDF naming, and capture directories. It never reads or watches the named Markdown file by itself; use open input.sourcePath to read a Markdown file.",
               },
             },
             required: ["slides"],
@@ -2717,11 +2727,46 @@ const session = await joinSession({
         if (openInput.kind === "invalid") {
           throw new CanvasError("invalid_input", openInput.message);
         }
+        if (
+          input?.sourceMode !== undefined &&
+          input.sourceMode !== SOURCE_MODE_SNAPSHOT &&
+          input.sourceMode !== SOURCE_MODE_LIVE
+        ) {
+          throw new CanvasError("invalid_input", "sourceMode must be 'live' or 'snapshot'.");
+        }
         const inst = await ensureInstance(ctx);
         // Apply any deck passed to open *before* returning the url. The renderer
         // only starts after open resolves, so its first /state fetch already
         // sees the first slide and the "waiting" placeholder never flashes.
-        if (openInput.kind === "deck") {
+        if (openInput.kind === "source") {
+          let loaded;
+          try {
+            loaded = await readMarkdownDeck(openInput.sourcePath, inst.io);
+          } catch (error) {
+            throw toCanvasError(error);
+          }
+          const hasThemeInput =
+            Object.prototype.hasOwnProperty.call(input, "theme") ||
+            Object.prototype.hasOwnProperty.call(input, "themeFile");
+          const update = planDeckOpen(inst.slides, loaded.slides, {
+            hasThemeInput,
+            hasSourceInput: true,
+          });
+          if (update.shouldApply) {
+            await applyDeck(inst, {
+              slides: loaded.slides,
+              index: input.index,
+              theme: input.theme,
+              themeFile: input.themeFile,
+              sourceName: openInput.sourcePath,
+              sourceWriteback: true,
+              sourceWritebackPath: openInput.sourcePath,
+              sourceWritebackSnapshot: loaded.markdown,
+              sourceMode: input.sourceMode ?? SOURCE_MODE_LIVE,
+              preserveCurrentIndex: update.preserveCurrentIndex,
+            });
+          }
+        } else if (openInput.kind === "deck") {
           const slides = openInput.slides;
           // Idempotency guard: re-opening (focusing) a canvas that already holds
           // the same normalized deck must not reset the user's current slide.
@@ -2746,11 +2791,16 @@ const session = await joinSession({
             });
           }
         }
-        const validation = openInput.kind === "deck"
-          ? architectureValidationReport(openInput.slides)
+        const validationSlides = openInput.kind === "deck"
+          ? openInput.slides
+          : openInput.kind === "source"
+            ? inst.slides
+            : null;
+        const validation = validationSlides
+          ? architectureValidationReport(validationSlides)
           : undefined;
         const validationFeedback = validation
-          ? deckValidationFeedback(openInput.slides, { validation })
+          ? deckValidationFeedback(validationSlides, { validation })
           : undefined;
         if (validationFeedback) {
           log(`MarkdStage: ${validationFeedback}`, "warning");

@@ -9,9 +9,13 @@ import {
   planDeckOpen,
 } from "../deck-state.mjs";
 
-test("classifies omitted input as refocus and rejects source or theme metadata without slides", () => {
+test("classifies omitted input as refocus and accepts sourcePath for file-backed open", () => {
   assert.deepEqual(classifyOpenInput(undefined), { kind: "refocus" });
   assert.deepEqual(classifyOpenInput({}), { kind: "refocus" });
+  assert.deepEqual(classifyOpenInput({ sourcePath: "decks\\slides.md" }), {
+    kind: "source",
+    sourcePath: "decks/slides.md",
+  });
 
   for (const input of [{ sourceName: "slides.md" }, { theme: "dark" }]) {
     assert.deepEqual(classifyOpenInput(input), {
@@ -21,8 +25,10 @@ test("classifies omitted input as refocus and rejects source or theme metadata w
   }
 
   assert.match(OPEN_INPUT_REQUIRES_SLIDES_MESSAGE, /open_canvas with no input/);
-  assert.match(OPEN_INPUT_REQUIRES_SLIDES_MESSAGE, /pass slides or call load_deck/);
-  assert.match(OPEN_INPUT_REQUIRES_SLIDES_MESSAGE, /never reads or watches a Markdown file/);
+  assert.match(OPEN_INPUT_REQUIRES_SLIDES_MESSAGE, /sourcePath/);
+  assert.match(OPEN_INPUT_REQUIRES_SLIDES_MESSAGE, /automatic refresh enabled/);
+  assert.match(OPEN_INPUT_REQUIRES_SLIDES_MESSAGE, /sourceName remains metadata/);
+  assert.equal(classifyOpenInput({ sourcePath: "slides.md", slides: ["# Slide"] }).kind, "invalid");
 });
 
 test("treats an automatically appended back cover as the same deck", () => {

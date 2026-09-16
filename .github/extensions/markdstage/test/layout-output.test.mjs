@@ -33,8 +33,8 @@ test("canvas exposes layout, PNG, PDF, and editable PowerPoint output", async ()
   assert.match(browser, /Page\.printToPDF/);
   assert.match(browser, /await openCdpOutputPage\(browser, pageUrl, profileDir, job\)/);
   assert.doesNotMatch(browser, /--print-to-pdf=/);
-  assert.match(source, /Every non-empty input must include slides/);
-  assert.match(source, /sourceName is metadata and never reads or watches Markdown/);
+  assert.match(source, /By default pass sourcePath to open a workspace Markdown file/);
+  assert.match(source, /sourceName is metadata for unsaved snapshots/);
   assert.match(source, /registered in-memory output snapshot/);
   assert.match(source, /targeted inspections must be serialized/);
   assert.match(browser, /runPptxOutputBrowser/);
