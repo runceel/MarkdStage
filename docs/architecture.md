@@ -22,11 +22,14 @@ All surfaces consume the same Markdown deck model. The canonical implementation
 of parsing, validation, themes, Architecture DSL, rendering, layout reporting,
 and output construction lives under `.github/extensions/markdstage/`.
 
-```text
-Canvas Extension ------- Node adapter ---------+
-npm CLI ---------------- Node adapter ---------+--> shared JavaScript runtime
-Windows Desktop -------- native host adapter --+
-Packaged Windows CLI --- native host adapter --+
+```mermaid
+flowchart LR
+    canvas["Canvas Extension"] --> node["Node adapter"]
+    cli["npm CLI"] --> node
+    desktop["Windows Desktop"] --> native["Native host adapter"]
+    packaged["Packaged Windows CLI"] --> native
+    node --> runtime["Shared JavaScript runtime"]
+    native --> runtime
 ```
 
 Host-specific code may provide transport, file access, watching, transient
