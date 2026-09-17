@@ -443,21 +443,6 @@ be run manually against `main`. Pages must use **GitHub Actions** as its source.
 The workflow reads the existing Pages URL and does not change custom domains,
 DNS, or HTTPS settings.
 
-## Breaking changes in v2.0.0
-
-The MarkdStage migration does not provide compatibility aliases for the former brand.
-
-| Previous | New |
-| --- | --- |
-| canvas ID `presentation` | canvas ID `MarkdStage` |
-| tool `presentation_guide` | tool `markdstage_guide` |
-| `.github/extensions/presentation/` | `.github/extensions/markdstage/` |
-| `.github/skills/presentation/` | `markdstage skill install --target copilot` |
-| `Presentation-win-*.zip` | `MarkdStage-win-*.zip` |
-
-Existing Markdown syntax, themes, Architecture DSL, and action contracts such as `load_deck` and
-`goto_slide` remain unchanged.
-
 ## License
 
 The original portions of this repository are released under the MIT License. See

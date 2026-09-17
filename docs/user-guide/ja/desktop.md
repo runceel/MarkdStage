@@ -4,7 +4,7 @@
 
 MarkdStage Desktop は、Markdown デッキを扱う Windows アプリです。ワークスペースのファイル一覧、
 Agent Skills の導入、共通のスライド UI、Architecture 図の編集、発表者・投影用ビュー、
-PDF と PowerPoint への出力に対応しており、発表専用ではありません。
+PDF と PowerPoint への出力に対応しています。
 
 スライドの文章は外部のテキストエディターや AI ツールで記述します。Desktop は保存された
 Markdown を描画し、`architecture` 図を画面上で編集できます。汎用テキストエディターや

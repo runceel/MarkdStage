@@ -4,7 +4,7 @@
 
 MarkdStage Desktop is the Windows application for working with Markdown decks. It provides
 workspace browsing, Agent Skill installation, the shared slide UI, Architecture diagram editing,
-presenter and audience views, and PDF and PowerPoint export. It is not limited to presenting.
+presenter and audience views, and PDF and PowerPoint export.
 
 Write slide text in an external text editor or AI tool. Desktop renders the saved Markdown and
 provides visual editing for `architecture` diagrams; it does not include a general-purpose text
