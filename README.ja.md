@@ -431,21 +431,6 @@ Chromium を用意してください。
 Pages の Source は **GitHub Actions** に設定します。既存の公開先 URL を読み取り、
 独自ドメイン・DNS・HTTPS 設定は変更しません。
 
-## v2.0.0 の破壊的変更
-
-MarkdStage への移行にあたり、旧ブランド名の互換エイリアスは用意していません。
-
-| 変更前 | 変更後 |
-| --- | --- |
-| Canvas ID `presentation` | Canvas ID `MarkdStage` |
-| ツール `presentation_guide` | ツール `markdstage_guide` |
-| `.github/extensions/presentation/` | `.github/extensions/markdstage/` |
-| `.github/skills/presentation/` | `markdstage skill install --target copilot` |
-| `Presentation-win-*.zip` | `MarkdStage-win-*.zip` |
-
-既存の Markdown 構文、テーマ、Architecture DSL、`load_deck` や `goto_slide` などの
-アクション仕様は変更していません。
-
 ## ライセンス
 
 このリポジトリの独自部分は MIT License で公開しています。同梱しているオープンソースソフトウェアの

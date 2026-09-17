@@ -47,9 +47,8 @@ next `---` separator.
 The screenshot uses the [Windows walkthrough sample](windows-walkthrough.md) to illustrate the UI;
 the minimal deck above has different content.
 
-The app opens a slide view, not a presenter-only window. Use **More controls** for editing,
-output preview, presentation, and export. If presenter view is retained from an earlier session,
-select **Return to slide view**.
+The app opens slide view. Use **More controls** for editing, output preview, presentation, and
+export. If presenter view is retained from an earlier session, select **Return to slide view**.
 
 ### Canvas alternative
 
