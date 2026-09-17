@@ -10,141 +10,138 @@ caption 200.
 ## Description
 
 ```text
-Make slides with AI. Fix them in seconds. Present like a pro.
+MarkdStage is a Windows application for Markdown slide decks stored in local workspace folders. It provides the shared MarkdStage slide UI, theme selection, Architecture diagram editing, presentation views, and PDF and PowerPoint export. The Microsoft Store installation includes the graphical app and the markdstage command-line tool. Node.js is not required.
 
-Ask your AI assistant for a deck and it writes Markdown — not a locked-in file you can never touch again. MarkdStage is the Windows home for those slides: it teaches your AI how to build them, makes your own edits effortless, and puts the result on stage.
+Workspaces and Markdown
 
-Start with AI
+Open a folder and choose a .md or .markdown file, or open a Markdown file directly. Browse and filter the workspace file list, and reopen recent workspaces. Edit slide text in an external editor or AI tool; MarkdStage does not include a general Markdown text editor. Saving the file reloads the deck while preserving the current slide. If a reload fails, the last valid deck remains visible.
 
-MarkdStage installs ready-made Agent Skills for GitHub Copilot, Claude Code, and Codex straight into your workspace, so your assistant already knows the slide format, the themes, and the diagram syntax. Give it your notes and ask for a draft.
+Choose dark, light, Microsoft, or custom themes. Decks can contain Architecture DSL and Mermaid diagrams, syntax-highlighted code, tables, and local images. Use Output preview to check the fixed 16:9 layout.
 
-Then fix it yourself — in seconds, not prompts
+Architecture editing and Agent Skills
 
-The first draft is never quite right, and that's fine. Shorten a bullet in plain Markdown, hit save, and the deck reloads instantly on the very slide you were looking at. No re-prompting for a one-word change. No waiting on your assistant to come back.
+More controls → Shape editing opens the Architecture Editor in a native window. Edit an existing Architecture DSL diagram, then choose Save to update its fence in the Markdown file. Unsaved diagram changes do not update the deck source. If the source changed outside the editor, reload it before saving.
 
-Diagrams work the same way. MarkdStage decks support Architecture DSL — diagrams described as structured, validated data, so your AI can generate them reliably. When a box lands in an awkward spot, open Shape editing and drag it. Your change is saved back into the Markdown, and the file stays the single source of truth.
+From the workspace file list, choose Install skills… to install MarkdStage Agent Skills for Codex, Claude Code, GitHub Copilot, or a combination. Skills are instruction files written to the selected workspace. Modified skill files are preserved unless force overwrite is explicitly selected. AI tools are installed and operated separately.
 
-That's the loop: AI drafts it, you perfect it.
+Presentation
 
-Then present like you mean it
+- Presenter view with current and next slides and Slidev/Marp-style speaker notes
+- A synchronized native audience window for a projector or second screen
+- F11 for audience full screen, O for the slide list, and keyboard or margin-click navigation
+- Surface Pen tail-button navigation while the audience window is running
 
-- Presenter view with current/next slide previews and Slidev/Marp-style speaker notes
-- A separate audience window for your projector, synchronized with your controls
-- Full screen with F11, slide overview with O, and jump anywhere from the slide list
-- Arrow keys, Page Up/Down, Space, margin clicks, and Surface Pen tail-button navigation
-- Three built-in themes — dark, light, and Microsoft — plus your own brand CSS, with syntax-highlighted code, tables, and local images
+Export
 
-Your slides stay yours
+Use More controls → Export PDF or Export PowerPoint… in the GUI, or export from the included CLI. GUI exports are saved beside the Markdown file with the same base name, replacing an existing .pdf or .pptx at that path.
 
-Everything lives in your own Markdown files, in your own folders — no account, no upload, no cloud service. Easy to version, diff, reuse, and share.
+PowerPoint output is hybrid: supported text, shapes, and connectors remain editable, while unsupported visuals or effects may become images. The PowerPoint dialog offers Mermaid Editable shapes, with image fallbacks for unsupported details, or Images to keep each diagram as one image. Not every part of a slide becomes an editable object. Review the exported file before distributing it.
 
-Written by AI, perfected by you. MarkdStage takes your Markdown from file to stage.
+Requirements and local data
 
-Requires the Microsoft Edge WebView2 Runtime. MarkdStage is a presenter; PDF and PowerPoint export are available through the included command-line tool, which additionally requires an installed Microsoft Edge, Google Chrome, or Chromium.
+Requires Windows 10 version 1809 (build 17763) or later on x64 or ARM64, and Microsoft Edge WebView2 Runtime for the native UI and CLI validation. Native presentation and Architecture editing do not require a separate browser.
+
+Layout-dependent CLI inspection and PNG capture, and PDF/PowerPoint export from either the GUI or CLI, additionally require an installed Microsoft Edge, Google Chrome, or Chromium. Browser policy that disables remote debugging prevents these operations. MarkdStage does not download or install browsers or runtimes.
+
+Decks and installed Skills remain in local workspace files. MarkdStage does not require a MarkdStage account or upload decks to a MarkdStage service. Separately used AI assistants and services have their own data-handling policies.
 ```
 
 ### 和訳
 
-**AIとスライドを作る。手直しは数秒。発表は堂々と。**
+MarkdStage は、ローカルのワークスペースフォルダーに保存された Markdown スライドデッキを扱う Windows アプリケーションです。MarkdStage 共通のスライド UI、テーマ選択、Architecture 図の編集、発表者・投影ビュー、PDF・PowerPoint エクスポートを備えています。Microsoft Store からのインストールには GUI アプリと `markdstage` コマンドラインツールの両方が含まれます。Node.js は不要です。
 
-AIアシスタントにスライドを頼むと、返ってくるのはMarkdownです。二度と手を入れられない独自形式のファイルではありません。MarkdStageは、そのスライドのためのWindowsの拠点です。AIに作り方を教え、あなた自身の手直しを驚くほど簡単にし、その成果を本番の舞台に乗せます。
+**ワークスペースと Markdown**
 
-**まずAIに任せる**
+フォルダーを開いて `.md` または `.markdown` ファイルを選ぶか、Markdown ファイルを直接開きます。ワークスペース内のファイル一覧の表示・絞り込みや、最近使ったワークスペースの再表示ができます。スライドの文章は外部エディターや AI ツールで編集します。MarkdStage に汎用の Markdown テキストエディターはありません。ファイルを保存すると、現在のスライド位置を維持して再読み込みします。再読み込みに失敗した場合は、最後に正常に読み込めたデッキを表示し続けます。
 
-MarkdStageは、GitHub Copilot、Claude Code、Codex 向けの Agent Skills をワークスペースに直接インストールできます。これにより、AIアシスタントはスライドの書式、テーマ、図の記法をあらかじめ理解した状態になります。あとは手元のメモを渡して、下書きを頼むだけです。
+テーマは dark、light、Microsoft、カスタムから選択できます。Architecture DSL と Mermaid の図、シンタックスハイライト付きコード、表、ローカル画像に対応しています。**Output preview** で固定 16:9 のレイアウトを確認できます。
 
-**そして自分で直す — プロンプトではなく、数秒で**
+**Architecture の編集と Agent Skills**
 
-最初の下書きが完璧であることはまずありません。それで構いません。箇条書きを1行縮めて保存すれば、いま見ていたそのスライドのまま、デッキが即座に再読み込みされます。一語直すためにプロンプトを書き直す必要も、AIの応答を待つ必要もありません。
+**More controls → Shape editing** から、ネイティブウィンドウの Architecture Editor を開きます。既存の Architecture DSL 図を編集し、**Save** を選ぶと Markdown 内の対応するコードフェンスを更新します。未保存の図の変更はデッキのソースに反映されません。外部でソースが変更された場合は、保存前に再読み込みが必要です。
 
-図も同じです。MarkdStageは Architecture DSL に対応しており、図を構造化・検証されたデータとして記述するため、AIが安定して生成できます。配置が少し気に入らなければ、**Shape editing** を開いてドラッグするだけ。変更はMarkdownに書き戻され、ファイルが唯一の正となり続けます。
+ワークスペースのファイル一覧で **Install skills…** を選び、Codex、Claude Code、GitHub Copilot のいずれか、または複数を選択して MarkdStage Agent Skills をインストールできます。Skills は選択したワークスペースに書き込まれる指示ファイルです。変更済みの Skill ファイルは、強制上書きを明示的に選択しない限り保持されます。AI ツール本体のインストールと利用は別途行います。
 
-これがMarkdStageのサイクルです。**AIが下書きし、あなたが仕上げる。**
+**発表**
 
-**そして、堂々と発表する**
+- 現在・次のスライドと Slidev／Marp 形式のスピーカーノートを表示する発表者ビュー
+- プロジェクターやセカンドスクリーン用の、同期するネイティブ投影ウィンドウ
+- F11 による投影の全画面表示、O によるスライド一覧、キーボードや余白クリックによる移動
+- 投影ウィンドウの起動中に利用できる Surface Pen のテールボタン操作
 
-- 現在・次のスライドのプレビューと、Slidev／Marp形式のスピーカーノートを備えた発表者ビュー
-- 手元の操作と同期する、プロジェクター用の投影ウィンドウ
-- F11で全画面、Oでスライド一覧、一覧から任意のスライドへジャンプ
-- 矢印キー、Page Up/Down、スペース、余白クリック、Surface Pen のテールボタンで操作
-- 組み込みの3テーマ(ダーク、ライト、Microsoft)に加え、自社ブランドのCSS。シンタックスハイライト付きコード、表、ローカル画像に対応
+**エクスポート**
 
-**スライドは、あなたのものであり続ける**
+GUI の **More controls → Export PDF** または **Export PowerPoint…**、あるいは同梱 CLI からエクスポートできます。GUI では Markdown と同じフォルダーに同じベース名で保存し、そのパスに既存の `.pdf` または `.pptx` がある場合は置き換えます。
 
-すべてはあなた自身のMarkdownファイルとして、あなたのフォルダーに残ります。アカウント登録も、アップロードも、クラウドサービスも不要。バージョン管理、差分確認、再利用、共有が簡単です。
+PowerPoint 出力はハイブリッド形式です。対応するテキスト・図形・コネクタは編集可能なオブジェクトとなり、未対応の表示要素や効果は画像になる場合があります。PowerPoint ダイアログでは、Mermaid の対応部分を編集可能な図形、未対応の詳細を画像にする **Editable shapes** と、図全体を 1 枚の画像にする **Images** を選べます。スライドのすべての部分が編集可能になるわけではありません。配布前に出力ファイルを確認してください。
 
-AIが書き、あなたが仕上げる。MarkdStageが、Markdownをファイルから本番の舞台へ運びます。
+**動作要件とローカルデータ**
 
-*Microsoft Edge WebView2 Runtime が必要です。MarkdStageは発表用アプリです。PDFおよびPowerPointへのエクスポートは同梱のコマンドラインツールから利用でき、別途 Microsoft Edge、Google Chrome、または Chromium のインストールが必要です。*
+x64 または ARM64 の Windows 10 バージョン 1809（ビルド 17763）以降が必要です。ネイティブ UI と CLI の検証には Microsoft Edge WebView2 Runtime が必要です。ネイティブの発表機能と Architecture 編集には、別のブラウザーは不要です。
+
+レイアウト計測を伴う CLI の検査と PNG キャプチャ、および GUI・CLI 両方の PDF／PowerPoint エクスポートには、インストール済みの Microsoft Edge、Google Chrome、または Chromium が別途必要です。ブラウザーポリシーでリモートデバッグが無効になっていると、これらの操作は実行できません。MarkdStage はブラウザーやランタイムをダウンロード・インストールしません。
+
+デッキとインストールした Skills はローカルのワークスペースファイルとして保存されます。MarkdStage のアカウント登録は不要で、MarkdStage のサービスへのデッキのアップロードも行いません。別途利用する AI アシスタントやサービスには、それぞれのデータ取り扱いポリシーが適用されます。
 
 ## Product features
 
-Enter these as seven separate bullet entries, in this order. The order tells a
-story: items 1–4 cover authoring with AI, item 5 covers coverage, item 6 covers
-the live talk, and item 7 covers trust.
+Enter these as seven separate bullet entries, in this order.
 
 ### 1
 
 ```text
-Install ready-made Agent Skills for GitHub Copilot, Claude Code, and Codex, so your AI assistant already knows the slide format, themes, and diagram syntax
+Open local Markdown workspaces, browse deck files, and use the shared slide UI with theme selection and 16:9 Output preview.
 ```
 
-> GitHub Copilot / Claude Code / Codex 向け Agent Skills をインストール。AIが書式・テーマ・図の記法を把握した状態に。
-> **選定理由:** 競合に存在しない唯一の機能。
+> ローカルの Markdown ワークスペースを開き、デッキ一覧、テーマ選択、固定 16:9 の Output preview を共通のスライド UI で利用できます。
 
 ### 2
 
 ```text
-Draft decks with AI from your own notes and get back plain Markdown — then edit the wording yourself instead of re-prompting your assistant for every small change
+Install workspace-scoped MarkdStage Agent Skills for Codex, Claude Code, and GitHub Copilot from the GUI; modified skill files are preserved unless force overwrite is selected.
 ```
 
-> 手元のメモからAIが下書きし、返ってくるのは素のMarkdown。細かい修正はAIに頼み直さず自分で編集。
-> **選定理由:** 「AIが作り、人が直す」の中核。
+> GUI から Codex、Claude Code、GitHub Copilot 向け Agent Skills をワークスペースにインストールできます。強制上書きを選ばない限り、変更済みのファイルは保持されます。
 
 ### 3
 
 ```text
-Live reload on save keeps your place, returning you to the exact slide you were viewing
+Edit Markdown in an external text editor; saving reloads the deck while preserving the current slide. Failed reloads retain the last valid deck.
 ```
 
-> 保存時の自動リロードで、見ていたスライドにそのまま戻る。
-> **選定理由:** 「手直しが数秒」の具体的な証拠。
+> Markdown を外部エディターで保存すると、現在のスライド位置を維持して再読み込みします。失敗時には最後に正常に読み込めたデッキを表示し続けます。
 
 ### 4
 
 ```text
-Shape editing lets you drag Architecture DSL diagram elements into place visually, and saves the change back into your Markdown
+Edit existing Architecture DSL diagrams in a native editor window and save changes back to Markdown with explicit Save and stale-source protection.
 ```
 
-> Shape editing で Architecture DSL の図をドラッグ配置。変更はMarkdownに書き戻し。
-> **選定理由:** 文章だけでなく図も直せるという最大の差別化。
+> 既存の Architecture DSL 図をネイティブの編集ウィンドウで変更し、Save で Markdown に保存できます。外部変更と競合する保存は拒否します。
 
 ### 5
 
 ```text
-Mermaid diagrams, syntax-highlighted code, tables, and local images, with three built-in themes plus your own brand CSS to match your talk or your organization
+Render Mermaid and Architecture diagrams, highlighted code, tables, and local images with dark, light, Microsoft, or custom themes.
 ```
 
-> Mermaid図、シンタックスハイライト付きコード、表、ローカル画像に対応。組み込み3テーマに加え自社ブランドCSS。
-> **選定理由:** 「自分のデッキが扱えるか」への回答。
+> Mermaid・Architecture 図、ハイライト付きコード、表、ローカル画像を dark、light、Microsoft、カスタムの各テーマで表示できます。
 
 ### 6
 
 ```text
-Presenter view shows your current and next slide with Slidev/Marp-style speaker notes, while a synchronized audience window drives your projector or second screen
+Use presenter view with current/next slides and notes, plus a synchronized native audience window with keyboard, pointer, and Surface Pen navigation.
 ```
 
-> 発表者ビューで現在・次のスライドとスピーカーノートを表示し、同期した投影ウィンドウで投影。
-> **選定理由:** ネイティブアプリである意味。
+> 発表者ビューに現在・次のスライドとノートを表示し、ネイティブ投影ウィンドウと同期します。キーボード、ポインター、Surface Pen で操作できます。
 
 ### 7
 
 ```text
-Runs entirely on your PC with no account, upload, or cloud service — your slides stay in your own files
+Export PDF and hybrid editable PowerPoint from the GUI or bundled CLI. Supported objects remain editable; unsupported visuals may become images.
 ```
 
-> すべてPC内で完結。アカウント・アップロード・クラウド不要でファイルは手元に。
-> **選定理由:** クラウド型AIスライドとの決定的な差。
+> GUI と同梱 CLI から PDF とハイブリッド形式の PowerPoint を出力できます。対応するオブジェクトは編集可能となり、未対応の表示要素は画像になる場合があります。
 
 ## Screenshot captions
 
@@ -154,47 +151,47 @@ the screenshot with the same number.
 ### 01-architecture.png
 
 ```text
-Write plain Markdown. Get a precise, themed architecture diagram — boxes, groups, icons, and routed connectors, all laid out for you.
+Architecture DSL rendered from a Markdown deck with groups, icons, labels, and routed connectors.
 ```
 
-> プレーンな Markdown を書くだけ。ボックス、グループ、アイコン、経路付きコネクタまで自動配置された、テーマ適用済みの正確なアーキテクチャ図になります。
+> Markdown デッキ内の Architecture DSL を、グループ・アイコン・ラベル・経路付きコネクタを持つ図として表示しています。
 
 ### 02-shape-editing.png
 
 ```text
-AI drafts the diagram, you perfect it. Drag, resize, restyle — then save straight back to your Markdown. Nothing changes until you say so.
+Architecture Editor: adjust diagram elements, then use Save to update the existing Markdown fence. Unsaved diagram changes do not update the deck source.
 ```
 
-> AI が図を下書きし、あなたが仕上げる。ドラッグ・リサイズ・スタイル変更して、そのまま Markdown に保存。保存するまで元ファイルは一切変わりません。
+> Architecture Editor で図の要素を調整し、Save で既存の Markdown フェンスを更新します。未保存の図の変更はデッキのソースに反映されません。
 
 ### 03-presenter.png
 
 ```text
-Presenter view keeps you in control: current slide, next slide, and your speaker notes — on your screen only.
+Presenter view shows the current slide, the next slide, and speaker notes. The synchronized audience window displays the slide.
 ```
 
-> 発表者ビューで主導権を握る。現在のスライド、次のスライド、スピーカーノートを自分の画面にだけ表示します。
+> 発表者ビューに現在・次のスライドとスピーカーノートを表示し、同期する投影ウィンドウにはスライドを表示します。
 
 ### 04-pptx-editable-shapes.png
 
 ```text
-Export to PowerPoint and every box, arrow, and label stays a real, editable shape. Not a flat picture your team can't touch.
+Hybrid PowerPoint export: supported text and diagram objects are editable. Unsupported visuals may be retained as images.
 ```
 
-> PowerPoint に書き出すと、ボックスも矢印もラベルもすべて本物の編集可能な図形のまま。チームが手を出せないただの画像にはなりません。
+> ハイブリッド形式の PowerPoint 出力です。対応するテキストや図のオブジェクトは編集でき、未対応の表示要素は画像として保持される場合があります。
 
 ### 05-code-mermaid.png
 
 ```text
-Syntax-highlighted code, Mermaid diagrams, tables, and images — the Markdown you already write, rendered for the stage.
+Syntax-highlighted code and Mermaid diagrams displayed in the shared slide renderer.
 ```
 
-> シンタックスハイライト付きコード、Mermaid 図、表、画像。いつも書いている Markdown が、そのまま舞台映えする形に。
+> 共通のスライドレンダラーで、シンタックスハイライト付きコードと Mermaid 図を表示しています。
 
 ### 06-custom-theme.png
 
 ```text
-Three built-in themes — or drop in your own brand CSS. Your colors, your logo, your deck, straight from a text file.
+A custom theme applied to a Markdown deck, using local CSS and theme assets.
 ```
 
-> 組み込みテーマは3種類。さらに自社ブランドの CSS を持ち込めます。自分たちの色、ロゴ、デッキが、テキストファイルからそのまま生まれます。
+> ローカルの CSS とテーマアセットを使い、Markdown デッキにカスタムテーマを適用しています。

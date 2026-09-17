@@ -29,6 +29,36 @@ export function renderPage({ copy: c, product, sources, siteUrl }) {
       <div class="terminal-bar"><span>Terminal</span>${copyButton(id)}</div>
       <pre tabindex="0" aria-label="CLI"><code id="${id}">${e(command)}</code></pre>
     </div>`;
+  const request = (id, text) => `
+    <div class="prompt-example">
+      <p class="prompt-label">${e(c.promptExample)}</p>
+      <div class="prompt-box">
+        <pre tabindex="0" aria-label="${e(c.promptExample)}"><code id="${id}">${e(text)}</code></pre>
+        ${copyButton(id)}
+      </div>
+    </div>`;
+  const screenshot = (file, alt, caption, width = 1920, height = 1200) => `
+    <figure class="platform-screenshot">
+      <img src="${asset(file)}" width="${width}" height="${height}" loading="lazy" decoding="async" alt="${e(alt)}">
+      <figcaption>${e(caption)} ${link(asset(file), c.openImage)}</figcaption>
+    </figure>`;
+  const sample = () =>
+    `<a class="text-link" href="${prefix}examples/service-review.md" download>${e(c.downloadSample)}${arrow}</a>`;
+  const platformIds = ["windows", "node", "copilot"];
+  const platformSection = (platform, section, body) => `
+    <section class="platform-section" data-platform-section="${section}" id="${platform}-${section}" aria-labelledby="${platform}-${section}-title">
+      <h4 id="${platform}-${section}-title">${e(c.platformSections[section])}</h4>
+      <div class="platform-section-body">${body}</div>
+    </section>`;
+  const platformPanel = (id, title, description, requirements, body) => `
+    <section class="platform-panel" id="platform-${id}" data-platform-panel="${id}" aria-labelledby="platform-${id}-title">
+      <header class="platform-intro">
+        <h3 id="platform-${id}-title">${e(title)}</h3>
+        <p>${e(description)}</p>
+        <p class="requirements">${e(requirements)}</p>
+      </header>
+      ${body}
+    </section>`;
   const example = (id, alt, description) => `
     <section class="example" id="example-${id}" aria-labelledby="example-title-${id}">
       <div class="example-output">
@@ -44,15 +74,162 @@ export function renderPage({ copy: c, product, sources, siteUrl }) {
         <a class="text-link" href="${prefix}examples/${id}.md" download>${e(c.downloadSource)}${arrow}</a>
       </div>
     </section>`;
-  /*
-   * Design intent, kept in source only. Do not emit into the served HTML.
-   *
-   * THESIS: An opening-night poster for a real Markdown presentation tool, not a grid of feature cards.
-   * OWN-WORLD: Midnight Ink, Paper, one Spotlight Amber focus; the existing hash-and-spotlight mark and Segoe system typography.
-   * STORY: Draft with AI, refine directly, inspect, present and share; actual output and source support the workflow.
-   * FIRST VIEWPORT: Oversized two-line promise and an immediate start action above a wide, real architecture slide on a lit stage.
-   * FORM: Opening-poster composition; static stage reveal, no scroll hijacking.
-   */
+  const windows = platformPanel("windows", c.desktopTitle, c.desktopDescription, c.desktopDetail, `
+    ${platformSection("windows", "install", `
+      <div class="platform-grid">
+        <div>
+          ${link(product.storeUrl, c.desktopLink, "button")}
+          <ol class="windows-steps">
+            ${c.windowsSteps.map((step) => `<li><h5>${e(step.title)}</h5><p>${e(step.body)}</p></li>`).join("")}
+          </ol>
+          ${link(`${docs}installation.md`, c.cliInstallLink)}
+        </div>
+        <div>
+          ${screenshot("windows-workspace.png", c.workspaceAlt, c.workspaceCaption)}
+          <details class="skills-example">
+            <summary>${e(c.skillsCaption)}</summary>
+            ${screenshot("windows-skills.png", c.skillsAlt, c.skillsCaption)}
+          </details>
+        </div>
+      </div>
+    `)}
+    ${platformSection("windows", "author", `
+      <p>${e(c.windowsAuthorDescription)}</p>
+      ${request("windows-author-prompt", c.authorPrompt)}
+      <div class="platform-grid">
+        <div>
+          <h5 id="editor-title">${e(c.editorTitle)}</h5>
+          <p>${e(c.editorDescription)}</p>
+          ${link(`${docs}diagrams-and-media.md`, c.editorLink)}
+        </div>
+        ${screenshot("architecture-editor.png", c.editorAlt, c.editorCaption)}
+      </div>
+    `)}
+    ${platformSection("windows", "deliver", `
+      <h5>${e(c.reviewTitle)}</h5>
+      <p>${e(c.windowsReview)}</p>
+      <h5>${e(c.presentTitle)}</h5>
+      <p>${e(c.windowsPresent)}</p>
+      <h5>${e(c.exportTitle)}</h5>
+      <p>${e(c.windowsExport)}</p>
+      ${link(`${docs}presenting-and-export.md`, c.shareLink)}
+    `)}
+    ${platformSection("windows", "examples", `
+      <div class="recording-section" id="windows-workflow" aria-labelledby="recording-title">
+        <h5 id="recording-title">${e(c.windowsWorkflowTitle)}</h5>
+        <p>${e(c.windowsWorkflowDescription)}</p>
+        <div class="recording-links">
+          ${link(`${docs}windows-walkthrough.md`, c.windowsWalkthroughLink)}
+          ${sample()}
+        </div>
+        <figure class="recording">
+          <video controls playsinline preload="none" width="1920" height="1080" poster="${asset("windows-workspace.png")}"
+            aria-label="${e(c.recordingLabel)}" aria-describedby="recording-note">
+            <source src="${asset("windows-workflow.mp4")}" type="video/mp4">
+            <track kind="captions" src="${asset("windows-workflow.en.vtt")}" srclang="en" label="English"${c.lang === "en" ? " default" : ""}>
+            <track kind="captions" src="${asset("windows-workflow.ja.vtt")}" srclang="ja" label="日本語"${c.lang === "ja" ? " default" : ""}>
+            <a href="${asset("windows-workflow.mp4")}">${e(c.downloadRecording)}</a>
+          </video>
+          <figcaption id="recording-note">${e(c.recordingNote)}</figcaption>
+        </figure>
+        <a class="text-link" href="${asset("windows-workflow.mp4")}" download>${e(c.downloadRecording)}${arrow}</a>
+        <details class="recording-transcript">
+          <summary>${e(c.recordingTranscript)}</summary>
+          <ol>${c.recordingSteps.map((step) => `<li>${e(step)}</li>`).join("")}</ol>
+        </details>
+      </div>
+      ${link(`${docs}desktop.md`, c.desktopGuide)}
+      ${link(`${docs}cli.md`, c.cliLink)}
+    `)}
+  `);
+  const node = platformPanel("node", c.cliTitle, c.cliDescription, c.cliRequirements, `
+    ${platformSection("node", "install", `
+      <p>${e(c.cliInstallDescription)}</p>
+      ${terminal("cli-setup", product.cliSetupCommand)}
+      <p class="requirements">${e(c.cliResolutionNote)}</p>
+      <details class="skill-setup">
+        <summary>${e(c.cliSkillTitle)}</summary>
+        <p>${e(c.cliSkillDescription)}</p>
+        ${terminal("cli-skill", product.cliSkillCommand)}
+        <p class="install-next">${e(c.cliAlternative)}</p>
+        <pre class="alternative-command" tabindex="0" aria-label="Codex"><code>${e(product.cliAlternativeCommand)}</code></pre>
+      </details>
+      ${link(`${docs}installation.md`, c.cliInstallLink)}
+    `)}
+    ${platformSection("node", "author", `
+      <p>${e(c.cliAuthorDescription)}</p>
+      ${request("node-author-prompt", c.authorPrompt)}
+      <h5>${e(c.cliPreviewTitle)}</h5>
+      <p>${e(c.cliPreviewDescription)}</p>
+      ${terminal("cli-preview", product.cliPreviewCommand)}
+      <p class="install-next">${e(c.cliSessionNote)}</p>
+      ${request("node-refine-prompt", c.refinePrompt)}
+      ${link(`${docs}cli.md#architecture-editing-in-watch-mode`, c.editorLink)}
+    `)}
+    ${platformSection("node", "deliver", `
+      <h5>${e(c.reviewTitle)}</h5>
+      <p>${e(c.cliInspectDescription)}</p>
+      ${request("node-inspect-prompt", c.inspectPrompt)}
+      <details class="cli-output">
+        <summary>${e(c.cliOutputTitle)}</summary>
+        <p>${e(c.cliCheckDescription)}</p>
+        ${terminal("cli-check", product.cliCheckCommand)}
+      </details>
+      <h5>${e(c.presentTitle)}</h5>
+      ${terminal("cli-command", product.cliCommand)}
+      <p class="install-next">${e(c.cliNext)}</p>
+      <h5>${e(c.exportTitle)}</h5>
+      <p>${e(c.cliDeliveryDescription)}</p>
+      ${terminal("cli-export", product.cliExportCommand)}
+      ${link(`${docs}presenting-and-export.md`, c.shareLink)}
+    `)}
+    ${platformSection("node", "examples", `
+      <h5>${e(c.sampleTitle)}</h5>
+      <p>${e(c.nodeExampleDescription)}</p>
+      ${sample()}
+      <ol class="walkthrough-steps">${c.nodeExampleSteps.map((step) => `<li>${e(step)}</li>`).join("")}</ol>
+      ${screenshot("node-preview.png", c.nodePreviewAlt, c.nodePreviewCaption, 1440, 900)}
+      ${link(`${docs}cli.md`, c.cliLink)}
+      ${link(`${docs}ai-assisted-authoring.md`, c.authoringGuide)}
+    `)}
+  `);
+  const copilot = platformPanel("copilot", c.canvasTitle, c.canvasDescription, c.canvasRequirements, `
+    ${platformSection("copilot", "install", `
+      <p>${e(c.canvasInstructions)}</p>
+      ${request("canvas-prompt", prompt)}
+      <p class="requirements">${e(c.canvasWarning)}</p>
+      ${link(`${docs}installation.md`, c.canvasLink)}
+    `)}
+    ${platformSection("copilot", "author", `
+      <p>${e(c.canvasNext)}</p>
+      ${request("canvas-author-prompt", c.canvasAuthorPrompt)}
+      <h5>${e(c.editorTitle)}</h5>
+      <p>${e(c.canvasEdit)}</p>
+      <p>${e(c.canvasDirect)}</p>
+      ${link(`${docs}diagrams-and-media.md`, c.editorLink)}
+    `)}
+    ${platformSection("copilot", "deliver", `
+      <h5>${e(c.reviewTitle)}</h5>
+      <p>${e(c.canvasReview)}</p>
+      ${request("canvas-inspect-prompt", c.inspectPrompt)}
+      <h5>${e(c.presentTitle)}</h5>
+      <p>${e(c.canvasPresent)}</p>
+      <h5>${e(c.exportTitle)}</h5>
+      <p>${e(c.canvasExport)}</p>
+      ${request("canvas-export-prompt", c.canvasExportPrompt)}
+      ${link(`${docs}presenting-and-export.md`, c.shareLink)}
+    `)}
+    ${platformSection("copilot", "examples", `
+      <h5>${e(c.sampleTitle)}</h5>
+      <p>${e(c.canvasExampleDescription)}</p>
+      ${sample()}
+      ${request("canvas-open-prompt", c.canvasOpenPrompt)}
+      ${request("canvas-refine-prompt", c.canvasRefinePrompt)}
+      ${screenshot("examples/architecture.png", c.architectureAlt, c.canvasExampleCaption, 1280, 720)}
+      ${link(`${docs}copilot-hands-on.md`, c.canvasWalkthroughLink)}
+      ${link(`${docs}canvas-extension.md`, c.canvasGuide)}
+    `)}
+  `);
   return `<!doctype html>
 <html lang="${e(c.lang)}">
 <head>
@@ -82,6 +259,16 @@ export function renderPage({ copy: c, product, sources, siteUrl }) {
   <script src="${asset("site.js")}" defer></script>
 </head>
 <body>
+  <!--
+  THESIS: Equal platform guides, not a Windows-first installation funnel.
+  OWN-WORLD: Existing Midnight Ink, Paper, Spotlight Amber, and Segoe UI.
+  STORY: Review common output examples, choose an environment, then install,
+  create/edit, review/present/export, and follow its examples.
+  FIRST VIEWPORT: Product title and description above a real rendered slide;
+  the primary action leads to the platform selector.
+  FORM: User-specified extension of the existing page: three peer tabs with
+  matching guide sections. Without JavaScript, every guide remains readable.
+  -->
   <a class="skip-link" href="#main">${e(c.skip)}</a>
   <header class="header wrap">
     <a class="wordmark" href="./" aria-label="MarkdStage">
@@ -112,16 +299,14 @@ export function renderPage({ copy: c, product, sources, siteUrl }) {
         </div>
       </div>
       <div class="stage">
-        <div class="stage-beam" aria-hidden="true"></div>
-        <span class="stage-hash" aria-hidden="true">#</span>
         <figure class="hero-slide">
           <img src="${asset("examples/architecture.png")}" width="1280" height="720" alt="${e(c.heroAlt)}" fetchpriority="high">
-          <figcaption><span class="live-dot" aria-hidden="true"></span>${e(c.heroCaption)}<span class="slide-file">architecture.md</span></figcaption>
+          <figcaption>${e(c.heroCaption)}<a class="screenshot-link" href="${asset("examples/architecture.png")}">${e(c.openImage)}</a></figcaption>
         </figure>
         <p class="stage-note">${e(c.heroNote)}</p>
       </div>
       <ul class="surfaces" aria-label="${e(c.surfacesLabel)}">
-        <li>GitHub Copilot Canvas</li><li>Windows Desktop</li><li>CLI</li><li>PDF & PowerPoint</li>
+        ${platformIds.map((id) => `<li><a href="#platform-${id}">${e(c.platformLabels[id])}${arrow}</a></li>`).join("")}
       </ul>
     </section>
 
@@ -157,19 +342,6 @@ export function renderPage({ copy: c, product, sources, siteUrl }) {
       </div>
     </section>
 
-    <section class="editor-section section" aria-labelledby="editor-title">
-      <div class="wrap editor-layout">
-        <div class="editor-copy">
-          <h2 id="editor-title">${e(c.editorTitle)}</h2>
-          <p>${e(c.editorDescription)}</p>
-          ${link(`${docs}diagrams-and-media.md`, c.editorLink)}
-        </div>
-        <figure class="editor-image">
-          <img src="${asset("architecture-editor.png")}" width="1440" height="900" loading="lazy" decoding="async" alt="${e(c.editorAlt)}">
-        </figure>
-      </div>
-    </section>
-
     <section class="sharing wrap section" aria-labelledby="share-title">
       <div class="section-intro">
         <h2 id="share-title">${e(c.shareTitle)}</h2>
@@ -188,73 +360,12 @@ export function renderPage({ copy: c, product, sources, siteUrl }) {
           <h2 id="start-title">${heading(c.startTitle)}</h2>
           <p>${e(c.startDescription)}</p>
         </div>
-        <div class="install-cli">
-          <div>
-            <h3>${e(c.cliTitle)}</h3>
-            <p>${e(c.cliDescription)}</p>
-            <p class="requirements">${e(c.cliRequirements)}</p>
-            ${link(`${docs}installation.md`, c.cliInstallLink)}
-            ${link(`${docs}cli.md`, c.cliLink)}
-          </div>
-          <ol class="cli-steps">
-            <li>
-              <h4>${e(c.cliInstallTitle)}</h4>
-              <p>${e(c.cliInstallDescription)}</p>
-              ${terminal("cli-setup", product.cliSetupCommand)}
-              <p class="install-next">${e(c.cliAlternative)}</p>
-              <pre class="alternative-command" tabindex="0" aria-label="Codex"><code>${e(product.cliAlternativeCommand)}</code></pre>
-            </li>
-            <li>
-              <h4>${e(c.cliAuthorTitle)}</h4>
-              <p>${e(c.cliAuthorDescription)}</p>
-              <blockquote class="author-request"><p>${e(c.authorPrompt)}</p></blockquote>
-              <blockquote class="author-request"><p>${e(c.refinePrompt)}</p></blockquote>
-            </li>
-            <li>
-              <h4>${e(c.cliPreviewTitle)}</h4>
-              <p>${e(c.cliPreviewDescription)}</p>
-              ${terminal("cli-preview", product.cliPreviewCommand)}
-              <p class="install-next">${e(c.cliInspectDescription)}</p>
-              <blockquote class="author-request"><p>${e(c.inspectPrompt)}</p></blockquote>
-              <details class="cli-output">
-                <summary>${e(c.cliOutputTitle)}</summary>
-                <p>${e(c.cliCheckDescription)}</p>
-                ${terminal("cli-check", product.cliCheckCommand)}
-                <p class="install-next">${e(c.cliDeliveryDescription)}</p>
-                ${terminal("cli-command", product.cliCommand)}
-                ${terminal("cli-export", product.cliExportCommand)}
-                <p class="install-next">${e(c.cliNext)}</p>
-              </details>
-            </li>
-          </ol>
+        <div class="platform-tabs" role="group" aria-label="${e(c.platformTabLabel)}">
+          ${platformIds.map((id) => `<a id="tab-${id}" href="#platform-${id}" data-platform-tab="${id}">${e(c.platformLabels[id])}</a>`).join("")}
         </div>
-        <div class="install-options">
-          <article>
-            <h3>${e(c.canvasTitle)}</h3>
-            <p>${e(c.canvasDescription)}</p>
-            <details class="canvas-install">
-              <summary>${e(c.canvasInstructions)}</summary>
-              <div class="prompt-box">
-                <pre tabindex="0" aria-label="Copilot"><code id="canvas-prompt">${e(prompt)}</code></pre>
-                ${copyButton("canvas-prompt")}
-              </div>
-              <p class="requirements">${e(c.canvasWarning)}</p>
-            </details>
-            <p class="install-next">${e(c.canvasNext)}</p>
-            <blockquote class="author-request"><p>${e(c.canvasAuthorPrompt)}</p></blockquote>
-            <p>${e(c.canvasReview)}</p>
-            ${link(`${docs}installation.md`, c.canvasLink)}
-          </article>
-          <article>
-            <h3>${e(c.directTitle)}</h3>
-            <p>${e(c.directDescription)}</p>
-            <a class="text-link" href="${prefix}examples/markdown.md" download>${e(c.downloadSource)}${arrow}</a>
-            <h3 class="native-title">${e(c.desktopTitle)}</h3>
-            <p>${e(c.desktopDescription)}</p>
-            ${link(product.storeUrl, c.desktopLink)}
-            <p class="requirements">${e(c.desktopDetail)}</p>
-          </article>
-        </div>
+        ${windows}
+        ${node}
+        ${copilot}
         <p class="mac-note">${e(c.macDescription)} ${link(product.macUrl, c.macLink)} <span>${e(c.macNote)}</span></p>
       </div>
     </section>

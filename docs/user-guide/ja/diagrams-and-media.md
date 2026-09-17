@@ -163,7 +163,8 @@ Canvas で直接作ったデッキでは、変更は Canvas 側に保存され�
 
 ## Advanced Architecture Editor を使う
 
-**More controls > Open Markdown** で読み込んだ Markdown では、
+Desktop ではワークスペースの一覧、Canvas では **More controls > Open Markdown** で
+Markdown を開きます。どちらも元ファイルにひも付いたデッキであれば、
 **More controls > Shape editing** から専用エディターへ直接移動します。現在のスライドに
 Architecture ブロックが複数ある場合は、先にピッカーから編集対象を選びます。
 
@@ -215,8 +216,9 @@ Architecture ブロックが複数ある場合は、先にピッカーから編�
 変更は **Save** を選ぶまで下書きのままです。Markdown が外部で書き換えられていた場合、
 エディターはそれを上書きしません。元のファイルを読み込み直してから、変更をやり直してください。
 
-Advanced editing を使うには、**More controls > Open Markdown** で読み込んだ元ファイルと
-ひも付くデッキと、`architecture` ブロックが必要です。次のように中身が空でも構いません。
+Advanced editing を使うには、元ファイルとひも付くデッキと `architecture` ブロックが必要です。
+ネイティブエディターの画面は [Windows 操作チュートリアル](windows-walkthrough.md)に掲載しています。
+次のように中身が空でも構いません。
 エディターから要素を足せます。
 
 ````markdown

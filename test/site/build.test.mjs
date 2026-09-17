@@ -9,8 +9,11 @@ import { createWorkspace, readContent, repository } from "./helpers.mjs";
 
 const expectedFiles = [
   ".nojekyll", "assets/architecture-editor.png", "assets/examples/architecture.png",
-  "assets/examples/markdown.png", "assets/mark.svg", "assets/site.css", "assets/site.js",
-  "en/index.html", "examples/architecture.md", "examples/markdown.md", "index.html", "sitemap.xml",
+  "assets/examples/markdown.png", "assets/mark.svg", "assets/node-preview.png", "assets/site.css", "assets/site.js",
+  "assets/windows-controls.png", "assets/windows-skills.png", "assets/windows-workspace.png",
+  "assets/windows-workflow.mp4", "assets/windows-workflow.en.vtt", "assets/windows-workflow.ja.vtt",
+  "en/index.html", "examples/architecture.md", "examples/markdown.md", "examples/service-review.md", "examples/windows-workflow.md",
+  "index.html", "sitemap.xml",
 ].sort();
 
 async function listFiles(directory) {
@@ -37,11 +40,20 @@ test("build publishes exactly the explicit allowlist, copies assets, and rebuild
     "assets/site.css": "site/site.css",
     "assets/site.js": "site/site.js",
     "assets/mark.svg": "assets/brand/markdstage-mark.svg",
-    "assets/architecture-editor.png": "assets/readme/architecture-editor.png",
+    "assets/architecture-editor.png": "docs/user-guide/images/windows-architecture-editor.png",
+    "assets/windows-controls.png": "docs/user-guide/images/windows-controls.png",
+    "assets/windows-skills.png": "docs/user-guide/images/windows-skills.png",
+    "assets/windows-workspace.png": "docs/user-guide/images/windows-workspace.png",
+    "assets/windows-workflow.mp4": "docs/user-guide/images/windows-workflow.mp4",
+    "assets/windows-workflow.en.vtt": "docs/user-guide/images/windows-workflow.en.vtt",
+    "assets/windows-workflow.ja.vtt": "docs/user-guide/images/windows-workflow.ja.vtt",
     "assets/examples/markdown.png": "site/assets/examples/markdown.png",
     "assets/examples/architecture.png": "site/assets/examples/architecture.png",
+    "assets/node-preview.png": "site/assets/node-preview.png",
     "examples/markdown.md": "site/examples/markdown.md",
     "examples/architecture.md": "site/examples/architecture.md",
+    "examples/windows-workflow.md": "site/examples/windows-workflow.md",
+    "examples/service-review.md": "site/examples/windows-workflow.md",
   };
   for (const [destination, source] of Object.entries(copies)) {
     assert.deepEqual(await readFile(join(outputDir, destination)), await readFile(join(repository, source)), destination);
@@ -71,7 +83,7 @@ for (const basePath of ["/", "/MarkdStage/"]) {
       assert.ok(html.includes(`<link rel="alternate" hreflang="x-default" href="${siteUrl}">`));
       assert.ok(html.includes(`<meta property="og:url" content="${pageUrl}">`));
       assert.ok(html.includes(`<meta property="og:image" content="${siteUrl}assets/examples/architecture.png">`));
-      const localReferences = [...html.matchAll(/(?:src|href)="([^"]+)"/g)]
+      const localReferences = [...html.matchAll(/(?:src|href|poster)="([^"]+)"/g)]
         .map((match) => match[1]).filter((value) => !/^(?:https?:|#)/.test(value));
       assert.ok(localReferences.length > 10);
       for (const reference of localReferences) {
@@ -117,43 +129,74 @@ test("translation validation accepts complete localized content and reordered ke
   }));
 });
 
-test("both pages connect needs and workflow to examples, sharing, and actionable onboarding", async () => {
+test("both pages provide shared examples and equivalent platform-specific guides", async () => {
   const { ja, en, product, sources } = await readContent();
   for (const copy of [ja, en]) {
     const html = renderPage({ copy, product, sources, siteUrl: "https://example.test/MarkdStage/" });
-    const sections = ["needs-title", "workflow-title", "examples-title", "editor-title", "share-title", "start-title"];
+    const sections = ["needs-title", "workflow-title", "examples-title", "share-title", "start-title",
+      "platform-windows-title", "editor-title", "recording-title", "platform-node-title", "platform-copilot-title"];
     const positions = sections.map((id) => html.indexOf(`id="${id}"`));
     assert.ok(positions.every((position) => position >= 0), `${copy.lang}: every section exists`);
     assert.deepEqual(positions, [...positions].sort((a, b) => a - b), `${copy.lang}: reading order`);
     assert.equal(copy.needs.length, 3);
     assert.equal(copy.steps.length, 3);
-    for (const item of [...copy.needs, ...copy.steps]) {
+    assert.equal(copy.windowsSteps.length, 3);
+    for (const item of [...copy.needs, ...copy.steps, ...copy.windowsSteps]) {
       assert.ok(html.includes(escapeHtml(item.title)));
       assert.ok(html.includes(escapeHtml(item.body)));
     }
     for (const key of ["shareDescription", "pdfDescription", "pptxDescription", "cliAlternative",
       "authorPrompt", "refinePrompt", "inspectPrompt", "cliInspectDescription", "cliCheckDescription",
-      "cliDeliveryDescription", "canvasAuthorPrompt", "canvasReview", "directDescription", "macNote"]) {
+      "cliDeliveryDescription", "canvasAuthorPrompt", "canvasReview", "canvasDirect", "macNote",
+      "desktopDescription", "desktopDetail", "windowsWorkflowDescription", "recordingNote",
+      "windowsAuthorDescription", "windowsReview", "windowsPresent", "windowsExport",
+      "cliSkillDescription", "cliResolutionNote", "cliSessionNote", "nodeExampleDescription", "canvasRequirements", "canvasEdit",
+      "canvasPresent", "canvasExport", "canvasOpenPrompt", "canvasRefinePrompt", "canvasExportPrompt"]) {
       assert.ok(html.includes(escapeHtml(copy[key])), `${copy.lang}: ${key}`);
     }
     for (const [id, key] of [
-      ["cli-setup", "cliSetupCommand"], ["cli-preview", "cliPreviewCommand"],
+      ["cli-setup", "cliSetupCommand"], ["cli-skill", "cliSkillCommand"], ["cli-preview", "cliPreviewCommand"],
       ["cli-check", "cliCheckCommand"], ["cli-command", "cliCommand"], ["cli-export", "cliExportCommand"],
     ]) {
       assert.ok(html.includes(`<code id="${id}">${escapeHtml(product[key])}</code>`), key);
       assert.ok(html.includes(`data-copy="${id}" hidden`), `${id}: progressive enhancement`);
     }
+    for (const key of ["windowsExport", "cliDeliveryDescription", "canvasExport"]) {
+      assert.match(copy[key], /同じフォルダー|beside/i, `${key}: GUI output location`);
+      assert.match(copy[key], /置き換え|replac/i, `${key}: existing output replacement`);
+    }
     assert.ok(html.includes(`<code>${escapeHtml(product.cliAlternativeCommand)}</code>`));
-    for (const guide of ["installation.md", "cli.md", "presenting-and-export.md"]) {
+    for (const guide of ["installation.md", "desktop.md", "windows-walkthrough.md", "cli.md",
+      "presenting-and-export.md", "ai-assisted-authoring.md", "copilot-hands-on.md", "canvas-extension.md"]) {
       assert.ok(html.includes(`${product.repository}/blob/main/docs/user-guide/${copy.lang === "ja" ? "ja/" : ""}${guide}`));
     }
     assert.ok(html.includes(`${product.repository}/tree/${product.releaseTag}/.github/extensions/markdstage`));
     assert.ok(html.includes(`href="${product.storeUrl}"`));
     assert.ok(html.includes('id="examples"'));
     assert.ok(html.includes('id="get-started"'));
-    assert.ok(html.includes(`${copy.heroLine1}<br><span>${copy.heroLine2}</span>`), "Keep the intentional tagline break");
+    assert.ok(html.includes(`${copy.heroLine1}<br><span>${copy.heroLine2}</span>`), "Separate the name from the common product heading");
+    const platformIds = ["windows", "node", "copilot"];
+    for (const [index, id] of platformIds.entries()) {
+      assert.ok(html.includes(`id="tab-${id}" href="#platform-${id}" data-platform-tab="${id}">${escapeHtml(copy.platformLabels[id])}</a>`));
+      const start = html.indexOf(`<section class="platform-panel" id="platform-${id}"`);
+      const end = index === platformIds.length - 1 ? html.indexOf("</main>") :
+        html.indexOf(`<section class="platform-panel" id="platform-${platformIds[index + 1]}"`);
+      const panel = html.slice(start, end);
+      assert.ok(!panel.slice(0, panel.indexOf(">")).includes(" hidden"), "All platform panels are available without JavaScript");
+      const headings = [...panel.matchAll(/<h4 id="[^"]+">([^<]+)<\/h4>/g)].map((match) => match[1]);
+      assert.deepEqual(headings, Object.values(copy.platformSections).map(escapeHtml));
+      assert.ok(panel.includes('examples/service-review.md" download'), `${id}: common sample download`);
+      assert.equal(panel.includes("<video"), id === "windows", "Do not mislabel Windows footage as another platform");
+    }
+    const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
+    assert.equal(new Set(ids).size, ids.length, "All headings, controls, and copy sources have unique IDs");
+    assert.ok(html.includes('<video controls playsinline preload="none"'), "Recording uses user-controlled playback");
+    assert.ok(!html.includes(" autoplay"));
+    assert.ok(html.includes(`srclang="${copy.lang}" label="${copy.lang === "en" ? "English" : "日本語"}" default`));
+    for (const step of copy.recordingSteps) assert.ok(html.includes(escapeHtml(step)));
   }
-  assert.equal(product.cliSetupCommand, "npm install --global @markdstage/markdstage\nmarkdstage skill install --target claude");
+  assert.equal(product.cliSetupCommand, "npm install --global @markdstage/markdstage");
+  assert.equal(product.cliSkillCommand, "markdstage skill install --target claude");
   assert.equal(product.cliAlternativeCommand, "markdstage skill install --target codex");
   assert.equal(product.cliPreviewCommand, "markdstage preview slides.md --watch");
   assert.equal(product.cliCheckCommand, "markdstage validate slides.md --json\nmarkdstage inspect slides.md --json");
@@ -221,11 +264,15 @@ test("rendered headings, metadata, sources, links, and copy messages escape HTML
     ...en, title: hostile, description: hostile, heroLine1: hostile, heroAlt: hostile,
     examplesTitle: `${hostile}\nSecond line`, copied: hostile, canvasPrompt: hostile,
     needs: [{ title: hostile, body: hostile }], pptxDescription: hostile, authorPrompt: hostile,
+    windowsSteps: [{ title: hostile, body: hostile }], recordingSteps: [hostile],
+    recordingLabel: hostile, recordingNote: hostile, openImage: hostile,
+    platformLabels: { ...en.platformLabels, windows: hostile },
+    platformSections: { ...en.platformSections, author: hostile },
   };
   const html = renderPage({
     copy,
     product: { ...product, repository: `https://example.test/"'<>&`, cliCommand: hostile,
-      cliSetupCommand: hostile, cliAlternativeCommand: hostile, cliPreviewCommand: hostile,
+      cliSetupCommand: hostile, cliSkillCommand: hostile, cliAlternativeCommand: hostile, cliPreviewCommand: hostile,
       cliCheckCommand: hostile, cliExportCommand: hostile },
     sources: { ...sources, markdown: hostile },
     siteUrl: "https://example.test/MarkdStage/",
@@ -241,7 +288,12 @@ test("rendered headings, metadata, sources, links, and copy messages escape HTML
   assert.ok(html.includes(`<code id="cli-check">${escaped}</code>`));
   assert.ok(html.includes(`<code id="cli-export">${escaped}</code>`));
   assert.ok(html.includes(`<dt>${escaped}</dt><dd>${escaped}</dd>`));
-  assert.ok(html.includes(`<blockquote class="author-request"><p>${escaped}</p></blockquote>`));
+  assert.ok(html.includes(`<code id="windows-author-prompt">${escaped}</code>`));
+  assert.ok(html.includes(`<h5>${escaped}</h5><p>${escaped}</p>`));
+  assert.ok(html.includes(`<h4 id="node-author-title">${escaped}</h4>`));
+  assert.ok(html.includes(`data-platform-tab="windows">${escaped}</a>`));
+  assert.ok(html.includes(`<ol><li>${escaped}</li></ol>`));
+  assert.ok(html.includes(`aria-label="${escaped}" aria-describedby="recording-note"`));
   assert.ok(html.includes(`alt="${escaped}"`));
   assert.ok(html.includes(`data-copied="${escaped}"`));
   assert.ok(html.includes('href="https://example.test/&quot;&#39;&lt;&gt;&amp;"'));

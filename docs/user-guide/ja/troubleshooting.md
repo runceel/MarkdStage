@@ -14,6 +14,28 @@
 Microsoft Edge WebView2 Runtime をインストールするか修復してから、MarkdStage Desktop を再起動します。
 ユーザープロファイルがローカルアプリケーションデータフォルダーに書き込めるかも確かめてください。
 
+## Store 版のコマンドが見つからない、またはブラウザーが開く
+
+新しいターミナルで `Get-Command markdstage -All` を実行します。Store のエイリアスが
+見つからない、または無効になっている場合は Windows 設定の **アプリ実行エイリアス** を確認します。
+npm 版が解決順で先にある場合はブラウザー UI、Store 版はネイティブアプリが開きます。
+Store のエイリアスを直す目的で npm を追加する必要はありません。
+詳細は[インストールガイド](installation.md)を参照してください。
+
+## Desktop で表示できるがエクスポートに失敗する
+
+ネイティブ表示には WebView2 を使いますが、PDF／PowerPoint 出力にはインストール済みの
+Edge、Chrome、Chromium のいずれかも必要です。組織のポリシーでブラウザーのリモートデバッグが
+許可されているか確認します。再実行の前に出力エラーを読みます。スライドを表示できることだけでは、
+出力の前提条件を満たしているとは限りません。
+
+## AI ツールが導入済みのスキルを検出しない
+
+Desktop と AI ツールで同じワークスペースを使用します。**Install skills…** は
+ワークスペースにファイルを置く機能であり、エージェントのグローバル設定ではありません。
+正しい対象を選んだか確認し、AI ツールの手順に従って再読み込みしてください。
+MarkdStage の更新後はスキルも更新し、競合が報告された場合は内容を確認します。
+
 ## Canvas の読み込み画面に Markdown ファイルが出てこない
 
 - ファイル名が `.md` または `.markdown` で終わっているか確かめます。
@@ -54,7 +76,7 @@ Microsoft Edge WebView2 Runtime をインストールするか修復してから
 
 ## PDF でスライドが見切れる
 
-Canvas で **More controls > Output preview** を選び、警告から該当ページを確かめます。
+Desktop、Canvas、npm UI で **More controls > Output preview** を選び、警告から該当ページを確かめます。
 内容を減らすか、スライドを分けてください。`layout: center` は配置を変えるだけで使える領域は
 増えないので、見切れの対策にはなりません。
 
@@ -67,7 +89,8 @@ Canvas で **More controls > Output preview** を選び、警告から該当ペ�
 
 ## Architecture の変更が保存できない
 
-- Advanced editing を使うには、**More controls > Open Markdown** で読み込んだ Markdown が必要です。
+- Advanced editing には元ファイルにひも付くデッキが必要です。Desktop の一覧、または
+  Canvas の **More controls > Open Markdown** で開いてください。
 - 元ファイルに `architecture` ブロックが必要です。
 - 元ファイルが外部で書き換えられた場合は、上書きせずに読み込み直します。
 - レイアウトに従って配置されている子要素を手で動かす前に、親グループのレイアウトを解除します。

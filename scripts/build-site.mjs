@@ -12,11 +12,20 @@ const ASSETS = [
   ["site/site.css", "assets/site.css"],
   ["site/site.js", "assets/site.js"],
   ["assets/brand/markdstage-mark.svg", "assets/mark.svg"],
-  ["assets/readme/architecture-editor.png", "assets/architecture-editor.png"],
+  ["docs/user-guide/images/windows-architecture-editor.png", "assets/architecture-editor.png"],
+  ["docs/user-guide/images/windows-controls.png", "assets/windows-controls.png"],
+  ["docs/user-guide/images/windows-workspace.png", "assets/windows-workspace.png"],
+  ["docs/user-guide/images/windows-skills.png", "assets/windows-skills.png"],
+  ["docs/user-guide/images/windows-workflow.mp4", "assets/windows-workflow.mp4"],
+  ["docs/user-guide/images/windows-workflow.en.vtt", "assets/windows-workflow.en.vtt"],
+  ["docs/user-guide/images/windows-workflow.ja.vtt", "assets/windows-workflow.ja.vtt"],
   ["site/assets/examples/markdown.png", "assets/examples/markdown.png"],
   ["site/assets/examples/architecture.png", "assets/examples/architecture.png"],
+  ["site/assets/node-preview.png", "assets/node-preview.png"],
   ["site/examples/markdown.md", "examples/markdown.md"],
   ["site/examples/architecture.md", "examples/architecture.md"],
+  ["site/examples/windows-workflow.md", "examples/windows-workflow.md"],
+  ["site/examples/windows-workflow.md", "examples/service-review.md"],
 ];
 export const SITE_FILES = Object.freeze([
   "index.html", "en/index.html", ".nojekyll", "sitemap.xml",
@@ -88,8 +97,10 @@ export async function buildSite({ outputDir = OUTPUT_DIR, siteUrl = process.env.
   const ja = await readJson(join(REPO_ROOT, "site/content/ja.json"));
   const en = await readJson(join(REPO_ROOT, "site/content/en.json"));
   validateTranslations(ja, en);
-  if (ja.lang !== "ja" || en.lang !== "en" || ja.steps.length !== 3) {
-    throw new Error("Expected Japanese and English content with three workflow steps.");
+  if (ja.lang !== "ja" || en.lang !== "en" || ja.steps.length !== 3 || ja.windowsSteps.length !== 3 ||
+      Object.keys(ja.platformLabels).join(",") !== "windows,node,copilot" ||
+      Object.keys(ja.platformSections).join(",") !== "install,author,deliver,examples") {
+    throw new Error("Expected Japanese and English content with three platform guides, four guide sections, and three workflow and Windows installation steps.");
   }
   const sources = {
     markdown: await readFile(join(REPO_ROOT, "site/examples/markdown.md"), "utf8"),

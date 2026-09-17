@@ -1,10 +1,19 @@
-# GitHub Copilot とスライドを作成する
+# AI を使ったスライド作成
 
 > English version: [English](../ai-assisted-authoring.md)
 
-MarkdStage は、GitHub Copilot App を執筆パートナーとして使えるように作られています。
-Markdown を正本として保ちながら、同じチャットの中でスライドを作り、磨き込めるように、
-構文リファレンス、スキーマ、表示中のデッキの状態、出力の診断結果を Copilot に渡します。
+外部の AI ツールで Markdown の下書きや修正を行い、MarkdStage で確認します。
+連携には次の 2 つの方法があります。
+
+| 環境 | 準備と参照できる情報 |
+| --- | --- |
+| Windows Desktop と同梱 CLI | ワークスペース画面の **Install skills…** で導入し、Codex、Claude Code、GitHub Copilot でも同じフォルダーを開きます。エージェントは Markdown と CLI 診断を使い、Desktop はローカルの確認・編集画面になります。 |
+| Canvas Extension を導入した GitHub Copilot App | Extension を導入すると、Copilot は Canvas のガイド・検証ツールと、表示中の Canvas デッキのコンテキストを利用できます。 |
+
+Desktop は AI チャットを内蔵せず、選択中のスライドやワークスペースを外部エージェントへ自動共有しません。
+AI にはソースのファイル名を伝え、同じフォルダーを使います。スキル導入は AI ツール本体や
+Canvas Extension のインストールではありません。
+依頼例と実際のアプリ画面は [Windows 操作チュートリアル](windows-walkthrough.md)を参照してください。
 
 ![Markdown デッキを開いた MarkdStage Canvas Extension](../images/canvas-main.png)
 
@@ -26,6 +35,9 @@ MarkdStage は用途を絞った情報を渡します。
 
 Canvas を開いている間、表示中のデッキと Architecture DSL は GitHub Copilot App のコンテキストに
 含まれます。さらに詳しい情報が必要になれば、Copilot は上記のリファレンスや診断を自分で取得できます。
+
+以下のツール名は Canvas 連携を対象としています。Desktop と CLI では、
+`markdstage guide`、`validate`、`inspect`、`capture` が対応するコマンドです。
 
 `markdstage_guide` ツールは、`slide-format`、`themes`、`custom-themes`、`theme-schema`、
 `architecture-dsl`、`architecture-schema` といったトピック単位で執筆用の情報を返します。
@@ -157,8 +169,7 @@ Copilot は該当ページ、Architecture ブロック、JSON パス、直し方
 
 ## 作成者の責任
 
-AI に任せると作成、表示、確認のサイクルは短くなりますが、
-最終的なデッキの内容に責任を負うのは作成者です。
+AI が生成した内容も含め、最終的なデッキの内容に責任を負うのは作成者です。
 
 - Markdown ソース内の事実、名称、コード、機密情報を確かめてください。
 - スピーカーノートに、発表者向けとしてふさわしい内容だけが入っているか確かめてください。
@@ -166,11 +177,15 @@ AI に任せると作成、表示、確認のサイクルは短くなります�
 - 配布前に、書き出した PDF を全ページ目視してください。
 - プロジェクトの一部として使うデッキは、ソースファイルをバージョン管理してください。
 
-AI 向けの執筆支援と検証機能は Canvas Extension の機能です。
-MarkdStage Desktop は、できあがったデッキの発表に専念しています。
+使用する AI サービスへ送信することを組織のポリシーが認めた資料だけを使用してください。
+デモでは架空の名称、サンプルデータ、独立したワークスペースを使います。
+MarkdStage がローカルで動くことと、外部 AI サービスのデータ取り扱いは別です。
 
 ## 関連ガイド
 
+- [Windows 操作チュートリアル](windows-walkthrough.md)
+- [Desktop のワークスペースとスキル導入](desktop.md)
+- [CLI と Agent Skills](cli.md)
 - [ハンズオン: GitHub Copilot でデッキを作成する](copilot-hands-on.md)
 - [Canvas Extension](canvas-extension.md)
 - [Markdown の記述](markdown-authoring.md)

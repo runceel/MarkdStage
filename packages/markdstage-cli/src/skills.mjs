@@ -28,7 +28,7 @@ const DESCRIPTION =
   "refine, present, preview, validate, inspect, screenshot, or export a Markdown deck " +
   '("present slides.md", "turn this file into slides", "export the deck to PDF or PowerPoint", ' +
   '"check whether my slides fit", "import an Archify SVG"). Provides a deterministic create-review-deliver workflow, ' +
-  "browser-based Architecture DSL editing, theme validation, 1280x720 clipping diagnostics, " +
+  "Architecture DSL editing, theme validation, 1280x720 clipping diagnostics, " +
   "targeted PNG capture, and PDF/PowerPoint export.";
 
 function frontMatter(fields) {
@@ -47,8 +47,8 @@ function canvasNote(target) {
     "## Canvas adapter",
     "",
     "Inside GitHub Copilot with the MarkdStage canvas Extension installed, prefer the",
-    "canvas: pass every slide to the `open` input of canvas ID `MarkdStage` and let the",
-    "canvas controls handle navigation. Use the CLI commands below when the canvas is not",
+    "canvas: pass `sourcePath: \"slides.md\"` to the `open` input of canvas ID `MarkdStage`",
+    "for live, source-backed editing. Use the CLI commands below when the canvas is not",
     "available, or for validation, PNG capture, and PDF export in a terminal or CI job.",
   ].join("\n");
 }
@@ -58,14 +58,22 @@ function skillBody(target) {
   return `# MarkdStage
 
 Markdown is the single source of truth. MarkdStage renders each Markdown fragment
-between \`---\` separators as one 1280x720 (16:9) slide, and the CLI renders exactly
-what the MarkdStage canvas and MarkdStage Desktop render.
+between \`---\` separators as one 1280x720 (16:9) slide. Desktop, Canvas, and the CLI
+share the renderer and output model; review final output for font and browser differences.
 
 ## Requirements
 
-- Node.js 24 or later.
-- An installed Microsoft Edge, Google Chrome, or Chromium (never downloaded automatically).
-- The CLI: \`npx @markdstage/markdstage <command>\` or \`npm install --global @markdstage/markdstage\`.
+- Windows Store/MSIX package: includes the GUI and \`markdstage\` CLI; no Node.js
+  or npm installation is required. Native viewing and validation use WebView2.
+- npm distribution: requires Node.js 24 or later and an installed Microsoft Edge,
+  Google Chrome, or Chromium. Use \`npx @markdstage/markdstage <command>\` or
+  \`npm install --global @markdstage/markdstage\` only when this distribution is wanted.
+- Layout inspection, PNG capture, and PDF/PowerPoint export require installed Edge,
+  Chrome, or Chromium, including Windows GUI exports. Browsers are never downloaded automatically.
+
+On Windows, check \`Get-Command markdstage -All\` if both distributions are installed.
+Do not add npm just to use the Store CLI. Desktop's **Install skills…** writes this
+workspace guidance; it does not install the AI tool or the Canvas Extension.
 
 ## Recommended authoring workflow
 
@@ -96,13 +104,19 @@ what the MarkdStage canvas and MarkdStage Desktop render.
    \`markdstage export slides.md --output slides.pdf\`, or
    \`markdstage export slides.md --output slides.pptx\`.
 
-The browser in \`markdstage slides.md\` starts in viewing mode on the fixed 16:9
-output surface. **Output preview** switches to the retained responsive layout.
-The user can activate the pencil control to switch to the responsive layout and
-move Architecture elements, then choose **Advanced edit** for the detailed
-designer. Placement changes save immediately, while the detailed designer saves
-only when the user selects **Save**. Automatic refresh can be toggled from the
-same UI without disabling Architecture editing.
+The Store/MSIX \`markdstage slides.md\` opens or reuses the native workspace window.
+Use **More controls > Shape editing** for its Architecture Editor and **Save** to
+write the draft to Markdown. The native GUI also provides output preview,
+presenter view, and PDF/PowerPoint export. Edit general Markdown text in an external editor.
+The native \`present\` command also opens the audience window; it returns after app
+acceptance instead of keeping a presentation server in the terminal.
+
+With npm, the browser starts in viewing mode on the fixed 16:9 output surface.
+Keep **Output preview** enabled for fixed-layout review; turning it off shows the
+responsive layout. **More controls > Shape editing** opens the detailed designer
+directly for a source-backed deck. Move elements or adjust properties, then select
+**Save** to write the draft to Markdown; moving a shape does not save immediately.
+Automatic refresh can be toggled without disabling Architecture editing.
 
 Never hand-write HTML or CSS for a slide. Fix layout problems by shortening the
 content or by changing the layout in front matter. Prefer structured validation
@@ -133,16 +147,17 @@ the complete path rules and import behavior.
 | --- | --- |
 | \`markdstage\` | Open an empty Canvas-equivalent UI and choose Markdown from the workspace. |
 | \`markdstage <file>\` | Open the full UI in live slide view with automatic refresh, editing, presenting, and UI export. |
-| \`markdstage present <file> [--watch]\` | Open the same full UI in presenter view; \`--watch\` enables automatic refresh initially. |
-| \`markdstage preview <file> [--watch]\` | Open the same full UI in slide view; \`--watch\` enables automatic refresh initially. |
+| \`markdstage present <file> [--watch]\` | Open presenter view; Store/MSIX also opens the native audience window. Native watching is always on; npm \`--watch\` enables it initially. |
+| \`markdstage preview <file> [--watch]\` | Open slide view in the native app (Store/MSIX) or browser (npm). Native watching is always on; npm \`--watch\` enables it initially. |
 | \`markdstage validate <file> [--json]\` | Check deck structure, Architecture DSL blocks, and themes. |
 | \`markdstage inspect <file> [--json]\` | Report 1280x720 clipping diagnostics for the deck or one slide; use \`--fail-on-issues\` for quality gates. |
 | \`markdstage capture <file> [--pages 2,4]\` | Write 1280x720 PNG files; without \`--pages\` only clipped slides are captured. |
 | \`markdstage export <file> [--output slides.pdf|slides.pptx]\` | Produce a 16:9 PDF or hybrid editable PowerPoint. |
 | \`markdstage guide <topic>\` | Print the canonical MarkdStage authoring guide. |
 
-Exit codes: \`0\` success, \`1\` usage error, \`2\` deck or input error, \`3\` no
-Chromium-based browser, \`4\` rendering failure, \`5\` issues found with \`--fail-on-issues\`.
+Exit codes: \`0\` success, \`1\` usage error, \`2\` deck or input error, \`3\`
+environment error (including missing Chromium or native activation failure),
+\`4\` rendering failure, \`5\` issues found with \`--fail-on-issues\`.
 
 ## References
 

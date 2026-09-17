@@ -2,13 +2,14 @@
 
 # MarkdStage CLI
 
-MarkdStage CLI は、ターミナルから Markdown デッキの発表、検証、レイアウト診断、PNG 取得、PDF
-エクスポートを行います。GitHub Copilot の Canvas を必要としないため、Codex、Claude Code、CI、
+MarkdStage CLI は、ターミナルから Markdown デッキの発表、検証、レイアウト診断、PNG 取得、
+PDF／PowerPoint エクスポートを行います。GitHub Copilot の Canvas を必要としないため、Codex、Claude Code、CI、
 リモートシェルでもコンソールコマンドを使えます。ネイティブアプリを開く操作には Windows の
 デスクトップセッションが必要です。
 
-CLI は Canvas Extension と同じ Markdown パーサー、レンダラー、テーマ処理、Architecture DSL
-検証、PDF／PNG 出力を利用します。どの環境でも見た目は同じです。
+CLI は Canvas Extension と Desktop と同じ Markdown パーサー、レンダラー、テーマ処理、
+Architecture DSL 検証、PDF／PNG／PowerPoint 出力を利用します。フォントやブラウザーの
+バージョンによって見た目が異なる場合があるため、ピクセル単位で一致すると考えず最終出力を確認します。
 
 ## インストール
 
@@ -23,8 +24,17 @@ CLI は Canvas Extension と同じ Markdown パーサー、レンダラー、テ
   使います。既存のサーバー／ブラウザー動作は変わりません。
 
 両方とも `markdstage` を提供します。共存時はシェルがどちらを実行するか確認してください
-（PowerShell では `Get-Command markdstage`）。`npx @markdstage/markdstage` は npm 版を
+（PowerShell では `Get-Command markdstage -All`）。`npx @markdstage/markdstage` は npm 版を
 明示的に選びます。
+
+[Microsoft Store の MarkdStage](https://apps.microsoft.com/detail/9N9DG772RM03)には GUI と
+CLI が含まれます。GUI でもスキル導入と PDF／PowerPoint 出力を行えます。
+詳細は [Desktop](desktop.md) を参照してください。この手順に npm の追加導入は不要です。
+
+Windows のポータブル ZIP には `MarkdStageApp.exe` と `MarkdStageCli.exe` が含まれますが、
+エイリアスは登録しません。ワークスペースは GUI 実行ファイルで開き、CLI 実行ファイルは
+コンソール処理に使います。CLI からのネイティブ GUI 起動には MSIX のパッケージ ID が必要です。
+ポータブル CLI のブラウザー配信では `--no-open` を明示してください。
 
 ## コマンド
 
@@ -130,7 +140,9 @@ markdstage capture --help
 全スライドを最初から画像化するのではなく、構造化された検証とレイアウト診断を優先します。
 配布前には最終出力の全ページを確認します。
 
-## watch モードで Architecture を編集する
+<a id="watch-モードで-architecture-を編集する"></a>
+
+## Architecture を編集する
 
 次のブラウザー編集手順は **npm 版**と、パッケージ版の **`--no-open`** で配信する UI の
 手順です。ネイティブ起動は自動監視付きのスライド表示を開きます。ネイティブの Architecture
@@ -138,12 +150,11 @@ markdstage capture --help
 
 npm 版の `markdstage slides.md` はライブ編集用の環境です。
 
-1. Architecture DSL を含むスライドで鉛筆ボタンを選びます。
-2. 要素をドラッグするか矢印キーで移動します。配置の変更は、対応する `architecture` フェンスへ
-   アトミックに保存されます。
-3. **Advanced edit** を選ぶと詳細デザイナーが開きます。対応する要素の追加、更新、複製、
-   親の変更、削除ができます。
-4. 詳細デザイナーの **Save** を選び、下書きを Markdown へ書き戻します。
+1. Architecture DSL を含むスライドで **More controls > Shape editing** を選びます。
+2. 詳細デザイナーが直接開きます。要素の移動、プロパティーの変更、追加、複製、
+   親の変更、削除を行えます。
+3. **Save** で下書きを対応する `architecture` フェンスへアトミックに書き戻します。
+   図形を動かしただけでは保存しません。
 
 エディターの外でソースが変更された場合、上書きせず保存を拒否します。保存に成功すると、表示中の
 ページを保ったままデッキを再読み込みします。Markdown が一時的に不完全な状態で保存されても、
@@ -188,6 +199,10 @@ edit オプションはありません。
 ため、内容がずれることはありません。ファイルはコマンド実行時に生成され、MarkdStage の
 ソースリポジトリにある Agent Skill 自動検出ディレクトリからコピーされるものではありません。
 
+Windows では Desktop のワークスペース画面の **Install skills…** から、ターミナルを使わず
+同じファイルを導入できます。使用する対象を選び、その AI ツールでも同じワークスペースを開きます。
+スキルは AI ツール本体や Canvas Extension をインストールしません。
+
 | ターゲット | ディレクトリ |
 | --- | --- |
 | `codex` | `.agents/skills/markdstage/` |
@@ -201,6 +216,9 @@ markdstage skill check --target all
 ```
 
 利用者が編集したファイルは競合として報告し、`--force` を指定しない限り上書きしません。
+MarkdStage の更新後は再度インストールを実行し、ワークスペースのガイドを更新します。
+内容が一致するファイルは変更されません。競合を確認してから、必要な場合だけローカルの編集を
+置き換えてください。
 
 ## セキュリティ
 

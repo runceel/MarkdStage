@@ -161,7 +161,8 @@ Leave edit mode before presenting.
 
 ## Use the Advanced Architecture Editor
 
-For Markdown imported with **More controls > Open Markdown**, select
+In Desktop, open the Markdown file from the workspace list. In Canvas, open it with
+**More controls > Open Markdown**. With either source-backed deck, select
 **More controls > Shape editing** to open the dedicated editor directly. If the current slide
 contains multiple Architecture blocks, select the diagram from the picker first.
 
@@ -213,8 +214,9 @@ Unselected connectors outside those groups are not duplicated.
 Changes remain a draft until you select **Save**. If the Markdown changes externally, the editor
 does not overwrite it; reload the source and reapply the intended change.
 
-Advanced editing requires a source-backed deck imported through **More controls > Open Markdown**
-and an existing `architecture` block. An empty block is valid and can be populated by the editor:
+Advanced editing requires a source-backed deck and an existing `architecture` block.
+The [Windows walkthrough](windows-walkthrough.md) shows the native editor. An empty block is valid
+and can be populated by the editor:
 
 ````markdown
 ```architecture

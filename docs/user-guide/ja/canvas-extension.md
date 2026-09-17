@@ -97,17 +97,19 @@ Canvas を閉じると、投影用ウィンドウも閉じます。
 
 ## 検証して書き出す
 
-書き出す前に **More controls > Output preview** で確認します。PDF と同じ固定
+書き出す前に **More controls > Output preview** が有効か確認します。
+すでにチェックされている場合はオフに切り替えません。PDF と同じ固定
 1280x720 レイアウトで表示し、内容がはみ出す場合は警告します。手順の詳細は
 [プレゼンテーションとエクスポート](presenting-and-export.md)を参照してください。
 
 ## Canvas だけでできること
 
-次の機能は MarkdStage Desktop にはありません。
+Canvas は GitHub Copilot App の会話と、`inspect_layout` などのデッキ操作を連携させます。
+Desktop に AI チャットは内蔵されていません。外部エージェント、ワークスペースのスキル、
+同梱 CLI を使って連携します。
 
-- PDF エクスポートと、PDF と同じ条件でのクリッピング確認
-- 手早く行える Architecture の配置編集
-- Advanced Architecture Editor
-- AI によるデッキの直接作成と修正
+Desktop でも図の編集、固定出力のクリッピング確認、発表者ビュー、PDF／PowerPoint 出力を
+行えます。それぞれに共有される情報の違いは [AI を使った作成](ai-assisted-authoring.md)を
+参照してください。
 
 [次へ: MarkdStage Desktop →](desktop.md)

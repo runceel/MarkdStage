@@ -53,8 +53,8 @@ or extra dependency is required.
 
 ## Screenshots
 
-Upload in filename order. The sequence follows the listing narrative: AI drafts
-the deck, you correct it, you present it, you take the result with you.
+Upload in filename order. The sequence shows diagram rendering and editing, presenter view,
+editable PowerPoint output, code and Mermaid, and custom themes.
 
 | File | Shows |
 | --- | --- |
@@ -109,6 +109,8 @@ customer data.
 4. Copy the English blocks into Partner Center.
 
 Describe only shipped behavior. The description discloses the Microsoft Edge
-WebView2 Runtime requirement, and states that PDF and PowerPoint export run
-through the included command-line tool, which additionally needs an installed
-Chromium-based browser.
+WebView2 Runtime requirement, and states that PDF and PowerPoint export are available from
+the GUI and included CLI. Export additionally requires an installed Chromium-based browser.
+The current Windows user-guide screenshots and recording are documented in
+[`windows-walkthrough.md`](../../docs/user-guide/windows-walkthrough.md); they are separate from
+the Store's existing six-image upload set.

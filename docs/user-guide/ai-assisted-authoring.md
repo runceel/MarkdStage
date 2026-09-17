@@ -1,10 +1,19 @@
-# Create slides with GitHub Copilot
+# AI-assisted authoring
 
 > 日本語版: [日本語](ja/ai-assisted-authoring.md)
 
-MarkdStage is designed to use GitHub Copilot App as an authoring partner. Markdown remains the
-source of truth, while MarkdStage provides the syntax references, schemas, rendered deck state, and
-output diagnostics that Copilot needs to create and refine slides in the same chat session.
+Use an external AI tool to draft or revise Markdown, then review it in MarkdStage. There are two
+integration paths:
+
+| Environment | Setup and available context |
+| --- | --- |
+| Windows Desktop with the included CLI | Use **Install skills…** in the workspace screen, then open that folder in Codex, Claude Code, or GitHub Copilot. The agent reads Markdown and runs CLI diagnostics; Desktop is the local review and editing UI. |
+| GitHub Copilot App with the Canvas Extension | Install the Extension. Copilot uses Canvas guide/validation tools and the active Canvas deck context. |
+
+Desktop has no built-in AI chat and does not automatically share its selected slide or workspace
+with an external agent. Give the agent the source filename and use the same folder.
+Skill installation does not install an AI tool or the Canvas Extension.
+See the [Windows walkthrough](windows-walkthrough.md) for example requests and actual app screenshots.
 
 ![A Markdown deck open in the MarkdStage Canvas Extension](images/canvas-main.png)
 
@@ -27,6 +36,9 @@ format from screenshots alone.
 While the Canvas is open, the active deck and Architecture DSL are available in GitHub Copilot App
 context. When additional detail is needed, Copilot can retrieve the focused references and
 diagnostics listed above.
+
+The tool names in the following sections refer to the Canvas integration. For Desktop and CLI,
+the corresponding commands are `markdstage guide`, `validate`, `inspect`, and `capture`.
 
 The `markdstage_guide` tool provides the authoring references through focused topics such as
 `slide-format`, `themes`, `custom-themes`, `theme-schema`, `architecture-dsl`, and
@@ -159,8 +171,7 @@ Use captures after structured diagnostics, not as the default way to inspect eve
 
 ## Review responsibilities
 
-AI-assisted authoring shortens the create-render-review loop, but the author remains responsible
-for the final deck.
+The author remains responsible for the final deck, including content produced by AI.
 
 - Verify facts, names, code, and confidential information in the Markdown source.
 - Confirm that speaker notes contain appropriate presenter-only content.
@@ -168,11 +179,15 @@ for the final deck.
 - Review every exported PDF page before distribution.
 - Keep the source file under version control when the deck is part of a project.
 
-The AI-facing authoring and validation capabilities are provided by the Canvas Extension.
-MarkdStage Desktop focuses on presenting an existing deck.
+Use only source material that your organization's policy permits you to send to the selected AI
+service. For demonstrations, use fictional names, sample data, and an isolated workspace.
+MarkdStage's local operation does not change the external AI service's data-handling policy.
 
 ## Related guides
 
+- [Windows walkthrough](windows-walkthrough.md)
+- [Desktop workspace and Skill installation](desktop.md)
+- [CLI and Agent Skills](cli.md)
 - [Hands-on: build a deck with GitHub Copilot](copilot-hands-on.md)
 - [Canvas Extension](canvas-extension.md)
 - [Markdown authoring](markdown-authoring.md)

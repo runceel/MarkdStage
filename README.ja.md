@@ -1,14 +1,10 @@
 <p align="center">
   <a href="https://github.com/runceel/markdstage">
-    <img src="./assets/brand/markdstage-banner.svg" alt="MarkdStage - Markdown, ready for the stage." width="100%">
+    <img src="./assets/brand/markdstage-mark.svg" alt="MarkdStage" width="96">
   </a>
 </p>
 
 <h1 align="center">MarkdStage</h1>
-
-<p align="center">
-  <strong>Markdown, ready for the stage.</strong>
-</p>
 
 <p align="center">
   <a href="./README.md">English</a>
@@ -22,7 +18,7 @@
 </p>
 
 <p align="center">
-  <a href="https://runceel.github.io/MarkdStage/">紹介サイト</a> |
+  <a href="https://runceel.github.io/MarkdStage/">Web サイト</a> |
   <a href="#canvas-extension">Canvas Extension</a> |
   <a href="#desktop">Desktop</a> |
   <a href="#cli">CLI</a> |
@@ -33,19 +29,25 @@
   <a href="https://github.com/runceel/markdstage/releases">リリース</a>
 </p>
 
-MarkdStage は、AI とスライドを作成し、文章や図を手元で調整できるオープンソースのツールです。
-資料やメモから下書きを依頼し、言い回しや図の配置を直接編集して、確認・発表・共有まで進められます。
-内容は Markdown、見た目はテーマで管理できます。AI や GitHub Copilot App を使わずに、
-Markdown を直接編集して発表することもできます。
+MarkdStage は、Markdown スライドの作成、確認、発表、エクスポートを行うオープンソースの
+アプリケーションです。Windows 版は、ワークスペースのファイル一覧、Architecture 図の
+ビジュアル編集、出力プレビュー、発表者・投影用ビュー、PDF と PowerPoint への出力に対応しています。
+[Microsoft Store](https://apps.microsoft.com/detail/9N9DG772RM03)からインストールすると、
+GUI と `markdstage` CLI の両方が導入されます。GUI からワークスペースへ Agent Skills を
+インストールすることもできます。
+
+同じ Markdown 形式を GitHub Copilot Canvas と npm 版 CLI でも利用できます。
+AI の利用は任意です。テキストエディターでソースを編集するか、MarkdStage のガイドを参照できる
+外部の AI ツールを使います。Desktop 自体に AI チャット画面はありません。
 
 <a id="markdstage-を選ぶ理由"></a>
 
-## 作成から発表・共有まで
+## 基本的な作業の流れ
 
 | 作業 | できること |
 | --- | --- |
-| **作成** | 元資料、対象者、発表時間を AI に伝えて下書きを依頼できます。Canvas のガイドや CLI の Agent Skill から、形式とテーマの情報を参照できます。 |
-| **調整** | テーマを保ったまま Markdown の言い回しを編集できます。Architecture 図の配置は画面上で調整でき、小さな変更を毎回 AI に依頼する必要はありません。 |
+| **作成** | テキストエディターで Markdown を書く、作例をコピーする、または AI に下書きを依頼します。Canvas のガイドと Agent Skills がスライド形式とテーマを説明します。 |
+| **調整** | 文章はソースファイルで編集します。図形、プロパティ、接続線は Desktop、Canvas、CLI のブラウザー UI にある Architecture Editor で変更できます。 |
 | **確認** | AI に「スライドに内容が収まっているか確認して」と依頼できます。AI がレイアウト診断と必要なページの画像を使って、修正が必要な箇所を調べます。 |
 | **発表** | 手元でスピーカーノートと次のスライドを見ながら、操作が同期する観客向けウィンドウで発表できます。 |
 | **共有** | 閲覧用の PDF や、確認・編集用のハイブリッド PowerPoint に出力できます。受け手に MarkdStage の導入を求めずに配布できます。 |
@@ -60,10 +62,44 @@ PowerPoint 側の変更は Markdown には逆反映されません。対応範�
 
 | 利用環境 | 用途 |
 | --- | --- |
+| **[Windows Desktop と同梱 CLI](#desktop)** | GUI でワークスペース、スキル導入、Architecture 編集、表示確認、発表、出力を扱います。同梱 CLI は診断と自動化に使えます。 |
 | **[GitHub Copilot と Canvas](#canvas-extension)** | GitHub Copilot App で作成・修正を依頼し、Architecture 図を画面上で調整して、Canvas から発表・出力できます。 |
-| **[CLI と Agent Skill](#cli)** | Claude Code または Codex で作成・確認を依頼し、`preview --watch` で手元の調整ができます。Canvas は不要です。 |
-| **[直接編集とネイティブアプリ](#present-without-ai)** | Markdown を自分で書くか作例から始め、Canvas、CLI、Windows アプリで直接表示できます。 |
+| **[npm 版 CLI と Agent Skill](#cli)** | ターミナル、CI、Claude Code、Codex とブラウザー UI を使います。Canvas は不要です。 |
+| **[AI を使わない編集](#present-without-ai)** | Markdown を自分で書くか作例から始め、Desktop、Canvas、CLI で開きます。 |
 | **MarkStageForMac**（第三者製） | コミュニティ製の macOS ネイティブアプリで発表します。本リポジトリの開発・サポート対象外です |
+
+<a id="desktop"></a>
+
+## MarkdStage Desktop を使う
+
+[Microsoft Store から MarkdStage](https://apps.microsoft.com/detail/9N9DG772RM03)をインストール
+します。1 回のインストールで Windows アプリと `markdstage` コンソールエイリアスが導入されます。
+**Windows パッケージに Node.js と npm は不要です。**
+
+1. Windows のスタートメニューから **MarkdStage** を起動します。
+2. **Open folder…** を選び、Markdown とアセットを保存するフォルダーを開きます。
+3. AI ツールを使う場合は **Install skills…** で Codex、Claude Code、GitHub Copilot のうち
+   利用するものを選び、**Install** を実行します。AI ツールでも同じフォルダーを開きます。
+   スキル導入は任意であり、AI ツール本体や Canvas Extension はインストールされません。
+4. ワークスペースの一覧から Markdown を選びます。文章をテキストエディターで編集して保存すると、
+   Desktop の表示が更新されます。
+5. Architecture 図のあるスライドで **More controls > Shape editing** を選びます。
+   図を変更し、**Save** で Markdown に書き戻します。
+6. **More controls** から **Output preview**、**Presenter view**、**Export PDF**、
+   **Export PowerPoint…** を使用します。
+
+![サンプルの Architecture 図と、編集・発表・出力のメニューを表示した MarkdStage Desktop](./docs/user-guide/images/windows-controls.png)
+
+ネイティブ表示には Microsoft Edge WebView2 Runtime を使います。レイアウト診断、PNG 取得、
+PDF／PowerPoint 出力には、インストール済みの Edge、Chrome、または Chromium も必要です。
+MarkdStage がこれらのランタイムをダウンロードすることはありません。
+
+ワークスペースの操作とスキル導入は [Windows ガイド](./docs/user-guide/ja/desktop.md)、
+架空のサンプル、スクリーンショット、AI への依頼例を使った図の編集から出力までの手順は
+[Windows 操作チュートリアル](./docs/user-guide/ja/windows-walkthrough.md)を参照してください。
+ポータブル ZIP と署名済みサイドローディングパッケージについては、
+[インストールガイド](./docs/user-guide/ja/installation.md)と
+[v4.2.5 リリース](https://github.com/runceel/markdstage/releases/tag/v4.2.5)で説明しています。
 
 <a id="canvas-extension"></a>
 
@@ -120,24 +156,24 @@ CI から利用できます。**npm 版 CLI** は **Node.js 24 以降**と、イ
 Google Chrome、または Chromium** が必要です。ブラウザーの自動ダウンロードは行いません。
 前提条件やオフライン導入は[インストールガイド](./docs/user-guide/ja/installation.md)を参照してください。
 
-**[Microsoft Store の MarkdStage](https://apps.microsoft.com/detail/9N9DG772RM03) に
-含まれる Windows パッケージ版 CLI** は Node.js が不要です。
+**Store 版には CLI が含まれるため、CLI を使うためだけに npm を追加する必要はありません。**
 引数なしの `markdstage`、Markdown の直接指定、`preview` はネイティブのワークスペース
 ウィンドウを開くか再利用し、`present` はネイティブの投影用ウィンドウも開きます。
-引数なしでは呼び出し元の現在のディレクトリをファイル未選択で開きます。
-ネイティブ表示は WebView2 のみ必要ですが、`inspect`、`capture`、`export` は引き続き
-外部 Chromium が必要です。CLI はアプリの受け入れ応答後に終了します。
-`--no-open` は Ctrl+C までローカルサーバーを維持します。ネイティブの監視は常に有効で、
-`--watch` も指定可能です。ネイティブ起動は `--theme` / `--theme-file` を拒否するため、
-アプリでテーマを選ぶか、`--no-open` で上書きを指定します。
-フラグと受け入れ JSON は [CLI ガイド](./docs/user-guide/ja/cli.md)を参照してください。
+診断とエクスポートはコンソールコマンドとして実行できます。
+フラグ、前提条件、npm 版との違いは [CLI ガイド](./docs/user-guide/ja/cli.md)を参照してください。
 
 ### 導入して下書きを依頼
 
-npm 版 CLI をインストールし、資料を作るフォルダーでスキルを登録します。以下は Claude Code の例です。
+npm 版を選んだ場合は、先に CLI をインストールします。
 
 ```console
 npm install --global @markdstage/markdstage
+```
+
+どちらの配布版でも、資料を作るフォルダーでスキル登録コマンドを実行できます。
+Desktop の **Install skills…** も使用できます。以下は Claude Code の例です。
+
+```console
 markdstage skill install --target claude
 ```
 
@@ -198,12 +234,19 @@ npm 版の `present` は同じフル UI を発表者ビューで開き、**Start
 
 <a id="present-without-ai"></a>
 
-## AI を使わずに発表する
+## AI を使わずに編集・発表する
 
 Markdown を自分で書くか、[最小の記述例](#markdown-format)や
 [ソース付きの作例](https://runceel.github.io/MarkdStage/#examples)から始めて、
-`slides.md` として保存します。スキル登録は不要です。グローバルインストールせずに使う場合は、
-次のように実行できます。
+`slides.md` として保存します。スキル登録は不要です。Windows の Store 版では次を実行します。
+
+```console
+markdstage --workspace .
+markdstage slides.md
+markdstage present slides.md
+```
+
+npm 版をグローバルインストールせずに使う場合は、次を実行します。
 
 ```console
 npx @markdstage/markdstage --workspace .
@@ -214,37 +257,8 @@ npx @markdstage/markdstage present slides.md
 これらの `npx` コマンドは従来どおりブラウザーで動く npm 版です。最初のコマンドは現在の
 ワークスペースを対象に Canvas と同等の空の UI を開きます。2つ目は
 `slides.md` を自動更新付きで開きます。npm 版 CLI UI と Canvas のどちらでも
-**More controls > Open Markdown** からファイルを直接開けます。発表用のネイティブアプリも
-利用できます。
-
-<a id="desktop"></a>
-
-## MarkdStage Desktop を使う
-
-[MarkdStage Desktop](./apps/MarkdStage.Desktop/README.md) は、ファイルピッカーから Markdown を開く
-WinUI 3 アプリです。現在のスライドと次のスライド、スピーカーノートを並べて表示し、
-GitHub Copilot を開かずに、操作が同期するネイティブの投影用ウィンドウで発表できます。
-
-Windows と Microsoft Edge WebView2 Runtime が必要です。
-現在の **[v4.2.5 リリース](https://github.com/runceel/markdstage/releases/tag/v4.2.5)** には、
-Windows x64 / ARM64 向けのポータブルビルドと SHA-256 チェックサムファイルが含まれます。
-
-- [MarkdStage-win-x64.zip](https://github.com/runceel/markdstage/releases/download/v4.2.5/MarkdStage-win-x64.zip)
-- [MarkdStage-win-arm64.zip](https://github.com/runceel/markdstage/releases/download/v4.2.5/MarkdStage-win-arm64.zip)
-
-フォルダーごと展開し、`MarkdStageApp.exe` を実行して Markdown ファイルを開きます。
-
-署名済みのサイドローディング用パッケージも利用できます。
-
-- [MarkdStage-win-x64.msix](https://github.com/runceel/markdstage/releases/download/v4.2.5/MarkdStage-win-x64.msix)
-- [MarkdStage-win-arm64.msix](https://github.com/runceel/markdstage/releases/download/v4.2.5/MarkdStage-win-arm64.msix)
-- [MarkdStage.cer](https://github.com/runceel/markdstage/releases/download/v4.2.5/MarkdStage.cer)
-
-端末のアーキテクチャに合う MSIX をインストールする前に、`MarkdStage.cer` をローカル
-コンピューターの **信頼されたユーザー** 証明書ストアへインポートしてください。
-
-**Microsoft Store:** [MarkdStage をインストール](https://apps.microsoft.com/detail/9N9DG772RM03)。
-Store パッケージにはネイティブアプリと `markdstage` 実行エイリアスが含まれます。
+**More controls > Open Markdown** からファイルを直接開けます。
+Desktop ではワークスペースの一覧か **Open Markdown file…** を使います。
 
 <a id="community-macos-app"></a>
 
@@ -255,10 +269,10 @@ Store パッケージにはネイティブアプリと `markdstage` 実行エイ
 
 <a id="examples"></a>
 
-## Markdown をステージへ
+## 表示例
 
 同じソースとレンダラーで、編集・プレビュー・発表・出力をつなげられます。
-[紹介サイトの作例](https://runceel.github.io/MarkdStage/#examples)では、表示結果と
+[Web サイトの作例](https://runceel.github.io/MarkdStage/#examples)では、表示結果と
 ダウンロードできる Markdown を確認できます。
 
 <table>
@@ -284,7 +298,7 @@ Store パッケージにはネイティブアプリと `markdstage` 実行エイ
   </tr>
 </table>
 
-### ネットワーク構成図も編集可能な Markdown で
+### ネットワーク構成図の例
 
 [Azure ハブスポークのサンプル](./site/examples/azure-hub-spoke.md)では、Architecture DSL v1 で
 共有ハブ、4 つのスポーク VNet、入れ子のサブネットと VM、種類の異なる接続を表現しています。
@@ -306,9 +320,9 @@ MarkdStage で図を開いて編集する手順は、[ガイドの実例](./docs
 位置、サイズ、グループ、接続線を指定してスライドに合わせた構成にしたいときは
 **Architecture DSL** を使えます。どちらにも対応しており、作りたい図に応じて選べます。
 
-AI が作成した Architecture 図も直接調整できます。Canvas では **More controls > Open Markdown**
-でソースを読み込み、**More controls > Shape editing > Advanced editing** から
-Architecture Editor を開きます。ノード、グループ、画像、コネクターの追加、削除、配置、確認ができます。
+Architecture 図は直接調整できます。Desktop ではワークスペースの一覧、Canvas では
+**More controls > Open Markdown** でソースを開きます。**More controls > Shape editing** から
+ソースにひも付いた Architecture Editor を開き、ノード、グループ、画像、コネクターを編集します。
 変更は下書きとして保持され、**Save** で Markdown に書き戻されます。
 CLI の `preview --watch` でも Architecture 図のビジュアル編集に対応しています。
 
@@ -329,7 +343,7 @@ theme: dark
 layout: title
 ---
 
-# Markdown, ready for the stage.
+# Sample presentation
 
 ---
 
@@ -356,7 +370,9 @@ layout: title
 
 - [ユーザーガイド](./docs/user-guide/ja/README.md)
 - [インストールと前提条件](./docs/user-guide/ja/installation.md)
-- [GitHub Copilot とスライドを作成する](./docs/user-guide/ja/ai-assisted-authoring.md)
+- [Windows Desktop: ワークスペース、スキル、編集、出力](./docs/user-guide/ja/desktop.md)
+- [スクリーンショット付き Windows 操作チュートリアル](./docs/user-guide/ja/windows-walkthrough.md)
+- [AI を使った作成](./docs/user-guide/ja/ai-assisted-authoring.md)
 - [GitHub Copilot ハンズオン](./docs/user-guide/ja/copilot-hands-on.md)
 - [Agent Skill のインストール](./docs/user-guide/ja/cli.md#agent-skills)
 - [Canvas Extension の仕様とアクション](./.github/extensions/markdstage/README.md)
@@ -381,13 +397,14 @@ layout: title
 | `packages/markdstage-cli/` | `@markdstage/markdstage` CLI パッケージと CLI・Desktop が使う Agent Skill 生成処理 |
 | `apps/MarkdStage.Desktop/` | WinUI 3 Desktop アプリ |
 | `assets/brand/` | MarkdStage のロゴ、ロックアップ、README バナー |
-| `assets/readme/` | この README に掲載しているスライドと Architecture Editor の画像 |
-| `site/` | 日英対応の GitHub Pages 紹介サイト、本文、ソース付き作例 |
+| `assets/readme/` | スライドと Architecture Editor の作例画像 |
+| `docs/user-guide/images/` | ユーザーガイドのスクリーンショットと Windows 操作動画 |
+| `site/` | 日英対応の GitHub Pages サイト、本文、ソース付き作例 |
 | `slides.md` | 機能を紹介するサンプルデッキ |
 
-## 紹介サイトの開発
+## Web サイトの開発
 
-[紹介サイト](https://runceel.github.io/MarkdStage/) は `site/` から静的に生成します。
+[Web サイト](https://runceel.github.io/MarkdStage/) は `site/` から静的に生成します。
 ビルドに追加パッケージは不要です。Node.js 24 以降で次を実行します。
 
 ```console
@@ -404,7 +421,7 @@ npm run preview:site
 `site/content/product.json` で管理します。`site/examples/` の作例は
 `site/assets/examples/` の PNG と対応しています。作例を変更したら
 [CLI の `capture --pages 1`](./docs/user-guide/ja/cli.md) で先頭スライドを再取得し、
-対応する PNG を置き換えてください。Architecture Editor の画像は `assets/readme/` を再利用します。
+対応する PNG を置き換えてください。Windows の画面は `docs/user-guide/images/` を再利用します。
 
 `npm run test:site` は既存の Node、Playwright、axe-core でサイトを確認します。
 必要に応じて `npm ci` でテスト依存関係、`npx playwright install chromium` で

@@ -1,14 +1,29 @@
 # MarkdStage Desktop
 
-**Markdown, ready for the stage.**
+MarkdStage is a workspace-based Windows application for Markdown slide decks. It uses WinUI 3
+and the shared MarkdStage slide UI and renderer for viewing decks, editing Architecture diagrams,
+presenting, and exporting, independently of the GitHub Copilot App.
 
-MarkdStage (pronounced "marked stage") is a WinUI 3 app that displays Markdown with the same
-renderer as the MarkdStage canvas, independently of the GitHub Copilot App.
+## Installation and requirements
+
+Install MarkdStage from the [Microsoft Store](https://apps.microsoft.com/detail/9N9DG772RM03).
+One installation includes the graphical app and the `markdstage` command-line tool. Node.js is
+not required. Portable ZIPs and signed sideloading packages are alternatives described below.
+
+- Windows 10 version 1809 (build 17763) or later, on x64 or ARM64.
+- Microsoft Edge WebView2 Runtime for the native UI and CLI validation. The slide view,
+  Architecture Editor, presenter view, and native audience window need no separate browser.
+- An installed Microsoft Edge, Google Chrome, or Chromium for layout-dependent CLI inspection,
+  PNG capture, and PDF/PowerPoint export from either the GUI or CLI.
+
+MarkdStage does not download or install browsers or runtimes. Browser policy that disables
+remote debugging prevents layout inspection, capture, and export.
 
 ## Features
 
-- Open `.md` and `.markdown` files with the Windows file picker.
-- Open the same full slide-view application as `markdstage <file.md>`.
+- Open a workspace folder, browse and filter its deck files, and return to recent workspaces.
+- Open `.md` and `.markdown` files with the Windows file picker or drag and drop.
+- Use the shared slide controls, theme selection, and fixed 16:9 Output preview.
 - Switch to presenter view for current/next slides and Slidev/Marp-style speaker notes.
 - Open the slide list from the shared controls or with O, then jump to any slide.
 - Navigate with the arrow keys, PageUp/PageDown, Space, Home, and End.
@@ -18,7 +33,10 @@ renderer as the MarkdStage canvas, independently of the GitHub Copilot App.
 - Preserve the last valid deck when a reload fails.
 - Install packaged MarkdStage Agent Skills for Codex, Claude Code, and GitHub Copilot into an open
   workspace, with explicit force-overwrite control for locally modified files.
+- Edit existing Architecture DSL diagrams in a native editor window and write changes back to
+  Markdown with explicit **Save**.
 - Open the audience view as a native WinUI 3 window from the shared MarkdStage controls.
+- Export PDF and hybrid editable PowerPoint from the GUI or the included CLI.
 - Support dark, light, Microsoft, and custom themes; Mermaid; code highlighting; Architecture DSL;
   and local images.
 
@@ -110,7 +128,8 @@ only when submission is explicitly requested. GitHub Release MSIX files are
 separately signed sideloading packages and are not Store submission inputs.
 
 Microsoft Edge WebView2 Runtime is required on the target system. The audience view uses a native
-window built into the app, so a separate Edge, Chrome, or Chromium installation is not required.
+window built into the app and needs no separate browser. GUI and CLI exports require an installed
+Edge, Chrome, or Chromium, as described under Installation and requirements.
 
 ## Markdown and assets
 
@@ -134,8 +153,48 @@ window built into the app, so a separate Edge, Chrome, or Chromium installation 
 
 For a source-backed deck, **More controls → Shape editing** opens the shared Architecture Editor
 in a native window. It edits existing `architecture` fences only and writes changes explicitly on
-**Save**, rejecting stale saves when the Markdown changed externally. General Markdown editing and
-PDF export, and a timer remain outside the scope of the initial release.
+**Save**, rejecting stale saves when the Markdown changed externally. The app does not include a
+general Markdown text editor: edit slide text and other Markdown in an external editor or AI tool,
+then save the file to reload the deck.
+
+### GUI Agent Skills installation
+
+Open a workspace and choose **Install skills…** from its file list. Select Codex, Claude Code,
+GitHub Copilot, or a combination, then choose **Install**. The installer writes only to the
+selected workspace:
+
+- Codex: `.agents\skills\markdstage`
+- Claude Code: `.claude\skills\markdstage`
+- GitHub Copilot: `.github\skills\markdstage`
+
+Modified skill files are left untouched unless **Force overwrite modified skill files** is
+selected. Review conflicts before using this option; it replaces local edits in the selected skill
+directories. Installing Skills writes instruction files, not an AI client. AI tools are installed
+and operated separately and have their own data-handling policies.
+
+### PDF and PowerPoint export
+
+With a deck open, use **More controls → Output preview** to check the fixed 16:9 layout. Choose
+**Export PDF** or **Export PowerPoint…** from the same menu. GUI exports are saved beside the source
+Markdown with the same base name and a `.pdf` or `.pptx` extension, replacing an existing export at
+that path. The completion notification shows the saved path; select it to open the file with its
+Windows-associated application.
+
+PowerPoint output is hybrid: supported text, shapes, and connectors remain editable, while
+unsupported visuals or effects may be retained as images. In the PowerPoint dialog, Mermaid
+**Editable shapes** uses editable objects where supported and image fallbacks for unsupported
+details; **Images** keeps each Mermaid diagram as one image. Not every part of a slide becomes an
+editable PowerPoint object. Review the exported file before distributing it.
+
+The included CLI supports the same output formats:
+
+```powershell
+markdstage export slides.md --output slides.pdf
+markdstage export slides.md --output slides.pptx
+```
+
+Both GUI and CLI exports require the external Chromium-based browser described above. Export
+paths must remain inside the workspace.
 
 ## Desktop packages and Microsoft Store distribution
 
@@ -149,8 +208,15 @@ explicit request. Package identity/publisher values must match Partner Center.
 Portable packages are self-contained and include `MarkdStageApp.exe`,
 `MarkdStageCli.exe`, the Windows App SDK/.NET runtime, and the shared renderer
 assets. They do not include Node.js. Extract the ZIP and run
-`MarkdStageApp.exe`. These packages remain available when Store installation is
-not suitable.
+`.\MarkdStageApp.exe`, or open a single file with
+`.\MarkdStageApp.exe "C:\decks\slides.md"`. The graphical executable accepts no
+arguments or one `.md`/`.markdown` path; it does not parse CLI subcommands or
+`--workspace`. Use the folder picker to choose a workspace.
+
+The portable `.\MarkdStageCli.exe` supports console commands, including export.
+Native GUI handoff requires an installed package and its execution alias; for a
+portable local server, use `.\MarkdStageCli.exe preview slides.md --no-open`.
+These packages remain available when Store installation is not suitable.
 
 The packaged CLI uses the alias `markdstage` and does not bundle or acquire Node.
 Bare invocation, direct Markdown, `preview`, and `present` activate the installed
@@ -184,18 +250,24 @@ Help, version, `guide`, and `skill` need no browser. These and `validate`, `insp
 
 ### Store listing prerequisite disclosure
 
-**MarkdStage — Markdown, ready for the stage.** Present Markdown decks with a
-current/next-slide presenter view, speaker notes, a synchronized audience window,
-and Surface Pen navigation. Open your own workspace folders; your content stays
-in your files. The graphical app is a presenter, not a PDF/PowerPoint exporter.
-PDF and PowerPoint exports are available through the included command-line tool.
+MarkdStage is a workspace-based Windows application for Markdown slide decks.
+The Microsoft Store installation includes the graphical app and CLI, without
+Node.js. The GUI provides the shared slide UI, theme selection, workspace-scoped
+Agent Skills installation, Architecture editing with explicit Save, presenter
+view, and a synchronized native audience window. PDF and hybrid editable
+PowerPoint exports are available from both the GUI and CLI.
 
-Microsoft Edge WebView2 Runtime is required. The included command-line tool opens
-the native app for interactive use, including presentation; no separate browser
-is needed for those commands. Command-line inspection, capture, and export
-additionally require installed Microsoft Edge, Google Chrome, or Chromium.
+Windows 10 version 1809 or later and Microsoft Edge WebView2 Runtime are required.
+The included command-line tool opens the native app for interactive use, including
+presentation; no separate browser is needed for those commands or for validation.
+Command-line layout inspection and capture, plus GUI and CLI export, additionally
+require installed Microsoft Edge, Google Chrome, or Chromium.
 Organization policy disabling remote debugging prevents inspection, capture, and
 export. No browser or runtime is downloaded or installed by MarkdStage.
+
+Decks and installed Skills remain in local workspace files. MarkdStage does not
+require a MarkdStage account or upload decks to a MarkdStage service. Separately
+used AI assistants and services have their own data-handling policies.
 
 ### Windows package acceptance
 
@@ -278,11 +350,22 @@ verification. Repeat the relevant checks for future package submissions.
   different workspaces. Failed reloads must retain the displayed deck.
 - Test current/next previews, notes, audience open/close, F11/Esc, overview, pointer
   navigation, Surface Pen, custom themes, and existing representative decks.
+- Test **Install skills…** from an open workspace: selected Codex, Claude Code,
+  and Copilot targets only; unchanged files preserved; modified files reported
+  as conflicts unless force overwrite is explicitly selected.
+- Test **Shape editing** in a native Architecture Editor window. Diagram changes
+  must not update the Markdown before **Save**; saving updates the existing
+  fence and reloads the deck. An external source change must reject a stale save.
+- Test GUI **Output preview**, **Export PDF**, and **Export PowerPoint…** with a
+  disposable deck. Verify output beside the source, same-name replacement,
+  completion/error notifications, and opening the saved file. Check both Mermaid
+  output choices and hybrid editability. Missing browsers or blocked remote
+  debugging must report export failure, not success.
 - Test missing WebView2/inaccessible data storage: selectable full-window
   recovery text, vendor link, retry, and a still movable/closable window.
 - Verify restart persists only recent workspaces, window geometry, and chosen
-  theme; uninstall leaves workspace content intact. Check that no GUI export
-  controls or archive detection/migration appear.
+  theme; uninstall leaves workspace content intact. Check that no general
+  Markdown text editor or archive detection/migration appears.
 
 Cross-surface boundaries and invariants are documented in
 [`docs/architecture.md`](../../docs/architecture.md). This file remains the

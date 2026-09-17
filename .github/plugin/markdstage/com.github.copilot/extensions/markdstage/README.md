@@ -1000,12 +1000,18 @@ should determine placement without writing every coordinate.
 
 ### Placement editing
 
-Architecture diagrams can be moved directly over the rendered result. For decks
-imported through **More controls > Open Markdown**, edits write back to the source `architecture` fence and
-survive re-import. Decks supplied directly through open / `load_deck` cannot be
-reversibly mapped to a source file, so they save only to canvas deck state.
-In the standalone CLI, `markdstage preview slides.md --watch` enables the same
-source-backed editing workflow; `preview` without `--watch` is read-only.
+Architecture diagrams support lightweight placement operations and a detailed designer.
+For source-backed decks opened through `sourcePath` or **More controls > Open Markdown**,
+**Shape editing** opens the detailed designer directly. Select **Save** to write draft changes
+to the source `architecture` fence. Desktop workspace files and the npm UI use the same
+explicit-save workflow.
+
+Decks supplied only as in-memory `slides` cannot be reversibly mapped to a file, so their
+lightweight placement edits save only to canvas deck state. The Canvas `edit_architecture`
+action can also activate lightweight placement operations.
+
+In the npm CLI, `markdstage preview slides.md --watch` enables initial automatic refresh;
+`--watch` does not gate editing. Native Windows watching is always enabled.
 
 **Placement editing is a stable part of Architecture DSL v1.**
 
