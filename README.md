@@ -1,14 +1,10 @@
 <p align="center">
   <a href="https://github.com/runceel/markdstage">
-    <img src="./assets/brand/markdstage-banner.svg" alt="MarkdStage - Markdown, ready for the stage." width="100%">
+    <img src="./assets/brand/markdstage-mark.svg" alt="MarkdStage" width="96">
   </a>
 </p>
 
 <h1 align="center">MarkdStage</h1>
-
-<p align="center">
-  <strong>Markdown, ready for the stage.</strong>
-</p>
 
 <p align="center">
   <a href="./README.ja.md">日本語</a>
@@ -33,19 +29,24 @@
   <a href="https://github.com/runceel/markdstage/releases">Releases</a>
 </p>
 
-MarkdStage is an open-source tool for creating slides with AI and refining them yourself.
-Ask for a draft from notes or source material, edit the wording and diagram positions directly,
-then inspect, present, and share. Content stays in Markdown and appearance is managed through
-themes. You can also write and present without AI or the GitHub Copilot App.
+MarkdStage is an open-source application for authoring, reviewing, presenting, and exporting
+Markdown slides. The Windows application provides workspace browsing, visual Architecture diagram
+editing, output preview, presenter and audience views, and PDF and PowerPoint export.
+[Microsoft Store](https://apps.microsoft.com/detail/9N9DG772RM03) installs both the GUI and the
+`markdstage` CLI. The GUI can also install Agent Skills into a workspace.
+
+The same Markdown format is available in GitHub Copilot Canvas and the npm CLI. AI assistance is
+optional: edit source text in your text editor, or use an external AI tool with MarkdStage guidance.
+MarkdStage Desktop does not contain an AI chat interface.
 
 <a id="why-markdstage"></a>
 
-## From draft to shared slides
+## Workflow
 
 | Stage | What you can do |
 | --- | --- |
-| **Create** | Give AI your material, audience, and presentation length. Canvas guidance or a CLI Agent Skill provides the slide format and theme references. |
-| **Refine** | Edit wording in Markdown while keeping the theme. Adjust Architecture diagram positions visually instead of sending every small change back through AI. |
+| **Create** | Write Markdown in a text editor, copy an example, or ask an AI tool for a draft. Canvas guidance and Agent Skills describe the slide format and themes. |
+| **Refine** | Edit wording in the source file. Use the Architecture Editor in Desktop, Canvas, or the CLI browser UI to change diagram shapes, properties, and connections. |
 | **Inspect** | Ask AI to check whether the content fits. It uses layout diagnostics and images of selected slides to identify areas that need revision. |
 | **Present** | Keep speaker notes and the next slide in view while a synchronized audience window shows the presentation. |
 | **Share** | Export PDF for viewing or hybrid editable PowerPoint for review and further editing. Recipients do not need MarkdStage. |
@@ -60,10 +61,42 @@ for supported elements and fallback details.
 
 | Surface | Purpose |
 | --- | --- |
+| **[Windows Desktop and included CLI](#use-markdstage-desktop)** | Browse a workspace, install Agent Skills, edit Architecture diagrams, review slides, present, and export from the GUI; use the included CLI for diagnostics and automation. |
 | **[Canvas with GitHub Copilot](#use-the-canvas-extension)** | Draft and revise in the GitHub Copilot App, refine Architecture diagrams visually, and present or export from Canvas. |
-| **[CLI + Agent Skill](#use-the-cli)** | Use Claude Code or Codex to create and review a deck, then refine it locally with `preview --watch`. No Canvas host is required. |
-| **[Direct editing and native presentation](#present-without-ai)** | Write Markdown yourself or start from an example. Open it directly in Canvas, the CLI, or the Windows presenter. |
+| **[npm CLI + Agent Skill](#use-the-cli)** | Use a terminal, CI, Claude Code, or Codex with the browser-based UI. No Canvas host is required. |
+| **[Editing without AI](#present-without-ai)** | Write Markdown yourself or start from an example, then open it in Desktop, Canvas, or the CLI. |
 | **MarkStageForMac** (third-party) | Present on macOS with the community-built native app. Developed and supported outside this repository |
+
+## Use MarkdStage Desktop
+
+Install [MarkdStage from Microsoft Store](https://apps.microsoft.com/detail/9N9DG772RM03).
+One installation provides the Windows application and the `markdstage` console alias.
+**Node.js and npm are not required for the Windows package.**
+
+1. Start **MarkdStage** from the Windows Start menu.
+2. Select **Open folder…** and choose the folder containing your Markdown and assets.
+3. If using an AI tool, select **Install skills…**, choose Codex, Claude Code, or GitHub Copilot,
+   and select **Install**. Use the same folder in that tool. Skill installation is optional and
+   does not install the AI tool or the Canvas Extension.
+4. Select a Markdown file from the workspace list. Edit its text in your text editor; Desktop
+   refreshes the preview when you save.
+5. On an Architecture slide, select **More controls > Shape editing**. Edit the diagram and
+   select **Save** to write the changes back to Markdown.
+6. Use **Output preview**, **Presenter view**, **Export PDF**, or **Export PowerPoint…** from
+   **More controls**.
+
+![MarkdStage Desktop with a sample Architecture slide and its editing, presentation, and export commands](./docs/user-guide/images/windows-controls.png)
+
+Native viewing uses Microsoft Edge WebView2 Runtime. Layout inspection, PNG capture, and
+PDF/PowerPoint export additionally require an installed Edge, Chrome, or Chromium browser.
+MarkdStage does not download these runtimes.
+
+The [Windows guide](./docs/user-guide/desktop.md) explains workspace navigation and Skill
+installation. The [Windows walkthrough](./docs/user-guide/windows-walkthrough.md) includes a
+fictional sample, screenshots, and example AI requests covering diagram editing through export.
+For portable ZIPs and signed sideloading packages, see
+[installation](./docs/user-guide/installation.md) and the
+[v4.2.5 release](https://github.com/runceel/markdstage/releases/tag/v4.2.5).
 
 ## Use the canvas Extension
 
@@ -137,25 +170,23 @@ terminals, and CI. The **npm CLI** requires **Node.js 24 or later** and an insta
 **Microsoft Edge, Google Chrome, or Chromium**; it does not download a browser.
 See the [installation guide](./docs/user-guide/installation.md) for prerequisites and offline installation.
 
-The **Windows packaged CLI installed with
-[MarkdStage from Microsoft Store](https://apps.microsoft.com/detail/9N9DG772RM03)**
-needs no Node.js. Bare `markdstage`, a Markdown path, and `preview` open/reuse the native
-workspace window; `present` also opens the native audience window. Bare invocation
-uses caller CWD with no file selected. Native interaction requires only WebView2,
-while `inspect`, `capture`, and `export` still require external Chromium.
-The CLI exits after app acceptance. `--no-open` explicitly retains the local server
-until Ctrl+C. Native Markdown watching is always enabled (`--watch` is accepted).
-Native handoff rejects `--theme` / `--theme-file`: choose the theme in the app or
-use `--no-open`. See the
-[CLI guide](./docs/user-guide/cli.md) for flags and acceptance JSON.
+**Windows Store users already have the CLI; do not install npm just to use it.**
+Bare `markdstage`, a Markdown path, and `preview` open or reuse the native workspace window;
+`present` also opens the native audience window. Diagnostics and exports remain console commands.
+See the [CLI guide](./docs/user-guide/cli.md) for flags, prerequisites, and differences from npm.
 
 ### Install and ask for a draft
 
-Install the npm CLI, then run the Skill command in the folder where you will create your deck.
-This example selects Claude Code:
+If you chose the npm distribution, install it first:
 
 ```console
 npm install --global @markdstage/markdstage
+```
+
+With either distribution, run the Skill command in your deck folder, or use Desktop's
+**Install skills…** button. This example selects Claude Code:
+
+```console
 markdstage skill install --target claude
 ```
 
@@ -215,11 +246,21 @@ package, `present` opens presenter view and the native audience window immediate
 repeating the command reuses that window. Review every page of the final export
 before distribution.
 
-## Present without AI
+<a id="present-without-ai"></a>
+
+## Edit and present without AI
 
 Write Markdown yourself, use the [minimal format below](#markdown-format), or download a
 [source-backed example](https://runceel.github.io/MarkdStage/en/#examples) and save it as `slides.md`.
-No Skill registration is needed. Without a global install, you can run:
+No Skill registration is needed. With the Windows Store installation:
+
+```console
+markdstage --workspace .
+markdstage slides.md
+markdstage present slides.md
+```
+
+For the npm distribution without a global install:
 
 ```console
 npx @markdstage/markdstage --workspace .
@@ -230,34 +271,8 @@ npx @markdstage/markdstage present slides.md
 These `npx` commands use the unchanged browser-based npm CLI. The first opens an empty
 Canvas-equivalent UI for the current workspace. The second opens
 `slides.md` with automatic refresh. Both the npm CLI UI and Canvas open files through
-**More controls > Open Markdown**. Native presenters are another option:
-
-## Use MarkdStage Desktop
-
-[MarkdStage Desktop](./apps/MarkdStage.Desktop/README.md) is a WinUI 3 app that opens Markdown
-from a file picker. It displays the current and next slides with the current slide's speaker notes,
-and launches a synchronized native presentation window without GitHub Copilot.
-
-It requires Windows and the Microsoft Edge WebView2 Runtime. The current
-**[v4.2.5 release](https://github.com/runceel/markdstage/releases/tag/v4.2.5)** includes portable
-builds and SHA-256 checksum files for Windows x64 and ARM64:
-
-- [MarkdStage-win-x64.zip](https://github.com/runceel/markdstage/releases/download/v4.2.5/MarkdStage-win-x64.zip)
-- [MarkdStage-win-arm64.zip](https://github.com/runceel/markdstage/releases/download/v4.2.5/MarkdStage-win-arm64.zip)
-
-Extract the whole folder, run `MarkdStageApp.exe`, and open your Markdown file.
-
-Signed sideloading packages are also available:
-
-- [MarkdStage-win-x64.msix](https://github.com/runceel/markdstage/releases/download/v4.2.5/MarkdStage-win-x64.msix)
-- [MarkdStage-win-arm64.msix](https://github.com/runceel/markdstage/releases/download/v4.2.5/MarkdStage-win-arm64.msix)
-- [MarkdStage.cer](https://github.com/runceel/markdstage/releases/download/v4.2.5/MarkdStage.cer)
-
-Import `MarkdStage.cer` into the local machine's **Trusted People** certificate store before
-installing the MSIX matching the device architecture.
-
-**Microsoft Store:** [Install MarkdStage](https://apps.microsoft.com/detail/9N9DG772RM03).
-The Store package includes the native app and the `markdstage` execution alias.
+**More controls > Open Markdown**. Desktop opens files from its workspace list or
+**Open Markdown file…** picker.
 
 <a id="community-macos-app"></a>
 
@@ -266,7 +281,9 @@ The Store package includes the native app and the `markdstage` execution alias.
 [MarkStageForMac](https://github.com/07JP27/MarkStageForMac) is a native macOS app built by the
 MarkdStage community. It is developed, released, and supported outside this repository.
 
-## See Markdown on stage
+<a id="see-markdown-on-stage"></a>
+
+## Examples
 
 The same source and renderer connect editing, preview, presentation, and export.
 The [website examples](https://runceel.github.io/MarkdStage/en/#examples) include rendered slides
@@ -295,7 +312,7 @@ and downloadable Markdown.
   </tr>
 </table>
 
-### Network architecture in editable Markdown
+### Network architecture example
 
 The [Azure hub-spoke example](./site/examples/azure-hub-spoke.md) uses Architecture DSL v1 to
 combine a shared hub, four spoke VNets, nested subnets and VMs, and distinct connection types.
@@ -318,8 +335,9 @@ Use **Mermaid** for automatic, relationship-driven layout; its colors can follow
 Use **Architecture DSL** to specify positions, sizes, groups, and connectors as part of a slide's
 composition. Both are supported; choose by the kind of diagram you need.
 
-An AI-drafted Architecture diagram can be refined directly. In Canvas, load the source with
-**More controls > Open Markdown**, then choose **More controls > Shape editing > Advanced editing**.
+An Architecture diagram can be refined directly. In Desktop, open the Markdown from the workspace
+list; in Canvas, use **More controls > Open Markdown**. Then choose **More controls > Shape editing**
+to open the source-backed Architecture Editor.
 The Architecture Editor can add, remove, arrange, and inspect nodes, groups, images, and connectors.
 Changes remain a draft until **Save** writes them back to Markdown. The CLI's `preview --watch`
 also provides visual Architecture editing.
@@ -339,7 +357,7 @@ theme: dark
 layout: title
 ---
 
-# Markdown, ready for the stage.
+# Sample presentation
 
 ---
 
@@ -363,7 +381,9 @@ PowerPoint notes pane. They remain absent from regular slides, the audience wind
 
 - [User guide](./docs/user-guide/README.md)
 - [Installation and prerequisites](./docs/user-guide/installation.md)
-- [Create slides with GitHub Copilot](./docs/user-guide/ai-assisted-authoring.md)
+- [Windows Desktop: workspaces, Skills, editing, and export](./docs/user-guide/desktop.md)
+- [Windows walkthrough with screenshots](./docs/user-guide/windows-walkthrough.md)
+- [AI-assisted authoring](./docs/user-guide/ai-assisted-authoring.md)
 - [GitHub Copilot hands-on](./docs/user-guide/copilot-hands-on.md)
 - [Agent Skill installation](./docs/user-guide/cli.md#agent-skills)
 - [Canvas Extension specification and actions](./.github/extensions/markdstage/README.md)
@@ -388,7 +408,8 @@ PowerPoint notes pane. They remain absent from regular slides, the audience wind
 | `packages/markdstage-cli/` | `@markdstage/markdstage` CLI package and the Agent Skill generator used by CLI and Desktop installers |
 | `apps/MarkdStage.Desktop/` | WinUI 3 desktop app |
 | `assets/brand/` | MarkdStage logo, lockup, and README banner |
-| `assets/readme/` | Rendered slide and Architecture Editor images used in this README |
+| `assets/readme/` | Rendered slide and Architecture Editor examples |
+| `docs/user-guide/images/` | User-guide screenshots and the Windows walkthrough recording |
 | `site/` | Bilingual GitHub Pages website, content, and source-backed examples |
 | `slides.md` | Sample deck that demonstrates the features |
 
@@ -411,7 +432,7 @@ the CLI command, and the trusted Canvas release tag live in
 `site/content/product.json`. The examples in `site/examples/` match their PNGs
 in `site/assets/examples/`; after editing an example, regenerate its first slide
 with the [CLI's `capture --pages 1` command](./docs/user-guide/cli.md) and replace
-the matching PNG. The Architecture Editor image is reused from `assets/readme/`.
+the matching PNG. Windows screenshots are reused from `docs/user-guide/images/`.
 
 `npm run test:site` uses the existing Node, Playwright, and axe-core test tools
 (install test dependencies with `npm ci` and Chromium with

@@ -55,6 +55,33 @@ test("generated skills explain direct live Architecture editing", async () => {
   assert.match(skill, /starts in viewing mode/);
   assert.match(skill, /detailed designer/);
   assert.match(skill, /Automatic refresh can be toggled/);
+  assert.match(skill, /moving a shape does not save immediately/);
+  assert.doesNotMatch(skill, /Placement changes save immediately|choose \*\*Advanced edit\*\*/);
+});
+
+test("installed references describe refresh independently of editing permissions", async () => {
+  for (const target of Object.keys(SKILL_TARGETS)) {
+    const files = await buildSkillFiles(target);
+    assert.match(files.get("references/overview.md"), /initial automatic refresh, not editing permission/);
+    assert.match(files.get("references/architecture-dsl.md"), /`--watch` does not gate editing/);
+    assert.match(files.get("references/overview.md"), /changes affect Markdown only after explicit \*\*Save\*\*/);
+  }
+});
+
+test("every skill distinguishes the included Windows CLI from the npm alternative", async () => {
+  for (const target of Object.keys(SKILL_TARGETS)) {
+    const skill = (await buildSkillFiles(target)).get("SKILL.md");
+    assert.match(skill, /Windows Store\/MSIX package: includes the GUI and `markdstage` CLI; no Node\.js/);
+    assert.match(skill, /npm distribution: requires Node\.js 24 or later/);
+    assert.match(skill, /including Windows GUI exports/);
+    assert.match(skill, /Get-Command markdstage -All/);
+    assert.match(skill, /Do not add npm just to use the Store CLI/);
+    assert.match(skill, /Install skills…/);
+    assert.match(skill, /does not install the AI tool or the Canvas Extension/);
+    assert.match(skill, /More controls > Shape editing/);
+    assert.match(skill, /returns after app\s+acceptance/);
+    assert.match(skill, /Native watching is always on/);
+  }
 });
 
 test("every skill exposes Archify imports and the canonical guidance", async () => {
@@ -72,7 +99,8 @@ test("every skill exposes Archify imports and the canonical guidance", async () 
   const canvasSkill = (await buildSkillFiles("copilot")).get("SKILL.md");
   assert.match(canvasSkill, /import an Archify SVG/);
   assert.match(canvasSkill, /```archify\nassets\/checkout-architecture\.svg\n```/);
-  assert.match(canvasSkill, /pass every slide to the `open` input/);
+  assert.match(canvasSkill, /pass `sourcePath: "slides\.md"` to the `open` input/);
+  assert.doesNotMatch(canvasSkill, /pass every slide to the `open` input/);
   assert.match(canvasSkill, /markdstage guide slide-format/);
 });
 

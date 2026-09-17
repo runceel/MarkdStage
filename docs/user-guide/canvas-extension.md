@@ -96,17 +96,19 @@ Closing the canvas also closes the audience window.
 
 ## Validate and export
 
-Use **More controls > Output preview** before export. It renders the same fixed 1280x720 layout
+Before export, ensure **More controls > Output preview** is enabled; do not toggle it off if
+already checked. It renders the same fixed 1280x720 layout
 used by PDF output and warns when content is clipped. See
 [Presenting and export](presenting-and-export.md) for the complete workflow.
 
 ## Canvas-only features
 
-The following features are not available in MarkdStage Desktop:
+Canvas integrates with the GitHub Copilot App conversation and its deck operations, including
+`inspect_layout`. Desktop has no built-in AI chat; use an external agent with workspace Skills
+and the included CLI instead.
 
-- PDF export and PDF-equivalent clipping checks
-- Lightweight Architecture placement editing
-- Advanced Architecture Editor
-- Direct AI-driven deck creation and revision
+Desktop also supports diagram editing, fixed-output clipping review, presenter view, and
+PDF/PowerPoint export. See [AI-assisted authoring](ai-assisted-authoring.md) for the context
+boundary between these workflows.
 
 [Next: MarkdStage Desktop →](desktop.md)

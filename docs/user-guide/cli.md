@@ -7,7 +7,8 @@ terminal. It runs without the GitHub Copilot canvas. Console commands work in Co
 CI jobs, and remote shells; native interactive commands require a Windows desktop session.
 
 The CLI uses the same Markdown parser, renderer, theme handling, Architecture DSL validation, and
-PDF/PNG pipeline as the Canvas Extension, so a deck looks identical on every surface.
+PDF/PNG/PowerPoint pipeline as the Canvas Extension and Desktop. Fonts and browser versions may
+affect final appearance; review the output rather than assuming pixel-identical rendering.
 
 ## Installation
 
@@ -22,8 +23,17 @@ installation, and offline tarballs. There are two distributions:
   browser-based UI. Its existing server and browser behavior is unchanged.
 
 Both expose `markdstage`. If both are installed, check which command your shell
-resolves (`Get-Command markdstage` in PowerShell); `npx @markdstage/markdstage`
+resolves (`Get-Command markdstage -All` in PowerShell); `npx @markdstage/markdstage`
 explicitly selects npm.
+
+Installing [MarkdStage from Microsoft Store](https://apps.microsoft.com/detail/9N9DG772RM03)
+provides both the GUI and the CLI. The GUI can also install Skills and export PDF/PowerPoint;
+see [Desktop](desktop.md). No separate npm installation is needed for this workflow.
+
+The portable Windows ZIP instead provides `MarkdStageApp.exe` and `MarkdStageCli.exe`, without
+registering an alias. Use the GUI executable to open a workspace, and the CLI executable for
+console operations. Native CLI-to-GUI activation requires MSIX package identity; portable
+browser serving must explicitly use `--no-open`.
 
 ## Commands
 
@@ -131,7 +141,9 @@ markdstage capture --help
 Prefer structured validation and layout diagnostics over capturing every slide. Review every final
 export before distribution.
 
-## Architecture editing in watch mode
+<a id="architecture-editing-in-watch-mode"></a>
+
+## Architecture editing
 
 The following browser editing workflow applies to **npm** and the UI served with
 packaged `--no-open`. Native app handoff opens slide view with automatic watching;
@@ -139,12 +151,11 @@ use the app's **More controls → Shape editing** for its native Architecture ed
 
 `markdstage slides.md` with npm is the live authoring environment:
 
-1. Select the pencil control on a slide containing Architecture DSL.
-2. Drag an element or use the arrow keys. Placement edits are saved atomically
-   to the matching `architecture` fence.
-3. Select **Advanced edit** for the detailed designer. It can add, update,
-   duplicate, reparent, and delete supported elements.
-4. Select **Save** in the detailed designer to write its draft to Markdown.
+1. Select **More controls > Shape editing** on a slide containing Architecture DSL.
+2. The detailed designer opens directly. Move elements or adjust their properties; it also
+   supports adding, duplicating, reparenting, and deleting elements.
+3. Select **Save** to atomically write the draft to the matching `architecture` fence.
+   Moving a shape does not save it immediately.
 
 If the source changed outside the editor, the save is rejected instead of
 overwriting it. After a successful save, watch mode reloads the deck and keeps
@@ -191,6 +202,10 @@ Markdown format and the CLI commands. Reference files are generated from the sam
 runs; they are not copied from Agent Skill discovery directories in the MarkdStage source
 repository.
 
+On Windows, **Install skills…** in Desktop's workspace screen installs the same files without a
+terminal. Select the targets you use and open that workspace in the corresponding AI tool.
+The Skill does not install the AI tool or the Canvas Extension.
+
 | Target | Directory |
 | --- | --- |
 | `codex` | `.agents/skills/markdstage/` |
@@ -204,6 +219,8 @@ markdstage skill check --target all
 ```
 
 Locally modified files are reported as conflicts and are never overwritten without `--force`.
+After upgrading MarkdStage, run installation again to refresh the workspace guidance. Matching
+files are left unchanged; review conflicts before deliberately replacing local edits.
 
 ## Security
 

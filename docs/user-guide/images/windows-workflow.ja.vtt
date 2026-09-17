@@ -1,0 +1,191 @@
+WEBVTT
+
+1
+00:00:00.400 --> 00:00:04.200 line:90% position:50% align:center size:92%
+まず、AI エージェントに
+スライドの作成を依頼します。
+
+2
+00:00:04.400 --> 00:00:09.200 line:90% position:50% align:center size:92%
+ここでは、Web サービスの構成を説明する
+6 枚のスライドを作ります。
+
+3
+00:00:09.400 --> 00:00:13.500 line:90% position:50% align:center size:92%
+構成図と発表者ノートも
+含めるよう伝えます。
+
+4
+00:00:13.700 --> 00:00:17.800 line:90% position:50% align:center size:92%
+エラーや文字のはみ出しがあれば、
+直すように依頼します。
+
+5
+00:00:18.200 --> 00:00:22.400 line:90% position:50% align:center size:92%
+資料は、slides.md という
+Markdown ファイルで用意します。
+
+6
+00:00:22.600 --> 00:00:27.000 line:90% position:50% align:center size:92%
+スライドの本文や図、発表者ノートを
+Markdown ファイルで管理できます。
+
+7
+00:00:27.200 --> 00:00:31.800 line:90% position:50% align:center size:92%
+この例は、本文 6 枚に裏表紙が自動で加わり、
+全 7 ページになります。
+
+8
+00:00:32.200 --> 00:00:36.700 line:90% position:50% align:center size:92%
+MarkdStage で slides.md を開きます。
+
+9
+00:00:38.000 --> 00:00:39.700 line:90% position:50% align:center size:92%
+スライドの表紙が表示されました。
+
+10
+00:00:39.900 --> 00:00:45.300 line:90% position:50% align:center size:92%
+スライド一覧から、
+構成図のページを選びます。
+
+11
+00:00:45.500 --> 00:00:49.400 line:90% position:50% align:center size:92%
+ブラウザーから API を経由して
+データベースにアクセスする構成です。
+
+12
+00:00:49.800 --> 00:00:56.600 line:90% position:50% align:center size:92%
+図の位置を調整するには、
+Shape editing を開きます。
+
+13
+00:00:56.800 --> 00:00:59.000 line:90% position:50% align:center size:92%
+保存するまでは、元のファイルは変わりません。
+
+14
+00:00:59.100 --> 00:01:03.500 line:90% position:50% align:center size:92%
+API をドラッグして位置を調整します。
+
+15
+00:01:03.700 --> 00:01:07.400 line:90% position:50% align:center size:92%
+Save を押すと、変更が
+元のファイルに保存されます。
+
+16
+00:01:07.600 --> 00:01:10.500 line:90% position:50% align:center size:92%
+移動した位置が元のファイルに保存されました。
+
+17
+00:01:10.700 --> 00:01:14.600 line:90% position:50% align:center size:92%
+エディターを閉じて、スライド表示に戻ります。
+
+18
+00:01:14.800 --> 00:01:18.000 line:90% position:50% align:center size:92%
+スライド上でも、図と接続線の位置が
+更新されています。
+
+19
+00:01:18.400 --> 00:01:24.000 line:90% position:50% align:center size:92%
+発表するときは、
+Presenter view を開きます。
+
+20
+00:01:24.200 --> 00:01:27.400 line:90% position:50% align:center size:92%
+発表者は、現在と次のスライド、
+ノートを見ながら進められます。
+
+21
+00:01:27.600 --> 00:01:30.800 line:90% position:50% align:center size:92%
+発表を開始すると、
+投影用の画面が別ウィンドウで開きます。
+
+22
+00:01:31.000 --> 00:01:34.200 line:90% position:50% align:center size:92%
+矢印キーでスライドを切り替えます。
+
+23
+00:01:34.400 --> 00:01:38.000 line:90% position:50% align:center size:92%
+投影用の画面に発表者ノートは表示されません。
+
+24
+00:01:38.200 --> 00:01:42.900 line:90% position:50% align:center size:92%
+前のスライドにも戻れます。
+
+25
+00:01:43.300 --> 00:01:50.200 line:90% position:50% align:center size:92%
+PDF に書き出すには、
+Export PDF を選びます。
+
+26
+00:01:50.400 --> 00:01:54.000 line:90% position:50% align:center size:92%
+PDF には、発表者ノートは含まれません。
+
+27
+00:01:54.200 --> 00:01:58.700 line:90% position:50% align:center size:92%
+slides.pdf が元のファイルと
+同じフォルダーに保存されました。
+
+28
+00:01:59.100 --> 00:02:02.900 line:90% position:50% align:center size:92%
+書き出した PDF を開いて、内容を確認します。
+
+29
+00:02:03.100 --> 00:02:06.700 line:90% position:50% align:center size:92%
+本文と裏表紙を合わせて、全 7 ページです。
+
+30
+00:02:07.100 --> 00:02:14.300 line:90% position:50% align:center size:92%
+PowerPoint で編集する場合は、
+Export PowerPoint… を選びます。
+
+31
+00:02:14.500 --> 00:02:18.500 line:90% position:50% align:center size:92%
+PPTX には、文字や図形として
+編集できる部分があります。
+
+32
+00:02:18.700 --> 00:02:23.000 line:90% position:50% align:center size:92%
+slides.pptx が同じフォルダーに保存されました。
+
+33
+00:02:23.400 --> 00:02:26.200 line:90% position:50% align:center size:92%
+書き出したファイルを PowerPoint で開きます。
+
+34
+00:02:26.400 --> 00:02:32.000 line:90% position:50% align:center size:92%
+見出しの文字を選び、書き換えます。
+
+35
+00:02:32.200 --> 00:02:34.500 line:90% position:50% align:center size:92%
+見出しが Request flow に変わりました。
+
+36
+00:02:34.800 --> 00:02:40.700 line:90% position:50% align:center size:92%
+次は API の図形を選び、
+［図形の書式］を開きます。
+
+37
+00:02:40.900 --> 00:02:46.500 line:90% position:50% align:center size:92%
+［図形の塗りつぶし］で色を変更します。
+
+38
+00:02:46.700 --> 00:02:49.000 line:90% position:50% align:center size:92%
+API の図形の色が変わりました。
+
+39
+00:02:49.200 --> 00:02:50.900 line:90% position:50% align:center size:92%
+Ctrl+S で保存します。
+
+40
+00:02:51.100 --> 00:02:53.700 line:90% position:50% align:center size:92%
+元の Markdown ファイルは変更されません。
+
+41
+00:02:54.100 --> 00:02:58.000 line:90% position:50% align:center size:92%
+Markdown ファイルは残して、
+用途に応じて PDF と PPTX を使い分けます。
+
+42
+00:02:58.200 --> 00:03:03.700 line:90% position:50% align:center size:92%
+PPTX では、文字や図形ではなく、
+画像として書き出される部分もあります。

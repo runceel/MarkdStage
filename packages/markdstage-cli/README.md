@@ -6,15 +6,17 @@ This README describes the **npm CLI**, whose interactive commands remain
 browser-based. The Windows MSIX package also provides a `markdstage` alias, but
 bare invocation, direct Markdown, `preview`, and `present` activate its native app
 by default. That distribution requires no Node.js; interactive presentation uses
-WebView2, while console inspect/capture/export still need external Chromium.
+WebView2, while console inspect/capture/export and GUI exports still need external Chromium.
+Microsoft Store installs the GUI and CLI together; Windows users do not need this npm installation.
+Desktop also provides workspace-scoped Agent Skill installation from **Install skills…**.
 See the [CLI guide](https://github.com/runceel/markdstage/blob/main/docs/user-guide/cli.md)
 for packaged activation, acceptance JSON, and `--no-open` differences.
 Use `npx @markdstage/markdstage` to select npm explicitly if both are installed.
 
 The CLI reuses the very same Markdown parser, renderer, Architecture DSL
 validation, theme handling, and PDF/PNG/PowerPoint pipeline as the MarkdStage canvas
-Extension, so a deck looks identical in Copilot, MarkdStage Desktop, the CLI, and
-exported PDF, or hybrid editable PowerPoint deck.
+Extension and Desktop. Fonts, browser versions, and export-format limitations can affect the
+appearance; review final PDF and hybrid editable PowerPoint output.
 
 ## Requirements
 
@@ -98,12 +100,11 @@ Architecture editing applies only to `architecture` fences.
 
 Run `markdstage slides.md` for the live authoring workflow. The browser starts
 in the fixed 16:9 output preview and remains in viewing mode.
-Select **Output preview** to switch to the retained responsive layout. Select
-the pencil control to move Architecture elements; editing automatically switches
-to the responsive layout, and those placement changes are saved atomically to
-the matching `architecture` fence. Select **Advanced edit** to add, update,
-duplicate, reparent, or delete elements in the detailed designer, then select
-**Save**.
+Ensure **Output preview** is enabled when checking fixed output; toggling it off shows the
+responsive layout. **More controls > Shape editing** opens the detailed designer directly
+for the source-backed deck. Move elements or change their properties, then select **Save**
+to atomically update the matching `architecture` fence. The draft is not saved merely by
+moving a shape.
 
 The server rejects a save if the Markdown changed outside the editor. Successful
 saves reload the watched deck without changing the current slide. Automatic

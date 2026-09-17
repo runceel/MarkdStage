@@ -3,7 +3,7 @@
 > 日本語版: [日本語](ja/quick-start.md)
 
 This walkthrough uses the included [`examples/quick-start.md`](examples/quick-start.md) deck. Copy
-it to your own workspace or use it directly from this repository.
+it to your own workspace as `slides.md`. The commands below assume that filename.
 
 ## 1. Create a Markdown deck
 
@@ -18,7 +18,7 @@ layout: title
 
 # My first deck
 
-Markdown, ready for the stage.
+A sample Markdown presentation.
 
 ---
 
@@ -35,73 +35,89 @@ slides. Do not use custom markers such as `<!-- slide -->`. If a slide ends with
 a top-level HTML comment, leave a blank line between the closing comment and the
 next `---` separator.
 
-## 2. Open it in the Canvas Extension
+## 2. Open it in Windows Desktop
+
+1. Install [MarkdStage from Microsoft Store](https://apps.microsoft.com/detail/9N9DG772RM03).
+   This installs both the GUI and CLI; Node.js is not needed.
+2. Start **MarkdStage**, select **Open folder…**, and choose your workspace.
+3. Select `slides.md` from the file list.
+
+![A Markdown deck open in the Windows application](images/windows-slide.png)
+
+The screenshot uses the [Windows walkthrough sample](windows-walkthrough.md) to illustrate the UI;
+the minimal deck above has different content.
+
+The app opens a slide view, not a presenter-only window. Use **More controls** for editing,
+output preview, presentation, and export. If presenter view is retained from an earlier session,
+select **Return to slide view**.
+
+### Canvas alternative
 
 Use either method:
 
-- Ask GitHub Copilot: `Present this deck using docs/user-guide/examples/quick-start.md.`
+- Ask GitHub Copilot: `Open slides.md in MarkdStage Canvas.`
 - Open the MarkdStage canvas, select **More controls > Open Markdown**, and choose the file.
 
 The complete deck opens immediately. Use **◀**, **▶**, the arrow keys, or **☰** to navigate.
 
-![The Canvas Extension showing a Markdown deck and its presentation controls](images/canvas-main.png)
+### CLI alternative
 
-## 3. Open it in the CLI application
-
-Run the CLI with the Markdown path to open the Canvas-equivalent UI with live
-refresh enabled:
+With the Store installation, `markdstage slides.md` opens the same native application.
+For the browser-based npm distribution, use:
 
 ```console
-npx @markdstage/markdstage docs/user-guide/examples/quick-start.md
+npx @markdstage/markdstage slides.md
 ```
 
-Run `markdstage` without a file to open an empty UI, then select
-**More controls > Open Markdown**.
+See [installation](installation.md) for npm prerequisites. In the npm UI, select
+**More controls > Open Markdown** to choose another file.
 
-## 4. Open it in MarkdStage Desktop
+## 3. Edit and review
 
-1. Download the appropriate portable ZIP from the
-   [latest MarkdStage release](https://github.com/runceel/markdstage/releases/latest).
-2. Extract the ZIP.
-3. Run `MarkdStageApp.exe`.
-4. Select **Open Markdown** and choose the same file.
+Edit text in your text editor and save; the preview refreshes automatically. On an Architecture
+slide, use **More controls > Shape editing** and **Save** to update the diagram in Markdown.
+Keep **Output preview** enabled to check the fixed 16:9 result.
 
-The main window shows the current slide, next slide, and current speaker notes.
+AI is optional. To use it with Desktop, return to the workspace list, select **Install skills…**,
+choose your AI tool, and open the same folder in that tool. The
+[Windows walkthrough](windows-walkthrough.md) includes example requests and a sample diagram.
 
-![MarkdStage Desktop showing current and next slides with speaker notes](images/desktop-main.png)
-
-## 5. Present
+## 4. Present
 
 - **Canvas Extension:** Select **More controls > External window** for an external audience window,
   or **More controls > Presenter view** to keep the current slide, next slide, and notes together.
 - **CLI:** Use the same controls, or start directly in presenter view with
   `markdstage present slides.md`.
-- **Desktop:** Select **Start presentation** to open the synchronized audience window.
+- **Desktop:** Select **More controls > Presenter view**, then **Start presentation**.
+  The Store CLI's `markdstage present slides.md` opens both views directly.
 - Press `F11` in the audience window for fullscreen and `Esc` to leave fullscreen.
 
-## 6. Export a PDF or PowerPoint
+## 5. Export a PDF or PowerPoint
 
-Export from the Canvas Extension:
+These controls are available in Desktop, Canvas, and the npm CLI UI:
 
-1. Select **More controls > Output preview** and correct any clipping warning.
+1. Ensure **More controls > Output preview** is enabled and correct any clipping warning.
+   It starts enabled; click it only if you need to enable it again.
 2. Select **More controls > Export PDF**, or **More controls > Export PowerPoint** for a hybrid
    deck whose text, tables, code, and Architecture DSL stay editable in PowerPoint.
-3. Use the generated 16:9 file from the workspace.
+3. Review the generated file beside the Markdown. GUI export replaces an existing output with
+   the derived filename; copy previous output first if needed.
 
 Or export the same output from the CLI, without installing the Canvas Extension:
 
 ```console
-npx @markdstage/markdstage export slides.md --output slides.pdf
-npx @markdstage/markdstage export slides.md --output slides.pptx
+markdstage export slides.md --output slides.pdf
+markdstage export slides.md --output slides.pptx
 ```
 
-The CLI application also exposes **Export PDF** and **Export PowerPoint** in
-**More controls**. MarkdStage Desktop does not export.
+Exports require installed Edge, Chrome, or Chromium. For the npm distribution without a global
+install, replace `markdstage` with `npx @markdstage/markdstage`.
 
 ## Next steps
 
+- [Follow the Windows walkthrough](windows-walkthrough.md)
 - [Complete the GitHub Copilot hands-on](copilot-hands-on.md)
-- [Create slides with GitHub Copilot](ai-assisted-authoring.md)
+- [AI-assisted authoring](ai-assisted-authoring.md)
 - [Use the Canvas Extension](canvas-extension.md)
 - [Use MarkdStage Desktop](desktop.md)
 - [Author Markdown slides](markdown-authoring.md)

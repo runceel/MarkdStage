@@ -2,8 +2,78 @@
 
 # MarkdStage をインストールする
 
-使い方に合う画面を選びます。Canvas Extension は GitHub Copilot と一緒に作成する場合、
-CLI はターミナルや自動化で使う場合、Desktop は Windows で発表する場合に向いています。
+Windows の Microsoft Store パッケージは GUI と CLI を同時にインストールします。
+ブラウザー版 CLI には npm 版、GitHub Copilot App 内で作業する場合は Canvas Extension を使います。
+これらは選択肢であり、すべてを導入する必要はありません。
+
+## Windows: Microsoft Store
+
+### 必要なもの
+
+- x64 または ARM64 の Windows 10 バージョン 1809 以降
+- ネイティブ UI と共通スクリプトの実行に使う Microsoft Edge WebView2 Runtime
+- レイアウト診断、PNG 取得、PDF／PowerPoint 出力に使う、インストール済みの
+  Microsoft Edge、Google Chrome、または Chromium。GUI からの出力にも必要です。
+
+.NET と Windows App SDK のコンポーネントは同梱されています。**Node.js と npm は不要です。**
+MarkdStage が外部ランタイムをダウンロード・インストールすることはありません。
+診断、キャプチャー、出力にはブラウザーのリモートデバッグが許可されている必要があります。
+MarkdStage は組織のポリシーを変更しません。
+
+### インストールしてワークスペースを開く
+
+1. [Microsoft Store から MarkdStage](https://apps.microsoft.com/detail/9N9DG772RM03)をインストールします。
+2. Windows のスタートメニューから **MarkdStage** を起動します。
+3. **Open folder…** で Markdown、アセット、テーマを保存するフォルダーを開きます。
+4. 一覧から Markdown ファイルを選ぶか、**Open Markdown file…** を使います。
+5. 外部の AI ツールを使う場合は、**Install skills…** で対象の Agent Skill をワークスペースに
+   導入します。AI ツールでも同じフォルダーを開きます。
+
+操作の詳細は [Desktop ガイド](desktop.md)、画面とサンプルを使う手順は
+[Windows 操作チュートリアル](windows-walkthrough.md)を参照してください。
+
+### 同梱コマンドを使う
+
+インストール後に新しいターミナルを開きます。
+
+```powershell
+markdstage --version
+Get-Command markdstage -All
+```
+
+パッケージは `markdstage` のアプリ実行エイリアスを登録します。コマンドが見つからない場合は、
+Windows 設定の **アプリ実行エイリアス** を確認し、ターミナルを開き直します。
+npm 版が優先される場合は `Get-Command markdstage -All` で候補を確認します。
+Store のエイリアスを直すために npm パッケージを追加する必要はありません。
+
+| Windows での操作 | 使用するランタイム |
+| --- | --- |
+| ネイティブのワークスペース、スライド表示、Architecture 編集、発表 | WebView2 |
+| GUI の PDF／PowerPoint 出力 | WebView2 とインストール済みの Edge、Chrome、Chromium のいずれか |
+| CLI のヘルプ、バージョン、`guide`、`skill` | ブラウザー不要 |
+| CLI の `validate` | WebView2 |
+| CLI の `inspect`、`capture`、`export` | WebView2 とインストール済みの Edge、Chrome、Chromium のいずれか |
+
+### ポータブル ZIP とサイドローディング
+
+[最新リリース](https://github.com/runceel/markdstage/releases/latest)には x64／ARM64 の
+ZIP、MSIX、SHA-256 チェックサムがあります。信頼できるリリースから環境に合うファイルを取得し、
+使用前にハッシュ値を同梱の `.sha256` と比較してください。
+
+```powershell
+Get-FileHash .\MarkdStage-win-arm64.zip -Algorithm SHA256
+```
+
+ポータブル版は ZIP を**フォルダーごと**展開し、`MarkdStageApp.exe` を起動して GUI で
+ワークスペースを開きます。`MarkdStageCli.exe` は検証・出力などのコンソール処理に使用できます。
+ZIP は Store の `markdstage` エイリアスを登録しません。CLI からのネイティブ GUI 起動には
+インストール済み MSIX が必要です。ポータブル CLI のブラウザー配信には `--no-open` を使います。
+詳細は [CLI ガイド](cli.md)を参照してください。
+
+リリースの署名済み MSIX をサイドローディングする場合は、組織の導入ポリシーに従います。
+対応する MSIX をインストールする前に、そのリリースの `MarkdStage.cer` をローカルコンピューターの
+**信頼されたユーザー** 証明書ストアへ登録します。配布元と証明書を確認した場合に限り実施してください。
+Store からのインストールでは、この手動の証明書登録は不要です。
 
 ## GitHub Copilot Canvas Extension
 
@@ -54,36 +124,13 @@ Get-FileHash .\markdstage-markdstage-<version>.tgz -Algorithm SHA256
 npm install --global .\markdstage-markdstage-<version>.tgz
 ```
 
-## MarkdStage Desktop
+<a id="windows-package-behavior"></a>
 
-### 必要なもの
+## Windows パッケージの動作
 
-- Windows
-- Microsoft Edge WebView2 Runtime
-
-.NET と Windows App SDK のコンポーネントはポータブルパッケージに同梱しています。
-
-### インストールして起動する
-
-[Microsoft Store から MarkdStage](https://apps.microsoft.com/detail/9N9DG772RM03)をインストール
-します。Store パッケージにはネイティブアプリと `markdstage` コンソールエイリアスが
-含まれます。
-
-Store からインストールできない場合は、既存の GitHub Release にあるポータブル版と
-署名済みサイドローディング版も利用できます。
-
-1. [最新リリース](https://github.com/runceel/markdstage/releases/latest)から x64 または ARM64 の
-   ポータブル ZIP をダウンロードします。
-2. フォルダーごと展開します。
-3. `MarkdStageApp.exe` を実行します。
-
-発表と操作方法は [MarkdStage Desktop](desktop.md) を参照してください。
-
-### Windows パッケージの動作
-
-Store パッケージには `markdstage` コマンドが含まれ、Node.js は不要です。Desktop は
-発表用アプリであり、PDF／PowerPoint の出力ボタンは追加しません。エクスポートは CLI の
-機能です。
+Store パッケージには `markdstage` コマンドが含まれ、Node.js は不要です。GUI には
+Architecture 編集、出力プレビュー、発表者ビュー、PDF／PowerPoint 出力があります。
+同じファイルに対する診断と自動化には CLI コマンドを使えます。
 
 アプリとパッケージ版 CLI のスクリプト実行には WebView2 Runtime が必要です。
 引数なし、Markdown の直接指定、`preview`、`present` はインストール済みのネイティブアプリを

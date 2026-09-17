@@ -11,9 +11,20 @@ const MIME = {
   ".js": "text/javascript; charset=utf-8",
   ".svg": "image/svg+xml",
   ".png": "image/png",
+  ".mp4": "video/mp4",
+  ".vtt": "text/vtt; charset=utf-8",
   ".md": "text/plain; charset=utf-8",
   ".xml": "application/xml; charset=utf-8",
 };
+
+function parseByteRange(value, length) {
+  const match = /^bytes=(\d*)-(\d*)$/i.exec(value);
+  if (!match || (!match[1] && !match[2])) return null;
+  const start = match[1] ? Number(match[1]) : Math.max(0, length - Number(match[2]));
+  const end = match[1] && match[2] ? Math.min(Number(match[2]), length - 1) : length - 1;
+  return Number.isSafeInteger(start) && start >= 0 && start < length && end >= start
+    ? { start, end } : null;
+}
 
 export async function startSiteServer({ root = OUTPUT_DIR, basePath = "/MarkdStage/", port = 4173 } = {}) {
   if (!basePath.startsWith("/") || !basePath.endsWith("/") || basePath.includes("..")) {
@@ -59,11 +70,30 @@ export async function startSiteServer({ root = OUTPUT_DIR, basePath = "/MarkdSta
         return;
       }
       const data = await readFile(actual);
-      response.writeHead(200, {
+      const headers = {
         "Content-Type": MIME[extname(actual)] || "application/octet-stream",
+        "Content-Length": data.length,
+        "Accept-Ranges": "bytes",
         "Cache-Control": "no-store",
         "X-Content-Type-Options": "nosniff",
-      });
+      };
+      // Native video seeking needs partial responses. There are no validators for If-Range.
+      if (request.method === "GET" && /^bytes=/i.test(request.headers.range ?? "") && !request.headers["if-range"]) {
+        const range = parseByteRange(request.headers.range, data.length);
+        if (!range) {
+          response.writeHead(416, {
+            ...headers, "Content-Range": `bytes */${data.length}`, "Content-Length": 0,
+          }).end();
+          return;
+        }
+        response.writeHead(206, {
+          ...headers,
+          "Content-Range": `bytes ${range.start}-${range.end}/${data.length}`,
+          "Content-Length": range.end - range.start + 1,
+        }).end(data.subarray(range.start, range.end + 1));
+        return;
+      }
+      response.writeHead(200, headers);
       response.end(request.method === "HEAD" ? undefined : data);
     } catch (error) {
       if (["ENOENT", "ENOTDIR", "EISDIR"].includes(error.code)) {

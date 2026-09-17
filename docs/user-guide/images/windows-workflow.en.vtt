@@ -1,0 +1,186 @@
+WEBVTT
+
+1
+00:00:00.400 --> 00:00:04.200 line:90% position:50% align:center size:92%
+First, ask an AI agent to create the slides.
+
+2
+00:00:04.400 --> 00:00:09.200 line:90% position:50% align:center size:92%
+In this example, create six slides
+explaining a web service architecture.
+
+3
+00:00:09.400 --> 00:00:13.500 line:90% position:50% align:center size:92%
+Include a system diagram and speaker notes.
+
+4
+00:00:13.700 --> 00:00:17.800 line:90% position:50% align:center size:92%
+Ask the agent to fix any source errors
+or text that extends beyond the slides.
+
+5
+00:00:18.200 --> 00:00:22.400 line:90% position:50% align:center size:92%
+Prepare the slides in a Markdown file
+named slides.md.
+
+6
+00:00:22.600 --> 00:00:27.000 line:90% position:50% align:center size:92%
+Store slide text, diagrams, and speaker notes
+in a Markdown file.
+
+7
+00:00:27.200 --> 00:00:31.800 line:90% position:50% align:center size:92%
+In this example, six authored slides and
+an automatic back cover make seven pages.
+
+8
+00:00:32.200 --> 00:00:36.700 line:90% position:50% align:center size:92%
+Open slides.md in MarkdStage.
+
+9
+00:00:38.000 --> 00:00:39.700 line:90% position:50% align:center size:92%
+The title slide is now visible.
+
+10
+00:00:39.900 --> 00:00:45.300 line:90% position:50% align:center size:92%
+Use the slide list to choose the diagram page.
+
+11
+00:00:45.500 --> 00:00:49.400 line:90% position:50% align:center size:92%
+The browser accesses the database
+through the API.
+
+12
+00:00:49.800 --> 00:00:56.600 line:90% position:50% align:center size:92%
+Open Shape editing to adjust the diagram.
+
+13
+00:00:56.800 --> 00:00:59.000 line:90% position:50% align:center size:92%
+The source file stays unchanged until you Save.
+
+14
+00:00:59.100 --> 00:01:03.500 line:90% position:50% align:center size:92%
+Drag the API node to adjust its position.
+
+15
+00:01:03.700 --> 00:01:07.400 line:90% position:50% align:center size:92%
+Select Save to write your changes
+to the source file.
+
+16
+00:01:07.600 --> 00:01:10.500 line:90% position:50% align:center size:92%
+The new position is saved in the source file.
+
+17
+00:01:10.700 --> 00:01:14.600 line:90% position:50% align:center size:92%
+Close the editor and return to the slides.
+
+18
+00:01:14.800 --> 00:01:18.000 line:90% position:50% align:center size:92%
+The slide now shows the updated diagram
+and connector positions.
+
+19
+00:01:18.400 --> 00:01:24.000 line:90% position:50% align:center size:92%
+Open Presenter view when you are ready to present.
+
+20
+00:01:24.200 --> 00:01:27.400 line:90% position:50% align:center size:92%
+Present with the current and next slides
+and your speaker notes.
+
+21
+00:01:27.600 --> 00:01:30.800 line:90% position:50% align:center size:92%
+Start the presentation to open
+a separate audience window.
+
+22
+00:01:31.000 --> 00:01:34.200 line:90% position:50% align:center size:92%
+Use the arrow keys to switch slides.
+
+23
+00:01:34.400 --> 00:01:38.000 line:90% position:50% align:center size:92%
+Speaker notes are not shown on the audience screen.
+
+24
+00:01:38.200 --> 00:01:42.900 line:90% position:50% align:center size:92%
+You can also return to earlier slides.
+
+25
+00:01:43.300 --> 00:01:50.200 line:90% position:50% align:center size:92%
+Select Export PDF to create a PDF.
+
+26
+00:01:50.400 --> 00:01:54.000 line:90% position:50% align:center size:92%
+Speaker notes are not included in the PDF.
+
+27
+00:01:54.200 --> 00:01:58.700 line:90% position:50% align:center size:92%
+slides.pdf is saved in the same folder
+as the source file.
+
+28
+00:01:59.100 --> 00:02:02.900 line:90% position:50% align:center size:92%
+Open the exported PDF to review its content.
+
+29
+00:02:03.100 --> 00:02:06.700 line:90% position:50% align:center size:92%
+The six slides and back cover make seven pages.
+
+30
+00:02:07.100 --> 00:02:14.300 line:90% position:50% align:center size:92%
+Choose Export PowerPoint…
+to continue editing in PowerPoint.
+
+31
+00:02:14.500 --> 00:02:18.500 line:90% position:50% align:center size:92%
+Some parts of the PPTX are editable
+as text and shapes.
+
+32
+00:02:18.700 --> 00:02:23.000 line:90% position:50% align:center size:92%
+slides.pptx is saved in the same folder.
+
+33
+00:02:23.400 --> 00:02:26.200 line:90% position:50% align:center size:92%
+Open the exported file in PowerPoint.
+
+34
+00:02:26.400 --> 00:02:32.000 line:90% position:50% align:center size:92%
+Select the heading text and replace it.
+
+35
+00:02:32.200 --> 00:02:34.500 line:90% position:50% align:center size:92%
+The heading now reads Request flow.
+
+36
+00:02:34.800 --> 00:02:40.700 line:90% position:50% align:center size:92%
+Next, select the API shape and open Shape Format
+(図形の書式).
+
+37
+00:02:40.900 --> 00:02:46.500 line:90% position:50% align:center size:92%
+Change its color with Shape Fill
+(図形の塗りつぶし).
+
+38
+00:02:46.700 --> 00:02:49.000 line:90% position:50% align:center size:92%
+The API shape's color has changed.
+
+39
+00:02:49.200 --> 00:02:50.900 line:90% position:50% align:center size:92%
+Save with Ctrl+S.
+
+40
+00:02:51.100 --> 00:02:53.700 line:90% position:50% align:center size:92%
+The original Markdown file stays unchanged.
+
+41
+00:02:54.100 --> 00:02:58.000 line:90% position:50% align:center size:92%
+Keep the Markdown source;
+use PDF or PPTX to suit your next task.
+
+42
+00:02:58.200 --> 00:03:03.700 line:90% position:50% align:center size:92%
+Some PPTX content is exported as images,
+rather than editable text or shapes.

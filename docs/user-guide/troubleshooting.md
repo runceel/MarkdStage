@@ -14,6 +14,25 @@
 Install or repair Microsoft Edge WebView2 Runtime, then restart MarkdStage Desktop. Also confirm the
 user profile can write to its local application data folder.
 
+## The Store-installed CLI is unavailable or opens a browser
+
+Open a new terminal and run `Get-Command markdstage -All`. Check **App execution aliases**
+in Windows Settings if the Store alias is missing or disabled. An npm command earlier in the
+resolution order opens the browser UI; the Store command opens the native application.
+Do not install npm merely to repair the Store alias. See [installation](installation.md).
+
+## Desktop export fails even though slides display correctly
+
+Native viewing uses WebView2; PDF/PowerPoint export also requires installed Edge, Chrome, or
+Chromium. Check that browser remote debugging is permitted by organization policy. Read the export
+error before retrying; successful native viewing alone does not verify export prerequisites.
+
+## An AI tool cannot find the installed Skill
+
+Use the same workspace in Desktop and the AI tool. **Install skills…** installs workspace files,
+not global agent settings. Check that you selected the correct target, and follow the AI tool's
+reload instructions. Update the Skill after updating MarkdStage and review any reported conflicts.
+
 ## A Markdown file does not appear in the Canvas picker
 
 - Confirm the file ends in `.md` or `.markdown`.
@@ -54,7 +73,7 @@ The picker does not allow paths outside the workspace.
 
 ## A slide clips in PDF
 
-Select **More controls > Output preview** in Canvas and use the warning to find the affected page.
+Select **More controls > Output preview** in Desktop, Canvas, or the npm UI and use the warning to find the affected page.
 Shorten or split the content. `layout: center` changes alignment, not available space, and is not a
 clipping fix.
 
@@ -67,7 +86,8 @@ clipping fix.
 
 ## Architecture changes cannot be saved
 
-- Advanced editing requires Markdown imported through **More controls > Open Markdown**.
+- Advanced editing requires a source-backed deck: open it from Desktop's workspace list or
+  Canvas's **More controls > Open Markdown**.
 - The source must already contain an `architecture` block.
 - If the source changed externally, reload it instead of overwriting the newer file.
 - Layout-managed children must be released from their group layout before manual movement.

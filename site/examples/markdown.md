@@ -4,17 +4,17 @@ deck: MarkdStage
 size: normal
 ---
 
-## Small file. Big ideas.
+## Markdown and code
 
-- Keep your story in **Markdown**
-- Give your code a place on stage
-- Track every change in **Git**
+- Write content in **Markdown**
+- Include syntax-highlighted code
+- Review changes with **Git**
 
 ```javascript
-const talk = {
+const deck = {
   source: "slides.md",
-  ready: true
+  theme: "dark"
 };
 
-await takeTheStage(talk);
+console.log(`Reviewing ${deck.source}`);
 ```

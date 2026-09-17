@@ -4,7 +4,7 @@ deck: MarkdStage
 size: normal
 ---
 
-## Make the system make sense.
+## Service request path
 
 ```architecture
 {
