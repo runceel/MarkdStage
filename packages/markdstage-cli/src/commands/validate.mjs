@@ -54,7 +54,7 @@ export function formatValidateReport(report) {
   if (report.total) lines.push(`  slides: ${report.total}${report.theme ? `, theme: ${report.theme}` : ""}`);
   for (const error of report.errors) {
     lines.push(
-      `  error  ${error.page ? `slide ${error.page}: ` : ""}${error.message} (${error.code})`,
+      `  error  ${error.page ? `slide ${error.page}: ` : ""}${error.sourcePath ? `${error.sourcePath} ` : ""}${error.message} (${error.code})`,
     );
   }
   for (const warning of report.warnings) {
@@ -64,14 +64,15 @@ export function formatValidateReport(report) {
   // here so the text output does not report a clean deck for content the renderer degrades.
   for (const diagnostic of (report.diagnostics ?? []).filter((item) => item.severity === "warning")) {
     lines.push(
-      `  warn   ${diagnostic.page ? `slide ${diagnostic.page}: ` : ""}${diagnostic.message} (${diagnostic.code})`,
+      `  warn   ${diagnostic.page ? `slide ${diagnostic.page}: ` : ""}${diagnostic.sourcePath ? `${diagnostic.sourcePath} ` : ""}${diagnostic.message} (${diagnostic.code})`,
     );
   }
   if (report.complete === false) {
     lines.push(report.truncated
       ? "  Validation incomplete: inspection limits were reached; unchecked content is not valid."
-      : "  Architecture validation incomplete: fix the reported errors and validate again.");
+      : "  Validation incomplete: fix the reported errors and validate again.");
   }
+  if (report.adaptiveCards?.blocks?.length) lines.push("  Card resources, Markdown sanitization and SDK rendering require browser inspection; structural validation does not fetch images.");
   lines.push(report.ok ? "  OK: the deck is valid." : `  ${report.errors.length} error(s) found.`);
   return lines.join("\n");
 }

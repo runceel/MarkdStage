@@ -39,8 +39,8 @@ const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const COMMANDS = [
   ["present", "Open the MarkdStage UI in presenter view."],
   ["preview", "Open the MarkdStage UI in slide view."],
-  ["validate", "Check deck structure, Architecture DSL blocks, and themes."],
-  ["inspect", "Report clipping and measured Architecture layout at 1280x720."],
+  ["validate", "Check deck structure, Architecture DSL, static Adaptive Cards, and themes."],
+  ["inspect", "Report clipping, Architecture layout, and Adaptive Card diagnostics at 1280x720."],
   ["capture", "Write 1280x720 PNG files for selected or clipped slides."],
   ["export", "Export the deck as PDF or editable PowerPoint."],
   ["guide", "Print the canonical MarkdStage authoring guide."],
@@ -152,7 +152,7 @@ function usage(command) {
       "",
       "  --slide <n>        Inspect a single 1-based page.",
       "  --all              Also include other slides that fit.",
-      "  --fail-on-issues   Exit with code 5 when a slide is clipped.",
+      "  --fail-on-issues   Exit with code 5 for clipping or Adaptive Card content diagnostics.",
     ],
     capture: [
       "Usage: markdstage capture <file.md> [options]",
@@ -413,7 +413,7 @@ export async function run(argv, io = {}) {
         });
         if (values.json) json(report);
         else out(formatInspectReport(report));
-        return values["fail-on-issues"] && report.hasIssues ? EXIT_ISSUES : EXIT_OK;
+        return values["fail-on-issues"] && (report.hasIssues || report.hasAdaptiveCardIssues) ? EXIT_ISSUES : EXIT_OK;
       }
       case "capture": {
         const file = requireFile(positionals, "capture");

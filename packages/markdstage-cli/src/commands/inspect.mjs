@@ -46,10 +46,19 @@ export function formatInspectReport(report) {
         lines.push(`          ${entry.sourcePath}: ${entry.from} -> ${entry.to} (${entry.kind}, ${entry.reason})`);
       }
     }
+    for (const card of slide.adaptiveCards ?? []) {
+      lines.push(`      adaptive-card[${card.blockIndex}]: ${card.status} (schema ${card.schemaVersion}, SDK ${card.sdkVersion}, HostConfig ${card.hostConfigVersion})`);
+      for (const diagnostic of card.diagnostics) {
+        lines.push(`        ${diagnostic.severity}: ${diagnostic.sourcePath} ${diagnostic.message} (${diagnostic.code}; content impact)`);
+      }
+      if (card.diagnosticsTruncated) lines.push("        Card diagnostics are truncated; simplify the input before accepting the output.");
+    }
+    if (slide.adaptiveCardsTruncated) lines.push("      Card inspection is truncated; inspect smaller inputs.");
   }
   lines.push(`  ${report.issueCount} slide(s) do not fit.`);
   if (report.routingDegradedCount) {
     lines.push(`  ${report.routingDegradedCount} diagram(s) have degraded connector routing.`);
   }
+  if (report.adaptiveCardIssueCount) lines.push(`  ${report.adaptiveCardIssueCount} card(s) have content diagnostics.`);
   return lines.join("\n");
 }

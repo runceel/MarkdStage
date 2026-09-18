@@ -20,6 +20,42 @@ export async function adaptiveCardSlides() {
     `## Adaptive Cards: ${name}\n\n${cardFence(await readFile(join(CARD_FIXTURE_DIRECTORY, `${name}.json`), "utf8"))}`));
 }
 
+export const multipleCardsSlide = [
+  "## Multiple cards, one picture per card",
+  cardFence(staticCard([{ type: "Container", style: "emphasis", items: [{ type: "TextBlock", text: "First card", weight: "Bolder" }] }])),
+  cardFence(staticCard([{ type: "TextBlock", text: "Second transparent card" }])),
+  cardFence("{"),
+].join("\n\n");
+
+export const boundarySlide = [
+  "## Card crossing the bottom-right boundary",
+  '<div style="position:absolute;left:1120px;top:610px;width:260px">',
+  cardFence(staticCard([{ type: "Container", style: "emphasis", minHeight: "160px",
+    items: [{ type: "TextBlock", text: "Visible corner", size: "Large", wrap: true }] }])),
+  "</div>",
+].join("\n\n");
+
+export async function adaptiveCardReviewCases() {
+  const initial = [...await adaptiveCardSlides(), placementSlide].map((markdown, index) => ({
+    name: [...CARD_FIXTURES, "placement"][index], markdown,
+    expected: [{ status: index === 5 ? "error" : "ready", codes: index === 5 ? ["unsupported-element"] : [] }],
+  }));
+  const extra = [];
+  for (const [name, status, codes] of [
+    ["fallbacks", "ready", ["requires-not-met", "fallback-substituted", "unsupported-element", "fallback-dropped"]],
+    ["blocked-images", "ready", ["blocked-image", "image-load-failed", "blocked-image"]],
+    ["malformed", "error", ["invalid-property"]],
+  ]) extra.push({
+    name, markdown: `## Adaptive Cards: ${name}\n\n${cardFence(await readFile(join(CARD_FIXTURE_DIRECTORY, `${name}.json`), "utf8"))}`,
+    expected: [{ status, codes }],
+  });
+  return [...initial, ...extra,
+    { name: "multiple", markdown: multipleCardsSlide,
+      expected: [{ status: "ready", codes: [] }, { status: "ready", codes: [] }, { status: "error", codes: ["invalid-json"] }] },
+    { name: "boundary", markdown: boundarySlide, expected: [{ status: "ready", codes: [] }] },
+  ];
+}
+
 // Runs unchanged in Chromium and an actual CoreWebView2 controller.
 export async function adaptiveCardGeometry() {
   const { collectAdaptiveCardGeometry } = await import(new URL("./renderer/adaptive-card.mjs", document.baseURI));

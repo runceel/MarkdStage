@@ -101,9 +101,12 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
       }
       if (theme === "custom") expect(objects.find((object) => object.id === "emphasis").style.background).toBe("#203040");
       const before = await page.locator(".deck").first().screenshot();
-      await page.evaluate(() => {
+      await page.evaluate(async () => {
+        const { getAdaptiveCardModel } = await import("./renderer/adaptive-card.mjs");
         for (const host of document.querySelectorAll(".adaptive-card-host")) {
-          for (const element of host.shadowRoot.querySelectorAll("[class]")) element.className = "not-an-sdk-class";
+          const root = getAdaptiveCardModel(host)?.renderedElement;
+          if (!root) continue;
+          for (const element of [root, ...root.querySelectorAll("[class]")]) element.className = "not-an-sdk-class";
         }
       });
       expect(await page.evaluate(adaptiveCardGeometry)).toEqual(first);
@@ -183,7 +186,9 @@ test("unsafe card resources, redirects, implicit images and fallback never trigg
   try {
     await open(page, harness, "pptx");
     const geometry = await page.evaluate(adaptiveCardGeometry);
-    expect(geometry.slice(0, forbidden.length).every((slide) => slide.cards[0].status === "error")).toBe(true);
+    expect(geometry.slice(0, 4).every((slide) => slide.cards[0].status === "ready")).toBe(true);
+    expect(geometry.slice(0, 4).every((slide) => slide.cards[0].diagnostics.length > 0)).toBe(true);
+    expect(geometry.slice(4, forbidden.length).every((slide) => slide.cards[0].status === "error")).toBe(true);
     expect(geometry.at(-1).cards[0].status).toBe("ready");
     expect(geometry.at(-1).cards[0].diagnostics[0].code).toBe("markdown-sanitized");
     expect(remote).toEqual([]);
@@ -195,7 +200,7 @@ test("unsafe card resources, redirects, implicit images and fallback never trigg
   } finally { await harness.close(); }
 });
 
-test("over-limit local images fail before SDK rendering or raster collection", async ({ page }) => {
+test("over-limit local images become bounded placeholders without losing the card", async ({ page }) => {
   const sdkRequests = [];
   page.on("request", (request) => { if (request.url().includes("adaptivecards.min.js")) sdkRequests.push(request.url()); });
   await page.route("**/assets/oversized.png", (route) => route.fulfill({
@@ -205,11 +210,11 @@ test("over-limit local images fail before SDK rendering or raster collection", a
   try {
     await open(page, harness, "pptx");
     const result = await page.evaluate(adaptiveCardGeometry);
-    expect(result[0].cards[0].status).toBe("error");
+    expect(result[0].cards[0].status).toBe("ready");
     expect(result[0].cards[0].diagnostics[0].code).toBe("blocked-image");
     expect(result[0].cards[0].diagnostics[0].message).toContain("limit is 10 MiB");
-    expect(sdkRequests).toEqual([]);
-    expect((await page.evaluate(() => window.__presentationPptxModel)).slides[0].fallbacks[0].reason).toBe("adaptive-card-blocked-image");
+    expect(sdkRequests).toHaveLength(1);
+    expect((await page.evaluate(() => window.__presentationPptxModel)).slides[0].fallbacks[0].reason).toBe("adaptive-card-rendered-as-artwork");
   } finally { await harness.close(); }
 });
 
@@ -241,20 +246,22 @@ for (const [element, attributes] of [
       try {
         await open(page, harness, "pptx");
         const host = page.locator(".adaptive-card-host");
-        await expect(host).toHaveAttribute("data-adaptive-card-state", "error");
-        await expect(host.getByRole("alert")).toBeVisible();
-        await expect(host.getByRole("alert")).toContainText("blocked-image");
-        await expect(host.getByRole("alert")).toContainText("animation are not allowed");
-        await expect(host.locator("img, svg")).toHaveCount(0);
+        await expect(host).toHaveAttribute("data-adaptive-card-state", "ready");
+        await expect(host.getByRole("note")).toBeVisible();
+        await expect(host.getByRole("note")).toContainText("blocked-image");
+        await expect(host.getByRole("note")).toContainText("animation are not allowed");
+        await expect(host.locator("img")).toHaveCount(1);
+        await expect(host.locator("img")).toHaveAttribute("alt", "Image unavailable");
+        expect(await host.locator("img").getAttribute("src")).not.toContain("animate");
         expect(assetRequests).toHaveLength(entry === "local" ? 1 : 0);
-        expect(sdkRequests).toEqual([]);
+        expect(sdkRequests).toHaveLength(1);
         const geometry = await page.evaluate(adaptiveCardGeometry);
-        expect(geometry[0].cards[0].objects).toEqual([]);
+        expect(geometry[0].cards[0].objects.map((object) => object.type)).toEqual(["AdaptiveCard", "Image"]);
         expect(geometry[0].cards[0].diagnostics).toEqual([expect.objectContaining({ code: "blocked-image" })]);
         const slide = await page.evaluate(() => window.__presentationPptxModel.slides[0]);
         expect(slide.elements).toEqual([]);
         expect(slide.fallbacks).toEqual([expect.objectContaining({
-          type: "adaptive-card", reason: "adaptive-card-blocked-image",
+          type: "adaptive-card", reason: "adaptive-card-rendered-as-artwork",
           diagnostics: [expect.objectContaining({ code: "blocked-image" })],
         })]);
         await testInfo.attach("blocked-svg-diagnostic", { body: JSON.stringify(geometry), contentType: "application/json" });
@@ -266,3 +273,196 @@ for (const [element, attributes] of [
     });
   }
 }
+
+test("bad assets preserve neighboring card content and report canonical block paths", async ({ page }) => {
+  const harness = await startHarness({ slides: [cardFence(staticCard([
+    { type: "TextBlock", text: "Retained before" },
+    { type: "Image", url: "assets/missing.png", width: "96px", height: "48px" },
+    { type: "TextBlock", text: "Retained after" },
+  ]))] });
+  try {
+    await open(page, harness, "pptx");
+    const host = page.locator(".adaptive-card-host");
+    await expect(host).toContainText("Retained before");
+    await expect(host).toContainText("Retained after");
+    await expect(host.locator("img")).toHaveAttribute("alt", "Image unavailable");
+    const fallback = await page.evaluate(() => window.__presentationPptxModel.slides[0].fallbacks[0]);
+    expect(fallback.reason).toBe("adaptive-card-rendered-as-artwork");
+    expect(fallback.diagnostics).toEqual([expect.objectContaining({
+      code: "image-load-failed", severity: "warning", impact: "content",
+      path: "$.body[1].url", sourcePath: "adaptive-card[0]$.body[1].url",
+    })]);
+  } finally { await harness.close(); }
+});
+
+test("requires and fallback substitutions are visible without silent SDK content loss", async ({ page }) => {
+  const payload = staticCard([
+    { type: "TextBlock", text: "Not supported", requires: { otherHost: "1.0" },
+      fallback: { type: "TextBlock", id: "substitution", text: "Safe replacement", wrap: true } },
+    { type: "Input.Text", fallback: "drop" },
+  ]);
+  const harness = await startHarness({ slides: [cardFence(payload)] });
+  try {
+    await open(page, harness, "pptx");
+    await expect(page.locator(".adaptive-card-host").getByRole("note")).toContainText("fallback-substituted");
+    const [slide] = await page.evaluate(adaptiveCardGeometry);
+    expect(slide.cards[0].status).toBe("ready");
+    expect(slide.cards[0].objects.find((object) => object.id === "substitution").sourcePath).toBe("$.body[0].fallback");
+    expect(slide.cards[0].objects.map((object) => object.type)).toEqual(["AdaptiveCard", "TextBlock"]);
+    expect(slide.cards[0].diagnostics.map((entry) => entry.code)).toEqual([
+      "requires-not-met", "fallback-substituted", "unsupported-element", "fallback-dropped",
+    ]);
+  } finally { await harness.close(); }
+});
+
+test("SDK subtree is sanitized in place before attachment, while typed references remain connected", async ({ page }) => {
+  await page.addInitScript(() => {
+    let sdk;
+    Object.defineProperty(window, "AdaptiveCards", {
+      configurable: true, get: () => sdk, set: (value) => {
+        sdk = value;
+        const render = value.AdaptiveCard.prototype.render;
+        value.AdaptiveCard.prototype.render = function (...args) {
+          const root = render.apply(this, args);
+          const script = document.createElement("script");
+          script.textContent = "window.unsafeCardScript = true";
+          const unsafe = document.createElement("span");
+          unsafe.textContent = "Sanitized content";
+          unsafe.setAttribute("onclick", "window.unsafeCardScript=true");
+          unsafe.style.backgroundImage = 'url("https://blocked.example/sdk.png")';
+          root.append(script, unsafe);
+          return root;
+        };
+      },
+    });
+  });
+  const remote = [];
+  page.on("request", (request) => { if (request.url().includes("blocked.example")) remote.push(request.url()); });
+  const harness = await startHarness({ slides: [cardFence(staticCard([{ type: "TextBlock", id: "identity", text: "Typed content" }]))] });
+  try {
+    await open(page, harness);
+    expect(remote).toEqual([]);
+    expect(await page.evaluate(() => window.unsafeCardScript)).toBeUndefined();
+    await expect(page.locator(".adaptive-card-host").locator("script, [onclick], [tabindex], a[href]")).toHaveCount(0);
+    const identity = await page.evaluate(async () => {
+      const { getAdaptiveCardModel } = await import("./renderer/adaptive-card.mjs");
+      const card = getAdaptiveCardModel(document.querySelector(".adaptive-card-host"));
+      return { typed: card.getElementById("identity") instanceof AdaptiveCards.TextBlock,
+        connected: card.getElementById("identity").renderedElement.isConnected };
+    });
+    expect(identity).toEqual({ typed: true, connected: true });
+    expect((await page.evaluate(adaptiveCardGeometry))[0].cards[0].diagnostics[0].code).toBe("sdk-subtree-sanitized");
+  } finally { await harness.close(); }
+});
+
+for (const mode of ["capture", "print", "pptx"]) {
+  test(`${mode} readiness waits for permitted images and fonts introduced by card rendering`, async ({ page }) => {
+    let releaseImage;
+    const gate = new Promise((resolve) => { releaseImage = resolve; });
+    let requested;
+    const request = new Promise((resolve) => { requested = resolve; });
+    await page.route("**/assets/delayed.svg", async (route) => {
+      requested();
+      await gate;
+      await route.fulfill({ contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="40"><rect width="80" height="40" fill="red"/></svg>' });
+    });
+    await page.addInitScript(() => {
+      const ready = Object.getOwnPropertyDescriptor(FontFaceSet.prototype, "ready").get;
+      const cardFonts = new Promise((resolve) => { window.releaseCardFonts = resolve; });
+      Object.defineProperty(document.fonts, "ready", { get() {
+        if (document.querySelector(".adaptive-card-host")?.shadowRoot?.querySelector("img")) {
+          window.cardFontsPending = true;
+          return cardFonts;
+        }
+        return ready.call(this);
+      } });
+    });
+    const harness = await startHarness({ slides: [cardFence(staticCard([
+      { type: "TextBlock", text: "Readiness", fontType: "Monospace" },
+      { type: "Image", url: "assets/delayed.svg" },
+    ]))] });
+    try {
+      await page.goto(`${harness.url}/?${mode}=1&token=${harness.printToken}&index=0`);
+      await request;
+      await expect(page.locator("html")).not.toHaveAttribute(`data-${mode}-ready`, "true");
+      releaseImage();
+      await page.waitForFunction(() => window.cardFontsPending);
+      await expect(page.locator(".adaptive-card-host")).toHaveAttribute("data-adaptive-card-state", "loading");
+      await expect(page.locator("html")).not.toHaveAttribute(`data-${mode}-ready`, "true");
+      await page.evaluate(() => window.releaseCardFonts());
+      await expect(page.locator("html")).toHaveAttribute(`data-${mode}-ready`, "true");
+      expect((await page.evaluate(adaptiveCardGeometry))[0].cards[0].status).toBe("ready");
+    } finally { releaseImage(); await harness.close(); }
+  });
+}
+
+test("image approval cache and aggregate budget are shared across cards and slides", async ({ page }) => {
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="20" height="20" fill="red"/></svg>';
+  const requested = [];
+  await page.route("**/assets/budget-*.svg", (route) => {
+    requested.push(new URL(route.request().url()).pathname);
+    return route.fulfill({ contentType: "image/svg+xml", body: svg });
+  });
+  const payload = staticCard([{ type: "Image", url: "assets/budget-a.svg" }]);
+  const harness = await startHarness({ slides: [cardFence(payload), cardFence(payload)] });
+  try {
+    await open(page, harness);
+    expect(requested).toHaveLength(1);
+    const result = await page.evaluate(async ({ svgBytes, payload }) => {
+      const { renderAdaptiveCard, createAdaptiveCardResourceContext, getAdaptiveCardDiagnostics } = await import("./renderer/adaptive-card.mjs");
+      const resources = createAdaptiveCardResourceContext();
+      resources.totalBytes = 100 * 1024 * 1024 - svgBytes;
+      const host = document.querySelector(".adaptive-card-host");
+      const palette = { fg: "#ffffff", muted: "#888888", accent: "#0088ff", surface: "#202020", border: "#444444", fontFamily: "Segoe UI" };
+      await renderAdaptiveCard(host, JSON.stringify(payload), palette, resources);
+      const first = getAdaptiveCardDiagnostics(host);
+      const exactBytes = resources.totalBytes;
+      payload.body[0].url = "assets/budget-b.svg";
+      await renderAdaptiveCard(host, JSON.stringify(payload), palette, resources);
+      return { first, exactBytes, second: getAdaptiveCardDiagnostics(host) };
+    }, { svgBytes: Buffer.byteLength(svg), payload });
+    expect(result.first.diagnostics).toEqual([]);
+    expect(result.exactBytes).toBe(100 * 1024 * 1024);
+    expect(result.second.status).toBe("ready");
+    expect(result.second.diagnostics[0].code).toBe("blocked-image");
+    expect(result.second.diagnostics[0].message).toContain("limit is 100 MiB");
+    expect(requested.some((path) => path.endsWith("budget-b.svg"))).toBe(false);
+  } finally { await harness.close(); }
+});
+
+test("animated PNG and GIF data cannot make card captures time-dependent", async ({ page }) => {
+  const pngHeader = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+  const animation = Buffer.alloc(20);
+  animation.writeUInt32BE(8);
+  animation.write("acTL", 4, "ascii");
+  const apng = Buffer.concat([pngHeader, animation]);
+  const gif = Buffer.from("R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==", "base64");
+  const firstFrame = gif.subarray(19, gif.length - 1);
+  const animatedGif = Buffer.concat([gif.subarray(0, gif.length - 1), firstFrame, Buffer.from([0x3b])]);
+  const harness = await startHarness({ slides: [
+    cardFence(staticCard([{ type: "Image", url: `data:image/png;base64,${apng.toString("base64")}` }])),
+    cardFence(staticCard([{ type: "Image", url: `data:image/gif;base64,${animatedGif.toString("base64")}` }])),
+  ] });
+  try {
+    await open(page, harness);
+    const geometry = await page.evaluate(adaptiveCardGeometry);
+    for (const slide of geometry) {
+      expect(slide.cards[0].status).toBe("ready");
+      expect(slide.cards[0].diagnostics[0].code).toBe("blocked-image");
+      expect(slide.cards[0].diagnostics[0].message).toContain("Animated");
+    }
+  } finally { await harness.close(); }
+});
+
+test("a fully off-slide card has an explicit content fallback without a zero-size picture", async ({ page }) => {
+  const harness = await startHarness({ slides: [
+    '<div style="position:absolute;left:1400px;top:800px;width:200px">\n\n' +
+      cardFence(staticCard([{ type: "TextBlock", text: "Outside the slide" }])) + "\n\n</div>",
+  ] });
+  try {
+    await open(page, harness, "pptx");
+    const cards = await page.evaluate(() => window.__presentationPptxModel.slides[0].fallbacks.filter((entry) => entry.type === "adaptive-card"));
+    expect(cards).toEqual([expect.objectContaining({ artwork: false, reason: "adaptive-card-outside-slide", width: 0, height: 0 })]);
+    expect(cards[0].captureId).toBeUndefined();
+  } finally { await harness.close(); }
+});

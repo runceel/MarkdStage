@@ -5,7 +5,7 @@ import { withDeckServer } from "../../packages/markdstage-cli/src/deck.mjs";
 import { createOutputJob, createOutputSnapshot, exportPptx } from "../../.github/extensions/markdstage/runtime/output.mjs";
 import { runPptxOutputBrowser } from "../../.github/extensions/markdstage/hosts/node/browser.mjs";
 import { inspectPptxPackage } from "../../.github/extensions/markdstage/runtime/pptx-package.mjs";
-import { CARD_FIXTURE_DIRECTORY, adaptiveCardSlides, cardFence, staticCard, placementSlide } from "../harness/adaptive-cards.mjs";
+import { CARD_FIXTURE_DIRECTORY, adaptiveCardReviewCases, cardFence, staticCard } from "../harness/adaptive-cards.mjs";
 import { readSystemsPackage } from "../utils/systems-fallback-contract.mjs";
 import { startHarness } from "../harness/server.mjs";
 
@@ -14,7 +14,8 @@ test("real PPTX embeds one transparent, bounded card capture, without generic du
   const workspace = testInfo.outputPath("workspace");
   await mkdir(workspace, { recursive: true });
   await cp(join(CARD_FIXTURE_DIRECTORY, "assets"), join(workspace, "assets"), { recursive: true });
-  const slides = [...await adaptiveCardSlides(), placementSlide];
+  const cases = await adaptiveCardReviewCases();
+  const slides = cases.map((entry) => entry.markdown);
   const source = join(workspace, "cards.md");
   await writeFile(source, slides.join("\n\n---\n\n"));
   await withDeckServer({ file: source, workspace, theme: "dark" }, async (session) => {
@@ -50,51 +51,63 @@ test("real PPTX embeds one transparent, bounded card capture, without generic du
     const files = readSystemsPackage(bytes);
     for (const [index, slide] of rendered.model.slides.slice(0, slides.length).entries()) {
       const cards = slide.fallbacks.filter((fallback) => fallback.type === "adaptive-card");
-      expect(cards).toHaveLength(1);
-      expect(cards[0].path).toBe("adaptive-card[0]");
-      expect(cards[0].reason).toBe(index === 5 ? "adaptive-card-unsupported-element" : "adaptive-card-phase-0-raster");
-      if (index !== 5) expect(cards[0].diagnostics).toBeUndefined();
-      expect(cards[0].captureId).toBeTruthy();
-      expect(slide.fallbacks.filter((fallback) => fallback.type === "html")).toHaveLength(index === 6 ? 1 : 0);
-      const capture = rendered.slideFallbackImages[index].find((image) => slide.fallbacks[image.fallbackIndex] === cards[0]);
-      expect(capture.x).toBe(Math.floor(cards[0].x));
-      expect(capture.y).toBe(Math.floor(cards[0].y));
-      expect(capture.x + capture.width).toBeLessThanOrEqual(1280);
-      expect(capture.y + capture.height).toBeLessThanOrEqual(720);
-      const png = await page.evaluate(async (base64) => {
-        const image = new Image();
-        image.src = `data:image/png;base64,${base64}`;
-        await image.decode();
-        const canvas = document.createElement("canvas");
-        canvas.width = image.width; canvas.height = image.height;
-        const context = canvas.getContext("2d");
-        context.drawImage(image, 0, 0);
-        const pixels = context.getImageData(0, 0, image.width, image.height).data;
-        let transparent = 0, opaque = 0, bottomPaint = 0;
-        for (let offset = 3; offset < pixels.length; offset += 4) {
-          if (pixels[offset] === 0) transparent++;
-          if (pixels[offset] === 255) opaque++;
-          if (offset > pixels.length - image.width * 4 && pixels[offset] > 0) bottomPaint++;
+      expect(cards).toHaveLength(cases[index].expected.length);
+      expect(slide.fallbacks.filter((fallback) => fallback.type === "html")).toHaveLength([6, 11].includes(index) ? 1 : 0);
+      for (const [cardIndex, card] of cards.entries()) {
+        const expected = cases[index].expected[cardIndex];
+        expect(card.path).toBe(`adaptive-card[${cardIndex}]`);
+        expect(card.sourcePath).toBe(card.path);
+        expect(card.reason).toBe(expected.status === "error"
+          ? `adaptive-card-${expected.codes.at(-1)}` : "adaptive-card-rendered-as-artwork");
+        expect((card.diagnostics || []).map((entry) => entry.code).sort()).toEqual([...expected.codes].sort());
+        expect(card.captureId).toBeTruthy();
+        expect(report.fallbacks.filter((entry) => entry.page === index + 1 && entry.path === card.path))
+          .toEqual([expect.objectContaining({ impact: "content", reason: card.reason })]);
+        const capture = rendered.slideFallbackImages[index].find((image) => slide.fallbacks[image.fallbackIndex] === card);
+        expect(capture.x).toBe(Math.floor(card.x));
+        expect(capture.y).toBe(Math.floor(card.y));
+        expect(capture.x + capture.width).toBeLessThanOrEqual(1280);
+        expect(capture.y + capture.height).toBeLessThanOrEqual(720);
+        const png = await page.evaluate(async (base64) => {
+          const image = new Image();
+          image.src = `data:image/png;base64,${base64}`;
+          await image.decode();
+          const canvas = document.createElement("canvas");
+          canvas.width = image.width; canvas.height = image.height;
+          const context = canvas.getContext("2d");
+          context.drawImage(image, 0, 0);
+          const pixels = context.getImageData(0, 0, image.width, image.height).data;
+          let transparent = 0, opaque = 0, bottomPaint = 0;
+          for (let offset = 3; offset < pixels.length; offset += 4) {
+            if (pixels[offset] === 0) transparent++;
+            if (pixels[offset] === 255) opaque++;
+            if (offset > pixels.length - image.width * 4 && pixels[offset] > 0) bottomPaint++;
+          }
+          return { width: image.width, height: image.height, transparent, opaque, bottomPaint };
+        }, capture.data.toString("base64"));
+        expect(png.width).toBe(capture.width);
+        expect(png.height).toBe(capture.height);
+        expect(png.transparent).toBeGreaterThan(0);
+        expect(png.opaque).toBeGreaterThan(0);
+        if (index === 4) expect(png.bottomPaint).toBe(0);
+        if (index === 11) {
+          expect(capture.x).toBe(1120);
+          expect(capture.width).toBe(160);
+          expect(capture.y + capture.height).toBe(720);
         }
-        return { width: image.width, height: image.height, transparent, opaque, bottomPaint };
-      }, capture.data.toString("base64"));
-      expect(png.width).toBe(capture.width);
-      expect(png.height).toBe(capture.height);
-      expect(png.transparent).toBeGreaterThan(0);
-      expect(png.opaque).toBeGreaterThan(0);
-      if (index === 4) expect(png.bottomPaint).toBe(0);
-      const rels = files.get(`ppt/slides/_rels/slide${index + 1}.xml.rels`).toString("utf8");
-      const xml = files.get(`ppt/slides/slide${index + 1}.xml`).toString("utf8");
-      const pictures = await page.evaluate(({ xml, rels }) => {
-        const parser = new DOMParser();
-        const relations = [...parser.parseFromString(rels, "application/xml").getElementsByTagName("Relationship")];
-        return [...parser.parseFromString(xml, "application/xml").getElementsByTagName("p:pic")].map((picture) => {
-          const id = picture.getElementsByTagName("a:blip")[0].getAttribute("r:embed");
-          return relations.find((relation) => relation.getAttribute("Id") === id).getAttribute("Target");
-        });
-      }, { xml, rels });
-      expect(pictures.filter((target) => files.get(posix.normalize(posix.join("ppt/slides", target))).equals(capture.data))).toHaveLength(1);
-      await writeFile(testInfo.outputPath(`card-${index + 1}.png`), capture.data);
+        const rels = files.get(`ppt/slides/_rels/slide${index + 1}.xml.rels`).toString("utf8");
+        const xml = files.get(`ppt/slides/slide${index + 1}.xml`).toString("utf8");
+        const pictures = await page.evaluate(({ xml, rels }) => {
+          const parser = new DOMParser();
+          const relations = [...parser.parseFromString(rels, "application/xml").getElementsByTagName("Relationship")];
+          return [...parser.parseFromString(xml, "application/xml").getElementsByTagName("p:pic")].map((picture) => {
+            const id = picture.getElementsByTagName("a:blip")[0].getAttribute("r:embed");
+            return relations.find((relation) => relation.getAttribute("Id") === id).getAttribute("Target");
+          });
+        }, { xml, rels });
+        expect(pictures.filter((target) => files.get(posix.normalize(posix.join("ppt/slides", target))).equals(capture.data))).toHaveLength(1);
+        await writeFile(testInfo.outputPath(`card-${index + 1}-${cardIndex + 1}.png`), capture.data);
+      }
     }
     const placement = rendered.model.slides[6];
     const card = placement.fallbacks.find((fallback) => fallback.type === "adaptive-card");
@@ -106,6 +119,25 @@ test("real PPTX embeds one transparent, bounded card capture, without generic du
     const xml = files.get("ppt/slides/slide7.xml").toString("utf8");
     expect(xml.indexOf("adaptive-card artwork")).toBeGreaterThanOrEqual(0);
     expect(xml.indexOf("adaptive-card artwork")).toBeLessThan(xml.indexOf("Native foreground neighbor"));
+    const boundary = rendered.model.slides[11];
+    const boundaryCard = boundary.fallbacks.find((fallback) => fallback.type === "adaptive-card");
+    const footerContent = boundary.elements.filter((element) => element.path?.includes("footer"));
+    expect(footerContent.length).toBeGreaterThan(0);
+    expect(footerContent.every((element) => element.zOrder < boundaryCard.zOrder)).toBe(true);
+    const boundaryXml = files.get("ppt/slides/slide12.xml").toString("utf8");
+    expect(boundaryXml.indexOf("12 / 12")).toBeGreaterThanOrEqual(0);
+    expect(boundaryXml.indexOf("12 / 12")).toBeLessThan(boundaryXml.indexOf("adaptive-card artwork"));
+    const boundaryToken = crypto.randomUUID();
+    session.exportJobs.set(boundaryToken, createOutputJob(createOutputSnapshot(session), "capture"));
+    await page.goto(`${session.url}?capture=1&token=${boundaryToken}&index=11`);
+    await expect(page.locator("html")).toHaveAttribute("data-capture-ready", "true");
+    const cardCoversFooter = await page.evaluate(() => {
+      const host = document.querySelector(".adaptive-card-host");
+      const badge = document.querySelector("footer .page").getBoundingClientRect();
+      return document.elementFromPoint(badge.x + badge.width / 2, badge.y + badge.height / 2) === host;
+    });
+    expect(cardCoversFooter).toBe(true);
+    session.exportJobs.delete(boundaryToken);
     await writeFile(testInfo.outputPath("export-report.json"), JSON.stringify(report, null, 2));
     await writeFile(testInfo.outputPath("model.json"), JSON.stringify(rendered.model, null, 2));
     await testInfo.attach("actual-pptx", { path: join(workspace, "cards.pptx"),

@@ -17,6 +17,7 @@ test("readGuide returns every document-backed topic", async () => {
     "theme-schema": "--bg",
     "architecture-dsl": "```architecture",
     "architecture-schema": '"builtIn"',
+    "adaptive-cards": "adaptive-card-rendered-as-artwork",
   };
 
   for (const [topic, expected] of Object.entries(expectations)) {
@@ -75,6 +76,18 @@ test("readGuide returns every document-backed topic", async () => {
   assert.match(await readGuide("architecture-dsl"), /dedicated Architecture Editor/);
   assert.match(await readGuide("architecture-dsl"), /explicitly saved/);
   assert.match(await readGuide("architecture-dsl"), /`labelLayer`/);
+});
+
+test("card guide and load feedback distinguish validation from browser-only checks", async () => {
+  const guide = await readGuide("adaptive-cards");
+  for (const expected of ["3.0.6", "1.5", "HostConfig", "262,144", "animateMotion",
+    "fallback-substituted", "Image unavailable", "deferred-to-browser", "not editable"]) {
+    assert.ok(guide.includes(expected), expected);
+  }
+  const feedback = deckValidationFeedback(['```adaptive-card\n{"type":"AdaptiveCard","version":"1.6","body":[]}\n```']);
+  assert.match(feedback, /unsupported-version/);
+  assert.match(feedback, /adaptive-card\[0\]\$\.version/);
+  assert.match(feedback, /content impact/);
 });
 
 test("overview and slide-format explain usable Archify imports", async () => {

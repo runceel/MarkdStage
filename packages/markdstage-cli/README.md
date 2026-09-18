@@ -55,6 +55,7 @@ markdstage export slides.md --output slides.pptx --mermaid-image-fallback
 markdstage guide overview
 markdstage guide slide-format
 markdstage guide architecture-dsl
+markdstage guide adaptive-cards
 markdstage skill install --target codex
 markdstage skill install --target claude
 ```
@@ -67,8 +68,8 @@ in slide view with automatic refresh enabled.
 | --- | --- |
 | `present` | Opens the full MarkdStage UI in presenter view. Open Markdown, automatic refresh, editing, export, and audience controls remain available. `--watch` starts in live mode, and `--no-open` serves the UI without launching a browser. |
 | `preview` | Opens the same full UI in slide view. It is a compatibility/convenience entry point; `--watch` starts in live mode, and `--no-open` serves the UI without launching a browser. |
-| `validate` | Checks deck structure, Architecture DSL blocks, themes, and theme paths. |
-| `inspect` | Reports the same compact 1280x720 clipping diagnostics as the canvas `inspect_layout` action, including degraded connector routing reported separately from clipping. `--slide <n>` limits it to one page, `--all` includes slides that fit, `--fail-on-issues` exits with code 5. |
+| `validate` | Checks deck structure, Architecture DSL, resolved static Adaptive Card JSON, themes, and theme paths. Card image bytes/availability and SDK rendering require browser inspection. |
+| `inspect` | Reports the same compact 1280x720 diagnostics as Canvas `inspect_layout`, with Architecture routing and Adaptive Card content diagnostics separate from clipping. `--slide <n>` limits it to one page, `--all` includes slides that fit, and `--fail-on-issues` exits with code 5 for clipping or card content diagnostics. |
 | `capture` | Writes 1280x720 PNG files. Without `--pages` only the slides reported as clipped are captured. |
 | `export` | Produces the same 16:9 PDF or hybrid editable PowerPoint as the canvas Extension. PowerPoint output includes speaker-note Markdown as readable plain text notes. The `--output` extension selects the format; PDF remains the default. Use `--mermaid-image-fallback` with an explicit `.pptx` output to place each Mermaid diagram as one image instead of editable PowerPoint shapes, equivalent to choosing **Images** in the UI export dialog. |
 | `guide` | Prints the canonical `markdstage_guide` topics. |
@@ -95,6 +96,14 @@ editable PowerPoint objects. Run `markdstage guide overview` to discover this
 workflow and `markdstage guide slide-format` for the fence example, asset rules,
 and limitations. Re-export in Archify and refresh to update the diagram;
 Architecture editing applies only to `architecture` fences.
+
+## Adaptive Cards
+
+For static Adaptive Cards, use an `adaptive-card` fence with resolved schema-1.5
+JSON and read `markdstage guide adaptive-cards`. Unsupported cards show errors;
+blocked/failed images use placeholders without removing the rest of the card.
+PowerPoint uses one bounded PNG per visible card and reports
+`adaptive-card-rendered-as-artwork`; card internals are not editable.
 
 ## Architecture editing
 

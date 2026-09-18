@@ -117,6 +117,7 @@ export async function capturePptxModel(cdp, total) {
           for (const element of document.querySelectorAll("[data-pptx-fallback-ids]")) {
             const ids = (element.getAttribute("data-pptx-fallback-ids") || "").split(/\\s+/);
             element.classList.toggle("pptx-fallback-hidden", !ids.includes(active));
+            element.classList.toggle("pptx-card-capture-active", ids.includes(active) && element.classList.contains("adaptive-card-host"));
           }
           return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         })()`,

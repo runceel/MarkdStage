@@ -205,10 +205,49 @@ test("CLI export-status API preserves bounded architecture diagnostics", async (
       headers: { "Content-Type": "application/json", Origin: new URL(session.url).origin },
       body: JSON.stringify({ status: "ready", layout: source }),
     });
+
     assert.equal(response.status, 204);
     assert.equal(job.status, "ready");
     assert.deepEqual(job.layout.slides[0].elements[0], architectureElement);
     assert.doesNotMatch(JSON.stringify(job.layout), /private source/);
     session.exportJobs.delete("layout-test");
   });
+});
+
+test("card content diagnostics survive inspection without changing the clipping verdict", () => {
+  const source = cleanArchitectureReport([]);
+  source.slides[0].adaptiveCards = [{
+    blockIndex: 0, status: "ready", sdkVersion: "3.0.6", schemaVersion: "1.5", hostConfigVersion: 1,
+    diagnostics: [{ code: "blocked-image", severity: "warning", path: "$.body[1].url",
+      sourcePath: "adaptive-card[0]$.body[1].url", message: "An image placeholder is shown.",
+      image: "data:image/png;base64,private", source: "private" }],
+  }];
+  const report = selectLayoutResults(source, undefined, false);
+  assert.equal(report.hasIssues, false);
+  assert.equal(report.issueCount, 0);
+  assert.equal(report.hasAdaptiveCardIssues, true);
+  assert.equal(report.adaptiveCardIssueCount, 1);
+  assert.equal(report.slides[0].adaptiveCards[0].diagnostics[0].impact, "content");
+  assert.doesNotMatch(JSON.stringify(report), /private/);
+  assert.match(formatInspectReport(report), /adaptive-card\[0\]\$\.body\[1\]\.url/);
+  assert.match(formatInspectReport(report), /blocked-image; content impact/);
+});
+
+test("card diagnostic limits are bounded, explicit and survive repeated report sanitization", () => {
+  const source = cleanArchitectureReport([]);
+  source.slides[0].adaptiveCards = Array.from({ length: 21 }, (_, blockIndex) => ({
+    blockIndex, status: "ready", diagnostics: Array.from({ length: 101 }, () => ({
+      code: "x".repeat(1000), path: "$".repeat(1000), sourcePath: "x".repeat(1000),
+      message: "m".repeat(1000), image: "private",
+    })),
+  }));
+  const result = sanitizeLayoutReport(source);
+  assert.equal(result.slides[0].adaptiveCards.length, 20);
+  assert.equal(result.slides[0].adaptiveCardsTruncated, true);
+  assert.equal(result.slides[0].adaptiveCards[0].diagnostics[0].code.length, 80);
+  assert.equal(result.slides[0].adaptiveCards[0].diagnostics[0].message.length, 512);
+  assert.equal(result.slides[0].adaptiveCards[0].diagnosticsTruncated, true);
+  assert.equal(result.slides[0].adaptiveCards.flatMap((card) => card.diagnostics).length, 200);
+  assert.deepEqual(sanitizeLayoutReport(result), result);
+  assert.equal(selectLayoutResults(result).hasAdaptiveCardIssues, true);
 });

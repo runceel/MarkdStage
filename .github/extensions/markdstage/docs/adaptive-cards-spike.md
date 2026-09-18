@@ -6,6 +6,9 @@ contract or a Phase 2 editable converter. The durable boundary is
 [ADR 0005](https://github.com/runceel/MarkdStage/blob/main/docs/adr/0005-adaptive-card-semantic-and-raster-boundary.md).
 Reproduction commands and fixture ownership are in the
 [fixture documentation](https://github.com/runceel/MarkdStage/blob/main/test/fixtures/adaptive-cards/README.md).
+This document retains the Phase 0 findings and limits as historical evidence.
+For current rendering, fallback and placeholder behavior, use the
+[shipping static-card contract](adaptive-cards.md).
 
 ## Compatibility envelope
 

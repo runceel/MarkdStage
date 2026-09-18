@@ -12,7 +12,11 @@ public sealed class HostCommandsTests : IDisposable
         File.WriteAllText(Path.Combine(root, "CliData", "commands.json"), JsonSerializer.Serialize(new
         {
             version = "4.0.0",
-            guides = new Dictionary<string, string> { ["overview"] = "日本語 — Markdown" },
+            guides = new Dictionary<string, string>
+            {
+                ["overview"] = "日本語 — Markdown",
+                ["adaptive-cards"] = "# Adaptive Cards\n\n```adaptive-card\n",
+            },
             skills = new Dictionary<string, Dictionary<string, string>>
             {
                 ["codex"] = new() { ["SKILL.md"] = "# MarkdStage\n", ["references/overview.md"] = "Guide\n" }
@@ -35,6 +39,19 @@ public sealed class HostCommandsTests : IDisposable
         await HostCommands.RunAsync(CliArguments.Parse(["guide", "--json"]), root, writer, CancellationToken.None);
         using var report = JsonDocument.Parse(writer.ToString());
         Assert.Equal("日本語 — Markdown", report.RootElement.GetProperty("content").GetString());
+    }
+
+    [Fact]
+    public async Task AdaptiveCardsGuideIsAvailableWithoutJavaScript()
+    {
+        var writer = new StringWriter();
+        Assert.Equal(0, await HostCommands.RunAsync(
+            CliArguments.Parse(["guide", "adaptive-cards", "--json"]), root, writer, CancellationToken.None));
+        using var report = JsonDocument.Parse(writer.ToString());
+        Assert.Equal("adaptive-cards", report.RootElement.GetProperty("topic").GetString());
+        Assert.Equal("# Adaptive Cards\n\n```adaptive-card\n", report.RootElement.GetProperty("content").GetString());
+        Assert.Contains("adaptive-cards", HostCommands.Help("guide"));
+        Assert.Contains("adaptive-cards", HostCommands.Help(null));
     }
 
     [Fact]

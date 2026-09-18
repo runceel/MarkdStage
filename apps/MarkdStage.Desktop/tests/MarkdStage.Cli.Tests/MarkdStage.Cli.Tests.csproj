@@ -25,4 +25,20 @@
     <Compile Include="..\..\src\MarkdStage.Cli\ScriptHost.cs" Link="Cli\ScriptHost.cs" />
     <Compile Include="..\..\src\MarkdStage.Cli\StaDispatcher.cs" Link="Cli\StaDispatcher.cs" />
   </ItemGroup>
+  <ItemGroup>
+    <AssemblyMetadata Include="NativeTestRoot" Value="$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\..\test-results'))" />
+    <Content Include="..\..\..\..\.github\extensions\markdstage\renderer\*.mjs">
+      <Link>Web\renderer\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\..\..\.github\extensions\markdstage\vendor\*.js.part-*;..\..\..\..\.github\extensions\markdstage\vendor\vendor-assets.lock.json;..\..\..\..\.github\extensions\markdstage\vendor\marked.min.js">
+      <Link>Web\vendor\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\fixtures\adaptive-cards\*.md">
+      <Link>Fixtures\adaptive-cards\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+  <Import Project="..\..\src\MarkdStage.Cli\PackageAssets.targets" />
 </Project>

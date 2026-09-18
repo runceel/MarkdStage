@@ -14,7 +14,7 @@ import { sanitizeLayoutReport } from "./layout-report.mjs";
 import {
   MAX_CAPTURE_SLIDES, createOutputSnapshot, createOutputJob,
   preparePptxPackageModel as preparePortablePptxPackageModel, selectLayoutResults, normalizeCaptureIndexes,
-  buildValidatedPptx, pptxFallbackReport,
+  buildValidatedPptx, pptxFallbackReport, adaptiveCardOutputReport,
 } from "./output-model.mjs";
 export {
   MAX_CAPTURE_SLIDES, MAX_PPTX_ASSET_BYTES, MAX_PPTX_TOTAL_ASSET_BYTES,
@@ -313,6 +313,7 @@ export async function exportPdf(inst, requestedPath, requestedTheme) {
       total: snapshot.slides.length,
       theme: snapshot.theme,
       bytes,
+      ...adaptiveCardOutputReport(exportJob.layout),
     };
   } catch (error) {
     if (error instanceof MarkdStageError) throw error;

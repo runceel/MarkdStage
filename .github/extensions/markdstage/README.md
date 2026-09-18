@@ -28,6 +28,7 @@ Canvas iframe (renderer/)
   | converts ```mermaid blocks with mermaid.run
   | converts validated ```architecture JSON DSL into a safe SVG DOM
   | imports ```archify SVG asset references and repaints them with the deck theme
+  | lazily renders secure static ```adaptive-card JSON with the pinned official SDK
   | keeps ◀ page ▶, ☰, and ⋯ visible in a compact control bar
   | groups editing, presentation, preview, import, refresh, and export under ⋯
   v
@@ -154,7 +155,7 @@ The themed slide is displayed and updates automatically
   The snapshot includes a temporary `show_slide` replacement. Prefer one
   whole-deck inspection, or serialize targeted inspections because PDF, layout,
   and PNG output jobs are intentionally exclusive. The result contains compact
-  JSON for clipped pages and pages containing Architecture diagrams, including
+  JSON for clipped pages and pages containing Architecture diagrams or Adaptive Cards, including
   vertical/horizontal overflow, bounded element measurements, and degraded
   connector routing.
   Call `capture_slides` only when visual inspection is needed;
@@ -175,12 +176,15 @@ The themed slide is displayed and updates automatically
   `assets/` at the workspace root, using `sourceName` as the resolution base.
 - Add language names such as `csharp`, `json`, or `diff` to code fences for
   highlight.js syntax highlighting.
-- **Experimental Adaptive Cards Phase 0 spike:** an `adaptive-card` fence loads
-  the pinned official SDK only when needed and renders a bounded static
-  schema-1.5 subset. Cards export as whole-card PNG artwork, not editable card
-  objects. Remote resources, interactivity, templating, and SDK fallback are
-  excluded with diagnostics. See [the spike contract and findings](docs/adaptive-cards-spike.md);
-  this is not the later production compatibility contract.
+- **Static Adaptive Cards:** an `adaptive-card` fence accepts fully resolved
+  schema-1.5 JSON and loads the official SDK 3.0.6 only when needed. Cards export
+  as one bounded PNG per visible card, not editable card objects. Invalid cards
+  show error panels; blocked/missing images show deterministic placeholders while
+  preserving the remaining content. Requirements, explicit static fallbacks,
+  sanitization and content loss are diagnosed in validation, inspection and export.
+  Remote assets, interactivity and templating are not enabled by fallback.
+  Read [the authoring and output contract](docs/adaptive-cards.md), also available
+  as `markdstage_guide` / `markdstage guide` topic `adaptive-cards`.
 
 ## Markdown import
 

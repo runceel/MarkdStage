@@ -68,8 +68,8 @@ markdstage skill install --target codex
 | --- | --- |
 | `present` | パッケージ版: ネイティブのワークスペースウィンドウを発表者ビューで開くか再利用し、ネイティブの投影用ウィンドウも開きます。繰り返しても投影用ウィンドウを閉じたり重複させたりしません。npm 版: ブラウザーの発表者ビューを開き、**Start presentation** で投影用ウィンドウを開きます。 |
 | `preview` | 通常のスライド表示を開きます。パッケージ版はネイティブアプリ、npm 版はブラウザーの UI です。 |
-| `validate` | デッキ構造、Architecture DSL ブロック、テーマ、テーマのパスを検証します。 |
-| `inspect` | Canvas の `inspect_layout` と同じ 1280x720 のクリッピング診断を返します。`--slide <n>` で 1 ページだけ、`--all` で収まっているスライドも含め、`--fail-on-issues` で終了コード 5 を返します。 |
+| `validate` | デッキ構造、Architecture DSL、展開済みの静的 Adaptive Card JSON、テーマとパスを検証します。カードの画像や SDK 描画はブラウザー検査が必要です。 |
+| `inspect` | Canvas の `inspect_layout` と同じ 1280x720 の診断を返し、カードの内容診断とクリッピングを区別します。`--slide <n>` で 1 ページだけ、`--all` で収まっているスライドも含め、`--fail-on-issues` はクリッピングまたはカードの内容診断があると終了コード 5 を返します。 |
 | `capture` | 1280x720 の PNG を書き出します。`--pages` を指定しない場合はクリッピングが報告されたスライドだけを取得します。 |
 | `export` | Canvas Extension と同じ 16:9 の PDF、または編集可能な要素を残したハイブリッド PowerPoint を生成します。`--output` の拡張子で形式を選び、省略時は PDF です。明示的な `.pptx` 出力で `--mermaid-image-fallback` を指定すると、UI の出力ダイアログで **Images** を選ぶ場合と同様に、Mermaid 図を編集可能な PowerPoint 図形ではなく 1 枚の画像として配置します。 |
 | `guide` | MarkdStage の公式ガイド（`overview`、`slide-format`、`themes`、`custom-themes`、`theme-schema`、`architecture-dsl`、`architecture-schema`）を表示します。 |

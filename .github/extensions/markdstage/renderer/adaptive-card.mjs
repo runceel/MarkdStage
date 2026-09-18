@@ -1,119 +1,26 @@
-import { ImageSourceError, checkImageBytes, decodePercentImageData, inspectImageSource } from "./image-source.mjs";
+import { checkImageBytes, decodePercentImageData, inspectImageSource } from "./image-source.mjs";
+import {
+  ADAPTIVE_CARDS_SDK_VERSION, ADAPTIVE_CARD_SCHEMA_VERSION, ADAPTIVE_CARD_HOST_CONFIG_VERSION,
+  AdaptiveCardError, validateAdaptiveCardSource, resolveCardImageUrl,
+  cardDiagnostic, cardErrorDiagnostic, addCardDiagnostic,
+} from "./adaptive-card-validation.mjs";
+export {
+  ADAPTIVE_CARDS_SDK_VERSION, ADAPTIVE_CARD_SCHEMA_VERSION, ADAPTIVE_CARD_HOST_CONFIG_VERSION,
+  AdaptiveCardError, MAX_CARD_JSON_BYTES, MAX_CARD_OBJECTS, MAX_CARD_DEPTH,
+  parseAdaptiveCardSource, resolveCardImageUrl,
+} from "./adaptive-card-validation.mjs";
 
-export const ADAPTIVE_CARDS_SDK_VERSION = "3.0.6";
-export const ADAPTIVE_CARD_SCHEMA_VERSION = "1.5";
-export const ADAPTIVE_CARD_HOST_CONFIG_VERSION = 1;
-export const MAX_CARD_JSON_BYTES = 256 * 1024;
-export const MAX_CARD_OBJECTS = 256;
-export const MAX_CARD_DEPTH = 16;
-
-const STATIC_TYPES = new Set([
-  "AdaptiveCard", "TextBlock", "RichTextBlock", "TextRun", "Container", "ColumnSet", "Column",
-  "Image", "ImageSet", "FactSet", "Table", "TableRow", "TableCell",
-]);
-const INTERACTIVE_PROPERTIES = new Set(["actions", "selectAction", "inlineAction", "refresh", "authentication"]);
-const COLLECTIONS = new Set(["body", "items", "columns", "images", "inlines", "facts", "rows", "cells"]);
 const states = new WeakMap();
 let sdkPromise;
-
-export class AdaptiveCardError extends Error {
-  constructor(code, path, message) {
-    super(message);
-    this.name = "AdaptiveCardError";
-    this.code = code;
-    this.path = path;
-  }
-}
+const PLACEHOLDER_IMAGE = "data:image/svg+xml;base64," + btoa(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="80" viewBox="0 0 160 80">' +
+  '<rect x="1" y="1" width="158" height="78" rx="4" fill="#eeeeee" stroke="#777777"/>' +
+  '<path d="M69 14h22v22H69zM71 33l6-7 4 4 4-5 4 8" fill="none" stroke="#555555" stroke-width="2"/>' +
+  '<text x="80" y="58" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#333333">Image unavailable</text></svg>',
+);
 
 function fail(code, path, message) {
   throw new AdaptiveCardError(code, path, message);
-}
-
-// Deliberately narrower than the SDK: Phase 0 never lets its fallback, actions,
-// templating, media, or background-resource mechanisms run.
-export function parseAdaptiveCardSource(source) {
-  if (typeof source !== "string" || new TextEncoder().encode(source).length > MAX_CARD_JSON_BYTES) {
-    fail("card-size-limit", "$", `Card JSON must be at most ${MAX_CARD_JSON_BYTES} UTF-8 bytes.`);
-  }
-  let card;
-  try { card = JSON.parse(source); }
-  catch { fail("invalid-json", "$", "Expected fully resolved Adaptive Card JSON."); }
-  if (!card || card.type !== "AdaptiveCard" || !Array.isArray(card.body)) {
-    fail("invalid-card", "$", "Expected an AdaptiveCard with a body array.");
-  }
-  if (card.version !== ADAPTIVE_CARD_SCHEMA_VERSION) {
-    fail("unsupported-version", "$.version", `The Phase 0 spike accepts schema ${ADAPTIVE_CARD_SCHEMA_VERSION} only.`);
-  }
-  let objects = 0;
-  const visit = (value, path, depth) => {
-    if (depth > MAX_CARD_DEPTH) fail("card-depth-limit", path, `Card depth exceeds ${MAX_CARD_DEPTH}.`);
-    if (typeof value === "string") {
-      if (/\$\{/.test(value)) fail("unresolved-template", path, "Template expressions are not supported.");
-      return;
-    }
-    if (!value || typeof value !== "object") return;
-    if (++objects > MAX_CARD_OBJECTS) fail("card-object-limit", path, `Card object count exceeds ${MAX_CARD_OBJECTS}.`);
-    if (Array.isArray(value)) {
-      value.forEach((item, index) => visit(item, `${path}[${index}]`, depth + 1));
-      return;
-    }
-    if ("type" in value && (!STATIC_TYPES.has(value.type) || (value.type === "AdaptiveCard" && path !== "$"))) {
-      fail("unsupported-element", path, "Only the documented static Phase 0 element types are supported.");
-    }
-    for (const [key, child] of Object.entries(value)) {
-      const location = `${path}.${key}`;
-      if (INTERACTIVE_PROPERTIES.has(key)) fail("unsupported-interactivity", location, "Cards are non-interactive.");
-      if (key === "fallback" || key === "fallbackText") fail("unsupported-fallback", location, "SDK fallback is deferred; the card is not silently degraded.");
-      if (key === "requires") fail("unsupported-requires", location, "Host capability negotiation is deferred.");
-      if (key.startsWith("$") && key !== "$schema") fail("unresolved-template", location, "Only fully resolved card JSON is accepted.");
-      if (key === "backgroundImage") fail("unsupported-resource", location, "Background images are outside the Phase 0 subset.");
-      if (COLLECTIONS.has(key) && !Array.isArray(child)) fail("invalid-collection", location, "Expected an array.");
-      if (COLLECTIONS.has(key)) {
-        child.forEach((item, index) => {
-          const itemPath = `${location}[${index}]`;
-          if (key === "inlines" && typeof item === "string") return;
-          if (!item || typeof item !== "object" || Array.isArray(item)) fail("invalid-element", itemPath, "Expected a typed card object.");
-          if (key === "facts") {
-            if (typeof item.title !== "string" || typeof item.value !== "string") fail("invalid-fact", itemPath, "Facts require string title and value fields.");
-            return;
-          }
-          if (key === "columns" && value.type === "Table") return;
-          const expected = { images: "Image", inlines: "TextRun", rows: "TableRow", cells: "TableCell", columns: "Column" }[key];
-          if (!STATIC_TYPES.has(item.type) || (expected && item.type !== expected)) {
-            fail("unsupported-element", itemPath, "An explicit supported type is required; implicit SDK elements are not accepted.");
-          }
-        });
-      }
-      visit(child, location, depth + 1);
-    }
-  };
-  visit(card, "$", 0);
-  return card;
-}
-
-export function resolveCardImageUrl(source, baseURI, label = "$.url") {
-  if (inspectImageSource(source, label)) return source;
-  if (/[\u0000-\u0020\u007f\\?#]/.test(source)) {
-    fail("blocked-image", label, "Image references cannot contain controls, queries, fragments, or backslashes.");
-  }
-  let decoded;
-  try { decoded = decodeURIComponent(source); }
-  catch { fail("blocked-image", label, "Invalid image URL encoding."); }
-  if (/[\\\u0000-\u001f\u007f]/.test(decoded) ||
-      /%[0-9a-f]{2}/i.test(decoded) ||
-      decoded.split("/").some((part) => part === "." || part === "..") ||
-      /%(?:2f|5c)/i.test(source)) {
-    fail("blocked-image", label, "Image paths must stay inside the approved assets folder.");
-  }
-  const base = new URL(".", baseURI);
-  const assets = new URL("assets/", base);
-  const url = new URL(source.startsWith("/assets/") ? source.slice(1) : source, base);
-  if (!["http:", "https:"].includes(url.protocol) || url.origin !== base.origin ||
-      url.username || url.password || !url.pathname.startsWith(assets.pathname) ||
-      !/\.(png|jpe?g|gif|svg)$/i.test(url.pathname)) {
-    fail("blocked-image", label, "Images must be supported data images or same-origin workspace assets; remote images are blocked.");
-  }
-  return url.href;
 }
 
 function dataBytes(image) {
@@ -134,16 +41,19 @@ function checkSvgResources(bytes, documentRef, label) {
   const text = new TextDecoder().decode(bytes);
   if (/<!DOCTYPE|<!ENTITY|<\?xml-stylesheet/i.test(text)) fail("blocked-image", label, "SVG external declarations are not allowed.");
   const svg = new documentRef.defaultView.DOMParser().parseFromString(text, "image/svg+xml");
-  if (svg.querySelector("parsererror") || svg.documentElement.localName !== "svg") {
+  if (svg.querySelector("parsererror") || svg.documentElement.localName !== "svg" ||
+      svg.documentElement.namespaceURI !== "http://www.w3.org/2000/svg") {
     fail("invalid-image", label, "Invalid SVG image.");
   }
   for (const element of svg.querySelectorAll("*")) {
-    if (["script", "foreignObject", "style", "animate", "animateColor", "animateMotion", "animateTransform", "set"].includes(element.localName)) {
+    if (element.namespaceURI !== "http://www.w3.org/2000/svg" ||
+        ["script", "foreignObject", "style", "animate", "animateColor", "animateMotion", "animateTransform", "set", "discard"].includes(element.localName)) {
       fail("blocked-image", label, "SVG scripts, HTML, stylesheets, and animation are not allowed.");
     }
     for (const attribute of element.attributes) {
       if (/^on/i.test(attribute.name) ||
           (attribute.localName === "href" && !attribute.value.startsWith("#")) ||
+          (attribute.localName === "style" && /animation|transition/i.test(attribute.value)) ||
           /\\|@import|url\s*\(/i.test(attribute.value.replace(/url\s*\(\s*['"]?#[-\w]+\s*['"]?\s*\)/gi, ""))) {
         fail("blocked-image", label, "SVG images cannot reference external resources.");
       }
@@ -161,21 +71,62 @@ function checkImageContent(bytes, contentType, documentRef, label) {
   if (!signatures[contentType]?.some((signature) => signature.every((byte, index) => bytes[index] === byte))) {
     fail("invalid-image", label, "Image bytes do not match their approved content type.");
   }
+  if (contentType === "image/png") {
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    for (let offset = 8; offset + 12 <= bytes.length;) {
+      const length = view.getUint32(offset);
+      if (length > bytes.length - offset - 12) fail("invalid-image", label, "Invalid PNG chunk length.");
+      const type = String.fromCharCode(...bytes.subarray(offset + 4, offset + 8));
+      if (["acTL", "fcTL", "fdAT"].includes(type)) fail("blocked-image", label, "Animated PNG images are not allowed.");
+      offset += length + 12;
+    }
+  }
+  if (contentType === "image/gif") {
+    let offset = 13, frames = 0;
+    if (bytes[10] & 0x80) offset += 3 * (1 << ((bytes[10] & 7) + 1));
+    const skipBlocks = () => {
+      while (offset < bytes.length) {
+        const size = bytes[offset++];
+        if (!size) return;
+        offset += size;
+      }
+      fail("invalid-image", label, "Invalid GIF block length.");
+    };
+    while (offset < bytes.length) {
+      const marker = bytes[offset++];
+      if (marker === 0x3b) break;
+      if (marker === 0x21) { offset++; skipBlocks(); }
+      else if (marker === 0x2c) {
+        if (++frames > 1) fail("blocked-image", label, "Animated GIF images are not allowed.");
+        const packed = bytes[offset + 8];
+        offset += 9 + ((packed & 0x80) ? 3 * (1 << ((packed & 7) + 1)) : 0);
+        offset++;
+        skipBlocks();
+      } else fail("invalid-image", label, "Invalid GIF block.");
+    }
+  }
 }
 
-async function prepareCardImages(card, documentRef) {
-  const sources = new Map();
-  let total = 0;
-  const load = async (source, label) => {
-    const url = resolveCardImageUrl(source, documentRef.baseURI, label);
-    if (sources.has(url)) return sources.get(url);
+export function createAdaptiveCardResourceContext() {
+  return { images: new Map(), totalBytes: 0 };
+}
+
+async function prepareCardImages(card, documentRef, state, resources) {
+  const load = async (url, label) => {
+    if (resources.images.has(url)) {
+      const cached = resources.images.get(url);
+      if (cached.error) throw new AdaptiveCardError(cached.error.code, label, cached.error.message);
+      return cached.image;
+    }
     let bytes, contentType;
     const data = inspectImageSource(url, label);
     if (data) {
-      checkImageBytes(data.byteLength, label, total);
+      checkImageBytes(data.byteLength, label, resources.totalBytes);
       bytes = dataBytes(data);
+      resources.totalBytes += bytes.length;
       contentType = data.contentType;
     } else {
+      checkImageBytes(1, label, resources.totalBytes);
       let response;
       try {
         response = await fetch(url, { redirect: "error", credentials: "same-origin", signal: AbortSignal.timeout(10_000) });
@@ -188,13 +139,15 @@ async function prepareCardImages(card, documentRef) {
         fail("invalid-image", label, "Workspace image has an unsupported content type.");
       }
       const reader = response.body.getReader(), chunks = [];
+      const previousBytes = resources.totalBytes;
       let length = 0;
       try {
         for (;;) {
           const { done, value } = await reader.read();
           if (done) break;
           length += value.length;
-          checkImageBytes(length, label, total);
+          checkImageBytes(length, label, previousBytes);
+          resources.totalBytes += value.length;
           chunks.push(value);
         }
       } finally {
@@ -206,25 +159,46 @@ async function prepareCardImages(card, documentRef) {
       for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
     }
     checkImageContent(bytes, contentType, documentRef, label);
-    checkImageBytes(bytes.length, label, total);
-    total += bytes.length;
     const prepared = imageDataUrl(bytes, contentType);
-    sources.set(url, prepared);
+    const probe = new documentRef.defaultView.Image();
+    probe.src = prepared;
+    try { await probe.decode(); }
+    catch { fail("image-load-failed", label, "The approved image bytes could not be decoded."); }
+    if (!probe.naturalWidth || !probe.naturalHeight) fail("invalid-image", label, "The image has no visible dimensions.");
+    resources.images.set(url, { image: prepared });
     return prepared;
   };
-  // Validate every URL before even the first approved resource is fetched.
   const images = [];
   const visit = (value, path) => {
     if (!value || typeof value !== "object") return;
     if (value.type === "Image") {
-      resolveCardImageUrl(value.url, documentRef.baseURI, `${path}.url`);
-      images.push([value, `${path}.url`]);
+      const label = `${state.sourcePaths.get(path) || path}.url`;
+      try { images.push({ image: value, label, url: resolveCardImageUrl(value.url, documentRef.baseURI, label) }); }
+      catch (error) { images.push({ image: value, label, error }); }
     }
-    for (const [key, child] of Object.entries(value)) visit(child, `${path}.${key}`);
+    for (const [key, child] of Object.entries(value)) {
+      if (Array.isArray(child)) child.forEach((item, index) => visit(item, `${path}.${key}[${index}]`));
+    }
   };
   visit(card, "$");
-  for (const [image, label] of images) image.url = await load(image.url, label);
-  return new Set(sources.values());
+  const approved = new Set();
+  // Approve all references before fetching. An individual failure never hides
+  // the rest of the card or gives an authored fallback a second resource path.
+  for (const { image, label, url, error: preflightError } of images) {
+    try {
+      if (preflightError) throw preflightError;
+      image.url = await load(url, label);
+    } catch (error) {
+      const diagnostic = cardErrorDiagnostic(error, label, "warning");
+      diagnostic.message = `${diagnostic.message} A static image placeholder is shown.`.slice(0, 512);
+      addCardDiagnostic(state.diagnostics, diagnostic);
+      if (url) resources.images.set(url, { error: diagnostic });
+      image.url = PLACEHOLDER_IMAGE;
+      image.altText = "Image unavailable";
+    }
+    approved.add(image.url);
+  }
+  return approved;
 }
 
 function loadSdk(documentRef) {
@@ -278,30 +252,31 @@ export function createAdaptiveCardHostConfig(SDK, palette) {
   });
 }
 
-function typedObjects(card, SDK) {
+function typedObjects(card, SDK, sourcePaths = new Map()) {
   const objects = [];
-  const visit = (object, sourcePath, parentPath) => {
-    objects.push({ object, sourcePath, parentPath });
+  const visit = (object, path, parent) => {
+    objects.push({ object, sourcePath: sourcePaths.get(path) || path,
+      parentPath: parent === null ? null : sourcePaths.get(parent) || parent });
     if (object instanceof SDK.RichTextBlock) {
       for (let index = 0; index < object.getInlineCount(); index++) {
-        visit(object.getInlineAt(index), `${sourcePath}.inlines[${index}]`, sourcePath);
+        visit(object.getInlineAt(index), `${path}.inlines[${index}]`, path);
       }
     } else if (object instanceof SDK.CardElementContainer) {
       const collection = object instanceof SDK.AdaptiveCard ? "body"
         : object instanceof SDK.ColumnSet ? "columns" : object instanceof SDK.ImageSet ? "images"
           : object instanceof SDK.Table ? "rows" : object instanceof SDK.TableRow ? "cells" : "items";
       for (let index = 0; index < object.getItemCount(); index++) {
-        visit(object.getItemAt(index), `${sourcePath}.${collection}[${index}]`, sourcePath);
+        visit(object.getItemAt(index), `${path}.${collection}[${index}]`, path);
       }
     } else if (object instanceof SDK.FactSet) {
-      object.facts.forEach((fact, index) => visit(fact, `${sourcePath}.facts[${index}]`, sourcePath));
+      object.facts.forEach((fact, index) => visit(fact, `${path}.facts[${index}]`, path));
     }
   };
   visit(card, "$", null);
   return objects;
 }
 
-function cardMarkdown(text, result, documentRef, diagnostics) {
+function cardMarkdown(text, result, documentRef, diagnostics, paths) {
   const { marked, DOMPurify } = documentRef.defaultView;
   result.outputHtml = DOMPurify.sanitize(marked.parse(text), {
     ALLOWED_TAGS: ["p", "br", "strong", "b", "em", "i", "u", "s", "code", "ol", "ul", "li", "a"],
@@ -310,7 +285,9 @@ function cardMarkdown(text, result, documentRef, diagnostics) {
   // DOMPurify records its synthetic BODY wrapper when a fragment allowlist
   // omits BODY. That is not a degradation of authored card Markdown.
   if (DOMPurify.removed.some(({ element, attribute }) => attribute || (element && element.tagName !== "BODY"))) {
-    diagnostics.push({ code: "markdown-sanitized", path: "$", message: "Unsafe markup, resource tags, and link attributes were removed; card Markdown is non-interactive." });
+    for (const path of paths.get(text) || ["$"]) addCardDiagnostic(diagnostics, cardDiagnostic(
+      "markdown-sanitized", path, "Unsafe markup, resource tags, and link attributes were removed; card Markdown is non-interactive.",
+    ));
   }
   result.didProcess = true;
 }
@@ -318,18 +295,72 @@ function cardMarkdown(text, result, documentRef, diagnostics) {
 function shadowContent(host) {
   const shadow = host.shadowRoot || host.attachShadow({ mode: "open" });
   const style = host.ownerDocument.createElement("style");
-  style.textContent = "*{box-sizing:border-box}p{margin:0}strong,b{font-weight:600}code{font-family:Consolas,monospace;font-size:1em}a{color:inherit;text-decoration:underline;pointer-events:none}";
+  style.textContent = "*{box-sizing:border-box}p{margin:0}strong,b{font-weight:600}code{font-family:Consolas,monospace;font-size:1em}a{color:inherit;text-decoration:underline;pointer-events:none}.card-diagnostics{font-size:14px;line-height:20px;margin-top:10px;padding:8px;border:1px solid currentColor;overflow-wrap:anywhere}";
   shadow.replaceChildren(style);
   return shadow;
 }
 
-export async function renderAdaptiveCard(host, source, palette) {
+function sanitizeCardSubtree(rendered, documentRef, state) {
+  const purifier = documentRef.defaultView.DOMPurify;
+  purifier.sanitize(rendered, {
+    IN_PLACE: true,
+    ALLOWED_TAGS: ["div", "span", "p", "br", "strong", "b", "em", "i", "u", "s", "strike", "code",
+      "ol", "ul", "li", "a", "img", "table", "thead", "tbody", "tr", "th", "td"],
+    ALLOWED_ATTR: ["class", "style", "role", "src", "alt", "title", "width", "height", "lang", "dir", "colspan", "rowspan", "scope"],
+    ALLOW_ARIA_ATTR: true, ALLOW_DATA_ATTR: false,
+  });
+  // Identity stays on typed objects, not DOM ids. Removing ids and the SDK's
+  // root tab stop is intentional isolation, not lost presentation content.
+  let changed = purifier.removed.some(({ element, attribute }) =>
+    element || !["tabindex", "id"].includes(attribute?.name));
+  for (const element of [rendered, ...rendered.querySelectorAll("*")]) {
+    if (element.hasAttribute("src") && (element.localName !== "img" || !state.approvedImages.has(element.getAttribute("src")))) {
+      fail("blocked-image", "$", "The SDK subtree contains an unapproved resource.");
+    }
+    for (const name of [...element.style]) {
+      if (/animation|transition/i.test(name) || /\\|url\s*\(|@import/i.test(element.style.getPropertyValue(name))) {
+        element.style.removeProperty(name);
+        changed = true;
+      }
+    }
+  }
+  if (changed) addCardDiagnostic(state.diagnostics, cardDiagnostic(
+    "sdk-subtree-sanitized", "$", "Unsafe or interactive SDK markup was removed before the card was attached.",
+  ));
+}
+
+function showCardDiagnostics(shadow, documentRef, diagnostics, fatal = false) {
+  if (!diagnostics.length) return;
+  const message = documentRef.createElement("div");
+  message.className = "card-diagnostics";
+  message.setAttribute("role", fatal ? "alert" : "note");
+  const visible = fatal
+    ? [...diagnostics.filter((entry) => entry.severity === "error"), ...diagnostics.filter((entry) => entry.severity !== "error")]
+    : diagnostics;
+  message.textContent = `Adaptive Card${fatal ? " error" : ""}: ${visible.slice(0, 3).map((entry) =>
+    `${entry.code} (${entry.path}) - ${entry.message}`).join(" ")}${diagnostics.length > 3
+    ? ` +${diagnostics.length - 3} more; inspect the card diagnostics.` : ""}`;
+  shadow.appendChild(message);
+}
+
+export async function renderAdaptiveCard(host, source, palette, resources = createAdaptiveCardResourceContext()) {
   const documentRef = host.ownerDocument;
-  const state = { status: "loading", diagnostics: [], card: null, SDK: null, approvedImages: new Set() };
+  const state = { status: "loading", diagnostics: [], card: null, SDK: null, approvedImages: new Set(), sourcePaths: new Map() };
   states.set(host, state);
+  host.dataset.adaptiveCardState = "loading";
   try {
-    const json = parseAdaptiveCardSource(source);
-    state.approvedImages = await prepareCardImages(json, documentRef);
+    if (host.__adaptiveCardFenceClosed === false) {
+      fail("unclosed-adaptive-card-fence", "$", "The adaptive-card fence is not closed. Add the matching closing fence.");
+    }
+    const validated = validateAdaptiveCardSource(source, { baseURI: documentRef.baseURI });
+    state.diagnostics = validated.diagnostics;
+    state.sourcePaths = validated.sourcePaths;
+    if (!validated.valid) {
+      const error = state.diagnostics.find((entry) => entry.severity === "error");
+      fail(error.code, error.path, error.message);
+    }
+    const json = validated.card;
+    state.approvedImages = await prepareCardImages(json, documentRef, state, resources);
     const SDK = await loadSdk(documentRef);
     state.SDK = SDK;
     const card = new SDK.AdaptiveCard();
@@ -340,13 +371,23 @@ export async function renderAdaptiveCard(host, source, palette) {
       ...Array.from({ length: context.eventCount }, (_, index) => context.getEventAt(index)),
       ...card.validateProperties().validationEvents,
     ];
-    if (events.length) fail("invalid-schema", "$", events.map((event) => event.message).join("; ").slice(0, 500));
-    if (card.shouldFallback()) fail("unsupported-fallback", "$", "The SDK requested fallback.");
+    for (const event of events) addCardDiagnostic(state.diagnostics, cardDiagnostic(
+      "sdk-parse-warning", "$", String(event.message || "The SDK reported a schema warning."),
+    ));
+    if (events.length) fail("invalid-schema", "$", "The pinned SDK rejected a property after static validation; the card is not silently changed.");
+    if (card.shouldFallback()) fail("unsupported-fallback", "$", "Unexpected SDK fallback is not allowed after static capability resolution.");
     const shadow = shadowContent(host);
+    const objects = typedObjects(card, SDK, state.sourcePaths);
+    const markdownPaths = new Map();
+    for (const { object, sourcePath } of objects) {
+      const texts = object instanceof SDK.TextBlock ? [[object.text, `${sourcePath}.text`]]
+        : object instanceof SDK.Fact ? [[object.name, `${sourcePath}.title`], [object.value, `${sourcePath}.value`]] : [];
+      for (const [text, path] of texts) markdownPaths.set(text, [...markdownPaths.get(text) || [], path]);
+    }
     const previousMarkdown = SDK.AdaptiveCard.onProcessMarkdown;
     let rendered;
     try {
-      SDK.AdaptiveCard.onProcessMarkdown = (text, result) => cardMarkdown(text, result, documentRef, state.diagnostics);
+      SDK.AdaptiveCard.onProcessMarkdown = (text, result) => cardMarkdown(text, result, documentRef, state.diagnostics, markdownPaths);
       rendered = card.render();
     } finally {
       SDK.AdaptiveCard.onProcessMarkdown = previousMarkdown;
@@ -356,9 +397,10 @@ export async function renderAdaptiveCard(host, source, palette) {
     rendered.style.fontFamily = font.fontFamily;
     rendered.style.fontSize = `${font.fontSizes.default}px`;
     rendered.style.lineHeight = `${card.hostConfig.lineHeights.default}px`;
+    sanitizeCardSubtree(rendered, documentRef, state);
     shadow.appendChild(rendered);
     state.card = card;
-    for (const { object, sourcePath } of typedObjects(card, SDK)) {
+    for (const { object, sourcePath } of objects) {
       if (object instanceof SDK.Image) {
         if (!state.approvedImages.has(object.url)) fail("blocked-image", sourcePath, "The SDK introduced an unapproved image.");
         const image = object.renderedImageElement;
@@ -369,20 +411,20 @@ export async function renderAdaptiveCard(host, source, palette) {
         fail("geometry-unavailable", sourcePath, "A visible SDK object has no renderedElement.");
       }
     }
+    showCardDiagnostics(shadow, documentRef, state.diagnostics);
+    // Cards introduce fonts after the slide's first fonts.ready. Force layout
+    // before waiting again, including monospace and diagnostic/placeholder text.
+    host.getBoundingClientRect();
+    if (documentRef.fonts?.ready) await documentRef.fonts.ready;
     state.status = "ready";
   } catch (error) {
     state.status = "error";
     state.card = null;
-    state.diagnostics.push({
-      code: error instanceof AdaptiveCardError ? error.code : error instanceof ImageSourceError ? "blocked-image" : "card-render-failed",
-      path: error.path || "$",
-      message: error.message || "The card could not be rendered.",
-    });
+    addCardDiagnostic(state.diagnostics, cardErrorDiagnostic(error));
     const shadow = shadowContent(host);
-    const message = documentRef.createElement("div");
-    message.setAttribute("role", "alert");
-    message.textContent = `Adaptive Card spike: ${state.diagnostics.at(-1).code} - ${state.diagnostics.at(-1).message}`;
-    shadow.appendChild(message);
+    showCardDiagnostics(shadow, documentRef, state.diagnostics, true);
+    host.getBoundingClientRect();
+    if (documentRef.fonts?.ready) await documentRef.fonts.ready;
     console.error("Adaptive Card:", state.diagnostics.at(-1));
   }
   host.dataset.adaptiveCardState = state.status;
@@ -392,11 +434,24 @@ export function getAdaptiveCardModel(host) {
   return states.get(host)?.card ?? null;
 }
 
+export function getAdaptiveCardDiagnostics(host) {
+  const state = states.get(host);
+  if (!state) return null;
+  const blockIndex = Number(host.dataset.adaptiveCardBlock);
+  return {
+    blockIndex, status: state.status, sdkVersion: ADAPTIVE_CARDS_SDK_VERSION,
+    schemaVersion: ADAPTIVE_CARD_SCHEMA_VERSION, hostConfigVersion: ADAPTIVE_CARD_HOST_CONFIG_VERSION,
+    diagnostics: state.diagnostics.map((entry) => ({
+      ...entry, sourcePath: `adaptive-card[${blockIndex}]${entry.path}`,
+    })),
+  };
+}
+
 export function assertAdaptiveCardCaptureSafe(host) {
   const state = states.get(host);
   if (!state || !["ready", "error"].includes(state.status)) fail("card-not-ready", "$", "Card rendering has not completed.");
   if (!state.card) return;
-  for (const { object, sourcePath } of typedObjects(state.card, state.SDK)) {
+  for (const { object, sourcePath } of typedObjects(state.card, state.SDK, state.sourcePaths)) {
     if (object instanceof state.SDK.Image &&
         (!state.approvedImages.has(object.url) ||
          object.renderedImageElement?.getAttribute("src") !== object.url)) {
@@ -462,7 +517,7 @@ export function collectAdaptiveCardGeometry(host, deck) {
     x: round((box.x - origin.x) / scaleX), y: round((box.y - origin.y) / scaleY),
     width: round(box.width / scaleX), height: round(box.height / scaleY),
   });
-  const objects = state.card ? typedObjects(state.card, state.SDK).map(({ object, sourcePath, parentPath }) => {
+  const objects = state.card ? typedObjects(state.card, state.SDK, state.sourcePaths).map(({ object, sourcePath, parentPath }) => {
     const fact = object instanceof state.SDK.Fact;
     const element = object.renderedElement;
     const textRects = [];

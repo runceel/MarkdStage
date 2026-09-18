@@ -11,7 +11,7 @@ import { createOutputJob, createOutputSnapshot, exportPptx } from "../../.github
 import { runPptxOutputBrowser } from "../../.github/extensions/markdstage/hosts/node/browser.mjs";
 import { reconstructAsset } from "../../.github/extensions/markdstage/scripts/vendor-assets.mjs";
 import { inspectPptxPackage } from "../../.github/extensions/markdstage/runtime/pptx-package.mjs";
-import { adaptiveCardGeometry, adaptiveCardSlides, CARD_FIXTURE_DIRECTORY, placementSlide } from "../harness/adaptive-cards.mjs";
+import { adaptiveCardGeometry, adaptiveCardReviewCases, CARD_FIXTURE_DIRECTORY } from "../harness/adaptive-cards.mjs";
 import { compareCardGeometry, compareCardPngs } from "../utils/adaptive-card-comparison.mjs";
 
 const [output, flag, probe] = process.argv.slice(2);
@@ -21,7 +21,8 @@ if (!output || !isAbsolute(output) || (flag && (flag !== "--webview2-probe" || !
 await mkdir(output, { recursive: true });
 const json = (path, value) => writeFile(path, JSON.stringify(value, null, 2) + "\n");
 const browser = await chromium.launch({ headless: true });
-const slides = [...await adaptiveCardSlides(), placementSlide];
+const cases = await adaptiveCardReviewCases();
+const slides = cases.map((entry) => entry.markdown);
 const expression = `(async () => {
   const deadline = performance.now() + 40000;
   while (document.documentElement.dataset.captureReady !== "true") {
@@ -61,13 +62,14 @@ const report = {
   webview2: probe ? { probe, host: "Real CoreWebView2 controller using the Desktop STA infrastructure; not the WinUI shell." }
     : { status: "not run", reason: "No --webview2-probe supplied. Chromium is not a substitute." },
   themes: {},
+  fixtures: cases.map(({ name, expected }) => ({ name, expected })),
 };
 const vendorDirectory = resolve(".github", "extensions", "markdstage", "vendor");
 const sdk = await reconstructAsset(vendorDirectory, "adaptivecards.min.js", join(vendorDirectory, "vendor-assets.lock.json"));
 report.bundle = { sdkVersion: "3.0.6", bytes: sdk.length, gzipBytes: gzipSync(sdk).length,
   sha256: createHash("sha256").update(sdk).digest("hex"), chunks: 1 };
 report.sourceHashes = {};
-for (const name of ["adaptive-card.mjs", "renderer.js", "slides.css"]) {
+for (const name of ["adaptive-card.mjs", "adaptive-card-validation.mjs", "fenced-blocks.mjs", "marked-lexer.mjs", "renderer.js", "slides.css"]) {
   const bytes = await readFile(resolve(".github", "extensions", "markdstage", "renderer", name));
   report.sourceHashes[name] = createHash("sha256").update(bytes).digest("hex");
 }
@@ -102,11 +104,17 @@ try {
           const original = await page.screenshot({ path: join(directory, "chromium", `${name}.png`) });
           assert.ok(original.equals(await page.screenshot()), "Chromium repeat PNG");
           await json(join(directory, "chromium", `${name}.json`), geometry);
-          const measurement = { index, status: geometry.slides[0].cards[0].status,
-            coverage: geometry.slides[0].cards[0].objects.reduce((counts, object) => {
+          const cards = geometry.slides[0].cards;
+          const measurement = { index, name: cases[index].name,
+            cards: cards.map((card) => ({ status: card.status, codes: card.diagnostics.map((entry) => entry.code) })),
+            coverage: cards.flatMap((card) => card.objects).reduce((counts, object) => {
               counts[object.geometry] = (counts[object.geometry] || 0) + 1; return counts;
             }, {}), chromiumRepeatGeometry: true, chromiumRepeatPng: true };
-          assert.equal(measurement.status, index === 5 ? "error" : "ready");
+          assert.equal(cards.length, cases[index].expected.length);
+          for (const [cardIndex, expected] of cases[index].expected.entries()) {
+            assert.equal(cards[cardIndex].status, expected.status);
+            assert.deepEqual(cards[cardIndex].diagnostics.map((entry) => entry.code).sort(), [...expected.codes].sort());
+          }
           if (probe) {
             const nativeDirectory = join(directory, "webview2", name);
             await runProbe(url, nativeDirectory);
@@ -165,8 +173,13 @@ try {
         for (let index = 0; index < slides.length; index++) {
           const slide = rendered.model.slides[index];
           const captures = rendered.slideFallbackImages[index].filter((capture) => slide.fallbacks[capture.fallbackIndex].type === "adaptive-card");
-          assert.equal(captures.length, 1);
-          await writeFile(join(directory, `card-${index + 1}.png`), captures[0].data);
+          assert.equal(captures.length, cases[index].expected.length);
+          for (const [cardIndex, capture] of captures.entries()) {
+            const fallback = slide.fallbacks[capture.fallbackIndex];
+            assert.equal(fallback.reason, cases[index].expected[cardIndex].status === "ready"
+              ? "adaptive-card-rendered-as-artwork" : `adaptive-card-${cases[index].expected[cardIndex].codes.at(-1)}`);
+            await writeFile(join(directory, `card-${index + 1}${captures.length > 1 ? `-${cardIndex + 1}` : ""}.png`), capture.data);
+          }
         }
       } finally { await context.close(); session.exportJobs.delete(token); }
       report.themes[theme] = result;

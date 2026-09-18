@@ -1,9 +1,11 @@
-# Adaptive Cards architecture-spike fixtures
+# Adaptive Cards rendering and export fixtures
 
 These local, resolved schema-1.5 payloads exercise the actual vendored SDK.
 They are not mock objects, external cards, or screenshot-only approvals.
 The [component findings](../../../.github/extensions/markdstage/docs/adaptive-cards-spike.md)
-document the compatibility boundary and actual measurements.
+retain the Phase 0 measurements. The current
+[static-card contract](../../../.github/extensions/markdstage/docs/adaptive-cards.md)
+documents the shipping envelope, diagnostics and image placeholders.
 
 | Source | Purpose | Measured CardElements / aggregate-only |
 | --- | --- | --- |
@@ -14,10 +16,24 @@ document the compatibility boundary and actual measurements.
 | `clipping.json` | Deliberately over-tall card; top visible, bottom clipped in fixed output | 4 / 0 |
 | `unsupported.json` | Input.Text rejection must be visible and reported | 0 / 0 (rejected) |
 | `placementSlide` in `test/harness/adaptive-cards.mjs` | Card between generic background artwork and native foreground text | 3 / 0 |
+| `fallbacks.json` | Unmet capability with static replacement; explicit Input.Text drop, both reported | 3 / 0 |
+| `blocked-images.json` | Local animateMotion, missing file, external URL; three deterministic placeholders with surrounding text preserved | 10 / 0 |
+| `malformed.json` | Invalid TextBlock text type; structural error panel before SDK loading | 0 / 0 (rejected) |
+| `multipleCardsSlide` in the harness | Two valid cards and one malformed card, three independent pictures | 5 / 0 |
+| `boundarySlide` in the harness | Card inside generic HTML crossing the bottom/right page edges | 3 / 0 |
+
+The review cases are ordered as the table above: **12 fixture pages per theme**,
+**14 card pictures**, **78 measured CardElements** and **3 aggregate-only Facts**.
+The automatically appended back cover is page 13 and contains no card picture.
+Phase 0's first seven fixture pages remain in their original order.
+The Phase 1 expected state/codes for every card are declared in
+`adaptiveCardReviewCases`; scripts check them rather than assuming one card per
+page or accepting any visible image.
 
 `assets/card-local.svg` is authored local artwork with transparent corners.
 `assets/animated-motion.svg` is a negative fixture: local and data image inputs
-must reject its `animateMotion` before rendering or raster capture. Browser
+must reject its `animateMotion` before rendering or raster capture, now preserving
+the surrounding card with a `blocked-image` placeholder instead of discarding it. Browser
 regressions also cover `animate`, legacy `animateColor`, `animateTransform`, and
 `set` through the same asset inspection path.
 The harness constructs slide fragments from these JSON files. The review script
@@ -31,7 +47,7 @@ From the repository root (Windows paths shown):
 ```powershell
 npm run sync --prefix .\packages\markdstage-cli
 node --test .\.github\extensions\markdstage\test\adaptive-card.test.mjs .\.github\extensions\markdstage\test\vendor-assets.test.mjs
-npx playwright test --project=visual --project=pptx adaptive-cards.spec.mjs --workers=1
+npx playwright test --project=visual --project=pptx adaptive-card --workers=1
 ```
 
 The browser tests load real SDK objects, scramble SDK-generated class names,
@@ -40,6 +56,11 @@ tolerance boundaries, and deny remote/redirect/SVG/implicit-image paths.
 The PPTX tests perform actual export, inspect embedded picture relationships and
 PNG transparency/bounds, verify stacking, and reject post-approval image changes.
 They do not regenerate visual baselines.
+The Canvas test runs the production Extension HTTP host and export endpoint;
+only Copilot registration transport is stubbed. It is not an app-UI automation
+or an installed-MSIX test. The shared scanner, browser-free CLI validation,
+sanitizer, lazy load, URL policy, exact image budgets, animation denial and
+font/image readiness each have targeted regressions.
 
 Do not run `test:cli`/`sync` concurrently with tests that import its `shared`
 mirror: synchronization replaces that directory. Test outputs may be redirected
@@ -88,12 +109,14 @@ own controller/process, and removes its isolated profile.
 observations and per-theme comparisons. Each theme directory contains:
 
 - `cards.md`, `assets/`, and the actual `cards.pptx`;
-- `model.json`, `export-report.json`, and one transparent `card-N.png` per card;
+- `model.json`, `export-report.json`, and transparent `card-N.png` (or
+  `card-N-M.png` for page N with multiple cards);
 - `chromium/slide-NNN.png` and typed geometry JSON;
 - `webview2/slide-NNN/` with two geometry snapshots, two native PNGs and
   `native-engine.json`;
-- `powerpoint/slide-NNN.png` and `powerpoint-report.json` from actual COM
-  rendering, including shape names, order and pixel-converted bounds;
+- `powerpoint/slide-NNN.png` for all 13 pages and `powerpoint-report.json` from
+  actual COM rendering, including shape names, order, pixel-converted bounds,
+  original file hash and per-page card-placement differences;
 - `comparisons/` with Chromium-left / native-right image pairs and WebView2
   50%-opacity overlays.
 
@@ -104,6 +127,11 @@ comparing geometry. Text rectangles are not actual baseline measurements.
 Within-engine repetition requires zero changed pixels; across-engine image
 counts are diagnostic and cannot excuse missing content or wrong stacking.
 PowerPoint visual inspection is mandatory, even when picture placement is exact.
+The COM script also compares every actual card picture to its integer capture
+bounds (0.02 px allowance for COM floating-point representation, not a visual
+tolerance). Page 9 must retain all three placeholders and both text blocks;
+page 11 must contain three distinct cards; page 12 must remain partially clipped
+with no duplicate card in the generic parent artwork.
 
 The implementation-session evidence does not replace the coordinator's
 independent visual gate on the committed SHA. Record that gate separately, and

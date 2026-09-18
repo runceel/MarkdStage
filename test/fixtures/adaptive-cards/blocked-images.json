@@ -1,0 +1,16 @@
+{
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "body": [
+    { "type": "TextBlock", "text": "Other content survives blocked images", "weight": "Bolder", "wrap": true },
+    {
+      "type": "ColumnSet",
+      "columns": [
+        { "type": "Column", "width": 1, "items": [{ "type": "Image", "url": "assets/animated-motion.svg", "width": "120px", "height": "60px" }] },
+        { "type": "Column", "width": 1, "items": [{ "type": "Image", "url": "assets/does-not-exist.png", "width": "120px", "height": "60px" }] },
+        { "type": "Column", "width": 1, "items": [{ "type": "Image", "url": "https://blocked.example/remote.png", "width": "120px", "height": "60px" }] }
+      ]
+    },
+    { "type": "TextBlock", "text": "All three images are stable placeholders. This text remains.", "wrap": true }
+  ]
+}

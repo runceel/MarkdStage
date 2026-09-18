@@ -6,7 +6,7 @@ import { readGuide } from "../../../../.github/extensions/markdstage/markdstage-
 import { buildSkillFiles, SKILL_TARGETS } from "../../../../packages/markdstage-cli/src/skills.mjs";
 
 const root = fileURLToPath(new URL("../../../../", import.meta.url));
-const topics = ["overview", "slide-format", "themes", "custom-themes", "theme-schema", "architecture-dsl", "architecture-schema"];
+const topics = ["overview", "slide-format", "themes", "custom-themes", "theme-schema", "architecture-dsl", "architecture-schema", "adaptive-cards"];
 const guides = Object.fromEntries(await Promise.all(topics.map(async topic => [topic, await readGuide(topic)])));
 const skills = {};
 for (const target of Object.keys(SKILL_TARGETS)) {

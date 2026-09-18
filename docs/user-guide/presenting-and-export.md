@@ -132,12 +132,21 @@ fallback picture that is positioned individually rather than flattened into a fu
 | Images, including supported SVG | Individual pictures |
 | Speaker notes | Plain text in the slide's notes pane |
 | Mermaid diagrams | Native editable shapes, text, and connectors, with per-element fallback pictures for unsupported SVG details |
+| Adaptive Cards | One bounded transparent PNG per visible card, including placeholders/error panels; card internals are not editable |
 | Decorative backgrounds, gradients, and code-block shadows | Fallback picture |
 | Unsupported image effects and HTML/CSS | Fallback picture |
 
 The export report lists every fallback instead of silently omitting it.
 Icons and decorations count as fallback items even when Architecture diagram shapes, labels,
 and connectors remain editable.
+
+Adaptive Card artwork reports `adaptive-card-rendered-as-artwork` with
+`impact: "content"` and source locations. Invalid cards retain a visible error
+panel; missing/blocked images retain deterministic placeholders and the remaining
+content. `inspect` reports these separately from clipping; run
+`inspect --fail-on-issues` before delivery. Fully off-slide cards have no
+zero-sized image and report `adaptive-card-outside-slide`.
+See [Adaptive Card authoring and limits](diagrams-and-media.md#render-static-adaptive-cards).
 
 The exported presentation creates one slide master for each theme used in the deck, with named
 `title`, `default`, `center`, `section`, and `backcover` layouts. Theme-common backgrounds and top

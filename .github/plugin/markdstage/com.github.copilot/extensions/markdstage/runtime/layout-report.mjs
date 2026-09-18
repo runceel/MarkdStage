@@ -78,6 +78,7 @@ function routing(value) {
 export function sanitizeLayoutReport(layout) {
   if (!object(layout) || !Array.isArray(layout.slides)) return null;
   let remaining = ARCHITECTURE_LAYOUT_ELEMENT_LIMIT;
+  let remainingCards = 200, remainingCardDiagnostics = 200;
   const slides = layout.slides.slice(0, 1000).filter(object).map((slide) => {
     const result = {
       index: nonnegative(slide.index),
@@ -122,6 +123,29 @@ export function sanitizeLayoutReport(layout) {
       // even though it is not clipping and must not change pdfClipped.
       result.routingDegradedCount = result.architecture.filter((diagram) => diagram.routing).length;
     }
+    if (Array.isArray(slide.adaptiveCards)) {
+      result.adaptiveCards = slide.adaptiveCards.slice(0, Math.min(20, remainingCards)).filter(object).map((card) => {
+        remainingCards--;
+        const supplied = Array.isArray(card.diagnostics) ? card.diagnostics : [];
+        const diagnostics = supplied.slice(0, Math.min(100, remainingCardDiagnostics)).filter(object).map((entry) => ({
+          category: "adaptive-card", code: text(entry.code, 80),
+          severity: entry.severity === "error" ? "error" : "warning", impact: "content",
+          path: text(entry.path, 512), sourcePath: text(entry.sourcePath, 560), message: text(entry.message, 512),
+        }));
+        remainingCardDiagnostics -= diagnostics.length;
+        return {
+          blockIndex: nonnegative(card.blockIndex),
+          status: card.status === "ready" ? "ready" : "error",
+          sdkVersion: text(card.sdkVersion, 16), schemaVersion: text(card.schemaVersion, 16),
+          hostConfigVersion: nonnegative(card.hostConfigVersion), diagnostics,
+          diagnosticsTruncated: supplied.length > diagnostics.length || card.diagnosticsTruncated === true,
+        };
+      });
+      result.adaptiveCardsTruncated = slide.adaptiveCards.length > result.adaptiveCards.length || slide.adaptiveCardsTruncated === true;
+      result.adaptiveCardIssueCount = result.adaptiveCards.filter((card) =>
+        card.status === "error" || card.diagnostics.length || card.diagnosticsTruncated).length +
+        (result.adaptiveCardsTruncated ? 1 : 0);
+    }
     return result;
   });
   return {
@@ -130,6 +154,7 @@ export function sanitizeLayoutReport(layout) {
     total: nonnegative(layout.total),
     issueCount: slides.filter((slide) => slide.pdfClipped).length,
     routingDegradedCount: slides.reduce((total, slide) => total + (slide.routingDegradedCount ?? 0), 0),
+    adaptiveCardIssueCount: slides.reduce((total, slide) => total + (slide.adaptiveCardIssueCount ?? 0), 0),
     slides,
   };
 }

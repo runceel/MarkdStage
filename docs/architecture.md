@@ -155,18 +155,32 @@ files. Generated mirrors must not be edited by hand.
 
 ## Adaptive Cards boundary
 
-The experimental card integration belongs to the canonical shared renderer.
+The static card integration belongs to the canonical shared renderer.
 The pinned official SDK owns semantic identity, properties, and hierarchy;
 public rendered-element references provide geometry and text-layout evidence,
 not semantics. MarkdStage owns a limited, versioned HostConfig, and card content
 is isolated from slide stylesheet selectors. The library is loaded only for a
 card fence.
+Card discovery and rendering share the Markdown token model and speaker-note
+exclusion rules; source association follows token identity rather than separate
+scanner ordinals.
 
-Card content is resolved, non-interactive JSON. Card Markdown uses the existing
-sanitization stack. Resource approval precedes SDK rendering, and rendering and
-export use the same approved bytes. Workspace reads remain host-confined;
-remote resources, redirects, and excluded capabilities cannot be enabled by a
-fallback.
+Card content is resolved, non-interactive JSON. A shared, closed schema envelope
+validates structure and resolves explicit static capability fallbacks without a
+browser; fatal structural validation precedes capability resolution, and SDK
+parsing adds a second check. All substitutions, omissions and
+unsupported properties are content diagnostics. Card Markdown and the SDK subtree
+use the existing sanitization stack before attachment, without replacing typed
+object identity. Rendering waits for approved images and newly introduced fonts.
+
+Resource approval precedes SDK rendering, and rendering and export use the same
+approved bytes under a deck-wide resource budget. Failed or blocked images become
+deterministic placeholders without discarding the remaining card. Structural
+errors become visible diagnostic cards. Workspace reads remain host-confined;
+remote resources, redirects, animation and excluded capabilities cannot be
+enabled by a fallback. Validation, browser inspection and output reports share
+diagnostic meanings and source locations; browser-only checks are not claimed by
+non-browser validation.
 
 Cards currently export as bounded whole-card raster artwork, with dedicated
 ownership that prevents duplicate generic HTML artwork. There is no Adaptive

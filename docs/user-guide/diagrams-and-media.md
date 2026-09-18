@@ -5,6 +5,57 @@
 MarkdStage supports Markdown images, Mermaid for automatic layout, Architecture DSL for stable
 placement and routing, and imported Archify diagrams.
 
+## Render static Adaptive Cards
+
+Use an `adaptive-card` fence with a complete, resolved schema-1.5 payload:
+
+````markdown
+```adaptive-card
+{
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "body": [
+    { "type": "TextBlock", "text": "Release **ready**", "size": "Large", "wrap": true },
+    { "type": "Image", "url": "assets/release.png", "altText": "Release icon", "width": "64px" }
+  ]
+}
+```
+````
+
+The official SDK 3.0.6 is bundled and loaded only when cards are present.
+The supported static subset includes TextBlock, RichTextBlock/TextRun,
+Container, ColumnSet/Column, Image/ImageSet, FactSet and Table/Row/Cell.
+Cards use MarkdStage HostConfig v1: the deck font plus foreground, muted, accent,
+surface and border tokens, not Teams/Outlook styling.
+
+Card JSON is limited to 262,144 UTF-8 bytes, 256 objects/arrays and 16 nesting
+levels. Images use the existing 10 MiB each / 100 MiB aggregate limit and must be
+workspace `assets/` images or supported static PNG/JPEG/GIF/SVG data. External
+URLs, redirects and animation (including SVG motion/color animation and APNG/GIF
+animation) are blocked. A missing, failed or blocked image becomes a stable
+**Image unavailable** placeholder; the rest of the card stays visible.
+
+Cards are non-interactive. Inputs, actions, media, background images, refresh,
+authentication, templates and external data are not supported. Invalid card
+structure or versions produce a visible error panel. Unknown properties,
+unmet `requires`, explicit static fallback replacements/drops and Markdown
+sanitization have content diagnostics; fallback never bypasses asset policy.
+Only `adaptiveCards` up to version 1.5 is an advertised capability.
+
+Run `markdstage validate slides.md --json` for browser-free structural checks,
+then `markdstage inspect slides.md --json` for SDK, asset and rendering
+diagnostics. Validation does not fetch images or prove they loaded.
+`inspect --fail-on-issues` fails for clipping or card content diagnostics.
+Reports locate the slide/card and JSON path, for example
+`adaptive-card[0]$.body[1].url`. Cards wait for fonts and permitted images before
+inspection or output.
+
+PowerPoint uses **one transparent PNG per visible card**, with
+`adaptive-card-rendered-as-artwork` and content impact in the export report.
+Card text, images, facts and tables are **not separately editable**.
+Read `markdstage guide adaptive-cards` (Canvas: `markdstage_guide` topic
+`adaptive-cards`) for exact properties, fallback and reporting limits.
+
 ## Use Mermaid for automatic layout
 
 Write a `mermaid` fence:

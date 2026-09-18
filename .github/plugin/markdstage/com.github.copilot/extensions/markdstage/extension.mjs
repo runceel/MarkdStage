@@ -2125,6 +2125,7 @@ const session = await joinSession({
               "theme-schema",
               "architecture-dsl",
               "architecture-schema",
+              "adaptive-cards",
             ],
             description: "Topic to retrieve. Defaults to overview.",
           },
