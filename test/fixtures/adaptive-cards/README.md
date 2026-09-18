@@ -16,6 +16,10 @@ document the compatibility boundary and actual measurements.
 | `placementSlide` in `test/harness/adaptive-cards.mjs` | Card between generic background artwork and native foreground text | 3 / 0 |
 
 `assets/card-local.svg` is authored local artwork with transparent corners.
+`assets/animated-motion.svg` is a negative fixture: local and data image inputs
+must reject its `animateMotion` before rendering or raster capture. Browser
+regressions also cover `animate`, legacy `animateColor`, `animateTransform`, and
+`set` through the same asset inspection path.
 The harness constructs slide fragments from these JSON files. The review script
 also writes a normal CLI Markdown deck with `---` separators and copies only
 the required assets into its isolated artifact workspace.

@@ -138,7 +138,7 @@ function checkSvgResources(bytes, documentRef, label) {
     fail("invalid-image", label, "Invalid SVG image.");
   }
   for (const element of svg.querySelectorAll("*")) {
-    if (["script", "foreignObject", "style", "animate", "animateTransform", "set"].includes(element.localName)) {
+    if (["script", "foreignObject", "style", "animate", "animateColor", "animateMotion", "animateTransform", "set"].includes(element.localName)) {
       fail("blocked-image", label, "SVG scripts, HTML, stylesheets, and animation are not allowed.");
     }
     for (const attribute of element.attributes) {

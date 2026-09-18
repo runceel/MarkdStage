@@ -45,7 +45,9 @@ Workspace reads retain the host's canonical-path, link, origin, content-type,
 and size checks. Browser reads are additionally bounded while streaming, MIME
 signatures are checked, and approved bytes become data images before rendering.
 SVG scripts, foreign HTML, animation, external references/stylesheets/entities,
-and escaped CSS resource references are rejected. Capturing the card rechecks
+and escaped CSS resource references are rejected. Both local and data SVGs reject
+`animate`, `animateColor`, `animateMotion`, `animateTransform`, and `set` before
+SDK rendering, with a visible `blocked-image` diagnostic. Capturing the card rechecks
 its SDK image references and public image elements against the approved bytes.
 An asset error produces safe diagnostic artwork, never an unsafe screenshot.
 

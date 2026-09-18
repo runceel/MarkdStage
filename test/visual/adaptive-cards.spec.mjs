@@ -1,6 +1,8 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import { startHarness, REPO_ROOT } from "../harness/server.mjs";
-import { adaptiveCardGeometry, adaptiveCardSlides, cardFence, staticCard } from "../harness/adaptive-cards.mjs";
+import { adaptiveCardGeometry, adaptiveCardSlides, CARD_FIXTURE_DIRECTORY, cardFence, staticCard } from "../harness/adaptive-cards.mjs";
 import { compareCardGeometry } from "../utils/adaptive-card-comparison.mjs";
 import { waitForSlideReady } from "../utils/ready.mjs";
 
@@ -210,3 +212,57 @@ test("over-limit local images fail before SDK rendering or raster collection", a
     expect((await page.evaluate(() => window.__presentationPptxModel)).slides[0].fallbacks[0].reason).toBe("adaptive-card-blocked-image");
   } finally { await harness.close(); }
 });
+
+for (const [element, attributes] of [
+  ["animate", 'attributeName="x" from="0" to="80" dur="1s" repeatCount="indefinite"'],
+  ["animateColor", 'attributeName="fill" from="red" to="blue" dur="1s" repeatCount="indefinite"'],
+  ["animateMotion", 'path="M0,0 L80,0" dur="1s" repeatCount="indefinite"'],
+  ["animateTransform", 'attributeName="transform" type="translate" from="0 0" to="80 0" dur="1s" repeatCount="indefinite"'],
+  ["set", 'attributeName="visibility" to="hidden" begin="1s"'],
+]) {
+  for (const entry of ["local", "data"]) {
+    test(`${entry} SVG ${element} is visibly blocked before card rendering and raster capture`, async ({ page }, testInfo) => {
+      const fixture = await readFile(join(CARD_FIXTURE_DIRECTORY, "assets", "animated-motion.svg"), "utf8");
+      const svg = fixture.replace(/<animateMotion\b[^>]*\/>/, `<${element} ${attributes}/>`);
+      const localPath = element === "animateMotion" ? "assets/animated-motion.svg" : `assets/animation-${element}.svg`;
+      if (entry === "local" && element !== "animateMotion") {
+        await page.route(`**/${localPath}`, (route) => route.fulfill({ contentType: "image/svg+xml", body: svg }));
+      }
+      const sdkRequests = [], assetRequests = [];
+      page.on("request", (request) => {
+        if (request.url().endsWith("/vendor/adaptivecards.min.js")) sdkRequests.push(request.url());
+        if (request.url().endsWith(`/${localPath}`)) assetRequests.push(request.url());
+      });
+      const url = entry === "local" ? localPath : `data:image/svg+xml,${encodeURIComponent(svg)}`;
+      const harness = await startHarness({
+        slides: [cardFence(staticCard([{ type: "Image", id: "animated", url }]))],
+        markdownRoot: REPO_ROOT, sourceName: "test/fixtures/adaptive-cards/typography.json",
+      });
+      try {
+        await open(page, harness, "pptx");
+        const host = page.locator(".adaptive-card-host");
+        await expect(host).toHaveAttribute("data-adaptive-card-state", "error");
+        await expect(host.getByRole("alert")).toBeVisible();
+        await expect(host.getByRole("alert")).toContainText("blocked-image");
+        await expect(host.getByRole("alert")).toContainText("animation are not allowed");
+        await expect(host.locator("img, svg")).toHaveCount(0);
+        expect(assetRequests).toHaveLength(entry === "local" ? 1 : 0);
+        expect(sdkRequests).toEqual([]);
+        const geometry = await page.evaluate(adaptiveCardGeometry);
+        expect(geometry[0].cards[0].objects).toEqual([]);
+        expect(geometry[0].cards[0].diagnostics).toEqual([expect.objectContaining({ code: "blocked-image" })]);
+        const slide = await page.evaluate(() => window.__presentationPptxModel.slides[0]);
+        expect(slide.elements).toEqual([]);
+        expect(slide.fallbacks).toEqual([expect.objectContaining({
+          type: "adaptive-card", reason: "adaptive-card-blocked-image",
+          diagnostics: [expect.objectContaining({ code: "blocked-image" })],
+        })]);
+        await testInfo.attach("blocked-svg-diagnostic", { body: JSON.stringify(geometry), contentType: "application/json" });
+        const first = await page.screenshot({ path: testInfo.outputPath("blocked-svg.png") });
+        await page.waitForTimeout(470);
+        const later = await page.screenshot({ path: testInfo.outputPath("blocked-svg-later.png") });
+        expect(later.equals(first), "Blocked artwork must not depend on the SVG animation clock.").toBe(true);
+      } finally { await harness.close(); }
+    });
+  }
+}
