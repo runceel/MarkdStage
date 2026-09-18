@@ -60,6 +60,13 @@ export function formatValidateReport(report) {
   for (const warning of report.warnings) {
     lines.push(`  warn   ${warning.page ? `slide ${warning.page}: ` : ""}${warning.message}`);
   }
+  // Architecture warnings are returned in diagnostics rather than warnings. Summarize them
+  // here so the text output does not report a clean deck for content the renderer degrades.
+  for (const diagnostic of (report.diagnostics ?? []).filter((item) => item.severity === "warning")) {
+    lines.push(
+      `  warn   ${diagnostic.page ? `slide ${diagnostic.page}: ` : ""}${diagnostic.message} (${diagnostic.code})`,
+    );
+  }
   if (report.complete === false) {
     lines.push(report.truncated
       ? "  Validation incomplete: inspection limits were reached; unchecked content is not valid."

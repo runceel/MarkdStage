@@ -1,4 +1,5 @@
 import { architectureContract } from "./architecture-contract.mjs";
+import { ARCHITECTURE_ROUTING_DIAGNOSTIC_LIMIT } from "./architecture-layout.mjs";
 import { architectureSnapshotToScene } from "./architecture-scene.mjs";
 import { sceneToSvg, svgPrimitive } from "./scene-svg.mjs";
 import {
@@ -1411,7 +1412,7 @@ function parseArchitectureModel(raw, stages) {
   return model;
 }
 
-export function validateArchitecture(source, { maxDiagnostics } = {}) {
+export function validateArchitecture(source, { maxDiagnostics, includeRouting = false } = {}) {
   const limit = diagnosticLimit(maxDiagnostics);
   const stages = { json: "skipped", structure: "skipped", semantic: "skipped", layout: "skipped" };
   let raw;
@@ -1430,7 +1431,11 @@ export function validateArchitecture(source, { maxDiagnostics } = {}) {
     });
   }
   const warnings = architectureCompatibilityWarnings(raw);
-  const diagnostics = [...warnings.diagnostics, ...architectureLayoutWarnings(model, architectureTextLayout)];
+  const diagnostics = [
+    ...warnings.diagnostics,
+    ...architectureLayoutWarnings(model, architectureTextLayout),
+    ...(includeRouting ? architectureRoutingWarnings(model) : []),
+  ];
   const truncated = diagnostics.length > limit;
   return {
     valid: true,
@@ -3651,6 +3656,48 @@ function planConnectorRoutes(model, lookup) {
 }
 
 /**
+ * Convert routing degradation into author-facing validation warnings.
+ *
+ * Routing runs while rendering, so validation used to report a clean diagram for a deck
+ * whose rendered slide carried a degradation banner. Report warnings, never errors:
+ * the diagram still renders, and failing it would reject previously valid decks.
+ *
+ * Routing is the most expensive planning stage, so callers opt in; parseArchitecture
+ * leaves it off because rendering plans the same routes immediately afterwards.
+ */
+function architectureRoutingWarnings(model) {
+  const lookup = new Map(
+    model.elements
+      .filter((element) => element.type !== "connector")
+      .map((element) => [element.id, element]),
+  );
+  let entries;
+  try {
+    ({ diagnostics: entries } = planConnectorRoutes(model, lookup));
+  } catch {
+    // Routing is advisory. A planner failure must not turn a valid diagram into an
+    // invalid one, so report no routing warnings instead of failing validation.
+    return [];
+  }
+  return entries.map((entry) => ({
+    ...architectureDiagnostic(
+      entry.sourcePath,
+      `connector ${endpointName(entry.from)} -> ${endpointName(entry.to)} cannot be routed cleanly (${entry.kind}) because ${ROUTE_FALLBACK_REMEDIES[entry.reason] ?? entry.reason}`,
+      'add "routing": "polyline" with explicit points, or move the overlapping elements apart',
+      { code: "connector_routing_degraded", category: "layout", severity: "warning" },
+    ),
+    routing: {
+      kind: entry.kind,
+      reason: entry.reason,
+      from: entry.from,
+      to: entry.to,
+      pathOverlaps: entry.pathOverlaps,
+      labelOverlaps: entry.labelOverlaps,
+    },
+  }));
+}
+
+/**
  * Route midpoint and unit direction vector of its segment.
  * Direction determines how {@link labelEscapeNormal} moves a label away from the line.
  */
@@ -4505,13 +4552,27 @@ export function renderArchitectureDiagram(
  *  1. A strip below the diagram (role="status" / aria-live="polite").
  *     Use "status", not "alert", because this is quality degradation rather than
  *     an error and should not interrupt screen-reader output during a presentation.
- *  2. The wrapper's data-architecture-routing attribute for tests and automation.
+ *  2. The wrapper's data-architecture-routing attributes for tests, automation, and
+ *     inspect_layout, which reads the bounded JSON detail rather than parsing the banner.
  *  3. console.warn for authoring visibility. console.error would make visual
  *     regression tests fail by treating it as a page JavaScript error.
  */
 function appendRoutingWarning(documentRef, wrapper, diagnostics) {
   if (!diagnostics?.length) return;
   wrapper.setAttribute("data-architecture-routing", "degraded");
+  wrapper.setAttribute("data-architecture-routing-count", String(diagnostics.length));
+  wrapper.setAttribute(
+    "data-architecture-routing-detail",
+    JSON.stringify(
+      diagnostics.slice(0, ARCHITECTURE_ROUTING_DIAGNOSTIC_LIMIT).map((entry) => ({
+        sourcePath: entry.sourcePath,
+        from: endpointName(entry.from),
+        to: endpointName(entry.to),
+        kind: entry.kind,
+        reason: entry.reason,
+      })),
+    ),
+  );
   const summary = diagnostics
     .map(
       (entry) =>

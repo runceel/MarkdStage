@@ -1,6 +1,7 @@
 import {
   ARCHITECTURE_LAYOUT_BLOCK_LIMIT,
   ARCHITECTURE_LAYOUT_ELEMENT_LIMIT,
+  ARCHITECTURE_ROUTING_DIAGNOSTIC_LIMIT,
 } from "../renderer/architecture-layout.mjs";
 
 const object = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
@@ -61,6 +62,19 @@ function hint(value) {
 
 // Renderer output is untrusted HTTP input. Keep only bounded diagnostic fields;
 // never forward DOM snapshots, image data, arbitrary metadata, or source content.
+function routing(value) {
+  if (!object(value) || value.degraded !== true) return undefined;
+  const diagnostics = (Array.isArray(value.diagnostics) ? value.diagnostics : [])
+    .slice(0, ARCHITECTURE_ROUTING_DIAGNOSTIC_LIMIT).filter(object).map((entry) => ({
+      sourcePath: text(entry.sourcePath, 256),
+      from: text(entry.from, 96),
+      to: text(entry.to, 96),
+      kind: text(entry.kind, 40),
+      reason: text(entry.reason, 40),
+    }));
+  return { degraded: true, count: nonnegative(value.count) || diagnostics.length, diagnostics };
+}
+
 export function sanitizeLayoutReport(layout) {
   if (!object(layout) || !Array.isArray(layout.slides)) return null;
   let remaining = ARCHITECTURE_LAYOUT_ELEMENT_LIMIT;
@@ -91,15 +105,22 @@ export function sanitizeLayoutReport(layout) {
       .slice(0, 5).map(hint).filter(Boolean);
     if (Array.isArray(slide.architecture)) {
       result.architecture = slide.architecture.slice(0, ARCHITECTURE_LAYOUT_BLOCK_LIMIT)
-        .filter(object).map((diagram) => ({
-          blockIndex: nonnegative(diagram.blockIndex),
-          bbox: box(diagram.bbox, true),
-          effectiveScale: nonnegative(diagram.effectiveScale),
-          elementCount: nonnegative(diagram.elementCount),
-          reportedElementCount: result.elements.filter((entry) =>
-            entry.kind === "architecture" && entry.blockIndex === diagram.blockIndex).length,
-        }));
+        .filter(object).map((diagram) => {
+          const routingDetail = routing(diagram.routing);
+          return {
+            blockIndex: nonnegative(diagram.blockIndex),
+            bbox: box(diagram.bbox, true),
+            effectiveScale: nonnegative(diagram.effectiveScale),
+            elementCount: nonnegative(diagram.elementCount),
+            reportedElementCount: result.elements.filter((entry) =>
+              entry.kind === "architecture" && entry.blockIndex === diagram.blockIndex).length,
+            ...(routingDetail ? { routing: routingDetail } : {}),
+          };
+        });
       result.architectureBlockCount = nonnegative(slide.architectureBlockCount);
+      // Routing degradation renders a visible banner in the PDF, so report it per slide
+      // even though it is not clipping and must not change pdfClipped.
+      result.routingDegradedCount = result.architecture.filter((diagram) => diagram.routing).length;
     }
     return result;
   });
@@ -108,6 +129,7 @@ export function sanitizeLayoutReport(layout) {
     height: nonnegative(layout.height),
     total: nonnegative(layout.total),
     issueCount: slides.filter((slide) => slide.pdfClipped).length,
+    routingDegradedCount: slides.reduce((total, slide) => total + (slide.routingDegradedCount ?? 0), 0),
     slides,
   };
 }

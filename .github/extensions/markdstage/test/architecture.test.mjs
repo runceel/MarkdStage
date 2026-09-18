@@ -2451,6 +2451,14 @@ test("degraded routing surfaces a non-fatal warning in the rendered diagram", ()
 
   // Do not throw, avoiding a breaking change; the diagram continues rendering.
   assert.equal(wrapper.attributes.get("data-architecture-routing"), "degraded");
+  // inspect_layout reads these attributes; parsing the banner text would be lossy.
+  assert.equal(wrapper.attributes.get("data-architecture-routing-count"), "1");
+  assert.deepEqual(JSON.parse(wrapper.attributes.get("data-architecture-routing-detail")), [{
+    sourcePath: "elements[" + (elements.length - 1) + "]",
+    from: "src", to: "dst",
+    kind: "path-overlaps-node",
+    reason: "grid-too-large",
+  }]);
   const svg = wrapper.children.find((child) => child.tagName === "svg");
   assert.ok(svg, "the diagram itself must still render");
 
@@ -2478,6 +2486,7 @@ test("clean diagrams emit no routing warning at all", () => {
     globalThis.console.warn = originalWarn;
   }
   assert.equal(wrapper.attributes.get("data-architecture-routing"), undefined);
+  assert.equal(wrapper.attributes.get("data-architecture-routing-detail"), undefined);
   assert.equal(
     wrapper.children.some((child) => child.className === "architecture-routing-warning"),
     false,

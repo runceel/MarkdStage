@@ -231,11 +231,15 @@ export function selectLayoutResults(layout, requestedIndex, includeFits) {
   const selected = requestedIndex === undefined ? layout.slides :
     layout.slides.filter((slide) => slide.index === requestedIndex);
   const issueCount = selected.filter((slide) => slide.pdfClipped).length;
+  // Routing degradation prints a visible banner but is not clipping, so keep it out of
+  // issueCount and report it separately rather than changing the existing fit verdict.
+  const routingDegradedCount = selected.reduce((total, slide) => total + (slide.routingDegradedCount ?? 0), 0);
   return {
     ok: true, scope: requestedIndex === undefined ? "deck" : "slide",
     ...(requestedIndex === undefined ? {} : { index: requestedIndex, page: requestedIndex + 1 }),
     width: layout.width, height: layout.height, total: layout.total,
     inspected: selected.length, issueCount, hasIssues: issueCount > 0,
+    routingDegradedCount, hasRoutingIssues: routingDegradedCount > 0,
     slides: includeFits ? selected : selected.filter((slide) => slide.pdfClipped || slide.architecture?.length > 0),
   };
 }

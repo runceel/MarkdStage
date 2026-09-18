@@ -21,6 +21,24 @@ const fourErrors = () => JSON.stringify({
   ],
 });
 
+test("degraded connector routing reaches the validation tool with slide positions", () => {
+  const source = JSON.stringify({ elements: [
+    { type: "node", id: "wall", x: 100, y: 100, width: 600, height: 400 },
+    { type: "node", id: "a", x: 150, y: 150, width: 100, height: 60 },
+    { type: "node", id: "b", x: 500, y: 380, width: 100, height: 60 },
+    { type: "connector", from: "a", to: "b", routing: "orthogonal" },
+  ] });
+  const report = validateArchitectureInput({ format: "slides", slides: ["# Intro", fence(source)] });
+  assert.equal(report.valid, true);
+  assert.equal(report.complete, true);
+  const warning = report.diagnostics.find((item) => item.code === "connector_routing_degraded");
+  assert.ok(warning, "validate must report what the rendered slide shows in its banner");
+  assert.equal(warning.severity, "warning");
+  assert.equal(warning.slideIndex, 1);
+  assert.equal(warning.page, 2);
+  assert.equal(warning.blockIndex, 0);
+});
+
 test("unloaded DSL returns a compact canonical report without invented slide positions", () => {
   const report = validateArchitectureInput({ format: "dsl", source: EMPTY });
   assert.equal(report.ok, true);
