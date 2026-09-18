@@ -742,7 +742,17 @@ function tableXml(element, path, id, relationships) {
     fail(`${path}.rows[0].cells must be a non-empty array`);
   }
   const rowHeight = emu(bounds.height) / element.rows.length;
-  const columnWidth = emu(bounds.width) / columnCount;
+  let columnWidths = Array.from({ length: columnCount }, () => 1);
+  if (element.columnWidths !== undefined) {
+    if (!Array.isArray(element.columnWidths) || element.columnWidths.length !== columnCount) {
+      fail(`${path}.columnWidths must contain exactly ${columnCount} widths`);
+    }
+    columnWidths = element.columnWidths.map((width, columnIndex) =>
+      positiveNumber(width, `${path}.columnWidths[${columnIndex}]`),
+    );
+  }
+  const totalColumnWidth = columnWidths.reduce((sum, width) => sum + width, 0);
+  const tableWidth = emu(bounds.width);
   const rows = element.rows
     .map((row, rowIndex) => {
       const rowPath = `${path}.rows[${rowIndex}]`;
@@ -782,7 +792,10 @@ function tableXml(element, path, id, relationships) {
     .join("");
   const columns = Array.from(
     { length: columnCount },
-    () => `<a:gridCol w="${Math.round(columnWidth)}"/>`,
+    (_, columnIndex) =>
+      `<a:gridCol w="${Math.round(
+        (tableWidth * columnWidths[columnIndex]) / totalColumnWidth,
+      )}"/>`,
   ).join("");
   return `<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="${id}" name="Table ${id}"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>${xfrmXml(bounds, "p:xfrm")}<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl><a:tblPr firstRow="1" bandRow="1"/><a:tblGrid>${columns}</a:tblGrid>${rows}</a:tbl></a:graphicData></a:graphic></p:graphicFrame>`;
 }

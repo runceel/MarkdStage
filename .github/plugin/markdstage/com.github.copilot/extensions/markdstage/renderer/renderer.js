@@ -1299,6 +1299,58 @@ function relativeBounds(element, deck) {
   };
 }
 
+function positiveCssMetric(value) {
+  const number = Number.parseFloat(String(value || "").trim());
+  return Number.isFinite(number) && number > 0 ? number : null;
+}
+
+function validColumnWidths(widths, columnCount) {
+  return (
+    Array.isArray(widths) &&
+    widths.length === columnCount &&
+    widths.every((width) => Number.isFinite(width) && width > 0)
+  );
+}
+
+function variedColumnWidths(widths) {
+  return Math.max(...widths) - Math.min(...widths) > 0.5;
+}
+
+function explicitTableColumnWidths(table, columnCount) {
+  const colWidths = [...table.querySelectorAll(":scope > colgroup > col")].map((col) =>
+    positiveCssMetric(
+      col.style.width || col.getAttribute("width") || getComputedStyle(col).width,
+    ),
+  );
+  if (validColumnWidths(colWidths, columnCount) && variedColumnWidths(colWidths)) {
+    return colWidths;
+  }
+
+  const firstRow = table.rows[0];
+  const inlineWidths = [...firstRow.cells].map((cell) =>
+    positiveCssMetric(cell.style.width || cell.getAttribute("width")),
+  );
+  if (validColumnWidths(inlineWidths, columnCount) && variedColumnWidths(inlineWidths)) {
+    return inlineWidths;
+  }
+
+  return null;
+}
+
+function tableColumnWidths(table, rows, columnCount) {
+  const renderedWidths = rows[0]?.cells.map((cell) => cell.width) || [];
+  const explicitWidths = explicitTableColumnWidths(table, columnCount);
+  if (
+    explicitWidths &&
+    (!validColumnWidths(renderedWidths, columnCount) || !variedColumnWidths(renderedWidths))
+  ) {
+    return explicitWidths;
+  }
+  return validColumnWidths(renderedWidths, columnCount)
+    ? renderedWidths
+    : explicitWidths || undefined;
+}
+
 function textContentBounds(element, deck) {
   const range = document.createRange();
   range.selectNodeContents(element);
@@ -2913,6 +2965,7 @@ async function collectPptxSlide(slide, index, options = {}) {
       path: elementPath(table, deck),
       ...relativeBounds(table, deck),
       zOrder: Number(table.dataset.pptxZOrder),
+      columnWidths: tableColumnWidths(table, rows, columnCount),
       rows,
     });
     if (effects.length) {

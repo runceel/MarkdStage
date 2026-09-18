@@ -251,6 +251,7 @@ function samplePackage() {
             y: 150,
             width: 500,
             height: 160,
+            columnWidths: [125, 375],
             rows: [
               {
                 cells: [
@@ -577,6 +578,10 @@ test("emits native text, hyperlinks, tables, images, shapes, and connector segme
   assert.match(slide, /<a:hlinkClick r:id="rId\d+"\/>/);
   assert.match(rels, /Target="https:\/\/example\.com\/\?a=1&amp;b=2" TargetMode="External"/);
   assert.match(slide, /<a:tbl>/);
+  assert.match(
+    slide,
+    /<a:tblGrid><a:gridCol w="1190625"\/><a:gridCol w="3571875"\/><\/a:tblGrid>/,
+  );
   assert.match(slide, /<a:t>A<\/a:t>/);
   assert.match(slide, /<p:pic>[\s\S]*?<a:prstGeom prst="roundRect">/);
   assert.match(slide, /<a:prstGeom prst="roundRect">/);
@@ -585,6 +590,63 @@ test("emits native text, hyperlinks, tables, images, shapes, and connector segme
   assert.equal((slide.match(/<a:tailEnd type="triangle"\/>/g) || []).length, 1);
   assert.match(slide, /<a:prstDash val="dash"\/>/);
   assert.match(slide, /<a:t>Flow<\/a:t>/);
+});
+
+test("emits proportional native table grid widths", () => {
+  const files = readStoredZip(
+    buildPptxPackage({
+      slides: [
+        {
+          elements: [
+            {
+              type: "table",
+              x: 0,
+              y: 0,
+              width: 900,
+              height: 100,
+              columnWidths: [10, 30, 60],
+              rows: [
+                {
+                  cells: [
+                    { text: "ID" },
+                    { text: "Owner" },
+                    { text: "Status" },
+                  ],
+                },
+              ],
+            },
+            {
+              type: "table",
+              x: 0,
+              y: 120,
+              width: 500,
+              height: 100,
+              columnWidths: [60, 25, 15],
+              rows: [
+                {
+                  cells: [
+                    { text: "Workstream" },
+                    { text: "Owner" },
+                    { text: "Risk" },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    }),
+  );
+  const slide = xml(files, "ppt/slides/slide1.xml");
+
+  assert.match(
+    slide,
+    /<a:tblGrid><a:gridCol w="857250"\/><a:gridCol w="2571750"\/><a:gridCol w="5143500"\/><\/a:tblGrid>/,
+  );
+  assert.match(
+    slide,
+    /<a:tblGrid><a:gridCol w="2857500"\/><a:gridCol w="1190625"\/><a:gridCol w="714375"\/><\/a:tblGrid>/,
+  );
 });
 
 test("emits grouped list paragraphs with explicit marker colors and offsets", () => {

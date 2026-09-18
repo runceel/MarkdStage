@@ -40,10 +40,10 @@ Fran&ccedil;ais &eacute;lan &copy; 2026.
   - Nested
 - Last
 
-| Name | Value |
-| --- | ---: |
-| Alpha | 42 |
-| | Empty category |
+<table>
+  <thead><tr><th style="width: 25%">Name</th><th style="width: 75%; text-align: right">Value</th></tr></thead>
+  <tbody><tr><td>Alpha</td><td style="text-align: right">42</td></tr><tr><td></td><td>Empty category</td></tr></tbody>
+</table>
 
 ![Raster sample](/assets/readme/simple-slide.png)
 
@@ -656,6 +656,9 @@ test("collects native text, nested lists, links, tables, and raster images", asy
     );
     expect(table.rows).toHaveLength(3);
     expect(table.rows[0].cells).toHaveLength(2);
+    expect(table.columnWidths).toHaveLength(2);
+    expect(table.columnWidths[1]).toBeGreaterThan(table.columnWidths[0] * 2);
+    expect(Math.abs(table.columnWidths[0] + table.columnWidths[1] - table.width)).toBeLessThan(2);
     expect(table.rows[1].cells[1].paragraphs[0].runs[0].text.trim()).toBe("42");
     expect(table.rows[2].cells[0].paragraphs[0].runs).toEqual([
       expect.objectContaining({ text: "" }),
@@ -799,6 +802,56 @@ title: Lists
         element.paragraphs.map((paragraph) => paragraph.bullet.color),
       ),
     ).toEqual(["#0078D4", "#0078D4", "#0078D4", "#0078D4", "#0078D4"]);
+  } finally {
+    await harness.close();
+  }
+});
+
+test("preserves resized HTML table column widths in the PowerPoint model", async ({
+  page,
+}) => {
+  const harness = await startHarness({
+    slides: [
+      `---
+theme: microsoft
+title: Table widths
+---
+## Table widths
+
+<table>
+  <thead><tr><th style="width: 25%">Category</th><th style="width: 75%">Description</th></tr></thead>
+  <tbody><tr><td>Alpha</td><td>Wide description column.</td></tr></tbody>
+</table>
+
+<table>
+  <colgroup><col style="width: 10%"><col style="width: 30%"><col style="width: 60%"></colgroup>
+  <thead><tr><th>ID</th><th>Owner</th><th>Status</th></tr></thead>
+  <tbody><tr><td>01</td><td>Platform</td><td>Validate exported package.</td></tr></tbody>
+</table>
+
+<table>
+  <thead><tr><th style="width: 60%">Workstream</th><th style="width: 25%">Owner</th><th style="width: 15%">Risk</th></tr></thead>
+  <tbody><tr><td>PowerPoint serialization</td><td>Runtime</td><td>Low</td></tr></tbody>
+</table>`,
+    ],
+  });
+  try {
+    const model = await openPptx(page, harness);
+    const tables = model.slides[0].elements.filter((element) => element.type === "table");
+    const ratiosOf = (table) => {
+      const total = table.columnWidths.reduce((sum, width) => sum + width, 0);
+      return table.columnWidths.map((width) => width / total);
+    };
+
+    expect(tables).toHaveLength(3);
+    expect(ratiosOf(tables[0])[0]).toBeCloseTo(0.25, 1);
+    expect(ratiosOf(tables[0])[1]).toBeCloseTo(0.75, 1);
+    expect(ratiosOf(tables[1])[0]).toBeCloseTo(0.1, 1);
+    expect(ratiosOf(tables[1])[1]).toBeCloseTo(0.3, 1);
+    expect(ratiosOf(tables[1])[2]).toBeCloseTo(0.6, 1);
+    expect(ratiosOf(tables[2])[0]).toBeCloseTo(0.6, 1);
+    expect(ratiosOf(tables[2])[1]).toBeCloseTo(0.25, 1);
+    expect(ratiosOf(tables[2])[2]).toBeCloseTo(0.15, 1);
   } finally {
     await harness.close();
   }
