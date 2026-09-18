@@ -107,6 +107,7 @@ pre { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size
 pre code { font: inherit; }
 .source-disclosure pre { max-height: 320px; padding: 18px; margin-bottom: 16px; color: var(--copy); background: #080c17; }
 .recording-links { display: flex; flex-wrap: wrap; gap: 8px 24px; margin-block: 16px 24px; }
+.recording { max-width: 75ch; }
 .recording video { width: 100%; aspect-ratio: 16 / 9; object-fit: contain; border: 1px solid #63708a; border-radius: 4px; background: #000; }
 .recording figcaption { margin-top: 18px; font-size: 14px; line-height: 1.8; }
 .recording-transcript { margin-top: 16px; border-block: 1px solid #c7c7c6; }
