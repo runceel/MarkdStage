@@ -62,3 +62,23 @@ test("PowerPoint export completes and writes the presentation package", () => {
   assert.ok(bytes.includes(Buffer.from("ppt/presentation.xml")));
   assert.ok(bytes.includes(Buffer.from("ppt/slides/slide1.xml")));
 });
+
+test("native PowerPoint output serves the pinned SDK and captures a static Adaptive Card", () => {
+  const file = join(workspace, "deck.md");
+  const original = readFileSync(file, "utf8");
+  const card = readFileSync(new URL("../../../test/fixtures/adaptive-cards/typography.json", import.meta.url), "utf8");
+  try {
+    writeFileSync(file, `## Native Adaptive Card\n\n\`\`\`adaptive-card\n${card}\n\`\`\``);
+    const report = run("export", "--output", "card.pptx");
+    const cards = report.fallbacks.filter((fallback) => fallback.type === "adaptive-card");
+    assert.equal(cards.length, 1);
+    assert.equal(cards[0].reason, "adaptive-card-phase-0-raster");
+    assert.equal(cards[0].path, "adaptive-card[0]");
+    const bytes = readFileSync(join(workspace, "card.pptx"));
+    assert.equal(report.bytes, bytes.length);
+    assert.ok(bytes.includes(Buffer.from("adaptive-card artwork")));
+    assert.ok(bytes.includes(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])));
+  } finally {
+    writeFileSync(file, original);
+  }
+});

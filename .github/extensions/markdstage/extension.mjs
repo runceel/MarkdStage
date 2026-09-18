@@ -1864,8 +1864,8 @@ async function startServer(inst) {
       }
       return;
     }
-    if (pathname === "/vendor/mermaid.min.js") {
-      await sendChunkedVendorAsset(res, "mermaid.min.js");
+    if (["/vendor/mermaid.min.js", "/vendor/adaptivecards.min.js"].includes(pathname)) {
+      await sendChunkedVendorAsset(res, pathname.slice("/vendor/".length));
       return;
     }
     if (pathname.startsWith("/renderer/") || pathname.startsWith("/vendor/")) {

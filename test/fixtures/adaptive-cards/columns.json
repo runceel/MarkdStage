@@ -1,0 +1,25 @@
+{
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "id": "columns",
+  "body": [
+    { "type": "TextBlock", "text": "Auto, stretch, pixel", "weight": "Bolder" },
+    {
+      "type": "ColumnSet", "id": "mixed-widths",
+      "columns": [
+        { "type": "Column", "id": "auto", "width": "auto", "style": "emphasis", "items": [{ "type": "TextBlock", "text": "AUTO" }] },
+        { "type": "Column", "id": "stretch", "width": "stretch", "items": [{ "type": "TextBlock", "text": "Stretch takes the remaining space.", "wrap": true }] },
+        { "type": "Column", "id": "pixel", "width": "128px", "separator": true, "style": "emphasis", "items": [{ "type": "TextBlock", "text": "128 px", "wrap": true }] }
+      ]
+    },
+    { "type": "TextBlock", "text": "Weighted columns 1 : 2 : 3", "weight": "Bolder", "separator": true, "spacing": "Large" },
+    {
+      "type": "ColumnSet", "id": "weighted-widths",
+      "columns": [
+        { "type": "Column", "id": "weight-1", "width": 1, "style": "emphasis", "items": [{ "type": "TextBlock", "text": "One", "wrap": true }] },
+        { "type": "Column", "id": "weight-2", "width": 2, "items": [{ "type": "TextBlock", "text": "Two", "wrap": true }] },
+        { "type": "Column", "id": "weight-3", "width": 3, "style": "emphasis", "items": [{ "type": "TextBlock", "text": "Three", "wrap": true }] }
+      ]
+    }
+  ]
+}

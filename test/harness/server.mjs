@@ -49,7 +49,7 @@ const VENDOR_MANIFEST = join(VENDOR_DIR, "vendor-assets.lock.json");
 
 // Vendor assets distributed in chunks. Process these first because static-file fallback returns 404,
 // preventing Mermaid from loading and leaving `mermaid-loading` set forever.
-const CHUNKED_VENDOR_ASSETS = new Set(["mermaid.min.js"]);
+const CHUNKED_VENDOR_ASSETS = new Set(["mermaid.min.js", "adaptivecards.min.js"]);
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -139,6 +139,7 @@ export async function startHarness({
   printToken = "test-print-token",
   architectureEdit = false,
   markdownRoot = "",
+  sourceName = "",
   presenterWindowAvailable = true,
   presenterViewAvailable = true,
   pdfExportAvailable = true,
@@ -168,7 +169,7 @@ export async function startHarness({
     // the harness fixes it through a startup option.
     architectureEdit: Boolean(architectureEdit),
     // Relative path of imported Markdown, or empty when nothing has been imported.
-    sourceName: "",
+    sourceName,
     sourceWriteback: false,
     sourceWritebackSnapshot: "",
     sourceMode: "snapshot",

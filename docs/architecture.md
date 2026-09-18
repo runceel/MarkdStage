@@ -55,7 +55,7 @@ and data read by JavaScript cross the I/O port.
 
 ## Workspace and trust model
 
-Markdown, themes, media, and Architecture DSL inside a workspace are untrusted
+Markdown, themes, media, Architecture DSL, and Adaptive Card JSON inside a workspace are untrusted
 input. A workspace root is absolute and canonical for the lifetime of the
 session that owns it.
 
@@ -152,3 +152,25 @@ files. Generated mirrors must not be edited by hand.
   engine; equivalent implementation does not imply identical engine versions.
 - The product never downloads or installs Node.js, WebView2, or Chromium at run
   time.
+
+## Adaptive Cards boundary
+
+The experimental card integration belongs to the canonical shared renderer.
+The pinned official SDK owns semantic identity, properties, and hierarchy;
+public rendered-element references provide geometry and text-layout evidence,
+not semantics. MarkdStage owns a limited, versioned HostConfig, and card content
+is isolated from slide stylesheet selectors. The library is loaded only for a
+card fence.
+
+Card content is resolved, non-interactive JSON. Card Markdown uses the existing
+sanitization stack. Resource approval precedes SDK rendering, and rendering and
+export use the same approved bytes. Workspace reads remain host-confined;
+remote resources, redirects, and excluded capabilities cannot be enabled by a
+fallback.
+
+Cards currently export as bounded whole-card raster artwork, with dedicated
+ownership that prevents duplicate generic HTML artwork. There is no Adaptive
+Cards Scene Graph source or editable card converter. Measured, aggregate-only,
+and rejected coverage are distinct; raster fidelity does not establish native
+conversion feasibility. [ADR 0005](adr/0005-adaptive-card-semantic-and-raster-boundary.md)
+records the rationale and conditions for later work.

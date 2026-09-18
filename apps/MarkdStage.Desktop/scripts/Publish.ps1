@@ -37,10 +37,21 @@ function Test-VendorAssetIntegrity {
     }
 
     $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
-    $asset = $manifest.assets.'mermaid.min.js'
+    foreach ($assetName in @('mermaid.min.js', 'adaptivecards.min.js')) {
+        Test-LockedVendorAsset -VendorDirectory $VendorDirectory -AssetName $assetName -Asset $manifest.assets.$assetName
+    }
+}
+
+function Test-LockedVendorAsset {
+    param(
+        [Parameter(Mandatory)][string]$VendorDirectory,
+        [Parameter(Mandatory)][string]$AssetName,
+        [Parameter(Mandatory)]$Asset
+    )
+
     $chunks = @($asset.chunks)
     if ($null -eq $asset -or $chunks.Count -eq 0) {
-        throw "Vendor asset manifest is missing mermaid.min.js chunks."
+        throw "Vendor asset manifest is missing $AssetName chunks."
     }
 
     $combinedHash = [Security.Cryptography.IncrementalHash]::CreateHash(
@@ -51,7 +62,7 @@ function Test-VendorAssetIntegrity {
             $chunk = $chunks[$index]
             $name = [string]$chunk.file
             if ([int]$chunk.index -ne ($index + 1) -or [string]::IsNullOrWhiteSpace($name)) {
-                throw "Vendor asset manifest contains an invalid Mermaid chunk entry."
+                throw "Vendor asset manifest contains an invalid $AssetName chunk entry."
             }
 
             $chunkPath = Join-Path $VendorDirectory $name
@@ -82,14 +93,14 @@ function Test-VendorAssetIntegrity {
     }
 
     if ($totalLength -ne [long]$asset.size) {
-        throw "mermaid.min.js failed size verification."
+        throw "$AssetName failed size verification."
     }
 
     $expectedCombinedHash = [string]$asset.sha256
     if (-not $actualCombinedHash.Equals(
         $expectedCombinedHash,
         [StringComparison]::OrdinalIgnoreCase)) {
-        throw "mermaid.min.js failed SHA-256 verification."
+        throw "$AssetName failed SHA-256 verification."
     }
 }
 

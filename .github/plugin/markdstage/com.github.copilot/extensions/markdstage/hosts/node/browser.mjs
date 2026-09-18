@@ -573,7 +573,7 @@ export async function runPptxOutputBrowser(browser, pageUrl, profileDir, job, to
           fallback.reason === "mermaid-rendered-as-artwork";
         // Align local Mermaid artwork too: fractional PNG placement resamples
         // translucent strokes and changes their composited theme colors.
-        const bounds = fallback.type === "mermaid" ? {
+        const bounds = ["mermaid", "adaptive-card"].includes(fallback.type) ? {
           x: Math.floor(left),
           y: Math.floor(top),
           width: Math.ceil(right) - Math.floor(left),

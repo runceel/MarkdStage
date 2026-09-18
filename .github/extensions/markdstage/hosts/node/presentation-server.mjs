@@ -954,8 +954,8 @@ export async function startPresentationServer(
       return;
     }
 
-    if (route === "/vendor/mermaid.min.js") {
-      await sendChunkedVendorAsset(res, VENDOR_DIR, VENDOR_MANIFEST, "mermaid.min.js", (message) =>
+    if (["/vendor/mermaid.min.js", "/vendor/adaptivecards.min.js"].includes(route)) {
+      await sendChunkedVendorAsset(res, VENDOR_DIR, VENDOR_MANIFEST, route.slice("/vendor/".length), (message) =>
         onLog?.(message, "error"),
       );
       return;

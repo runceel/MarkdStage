@@ -1,0 +1,31 @@
+{
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "id": "typography",
+  "body": [
+    { "type": "TextBlock", "id": "heading", "text": "Typed objects, measured geometry", "size": "Large", "weight": "Bolder", "wrap": true },
+    { "type": "TextBlock", "id": "markdown", "text": "**Bold**, *italic*, and `code` use the existing Markdown sanitizer.\n\nThis longer paragraph deliberately wraps across the available card width so the engine comparison measures real line breaking, not just single-line boxes. Geometry must remain correlated with the same typed TextBlock.", "wrap": true },
+    {
+      "type": "Container", "id": "emphasis", "style": "emphasis", "separator": true, "spacing": "Large",
+      "items": [
+        { "type": "TextBlock", "id": "accent", "text": "Container style comes from HostConfig", "color": "Accent", "weight": "Bolder" },
+        {
+          "type": "Container", "id": "nested", "style": "default",
+          "items": [
+            {
+              "type": "RichTextBlock", "id": "rich",
+              "inlines": [
+                { "type": "TextRun", "id": "run-bold", "text": "Rich text: ", "weight": "Bolder" },
+                { "type": "TextRun", "id": "run-italic", "text": "This italic run is intentionally long enough to wrap onto another line. Its inline object remains the semantic identity while Range rectangles describe each rendered line. / ", "italic": true },
+                { "type": "TextRun", "id": "run-highlight", "text": "highlight", "highlight": true },
+                { "type": "TextRun", "id": "run-strike", "text": " / removed", "strikethrough": true }
+              ]
+            },
+            { "type": "TextBlock", "id": "japanese", "text": "日本語の折り返しと文字の位置を確認します。安定した計測は編集可能な出力の前提です。文章を追加して複数行を実際に表示し、同じオブジェクトと文字列が別のブラウザーでも同じ位置に描画されることを確かめます。", "wrap": true },
+            { "type": "TextBlock", "id": "subtle", "text": "Subtle small text", "size": "Small", "isSubtle": true }
+          ]
+        }
+      ]
+    }
+  ]
+}

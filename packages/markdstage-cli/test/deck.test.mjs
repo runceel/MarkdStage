@@ -411,6 +411,7 @@ test("the Node host serves bundled modules and shared session previews after ext
         ["renderer/slides.css", "text/css"],
         ["vendor/marked.min.js", "text/javascript"],
         ["vendor/mermaid.min.js", "text/javascript"],
+        ["vendor/adaptivecards.min.js", "text/javascript"],
       ]) {
         const response = await fetch(new URL(route, server.url));
         assert.equal(response.status, 200, route);

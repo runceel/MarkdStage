@@ -222,7 +222,7 @@ function applyAutoSize(deck, bodyEl) {
   if (
     (customThemeSizesSlides && deck.dataset.theme === "custom") ||
     !bodyEl.textContent.trim() ||
-    bodyEl.querySelector("pre, table, img, .mermaid, svg, video, iframe")
+    bodyEl.querySelector("pre, table, img, .mermaid, .adaptive-card-host, svg, video, iframe")
   ) {
     return;
   }
@@ -703,6 +703,12 @@ function renderArchifyBlocks(scope, deckEl, token) {
  */
 async function renderDeferredDiagrams(scope, deckEl, token, revealWhenDone = true) {
   await renderArchifyBlocks(scope, deckEl, token);
+  const cards = [...scope.querySelectorAll(".adaptive-card-host")];
+  if (cards.length) {
+    const { renderAdaptiveCard } = await import("./adaptive-card.mjs");
+    const palette = { ...archifyThemeTokens(deckEl), fontFamily: getComputedStyle(deckEl).fontFamily };
+    for (const host of cards) await renderAdaptiveCard(host, host.__adaptiveCardSource, palette);
+  }
   return runMermaid(scope, deckEl, token, revealWhenDone);
 }
 
@@ -1002,6 +1008,13 @@ function createSlide(
 
   // marked emits ```mermaid fences as <pre><code class="language-mermaid">.
   // Convert them to the <pre class="mermaid"> shape mermaid.run expects.
+  codeBlocksForLanguage(bodyEl, "adaptive-card").forEach((code, blockIndex) => {
+    const host = document.createElement("div");
+    host.className = "adaptive-card-host";
+    host.dataset.adaptiveCardBlock = String(blockIndex);
+    host.__adaptiveCardSource = code.textContent;
+    (code.closest("pre") || code).replaceWith(host);
+  });
   codeBlocksForLanguage(bodyEl, "mermaid").forEach((code) => {
     const target = code.closest("pre") || code;
     const graph = document.createElement("pre");
@@ -2647,8 +2660,21 @@ async function collectPptxSlide(slide, index, options = {}) {
 
   const effectFallbacks = new Map();
   const genericShadowElements = new Map();
+  const cardHosts = [...deck.querySelectorAll(".adaptive-card-host")];
+  if (cardHosts.length) {
+    const { assertAdaptiveCardCaptureSafe, collectAdaptiveCardGeometry } = await import("./adaptive-card.mjs");
+    for (const host of cardHosts) {
+      assertAdaptiveCardCaptureSafe(host);
+      const card = collectAdaptiveCardGeometry(host, deck);
+      addFallback("adaptive-card", host, card.status === "ready"
+        ? "adaptive-card-phase-0-raster" : `adaptive-card-${card.diagnostics.at(-1).code}`);
+      const fallback = fallbackByRoot.get(host);
+      fallback.path = `adaptive-card[${host.dataset.adaptiveCardBlock}]`;
+      if (card.diagnostics.length) fallback.diagnostics = card.diagnostics;
+    }
+  }
   for (const element of deck.querySelectorAll("header *, .body, .body *, footer *")) {
-    if (element.closest("pre, .architecture-diagram, .architecture-error")) continue;
+    if (element.closest("pre, .architecture-diagram, .architecture-error, .adaptive-card-host")) continue;
     const allEffects = unsupportedEffects(element);
     if (
       allEffects.includes("box-shadow") &&

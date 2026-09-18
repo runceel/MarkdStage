@@ -35,6 +35,7 @@ total: 2
 | `architecture-visual.md` | Visual regression fixture. Contains only Architecture DSL, without Mermaid, to stabilize pixel comparisons |
 | `layout-visual.md` | Regression fixture for H1/H2 in `layout: section`, optional kicker/footer, theme backgrounds, and PDF output |
 | `standard-title.md` | DOM, coordinate, and PDF regression fixture that pins a regular slide's leading H1/H2 to the top title region |
+| [`adaptive-cards/`](adaptive-cards/README.md) | Real SDK static/unsupported fixtures, typed geometry, resource policy, whole-card PPTX and actual Chromium/WebView2/PowerPoint reproduction |
 | `print-mixed.md` | PDF regression fixture with Mermaid and Architecture DSL on one slide (a single fragment without separators) |
 | `mermaid/class-relations.mmd`, `mermaid/class-relations.svg` | Class composition, directed association, dependency, and multiplicity source plus fixed SVG generated with bundled Mermaid 11.15.0 (`theme: default`, `securityLevel: strict`, ID `fixture-class-relations`) |
 | `mermaid/flowchart-additional-shapes.mmd`, `mermaid/flowchart-additional-shapes.svg` | Seeded legacy and modern subroutine, base-bottom/base-top trapezoid, and reverse-parallelogram source plus fixed SVG generated with bundled Mermaid 11.15.0 (`theme: default`, `securityLevel: strict`, ID `fixture-flowchart-additional-shapes`) |

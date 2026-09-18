@@ -59,7 +59,7 @@ internal sealed class PresentationServer(
             }
 
             _vendorAssets = new VendorAssetProvider(_webRoot);
-            _ = await _vendorAssets.GetMermaidAsync(startup.Token);
+            _ = await _vendorAssets.GetAssetAsync("mermaid.min.js", startup.Token);
 
             var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions
             {
@@ -175,13 +175,16 @@ internal sealed class PresentationServer(
         application.MapGet($"{prefix}/renderer/{{**path}}", (
             HttpContext context,
             string path) => SendStaticAsync(context, Path.Combine(_webRoot, "renderer"), path));
-        application.MapGet($"{prefix}/vendor/mermaid.min.js", async context =>
+        foreach (var assetName in new[] { "mermaid.min.js", "adaptivecards.min.js" })
         {
-            var bytes = await _vendorAssets!.GetMermaidAsync(context.RequestAborted);
-            context.Response.ContentType = "text/javascript; charset=utf-8";
-            context.Response.ContentLength = bytes.Length;
-            await context.Response.Body.WriteAsync(bytes, context.RequestAborted);
-        });
+            application.MapGet($"{prefix}/vendor/{assetName}", async context =>
+            {
+                var bytes = await _vendorAssets!.GetAssetAsync(assetName, context.RequestAborted);
+                context.Response.ContentType = "text/javascript; charset=utf-8";
+                context.Response.ContentLength = bytes.Length;
+                await context.Response.Body.WriteAsync(bytes, context.RequestAborted);
+            });
+        }
         application.MapGet($"{prefix}/vendor/{{**path}}", (
             HttpContext context,
             string path) => SendStaticAsync(context, Path.Combine(_webRoot, "vendor"), path));

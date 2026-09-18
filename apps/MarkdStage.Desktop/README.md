@@ -95,6 +95,12 @@ inspection results and actual PNG/PDF/PowerPoint files. For installed-MSIX
 acceptance, set `MARKDSTAGE_NATIVE_CLI` to the installed `markdstage.exe` alias
 instead; source-build smoke tests do not replace package activation checks.
 
+The optional `tests\MarkdStage.WebView2.Probe` console harness measures real
+1280x720 WebView2 rendering using the existing STA dispatcher. It is not the
+hidden CLI script host or a test of the WinUI shell. See the
+[Adaptive Cards fixture instructions](../../test/fixtures/adaptive-cards/README.md)
+for engine comparison, actual PPTX generation, and PowerPoint COM inspection.
+
 ## MSIX build
 
 Publish the GUI and console launcher into one package, including Windows App SDK,

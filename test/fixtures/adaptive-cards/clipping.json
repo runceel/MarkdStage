@@ -1,0 +1,12 @@
+{
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "id": "clipping",
+  "body": [
+    { "type": "TextBlock", "id": "visible-top", "text": "Intentional overflow: top remains visible", "size": "Medium", "weight": "Bolder" },
+    {
+      "type": "Container", "id": "tall-container", "minHeight": "760px", "style": "emphasis", "verticalContentAlignment": "Bottom",
+      "items": [{ "type": "TextBlock", "id": "clipped-bottom", "text": "This line must remain clipped in fixed output.", "wrap": true }]
+    }
+  ]
+}

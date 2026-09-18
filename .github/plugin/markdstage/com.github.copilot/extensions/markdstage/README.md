@@ -175,6 +175,12 @@ The themed slide is displayed and updates automatically
   `assets/` at the workspace root, using `sourceName` as the resolution base.
 - Add language names such as `csharp`, `json`, or `diff` to code fences for
   highlight.js syntax highlighting.
+- **Experimental Adaptive Cards Phase 0 spike:** an `adaptive-card` fence loads
+  the pinned official SDK only when needed and renders a bounded static
+  schema-1.5 subset. Cards export as whole-card PNG artwork, not editable card
+  objects. Remote resources, interactivity, templating, and SDK fallback are
+  excluded with diagnostics. See [the spike contract and findings](docs/adaptive-cards-spike.md);
+  this is not the later production compatibility contract.
 
 ## Markdown import
 

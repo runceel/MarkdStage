@@ -1,2 +1,3 @@
 # Vendored chunks are hashed byte-for-byte; never normalize line endings.
-.github/extensions/markdstage/vendor/mermaid.min.js.part-* binary
+.github/extensions/markdstage/vendor/*.part-* binary
+.github/plugin/markdstage/com.github.copilot/extensions/markdstage/vendor/*.part-* binary

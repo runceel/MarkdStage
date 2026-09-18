@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { reconstructAsset } from "../scripts/vendor-assets.mjs";
+import { reconstructAsset, splitAsset } from "../scripts/vendor-assets.mjs";
 
 test("reconstructs ordered chunks and rejects tampering", async () => {
   const root = await mkdtemp(join(tmpdir(), "presentation-vendor-test-"));
@@ -38,4 +38,22 @@ test("reconstructs ordered chunks and rejects tampering", async () => {
     reconstructAsset(vendorDir, "mermaid.min.js", manifestPath),
     /Integrity check failed/,
   );
+});
+
+test("adding a pinned SDK preserves every existing locked asset", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "markdstage-vendor-add-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const vendor = join(root, "vendor"), manifest = join(vendor, "vendor-assets.lock.json");
+  const source = join(root, "upstream.js");
+  await writeFile(source, "const original = true;");
+  await splitAsset(source, vendor, manifest, "mermaid.min.js", "11.15.0");
+  const original = JSON.parse(await readFile(manifest, "utf8")).assets["mermaid.min.js"];
+  await writeFile(source, "const adaptive = true;");
+  await splitAsset(source, vendor, manifest, "adaptivecards.min.js", "3.0.6", "adaptivecards");
+  const assets = JSON.parse(await readFile(manifest, "utf8")).assets;
+  assert.deepEqual(assets["mermaid.min.js"], original);
+  assert.equal(assets["adaptivecards.min.js"].upstream.version, "3.0.6");
+  assert.equal(assets["adaptivecards.min.js"].upstream.name, "adaptivecards");
+  assert.equal((await reconstructAsset(vendor, "adaptivecards.min.js", manifest)).toString(), "const adaptive = true;");
+  await assert.rejects(splitAsset(source, vendor, manifest, "../escape.js", "1"), /simple file/);
 });

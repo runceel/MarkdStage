@@ -115,6 +115,8 @@
 }
 }
 *{box-sizing:border-box}
+.adaptive-card-host{display:block;position:relative;z-index:0;isolation:isolate;flex:none;width:100%;margin:10px 0;overflow:hidden;}
+.adaptive-card-host[data-adaptive-card-state="error"]{padding:16px;border:1px solid var(--border);color:var(--fg);}
 /* The canvas viewport itself never scrolls: a slide always fills exactly one
    screen. Sizing the deck with % (not 100vh/100vw, which include the scrollbar
    gutter and round up on fractional display scaling) keeps stray 1px

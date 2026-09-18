@@ -38,6 +38,7 @@ file layouts, local UI behaviour — does not belong here.
 | [0002](0002-cli-current-directory-workspace.md) | CLI current-directory workspace default | Accepted | Use the caller's current directory when CLI application or skill commands omit an explicit root, while keeping GUI launch independent of process cwd. |
 | [0003](0003-packaged-cli-native-app-activation.md) | Packaged CLI interactive commands activate the native app | Accepted | Hand packaged interactive requests to the installed app and report success only after acceptance; retain explicit headless serving and external-browser console output commands. |
 | [0004](0004-agent-skills-as-installation-artifacts.md) | Agent Skills are installation artifacts | Accepted | Generate Skills from canonical guides into user workspaces and keep them out of the development repository's agent discovery directories. |
+| [0005](0005-adaptive-card-semantic-and-raster-boundary.md) | Adaptive Cards use SDK semantics and policy-checked raster output | Accepted | Keep typed SDK semantics separate from measured DOM geometry, share pre-render asset policy, and retain bounded whole-card output until native conversion is explicitly validated. |
 
 ## Writing a new record
 
