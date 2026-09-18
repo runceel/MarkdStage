@@ -102,6 +102,10 @@ test("shared corpus and sample deck keep their executable checks", () => {
     expected({ test: true, desktop: true }),
   );
   assert.deepEqual(
+    classifyCiPaths(["test/visual/layout.spec.mjs"]),
+    expected({ test: true }),
+  );
+  assert.deepEqual(
     classifyCiPaths(["slides.md"]),
     expected({ test: true, cli: true, samples: true }),
   );
@@ -109,7 +113,18 @@ test("shared corpus and sample deck keep their executable checks", () => {
 
 test("site content and sample decks select only their relevant checks", () => {
   assert.deepEqual(
-    classifyCiPaths(["site/content/ja/index.md", "assets/readme/simple-slide.png"]),
+    classifyCiPaths([
+      "site/content/ja/index.md",
+      "assets/readme/simple-slide.png",
+      "scripts/build-site.mjs",
+      "scripts/serve-site.mjs",
+      "test/site/landing.spec.mjs",
+      "test/site/helpers.mjs",
+    ]),
+    expected({}),
+  );
+  assert.deepEqual(
+    classifyCiPaths(["site/site.css", "test/site/landing.spec.mjs"]),
     expected({}),
   );
   assert.deepEqual(

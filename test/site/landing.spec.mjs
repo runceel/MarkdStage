@@ -177,6 +177,8 @@ for (const basePath of ["/", "/MarkdStage/"]) {
       await expect(video).toHaveAttribute("width", "1920");
       await expect(video).toHaveAttribute("height", "1080");
       const posterBox = await video.boundingBox();
+      const textBox = await section.locator(":scope > p").boundingBox();
+      expect(posterBox.width).toBeLessThanOrEqual(textBox.width + 1);
       expect(posterBox.width / posterBox.height).toBeCloseTo(16 / 9, 2);
       await expect(video.locator("track")).toHaveCount(2);
       await expect(video.locator("track[default]")).toHaveAttribute("srclang", lang);

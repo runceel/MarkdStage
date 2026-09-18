@@ -51,11 +51,14 @@ function isAwesomePluginInput(path) {
   );
 }
 
-function isSiteContent(path) {
+function isSiteOwnedPath(path) {
   return (
     path.startsWith("site/") ||
     path.startsWith("assets/brand/") ||
-    path.startsWith("assets/readme/")
+    path.startsWith("assets/readme/") ||
+    path === "scripts/build-site.mjs" ||
+    path === "scripts/serve-site.mjs" ||
+    path.startsWith("test/site/")
   );
 }
 
@@ -156,7 +159,7 @@ export function classifyCiPaths(paths, { forceAll = false } = {}) {
       recognized = true;
     }
 
-    if (isSiteContent(path)) {
+    if (isSiteOwnedPath(path)) {
       recognized = true;
     }
 
@@ -168,6 +171,8 @@ export function classifyCiPaths(paths, { forceAll = false } = {}) {
       selection.samples = true;
       recognized = true;
     }
+
+    if (path === "scripts/build-site.mjs" || path === "scripts/serve-site.mjs") continue;
 
     if (isFullSuiteInfrastructure(path)) {
       selectAll(selection);
@@ -188,6 +193,8 @@ export function classifyCiPaths(paths, { forceAll = false } = {}) {
       if (path !== "apps/MarkdStage.Desktop/README.md") selection.desktop = true;
       continue;
     }
+
+    if (path.startsWith("test/site/")) continue;
 
     if (classifyExtensionPath(path, selection)) continue;
 
