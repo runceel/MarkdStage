@@ -68,7 +68,7 @@ in slide view with automatic refresh enabled.
 | `present` | Opens the full MarkdStage UI in presenter view. Open Markdown, automatic refresh, editing, export, and audience controls remain available. `--watch` starts in live mode, and `--no-open` serves the UI without launching a browser. |
 | `preview` | Opens the same full UI in slide view. It is a compatibility/convenience entry point; `--watch` starts in live mode, and `--no-open` serves the UI without launching a browser. |
 | `validate` | Checks deck structure, Architecture DSL blocks, themes, and theme paths. |
-| `inspect` | Reports the same compact 1280x720 clipping diagnostics as the canvas `inspect_layout` action. `--slide <n>` limits it to one page, `--all` includes slides that fit, `--fail-on-issues` exits with code 5. |
+| `inspect` | Reports the same compact 1280x720 clipping diagnostics as the canvas `inspect_layout` action, including degraded connector routing reported separately from clipping. `--slide <n>` limits it to one page, `--all` includes slides that fit, `--fail-on-issues` exits with code 5. |
 | `capture` | Writes 1280x720 PNG files. Without `--pages` only the slides reported as clipped are captured. |
 | `export` | Produces the same 16:9 PDF or hybrid editable PowerPoint as the canvas Extension. PowerPoint output includes speaker-note Markdown as readable plain text notes. The `--output` extension selects the format; PDF remains the default. Use `--mermaid-image-fallback` with an explicit `.pptx` output to place each Mermaid diagram as one image instead of editable PowerPoint shapes, equivalent to choosing **Images** in the UI export dialog. |
 | `guide` | Prints the canonical `markdstage_guide` topics. |

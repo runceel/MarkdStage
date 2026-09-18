@@ -40,8 +40,16 @@ export function formatInspectReport(report) {
     }
     for (const diagram of slide.architecture ?? []) {
       lines.push(`      architecture[${diagram.blockIndex}]: scale ${diagram.effectiveScale}; ${diagram.reportedElementCount}/${diagram.elementCount} element(s) reported`);
+      if (!diagram.routing) continue;
+      lines.push(`        routing degraded (${diagram.routing.count}): a warning banner is printed below this diagram`);
+      for (const entry of diagram.routing.diagnostics ?? []) {
+        lines.push(`          ${entry.sourcePath}: ${entry.from} -> ${entry.to} (${entry.kind}, ${entry.reason})`);
+      }
     }
   }
   lines.push(`  ${report.issueCount} slide(s) do not fit.`);
+  if (report.routingDegradedCount) {
+    lines.push(`  ${report.routingDegradedCount} diagram(s) have degraded connector routing.`);
+  }
   return lines.join("\n");
 }

@@ -142,7 +142,7 @@ export function validateArchitectureInput(input) {
 
   function inspect(source, position = {}) {
     const remaining = maxDiagnostics - diagnostics.length;
-    const report = validateArchitecture(source, { maxDiagnostics: remaining });
+    const report = validateArchitecture(source, { maxDiagnostics: remaining, includeRouting: true });
     const diagnosticStart = diagnostics.length;
     diagnostics.push(...report.diagnostics.map((diagnostic) => ({ ...diagnostic, ...position })));
     let blockTruncated = report.truncated;

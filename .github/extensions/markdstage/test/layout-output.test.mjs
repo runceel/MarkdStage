@@ -119,6 +119,42 @@ test("inspect retains clean architecture measurements without treating them as c
   assert.equal(selectLayoutResults(cleanArchitectureReport([]), 1, true).slides.length, 0);
 });
 
+test("routing degradation is reported without being counted as clipping", () => {
+  const source = cleanArchitectureReport();
+  source.slides[0].routingDegradedCount = 1;
+  source.slides[0].architecture[0].routing = {
+    degraded: true, count: 2,
+    diagnostics: [
+      { sourcePath: "elements[3].children[11]", from: "path-agent", to: "path-infra",
+        kind: "path-overlaps-node", reason: "endpoint-blocked", secret: "private" },
+      { sourcePath: "elements[3].children[12]", from: "path-agent", to: "path-copilot",
+        kind: "path-overlaps-node", reason: "endpoint-blocked" },
+    ],
+  };
+  const report = selectLayoutResults(source, undefined, false);
+  assert.equal(report.issueCount, 0, "degraded routing is not clipping");
+  assert.equal(report.hasIssues, false);
+  assert.equal(report.routingDegradedCount, 1);
+  assert.equal(report.hasRoutingIssues, true);
+  const routing = report.slides[0].architecture[0].routing;
+  assert.equal(routing.count, 2);
+  assert.equal(routing.diagnostics.length, 2);
+  assert.equal(routing.diagnostics[0].reason, "endpoint-blocked");
+  assert.doesNotMatch(JSON.stringify(report), /private/);
+  const text = formatInspectReport(report);
+  assert.match(text, /routing degraded \(2\)/);
+  assert.match(text, /elements\[3\]\.children\[11\]: path-agent -> path-infra \(path-overlaps-node, endpoint-blocked\)/);
+  assert.match(text, /1 diagram\(s\) have degraded connector routing\./);
+});
+
+test("clean diagrams report no routing degradation", () => {
+  const report = selectLayoutResults(cleanArchitectureReport(), undefined, false);
+  assert.equal(report.routingDegradedCount, 0);
+  assert.equal(report.hasRoutingIssues, false);
+  assert.equal(report.slides[0].architecture[0].routing, undefined);
+  assert.doesNotMatch(formatInspectReport(report), /routing degraded/);
+});
+
 test("layout report whitelist bounds architecture output and drops untrusted metadata", () => {
   const source = cleanArchitectureReport(Array.from({ length: 500 }, () => ({
     ...architectureElement, source: "private source", image: "data:image/png;base64,private",

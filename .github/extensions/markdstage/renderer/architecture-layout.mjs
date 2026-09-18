@@ -1,5 +1,6 @@
 export const ARCHITECTURE_LAYOUT_ELEMENT_LIMIT = 200;
 export const ARCHITECTURE_LAYOUT_BLOCK_LIMIT = 20;
+export const ARCHITECTURE_ROUTING_DIAGNOSTIC_LIMIT = 20;
 
 const metric = (value) => Math.round(value * 1000) / 1000;
 
@@ -29,6 +30,20 @@ function requestedDimension(element, name) {
   return value === "auto" ? value : numberAttribute(element, `requested-${name}`);
 }
 
+function routingFor(wrapper) {
+  if (wrapper.getAttribute("data-architecture-routing") !== "degraded") return undefined;
+  const count = numberAttribute(wrapper, "routing-count");
+  let diagnostics = [];
+  try {
+    const parsed = JSON.parse(wrapper.getAttribute("data-architecture-routing-detail") || "[]");
+    if (Array.isArray(parsed)) diagnostics = parsed.slice(0, ARCHITECTURE_ROUTING_DIAGNOSTIC_LIMIT);
+  } catch {
+    // The banner still reports the degradation; an unreadable detail attribute must not
+    // discard the fact that routing degraded on this block.
+  }
+  return { degraded: true, count: count ?? diagnostics.length, diagnostics };
+}
+
 export function collectArchitectureLayout(deck, scale = 1, limit = ARCHITECTURE_LAYOUT_ELEMENT_LIMIT) {
   const origin = deck.getBoundingClientRect();
   const elements = [];
@@ -37,6 +52,7 @@ export function collectArchitectureLayout(deck, scale = 1, limit = ARCHITECTURE_
   for (const [blockIndex, wrapper] of wrappers.slice(0, ARCHITECTURE_LAYOUT_BLOCK_LIMIT).entries()) {
     const svg = wrapper.querySelector("svg.architecture-svg");
     if (!svg) continue;
+    const routing = routingFor(wrapper);
     const sources = [...svg.querySelectorAll("[data-architecture-type], [data-architecture-connector-label]")];
     const start = elements.length;
     for (const source of sources) {
@@ -88,13 +104,16 @@ export function collectArchitectureLayout(deck, scale = 1, limit = ARCHITECTURE_
       effectiveScale: metric(effectiveScale(svg, scale)),
       elementCount: sources.length,
       reportedElementCount: elements.length - start,
+      ...(routing ? { routing } : {}),
     });
   }
+  const routingDegradedCount = architecture.filter((block) => block.routing).length;
   return {
     elements,
     ...(architecture.length ? {
       architecture,
       architectureBlockCount: wrappers.length,
+      routingDegradedCount,
     } : {}),
   };
 }

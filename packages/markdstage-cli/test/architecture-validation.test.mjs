@@ -139,6 +139,30 @@ test("CLI layout diagnostics remain warnings with requested and effective text s
   });
 });
 
+test("CLI reports degraded connector routing in both JSON and terminal validation output", async () => {
+  const source = JSON.stringify({ elements: [
+    { type: "node", id: "wall", x: 100, y: 100, width: 600, height: 400 },
+    { type: "node", id: "a", x: 150, y: 150, width: 100, height: 60 },
+    { type: "node", id: "b", x: 500, y: 380, width: 100, height: 60 },
+    { type: "connector", from: "a", to: "b", routing: "orthogonal" },
+  ] });
+  await withFile(deck(fragment(source)), async ({ dir, file }) => {
+    const result = await invoke(["validate", file, "--workspace", dir, "--json"]);
+    const report = JSON.parse(result.stdout);
+    // The diagram still renders, so degradation must not fail validation.
+    assert.equal(result.code, EXIT_OK);
+    assert.equal(report.valid, true);
+    assert.deepEqual(report.errors, []);
+    const routing = report.diagnostics.find((item) => item.code === "connector_routing_degraded");
+    assert.ok(routing, "the rendered banner must have a validation counterpart");
+    assert.equal(routing.severity, "warning");
+    assert.equal(routing.routing.reason, "endpoint-blocked");
+    const terminal = await invoke(["validate", file, "--workspace", dir]);
+    assert.equal(terminal.code, EXIT_OK);
+    assert.match(terminal.stdout, /warn .*connector_routing_degraded/);
+  });
+});
+
 test("CLI inspection cutoffs cannot produce an OK result or a successful exit", async () => {
   const manyBlocks = Array(201).fill(fragment('{"elements":[]}')).join("\n");
   await withFile(deck(manyBlocks), async ({ dir, file }) => {

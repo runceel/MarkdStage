@@ -327,6 +327,7 @@ export async function startArchitectureEditorHarness({
     if (
       [
         "/renderer/architecture.mjs",
+        "/renderer/architecture-layout.mjs",
         "/renderer/architecture-scene.mjs",
         "/renderer/scene-graph.mjs",
         "/renderer/image-source.mjs",

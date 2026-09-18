@@ -155,7 +155,8 @@ The themed slide is displayed and updates automatically
   whole-deck inspection, or serialize targeted inspections because PDF, layout,
   and PNG output jobs are intentionally exclusive. The result contains compact
   JSON for clipped pages and pages containing Architecture diagrams, including
-  vertical/horizontal overflow and bounded element measurements.
+  vertical/horizontal overflow, bounded element measurements, and degraded
+  connector routing.
   Call `capture_slides` only when visual inspection is needed;
   PNGs are fixed 1280×720 files and the action returns paths instead of inline
   image data.
@@ -663,6 +664,13 @@ also estimate-based and does not guarantee that every installed font will fit.
 - `architecture` block summaries with `effectiveScale`, measured `bbox`,
   `elementCount`, and `reportedElementCount`. A scale of `0.5` maps 24 logical
   font pixels to 12 slide pixels.
+- `routing` on any block whose connectors could not be routed cleanly, with
+  `count` and bounded `diagnostics` (`sourcePath`, `from`, `to`, `kind`,
+  `reason`), plus per-slide and report-level `routingDegradedCount`. Degraded
+  routing prints a visible warning banner under the diagram in PDF and PNG
+  output, so treat it as a defect; it is reported separately from `issueCount`
+  because it is not clipping. `markdstage_validate` reports the same degradation
+  as `connector_routing_degraded` warnings before anything is rendered.
 
 Measurements are bounded; compare element counts and `architectureBlockCount`
 to detect omitted detail. These are browser measurements of the rendered output,
@@ -1229,7 +1237,7 @@ when the user explicitly asks for an unsaved/in-memory display.
 | `get_architecture_errors` | `{ index?: number }`. Validate the complete deck or one zero-based slide, including temporary content. Preserves `{ ok, scope, index?, page?, total, errorCount, errors }` and legacy block errors; adds `valid`, `complete`, `truncated`, detailed `diagnostics`, and block-stage results from the same validator as `markdstage_validate`. No deck and out-of-range indexes are errors. |
 | `open_presenter` | No input. Start one synchronized movable/resizable 1280×720 Chromium app-mode window. Use `F11` on Windows for full screen. Returns `{ ok, started, alreadyRunning, browser?, pid? }`. |
 | `close_presenter` | No input. Stop presenter and remove its temporary profile. Returns `{ ok, stopped }`. |
-| `inspect_layout` | `{ index?: number, includeFits?: boolean }`. Render the registered in-memory PDF snapshot with the fixed 1280×720 output layout; this does not inspect the source file on disk. Omit `index` for one preferred whole-deck inspection. Serialize targeted calls because PDF, layout, and PNG jobs are exclusive. By default, return clipped pages and pages with Architecture measurements; `includeFits` includes all successful pages. Returns dimensions, issue counts, overflow measurements, nested scroll containers, bounded element measurements, and Architecture scale/font/fitting information. Requires Edge, Chrome, or Chromium. |
+| `inspect_layout` | `{ index?: number, includeFits?: boolean }`. Render the registered in-memory PDF snapshot with the fixed 1280×720 output layout; this does not inspect the source file on disk. Omit `index` for one preferred whole-deck inspection. Serialize targeted calls because PDF, layout, and PNG jobs are exclusive. By default, return clipped pages and pages with Architecture measurements; `includeFits` includes all successful pages. Returns dimensions, issue counts, overflow measurements, nested scroll containers, bounded element measurements, degraded connector routing, and Architecture scale/font/fitting information. Requires Edge, Chrome, or Chromium. |
 | `capture_slides` | `{ indexes?: number[], outputDirectory?: string, theme?: "dark" | "light" | "microsoft" | "custom" }`. Generate PDF-equivalent 1280×720 PNGs for at most 10 zero-based indexes. When `indexes` is omitted, inspect the deck and capture only clipped pages. Paths stay inside the workspace; results contain paths and layout summaries, not image bytes. Requires Edge, Chrome, or Chromium. |
 | `export_pdf` | `{ outputPath?: string, theme?: "dark" | "light" | "microsoft" | "custom" }`. Export one 16:9 page per slide. Relative paths use workspace root; default is `markdstage.pdf`. Theme affects PDF only. Reject paths outside workspace and non-`.pdf` files. Temporary slide replacement and the automatic back cover are included. Returns `{ ok, path, total, theme, bytes }`. Requires Edge, Chrome, or Chromium. |
 | `export_pptx` | `{ outputPath?: string, theme?: "dark" | "light" | "microsoft" | "custom" }`. Export a hybrid editable 16:9 PowerPoint deck. Supported text, lists, links, tables, fenced code blocks, raster images, Mermaid diagrams, and Architecture DSL objects remain native. Code blocks preserve syntax-colored editable runs, whitespace, monospace typography, and block decoration; unsupported effects such as shadows remain reported background fallbacks. Speaker-note Markdown is exported as readable plain text in the corresponding PowerPoint notes pane. Architecture nodes, groups, and connector-label pills are visible AutoShapes with integrated text; icons are foreground pictures. Mermaid diagrams export as editable shapes, text, and connectors with unsupported SVG details preserved as per-element fallback pictures. Unsupported visuals become reported background fallbacks. Relative paths use workspace root; default is `markdstage.pptx`. Reject paths outside workspace and non-`.pptx` files. Temporary slide replacement and the automatic back cover are included. Returns `{ ok, path, total, theme, bytes, format, fallbackCount, fallbacks }`; each fallback includes an `impact` of `none`, `decoration`, or `content`. Requires Edge, Chrome, or Chromium. |

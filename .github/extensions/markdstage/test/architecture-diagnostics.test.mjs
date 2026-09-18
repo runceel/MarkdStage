@@ -22,6 +22,47 @@ const fourMistakes = () => source([
 const errors = (report) => report.diagnostics.filter((item) => item.severity === "error");
 const own = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 
+// Connector ports enclosed by a surrounding node: the exact degradation that rendered a
+// banner on the slide while validation reported a clean diagram.
+const blockedRouting = () => source([
+  node("wall", { x: 100, y: 100, width: 600, height: 400 }),
+  node("a", { x: 150, y: 150, width: 100, height: 60 }),
+  node("b", { x: 500, y: 380, width: 100, height: 60 }),
+  { type: "connector", from: "a", to: "b", routing: "orthogonal" },
+]);
+
+test("connector routing degradation is reported as an opt-in layout warning", () => {
+  const report = validateArchitecture(blockedRouting(), { includeRouting: true });
+  assert.equal(report.valid, true);
+  assert.equal(report.complete, true);
+  const warning = report.diagnostics.find((item) => item.code === "connector_routing_degraded");
+  assert.ok(warning, "routing degradation must reach validation, not only the rendered banner");
+  assert.equal(warning.severity, "warning");
+  assert.equal(warning.category, "layout");
+  assert.equal(warning.pointer, "/elements/3");
+  assert.equal(warning.routing.kind, "path-overlaps-node");
+  assert.equal(warning.routing.reason, "endpoint-blocked");
+  assert.deepEqual([warning.routing.from, warning.routing.to], ["a", "b"]);
+  assert.match(warning.message, /elements\[3\]: connector a -> b/);
+  assert.match(warning.message, /polyline/);
+});
+
+test("routing planning stays off the parse path so rendering does not plan routes twice", () => {
+  const report = validateArchitecture(blockedRouting());
+  assert.equal(report.valid, true);
+  assert.deepEqual(report.diagnostics, []);
+  assert.equal(parseArchitecture(blockedRouting()).elements.length, 4);
+});
+
+test("clean diagrams add no routing warnings when routing is inspected", () => {
+  const report = validateArchitecture(source([
+    node("a"), node("b", { x: 400 }),
+    { type: "connector", from: "a", to: "b", routing: "orthogonal" },
+  ]), { includeRouting: true });
+  assert.equal(report.valid, true);
+  assert.deepEqual(report.diagnostics, []);
+});
+
 test("reports four independent unknown fields without changing the input", () => {
   const input = fourMistakes();
   const report = validateArchitecture(input);
