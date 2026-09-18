@@ -131,7 +131,10 @@ The COM script also compares every actual card picture to its integer capture
 bounds (0.02 px allowance for COM floating-point representation, not a visual
 tolerance). Page 9 must retain all three placeholders and both text blocks;
 page 11 must contain three distinct cards; page 12 must remain partially clipped
-with no duplicate card in the generic parent artwork.
+with no duplicate card in the generic parent artwork. Its positioned card must
+paint above the in-flow footer rule and page badge, matching Chromium: the footer
+must not cross or obscure the visible card label. Page 7 separately checks that
+an explicitly higher-z native foreground still paints above the card.
 
 The implementation-session evidence does not replace the coordinator's
 independent visual gate on the committed SHA. Record that gate separately, and
