@@ -1143,6 +1143,7 @@ function renderSlide(markdown) {
 
   document.body.classList.add("mermaid-loading");
   document.getElementById("stage").replaceChildren(slide.deck);
+  updateArchitectureEditButton();
   if (layoutFrame) {
     cancelAnimationFrame(layoutFrame);
     layoutFrame = 0;
@@ -3523,12 +3524,18 @@ function updateArchitectureEditButton(enabled = architectureEditMode) {
   const button = document.getElementById("navEdit");
   if (!button) return;
   button.hidden = presenterMode || !architectureEditAvailable;
+  const unavailableOnCurrentSlide =
+    !button.hidden && !enabled && architectureDiagramOptions().length === 0;
+  button.disabled = unavailableOnCurrentSlide;
+  button.setAttribute("aria-disabled", unavailableOnCurrentSlide ? "true" : "false");
   button.dataset.state = enabled && !presenterMode ? "active" : "";
-  button.title = architectureDetailedEdit
-    ? "Open Architecture Designer"
-    : enabled
-      ? "Exit shape editing mode"
-      : "Shape editing mode";
+  button.title = unavailableOnCurrentSlide
+    ? "Shape editing is unavailable because the current slide has no Architecture diagram"
+    : architectureDetailedEdit
+      ? "Open Architecture Designer"
+      : enabled
+        ? "Exit shape editing mode"
+        : "Shape editing mode";
   button.setAttribute("aria-label", button.title);
   syncMoreControls();
 }
@@ -3719,9 +3726,6 @@ async function toggleArchitectureEditMode() {
       await openArchitectureDesigner(options[0].block);
     } else if (options.length > 1) {
       openArchitecturePicker(options);
-    } else {
-      const status = document.getElementById("sourceStatus");
-      if (status) status.textContent = "The current slide has no Architecture diagram to edit.";
     }
     return;
   }
@@ -4391,6 +4395,7 @@ function mountSlideViewport(host, id, title, interactive) {
       if (id === "presenterNext") return;
       surfaceDiagnostic = diagnostic;
       document.body.classList.remove("mermaid-loading");
+      updateArchitectureEditButton();
       updateFixedPreviewWarning();
     },
   });

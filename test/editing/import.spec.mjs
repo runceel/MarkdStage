@@ -261,9 +261,20 @@ test.describe("Markdown import", () => {
     }
   });
 
-  test("reports when the current source-backed slide has no Architecture diagram", async ({ page }) => {
+  test("disables shape editing when the current source-backed slide has no Architecture diagram", async ({ page }) => {
     const root = await mkdtemp(join(tmpdir(), "presentation-import-no-architecture-"));
-    await writeFile(join(root, "plain.md"), "# Plain slide\n\nNo diagram here.\n", "utf8");
+    const diagram = JSON.stringify({
+      version: 1,
+      title: "Editable diagram",
+      elements: [
+        { type: "node", id: "editable", text: "Editable", x: 80, y: 80, width: 260, height: 140 },
+      ],
+    }, null, 2);
+    await writeFile(
+      join(root, "plain.md"),
+      `# Plain slide\n\nNo diagram here.\n\n---\n\n# Diagram\n\n\`\`\`architecture\n${diagram}\n\`\`\`\n`,
+      "utf8",
+    );
     const harness = await startHarness({ slides: SLIDES, markdownRoot: root });
     try {
       await page.goto(harness.url, { waitUntil: "load" });
@@ -272,11 +283,23 @@ test.describe("Markdown import", () => {
       await page.locator("#importList .overview-link", { hasText: "plain.md" }).click();
       await waitForSlideReady(page);
 
-      await clickMoreControl(page, "#navEdit");
-      await expect(page.locator("#sourceStatus")).toContainText(
-        "current slide has no Architecture diagram",
+      await openMoreControls(page);
+      const edit = page.locator("#navEdit");
+      await expect(edit).toBeDisabled();
+      await expect(edit).toHaveAttribute("aria-disabled", "true");
+      await expect(edit).toHaveAccessibleName(
+        "Shape editing is unavailable because the current slide has no Architecture diagram",
       );
+      await expect(page.locator("#sourceStatus")).not.toContainText("current slide has no Architecture diagram");
       expect(harness.architectureEditorOpens).toHaveLength(0);
+
+      await page.locator("#navNext").click();
+      await waitForSlideReady(page);
+      await openMoreControls(page);
+      await expect(edit).toBeEnabled();
+      await expect(edit).toHaveAttribute("aria-disabled", "false");
+      await clickMoreControl(page, "#navEdit");
+      await expect.poll(() => harness.architectureEditorOpens).toEqual([{ index: 1, block: 0 }]);
     } finally {
       await harness.close();
       await rm(root, { recursive: true, force: true });
