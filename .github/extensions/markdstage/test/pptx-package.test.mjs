@@ -251,6 +251,7 @@ function samplePackage() {
             y: 150,
             width: 500,
             height: 160,
+            columnWidths: [125, 375],
             rows: [
               {
                 cells: [
@@ -577,6 +578,10 @@ test("emits native text, hyperlinks, tables, images, shapes, and connector segme
   assert.match(slide, /<a:hlinkClick r:id="rId\d+"\/>/);
   assert.match(rels, /Target="https:\/\/example\.com\/\?a=1&amp;b=2" TargetMode="External"/);
   assert.match(slide, /<a:tbl>/);
+  assert.match(
+    slide,
+    /<a:tblGrid><a:gridCol w="1190625"\/><a:gridCol w="3571875"\/><\/a:tblGrid>/,
+  );
   assert.match(slide, /<a:t>A<\/a:t>/);
   assert.match(slide, /<p:pic>[\s\S]*?<a:prstGeom prst="roundRect">/);
   assert.match(slide, /<a:prstGeom prst="roundRect">/);

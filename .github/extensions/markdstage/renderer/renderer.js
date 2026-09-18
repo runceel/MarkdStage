@@ -2913,6 +2913,7 @@ async function collectPptxSlide(slide, index, options = {}) {
       path: elementPath(table, deck),
       ...relativeBounds(table, deck),
       zOrder: Number(table.dataset.pptxZOrder),
+      columnWidths: rows[0].cells.map((cell) => cell.width),
       rows,
     });
     if (effects.length) {

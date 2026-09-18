@@ -40,10 +40,10 @@ Fran&ccedil;ais &eacute;lan &copy; 2026.
   - Nested
 - Last
 
-| Name | Value |
-| --- | ---: |
-| Alpha | 42 |
-| | Empty category |
+<table>
+  <thead><tr><th style="width: 25%">Name</th><th style="width: 75%; text-align: right">Value</th></tr></thead>
+  <tbody><tr><td>Alpha</td><td style="text-align: right">42</td></tr><tr><td></td><td>Empty category</td></tr></tbody>
+</table>
 
 ![Raster sample](/assets/readme/simple-slide.png)
 
@@ -656,6 +656,9 @@ test("collects native text, nested lists, links, tables, and raster images", asy
     );
     expect(table.rows).toHaveLength(3);
     expect(table.rows[0].cells).toHaveLength(2);
+    expect(table.columnWidths).toHaveLength(2);
+    expect(table.columnWidths[1]).toBeGreaterThan(table.columnWidths[0] * 2);
+    expect(table.columnWidths[0] + table.columnWidths[1]).toBeCloseTo(table.width, 0);
     expect(table.rows[1].cells[1].paragraphs[0].runs[0].text.trim()).toBe("42");
     expect(table.rows[2].cells[0].paragraphs[0].runs).toEqual([
       expect.objectContaining({ text: "" }),
