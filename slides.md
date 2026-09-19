@@ -11,7 +11,7 @@ layout: title
 This deck introduces canvas controls and slide authoring.
 
 <!--
-**Speaker notes 1 / 16**
+**Speaker notes 1 / 18**
 
 Use this title slide to explain that Markdown supports the entire workflow from authoring to presenting.
 -->
@@ -28,7 +28,7 @@ Use this title slide to explain that Markdown supports the entire workflow from 
 Navigation happens in the canvas. You can also request "Go to slide 3" in chat.
 
 <!--
-**Speaker notes 2 / 16**
+**Speaker notes 2 / 18**
 
 Try both the bottom control bar and keyboard navigation.
 -->
@@ -56,7 +56,7 @@ This is the first slide.
 The `---` inside a code block is not treated as a slide separator.
 
 <!--
-**Speaker notes 3 / 16**
+**Speaker notes 3 / 18**
 
 Emphasize that the separator in the code example does not create another slide.
 -->
@@ -85,7 +85,7 @@ total: 6
 - Add `layout: title` to the first slide to make it a title slide
 
 <!--
-**Speaker notes 4 / 16**
+**Speaker notes 4 / 18**
 
 Front matter controls only appearance and metadata; the body remains standard Markdown.
 -->
@@ -106,7 +106,7 @@ Combine headings, lists, emphasis, links, and tables.
 Keep slides readable by avoiding dense prose and presenting one topic per slide.
 
 <!--
-**Speaker notes 5 / 16**
+**Speaker notes 5 / 18**
 
 Confirm that tables, emphasis, and inline code use consistent theme styling.
 -->
@@ -131,7 +131,7 @@ flowchart LR
 ```
 
 <!--
-**Speaker notes 6 / 16**
+**Speaker notes 6 / 18**
 
 Demonstrate code syntax highlighting, then Mermaid rendering.
 -->
@@ -147,7 +147,7 @@ Write JSON in an `architecture` code fence to render a diagram with fixed placem
 - Routes: `straight` / `orthogonal` / `polyline`
 
 <!--
-**Speaker notes 7 / 16**
+**Speaker notes 7 / 18**
 
 Introduce the Architecture DSL examples that follow.
 -->
@@ -217,7 +217,7 @@ size: normal
 ```
 
 <!--
-**Speaker notes 8 / 16**
+**Speaker notes 8 / 18**
 
 Point out that the group layout alone aligns the child elements.
 -->
@@ -295,7 +295,7 @@ kicker: Architecture DSL / Visual language
 ```
 
 <!--
-**Speaker notes 9 / 16**
+**Speaker notes 9 / 18**
 
 Read the diagram left to right: choose a shape, add visual emphasis, then define how the flow connects. The same JSON stays editable and presentation-ready.
 -->
@@ -333,7 +333,7 @@ size: normal
 ```
 
 <!--
-**Speaker notes 10 / 16**
+**Speaker notes 10 / 18**
 
 Explain that dense connections route automatically without manual waypoints.
 -->
@@ -390,9 +390,157 @@ size: normal
 ```
 
 <!--
-**Speaker notes 11 / 16**
+**Speaker notes 11 / 18**
 
 The standalone image and node icon share the same local asset.
+-->
+
+---
+
+---
+size: normal
+kicker: Adaptive Cards / Resolved JSON
+---
+
+## Render Adaptive Cards from JSON
+
+Use a fully resolved JSON payload in an `adaptive-card` fence.
+
+```adaptive-card
+{
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "body": [
+    {
+      "type": "Container",
+      "style": "emphasis",
+      "items": [
+        { "type": "TextBlock", "text": "Release readiness", "size": "Large", "weight": "Bolder", "wrap": true },
+        {
+          "type": "ColumnSet",
+          "columns": [
+            {
+              "type": "Column",
+              "width": 1,
+              "items": [
+                { "type": "TextBlock", "text": "STATUS", "size": "Small", "isSubtle": true },
+                { "type": "TextBlock", "text": "Ready", "size": "ExtraLarge", "weight": "Bolder", "color": "Accent" }
+              ]
+            },
+            {
+              "type": "Column",
+              "width": 2,
+              "items": [
+                {
+                  "type": "FactSet",
+                  "facts": [
+                    { "title": "Owner", "value": "Platform team" },
+                    { "title": "Scope", "value": "Web and desktop" },
+                    { "title": "Format", "value": "Editable PowerPoint" }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "RichTextBlock",
+          "separator": true,
+          "inlines": [
+            { "type": "TextRun", "text": "One payload. ", "weight": "Bolder" },
+            { "type": "TextRun", "text": "The deck theme supplies the colors and typography." }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+<!--
+**Speaker notes 12 / 18**
+
+The fence renders a card rather than a JSON code sample. The payload uses the pinned schema 1.5.
+Point out the styled container, weighted columns, rich text and FactSet.
+The card remains non-interactive; template expansion and remote image fetching are not enabled.
+-->
+
+---
+
+---
+size: normal
+kicker: Adaptive Cards / PowerPoint
+---
+
+## Reuse card content in PowerPoint
+
+Approved local images and supported tables remain separate, editable objects.
+
+```adaptive-card
+{
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "body": [
+    {
+      "type": "ColumnSet",
+      "columns": [
+        {
+          "type": "Column",
+          "width": "360px",
+          "items": [
+            { "type": "TextBlock", "text": "Workspace asset", "size": "Medium", "weight": "Bolder" },
+            { "type": "Image", "url": "assets/sample.svg", "altText": "Local MarkdStage sample image", "width": "320px" }
+          ]
+        },
+        {
+          "type": "Column",
+          "width": "stretch",
+          "items": [
+            {
+              "type": "Table",
+              "firstRowAsHeaders": true,
+              "showGridLines": true,
+              "columns": [{ "width": 1 }, { "width": 2 }],
+              "rows": [
+                {
+                  "type": "TableRow",
+                  "cells": [
+                    { "type": "TableCell", "items": [{ "type": "TextBlock", "text": "Element", "weight": "Bolder", "wrap": true }] },
+                    { "type": "TableCell", "items": [{ "type": "TextBlock", "text": "PowerPoint output", "weight": "Bolder", "wrap": true }] }
+                  ]
+                },
+                {
+                  "type": "TableRow",
+                  "cells": [
+                    { "type": "TableCell", "items": [{ "type": "TextBlock", "text": "TextBlock", "wrap": true }] },
+                    { "type": "TableCell", "items": [{ "type": "TextBlock", "text": "Editable text", "wrap": true }] }
+                  ]
+                },
+                {
+                  "type": "TableRow",
+                  "cells": [
+                    { "type": "TableCell", "items": [{ "type": "TextBlock", "text": "FactSet / Table", "wrap": true }] },
+                    { "type": "TableCell", "items": [{ "type": "TextBlock", "text": "Editable cells", "wrap": true }] }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+Supported parts stay editable; unsupported details become bounded images.
+
+<!--
+**Speaker notes 13 / 18**
+
+Export this deck to PowerPoint and select the text, picture and table cells separately.
+The image uses an existing workspace asset, not a remote URL.
+Unsupported subtrees become individual images without flattening their supported neighbors.
 -->
 
 ---
@@ -409,7 +557,7 @@ Use standard Markdown syntax for external links:
 Give images descriptive alternative text that remains meaningful when an image cannot be displayed.
 
 <!--
-**Speaker notes 12 / 16**
+**Speaker notes 14 / 18**
 
 Confirm that image alternative text and links use standard Markdown syntax.
 -->
@@ -435,7 +583,7 @@ theme-file: ./themes/brand/theme.css
 ```
 
 <!--
-**Speaker notes 13 / 16**
+**Speaker notes 15 / 18**
 
 This deck uses the default dark theme while introducing the available theme options.
 -->
@@ -453,7 +601,7 @@ Add a directive at the start of the body for slides that need extra emphasis.
 ```
 
 <!--
-**Speaker notes 14 / 16**
+**Speaker notes 16 / 18**
 
 The `slide-size` comment is a display directive, so it does not appear in speaker notes.
 -->
@@ -477,7 +625,7 @@ The `slide-size` comment is a display directive, so it does not appear in speake
 **Write → review in the canvas → navigate and present.** That is all you need to get started.
 
 <!--
-**Speaker notes 15 / 16**
+**Speaker notes 17 / 18**
 
 Explain that a title and key points are enough for a minimal deck.
 -->
@@ -488,14 +636,14 @@ Explain that a title and key points are enough for a minimal deck.
 
 - Split a Markdown file into slides with `---`
 - Configure the deck name, label, and page numbers in front matter
-- Combine lists, code, tables, Mermaid, and images
+- Combine lists, code, tables, Mermaid, Adaptive Cards, and images
 - Present with canvas buttons or the keyboard
-- Export the full presentation to PDF with the print icon
+- Export to PDF or editable PowerPoint
 
 Copy this file and replace its title and key points with your own.
 
 <!--
-**Speaker notes 16 / 16**
+**Speaker notes 18 / 18**
 
 Finally, open presenter view and confirm that the notes change on each slide.
 -->

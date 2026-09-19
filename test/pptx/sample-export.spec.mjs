@@ -49,6 +49,21 @@ test("root sample exports the full deck with Architecture foreground image sourc
       }),
     );
 
+    const cardSlides = rendered.model.slides.filter((slide) => slide.adaptiveCards?.length);
+    expect(cardSlides.map((slide) => slide.title)).toEqual([
+      "Render Adaptive Cards from JSON",
+      "Reuse card content in PowerPoint",
+    ]);
+    for (const slide of cardSlides) {
+      expect(slide.adaptiveCards).toHaveLength(1);
+      expect(slide.adaptiveCards[0].status).toBe("ready");
+      expect(slide.adaptiveCards[0].diagnostics).toEqual([]);
+      expect(slide.adaptiveCards[0].nativeObjectCount).toBeGreaterThan(0);
+      expect(slide.fallbacks.filter((fallback) => fallback.type === "adaptive-card")).toEqual([]);
+      expect(slide.elements.filter((element) => element.type === "table" && element.adaptiveCard)).toHaveLength(1);
+    }
+    expect(cardSlides[1].elements.filter((element) => element.type === "image" && element.adaptiveCard)).toHaveLength(1);
+
     const bytes = await readFile(output);
     const summary = inspectPptxPackage(bytes);
     expect(summary.valid).toBe(true);
@@ -101,7 +116,11 @@ test("root sample exports the full deck with Architecture foreground image sourc
       slideCount: summary.slideCount, notesCount: summary.notesCount, images: evidence,
     }, null, 2));
 
-    for (const pageNumber of new Set(evidence.map((image) => image.page))) {
+    const capturePages = new Set([
+      ...evidence.map((image) => image.page),
+      ...cardSlides.map((slide) => rendered.model.slides.indexOf(slide) + 1),
+    ]);
+    for (const pageNumber of capturePages) {
       const token = `sample-image-capture-${pageNumber}`;
       session.exportJobs.set(token, createOutputJob(createOutputSnapshot(session), "capture"));
       await page.goto(`${session.url}?capture=1&token=${token}&index=${pageNumber - 1}`, { waitUntil: "load" });
@@ -109,6 +128,9 @@ test("root sample exports the full deck with Architecture foreground image sourc
         document.documentElement.hasAttribute("data-capture-error"));
       await expect(page.locator("html")).toHaveAttribute("data-capture-ready", "true");
       await expect(page.locator(".architecture-error")).toHaveCount(0);
+      if (rendered.model.slides[pageNumber - 1].adaptiveCards?.length) {
+        await expect(page.locator(".adaptive-card-host")).toHaveAttribute("data-adaptive-card-state", "ready");
+      }
       await page.screenshot({ path: testInfo.outputPath(`capture-slide-${pageNumber}.png`) });
     }
     await testInfo.attach("sample-pptx", {
