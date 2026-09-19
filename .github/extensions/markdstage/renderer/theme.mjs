@@ -120,6 +120,13 @@ export function mermaidThemeVariables(style, resolveColor = (value) => value) {
   const accentStrong = read("--accent-strong");
   const accentSoft = read("--accent-soft");
   const accentLine = read("--accent-line");
+  // Semantic roles are optional on custom themes; Gantt done/active/critical
+  // task colors fall back to their previous accent/luminance-derived
+  // approximation when a theme leaves them unresolved.
+  const success = read("--success");
+  const info = read("--info");
+  const warning = read("--warning");
+  const danger = read("--danger");
   // C4 hardcodes white entity text. Evaluate each fill, not just the slide
   // background: a readable custom theme may still have a bright accent or
   // surface. Select existing palette values without inventing brand colors.
@@ -155,7 +162,10 @@ export function mermaidThemeVariables(style, resolveColor = (value) => value) {
     noteBorderColor: accentLine,
     noteTextColor: accentStrong,
     pie1: accent,
-    ...mermaidCategoricalTheme({ background, foreground, accent, surface, code, muted }, resolveColor),
+    ...mermaidCategoricalTheme(
+      { background, foreground, accent, surface, code, muted, success, info, warning, danger },
+      resolveColor,
+    ),
 
     // The unified ER renderer reads rowOdd/rowEven, not the legacy
     // attributeBackgroundColor roles. Its base theme otherwise lightens
@@ -318,6 +328,17 @@ function mermaidCategoricalTheme(palette, resolveColor) {
     colorAtLuminance((hue + index * 137.5) % 360, 0.48, target),
   );
   const critical = colorAtLuminance(0, 0.7, target);
+  const successChannels = opaqueColorChannels(resolveColor(palette.success));
+  const dangerChannels = opaqueColorChannels(resolveColor(palette.danger));
+  const infoChannels = opaqueColorChannels(resolveColor(palette.info));
+  const doneBkg = successChannels ? mixColors(colors.surface, successChannels, 0.18) : palette.code;
+  const doneBorder = successChannels ? palette.success : palette.muted;
+  const activeBkg = infoChannels ? mixColors(colors.surface, infoChannels, 0.18)
+    : mixColors(colors.surface, colors.accent, 0.18);
+  const activeBorder = infoChannels ? palette.info : palette.accent;
+  const critBkg = dangerChannels ? mixColors(colors.surface, dangerChannels, 0.18)
+    : mixColors(colors.surface, opaqueColorChannels(critical), 0.18);
+  const critBorder = dangerChannels ? palette.danger : critical;
   const theme = {
     darkMode,
     git0: categories[0],
@@ -339,12 +360,12 @@ function mermaidCategoricalTheme(palette, resolveColor) {
     },
     taskBkgColor: palette.surface,
     taskBorderColor: palette.muted,
-    activeTaskBkgColor: mixColors(colors.surface, colors.accent, 0.18),
-    activeTaskBorderColor: palette.accent,
-    doneTaskBkgColor: palette.code,
-    doneTaskBorderColor: palette.muted,
-    critBkgColor: mixColors(colors.surface, opaqueColorChannels(critical), 0.18),
-    critBorderColor: critical,
+    activeTaskBkgColor: activeBkg,
+    activeTaskBorderColor: activeBorder,
+    doneTaskBkgColor: doneBkg,
+    doneTaskBorderColor: doneBorder,
+    critBkgColor: critBkg,
+    critBorderColor: critBorder,
     taskTextColor: palette.foreground,
     taskTextDarkColor: palette.foreground,
     taskTextOutsideColor: palette.foreground,

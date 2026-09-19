@@ -1279,6 +1279,36 @@ test("renders only built-in primitive icons and exposes semantic accessibility l
   assert.equal(firstVisualText.attributes.get("font-size"), "8");
 });
 
+test("semantic theme tokens resolve to CSS custom properties with a base-token fallback", () => {
+  const build = (style) =>
+    parseArchitecture(
+      JSON.stringify({
+        elements: [
+          { type: "node", id: "n1", x: 0, y: 0, width: 120, height: 80, text: "Node", style },
+        ],
+      }),
+    );
+
+  for (const [style, expected] of [
+    [{ fill: "success" }, "var(--success, var(--accent))"],
+    [{ fill: "surfaceSuccess" }, "var(--surface-success, var(--surface))"],
+    [{ stroke: "borderDanger" }, "var(--border-danger, var(--border))"],
+    [{ textColor: "primary" }, "var(--primary, var(--accent))"],
+    [{ textColor: "secondary" }, "var(--secondary, var(--muted))"],
+    [{ fill: "light" }, "var(--light, var(--surface))"],
+    [{ stroke: "dark" }, "var(--dark, var(--fg))"],
+  ]) {
+    const nodes = descendants(renderArchitectureDiagram(build(style), new FakeDocument()));
+    const rect = nodes.find((node) => node.tagName === "rect");
+    if ("fill" in style) assert.equal(rect.attributes.get("fill"), expected);
+    if ("stroke" in style) assert.equal(rect.attributes.get("stroke"), expected);
+    if ("textColor" in style) {
+      const text = nodes.find((node) => node.tagName === "text");
+      assert.equal(text.attributes.get("fill"), expected);
+    }
+  }
+});
+
 test("built-in icons inherit the theme text colour instead of hard-coding one", () => {
   // Built-in icons pass theme tokens directly to stroke, so CSS variables adapt
   // their colors in all four themes.

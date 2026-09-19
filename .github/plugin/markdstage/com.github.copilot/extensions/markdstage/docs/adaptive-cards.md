@@ -48,7 +48,7 @@ fields must be strings. Element IDs in the resolved card must be unique.
 
 Common presentation properties include spacing, separators, visibility,
 auto/stretch height, alignment, text sizes/weights/colors, wrapping/maxLines,
-rich-text emphasis, default/emphasis container styles, bleed/minHeight,
+rich-text emphasis, default/emphasis/success/info/warning/danger container styles, bleed/minHeight,
 auto/stretch/weighted/pixel column widths, image size/style/pixel dimensions,
 and table grid/header/cell alignment. Unknown/custom properties on resolved content are removed with
 `unknown-property` content diagnostics, not handed to the SDK as extensions.
@@ -167,10 +167,15 @@ supply semantics.
 
 ## Appearance and readiness
 
-HostConfig v1 reads only the deck font family and resolved `fg`, `muted`,
-`accent`, `surface` and `border` theme tokens. The default card is transparent;
-emphasis containers use `surface`. Foreground roles other than accent intentionally
-use `fg`, with `muted` for subtle text. This is not Teams/Outlook styling.
+HostConfig v1 reads the deck font family and resolved theme tokens: `fg`, `muted`,
+`accent`/`primary`, `surface`, `border`, plus the semantic `success`, `info`,
+`warning`, `danger` roles (and their `surface-*`/`border-*` tints), each falling
+back to `accent`/`surface`/`border` when a theme does not define them. The default
+container is transparent; emphasis uses `surface`. `success`/`info`/`warning`/`danger`
+containers use the matching surface/border tint. TextBlock/Fact color roles map
+`accent` to `primary`, `good` to `success`, `warning` to `warning`, and `attention`
+to `danger`; `default`/`dark`/`light` still use `fg`, with `muted` for subtle text.
+This is not Teams/Outlook styling.
 Font sizes are 16/20/24/28/32 px and weights 300/400/600; monospace uses
 Consolas with the system monospace fallback. Card styles are isolated from slide
 paragraph, image and table rules.
@@ -392,8 +397,8 @@ not additional conversion modes or new impact enums. All content losses use the 
 | `body`, `items`, `columns`, `rows`, `cells`, `images`, `inlines`, `facts` | Typed collections/records with the roles declared below; RichTextBlock also accepts string inlines. | Ordered typed content; each child's type/representability contract applies. |
 | `isVisible` | False is authored non-display, not an unsupported-feature drop. | No native object/artwork for hidden content. |
 | `spacing`, `separator`, `height`, `minHeight`, `bleed`, `verticalContentAlignment`, `horizontalAlignment` | Owned spacing/separator and SDK measured size/alignment; no slide-wide CSS inference. | Native measured geometry/lines/fills; clipped text/images/tables use bounded raster. |
-| `size`, `weight`, `color`, `isSubtle`, `fontType` | Owned font sizes/weights/palette: only accent has a distinct role color; other roles use fg, subtle uses muted. | Native equivalent font/paint, not guaranteed pixel-identical Office text. |
-| `style` | TextBlock default/heading; container default/emphasis; Image default/Person; static input/action exceptions below. | Native supported styling; Image Person is bounded raster. Not a host preset. |
+| `size`, `weight`, `color`, `isSubtle`, `fontType` | Owned font sizes/weights/palette: accent/good/warning/attention map to the primary/success/warning/danger semantic roles; other roles use fg, subtle uses muted. | Native equivalent font/paint, not guaranteed pixel-identical Office text. |
+| `style` | TextBlock default/heading; container default/emphasis/success/info/warning/danger; Image default/Person; static input/action exceptions below. | Native supported styling; Image Person is bounded raster. Not a host preset. |
 | `text` | TextBlock/Fact uses sanitized Markdown; TextRun is plain text. | Native supported inline formatting; lists/RTL or uncorrelated text use bounded raster. |
 | `wrap`, `maxLines` | SDK wrapping/maxLines; authored clipping/ellipsis is retained. | Native only when complete text can be measured; otherwise bounded raster (no Office rewrap). |
 | `italic`, `underline`, `strikethrough`, `highlight` | Typed TextRun formatting. Underline replaces strike when both true; italic is independent. | Native fragments/highlight rectangles; Markdown can independently retain both decorations. |

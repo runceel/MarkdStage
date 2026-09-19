@@ -639,6 +639,22 @@ function archifyThemeTokens(deckEl) {
     fg: read("--fg"),
     muted: read("--muted"),
     border: read("--border"),
+    primary: read("--primary"),
+    secondary: read("--secondary"),
+    success: read("--success"),
+    info: read("--info"),
+    warning: read("--warning"),
+    danger: read("--danger"),
+    light: read("--light"),
+    dark: read("--dark"),
+    surfaceSuccess: read("--surface-success"),
+    surfaceInfo: read("--surface-info"),
+    surfaceWarning: read("--surface-warning"),
+    surfaceDanger: read("--surface-danger"),
+    borderSuccess: read("--border-success"),
+    borderInfo: read("--border-info"),
+    borderWarning: read("--border-warning"),
+    borderDanger: read("--border-danger"),
   };
 }
 

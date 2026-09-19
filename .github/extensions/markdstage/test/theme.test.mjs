@@ -196,6 +196,28 @@ test("Mermaid colors are derived from the rendered slide theme", () => {
   );
 });
 
+test("Mermaid Gantt done/active/critical task colors follow semantic tokens with backward-compatible fallback", () => {
+  const baseColors = {
+    "--bg": "#101820", "--surface": "#17232d", "--code": "#1f2d3a", "--border": "#31536b",
+    "--fg": "#ffffff", "--muted": "#8ba2b4", "--body": "#d7e3f0",
+    "--accent": "#42d3ff", "--accent-strong": "#a6f36b",
+    "--accent-soft": "rgba(66, 211, 255, .14)", "--accent-line": "rgba(66, 211, 255, .46)",
+  };
+  // A theme without semantic tokens keeps the previous accent/luminance-derived
+  // Gantt task colors exactly as before.
+  const fallback = mermaidThemeVariables({ getPropertyValue: (name) => baseColors[name] ?? "" });
+  assert.equal(fallback.doneTaskBkgColor, baseColors["--code"]);
+  assert.equal(fallback.doneTaskBorderColor, baseColors["--muted"]);
+  assert.equal(fallback.activeTaskBorderColor, baseColors["--accent"]);
+
+  // A theme that defines --success/--info/--danger drives the matching Gantt roles.
+  const semanticColors = { ...baseColors, "--success": "#1f9d55", "--info": "#0aa8c8", "--danger": "#d23f3f" };
+  const semantic = mermaidThemeVariables({ getPropertyValue: (name) => semanticColors[name] ?? "" });
+  assert.equal(semantic.doneTaskBorderColor, semanticColors["--success"]);
+  assert.equal(semantic.activeTaskBorderColor, semanticColors["--info"]);
+  assert.equal(semantic.critBorderColor, semanticColors["--danger"]);
+});
+
 test("Mermaid C4 fills switch to dark text-safe colors on light themes", () => {
   const colors = {
     "--bg": "#ffffff",
