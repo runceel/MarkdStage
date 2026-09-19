@@ -55,7 +55,7 @@ and data read by JavaScript cross the I/O port.
 
 ## Workspace and trust model
 
-Markdown, themes, media, and Architecture DSL inside a workspace are untrusted
+Markdown, themes, media, Architecture DSL, and Adaptive Card JSON inside a workspace are untrusted
 input. A workspace root is absolute and canonical for the lifetime of the
 session that owns it.
 
@@ -152,3 +152,62 @@ files. Generated mirrors must not be edited by hand.
   engine; equivalent implementation does not imply identical engine versions.
 - The product never downloads or installs Node.js, WebView2, or Chromium at run
   time.
+
+## Adaptive Cards boundary
+
+The static card integration belongs to the canonical shared renderer.
+The pinned official SDK owns semantic identity, properties, and hierarchy;
+public rendered-element references provide geometry and text-layout evidence,
+not semantics. MarkdStage owns a limited, versioned HostConfig, and card content
+is isolated from slide stylesheet selectors. The library is loaded only for a
+card fence.
+Card discovery and rendering share the Markdown token model and speaker-note
+exclusion rules; source association follows token identity rather than separate
+scanner ordinals.
+
+Card content is resolved JSON with non-interactive presentation semantics. A shared, closed schema envelope
+validates structure and resolves explicit static capability fallbacks without a
+browser; fatal structural validation precedes capability resolution, and SDK
+parsing adds a second check. All substitutions, omissions and
+unsupported properties are content diagnostics. The original SDK model retains semantic identity. An owned static projection
+represents input values, action labels, collapsed disclosure and media posters
+without enabling SDK interactivity. Original and projected objects retain
+authored provenance through substitutions and omissions. Card Markdown and the SDK subtree
+use the existing sanitization stack before attachment, without replacing typed
+object identity. Rendering waits for approved images and newly introduced fonts.
+
+Resource approval precedes SDK rendering, and rendering and export use the same
+approved bytes under a deck-wide resource budget. Failed or blocked images become
+deterministic placeholders without discarding the remaining card. Structural
+errors become visible diagnostic cards. Workspace reads remain host-confined;
+remote resources, redirects, animation and excluded capabilities cannot be
+enabled by a fallback. Validation, browser inspection and output reports share
+diagnostic meanings and source locations; browser-only checks are not claimed by
+non-browser validation.
+
+Supported card content exports as editable objects. The shared Scene Graph's
+`adaptive-card` source reuses common shapes, text, images and separators; existing
+direct PowerPoint tables and links remain outside that scene contract. FactSet
+aggregate text measurements must correlate with typed fields. Text placement is
+measured, not delegated to Office wrapping.
+
+Unrepresentable content uses bounded subtree artwork with dedicated ownership
+that prevents duplicate native descendants or generic HTML artwork. Whole-card
+fallback requires an explicit safety reason. Native collection leaves browser
+appearance unchanged. Export reports retain native/approximated/rasterized
+classification, authored location and content impact on every surface. Links
+use rendered-link approval, distinct from image-fetch policy, and do not become
+browser interactions. [ADR 0006](adr/0006-adaptive-card-editable-static-projection.md)
+records the native boundary; the semantic and resource rules of
+[ADR 0005](adr/0005-adaptive-card-semantic-and-raster-boundary.md) remain in force.
+
+Compatibility governance stays at this same shared boundary. The support matrix
+is derived from the closed validator envelope and explicit browser/output
+contracts, rather than separate host whitelists. Pinned SDK, HostConfig,
+capability and deterministic local-corpus expectations are checked together.
+Changed geometry, styling, fallback ownership, visible content or output modes
+require comparison evidence and independent actual-PowerPoint approval before
+updating expectations. A candidate fingerprint is not approval. Network,
+interaction, template, custom-host and additional-version capabilities remain
+deferred until separately accepted; diagnostics never imply full upstream-host
+compatibility or turn incomplete validation into success.

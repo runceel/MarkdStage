@@ -34,6 +34,79 @@ function richText(text = "Text") {
   };
 }
 
+test("keeps the closed Scene source kinds intact through normalization and serialization", () => {
+  for (const kind of ["architecture", "mermaid", "adaptive-card"]) {
+    const source = validScene({ source: { kind, path: "slides.md#1" } });
+    validateScene(source);
+    const normalized = normalizeScene(source);
+    assert.deepEqual(normalized.diagnostics, []);
+    assert.deepEqual(normalized.scene.source, source.source);
+    assert.deepEqual(normalizeScene(normalized.scene), normalized);
+    const restored = JSON.parse(JSON.stringify(normalized.scene));
+    assert.deepEqual(restored, normalized.scene);
+    validateScene(restored);
+  }
+  for (const kind of ["adaptiveCard", "table", "action", "unknown"]) {
+    const source = validScene({ source: { kind, path: "slides.md#1" } });
+    assert.throws(() => validateScene(source), /scene\.source\.kind is not supported/);
+    assert.throws(() => validateScene(normalizeScene(source).scene), /scene\.source\.kind is not supported/);
+  }
+});
+
+test("preserves optional boolean text decorations without normalization or serialization drift", () => {
+  for (const underline of [undefined, false, true]) {
+    for (const strikethrough of [undefined, false, true]) {
+      const source = validScene({ source: { kind: "adaptive-card", path: "card" } });
+      const decorations = {
+        ...(underline === undefined ? {} : { underline }),
+        ...(strikethrough === undefined ? {} : { strikethrough }),
+      };
+      for (const node of source.nodes) {
+        const text = node.text ?? node.label?.text;
+        if (text) Object.assign(text.paragraphs[0].runs[0], decorations);
+      }
+      validateScene(source);
+      const normalized = normalizeScene(source);
+      validateScene(normalized.scene);
+      assert.deepEqual(normalizeScene(normalized.scene), normalized);
+      assert.deepEqual(JSON.parse(JSON.stringify(normalized.scene)), normalized.scene);
+      for (const node of normalized.scene.nodes) {
+        const run = (node.text ?? node.label?.text)?.paragraphs[0].runs[0];
+        if (!run) continue;
+        assert.equal(run.underline, underline);
+        assert.equal(run.strikethrough, strikethrough);
+        assert.equal(Object.hasOwn(run, "underline"), underline !== undefined);
+        assert.equal(Object.hasOwn(run, "strikethrough"), strikethrough !== undefined);
+      }
+    }
+  }
+});
+
+test("rejects coercible text decorations and keeps links and card concepts outside Scene", () => {
+  for (const key of ["underline", "strikethrough"]) {
+    for (const value of [null, "true", "false", 0, 1, Number.NaN, Infinity, [], {}, new Boolean(true)]) {
+      const source = validScene();
+      source.nodes[2].text.paragraphs[0].runs[0][key] = value;
+      const expected = new RegExp(`runs\\[0\\]\\.${key} must be a boolean`);
+      assert.throws(() => validateScene(source), expected);
+      assert.throws(() => validateScene(normalizeScene(source).scene), expected);
+    }
+  }
+  for (const key of ["href", "highlight", "preserveHyperlinkColor"]) {
+    const source = validScene();
+    source.nodes[2].text.paragraphs[0].runs[0][key] = "unsupported";
+    assert.throws(() => validateScene(source), new RegExp(`${key} is not supported`));
+  }
+  for (const kind of ["table", "action"]) {
+    const source = validScene();
+    source.nodes[2].kind = kind;
+    assert.throws(() => validateScene(source), /kind is not supported/);
+    const normalized = normalizeScene(source);
+    assert.equal(normalized.scene.nodes[2].kind, "fallback");
+    validateScene(normalized.scene);
+  }
+});
+
 test("validates and normalizes explicit line caps without changing absent defaults", () => {
   for (const lineCap of [undefined, "butt", "round", "square"]) {
     const source = createScene({ width: 100, height: 100, source: { kind: "mermaid", path: "markers.svg" },

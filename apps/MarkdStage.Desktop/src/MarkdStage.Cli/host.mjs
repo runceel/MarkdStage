@@ -2,6 +2,7 @@ import { createHostRuntime } from "../Shared/runtime/host-bootstrap.mjs";
 import { createHostIO } from "../Shared/runtime/io-host.mjs";
 import { extractSpeakerNotes } from "../Shared/renderer/speaker-notes.mjs";
 import { createPortableOutput } from "../Shared/runtime/portable-output.mjs";
+import { formatExportReport } from "./export-report.mjs";
 
 const waiting = new Map();
 const watches = new Map();
@@ -110,7 +111,11 @@ const methods = {
   },
   async inspect(options) {
     const report = await output.inspect(options);
-    return { report, exitCode: options.failOnIssues && report.hasIssues ? 5 : 0, text: JSON.stringify(report, null, 2) };
+    return {
+      report,
+      exitCode: options.failOnIssues && (report.hasIssues || report.hasAdaptiveCardIssues) ? 5 : 0,
+      text: JSON.stringify(report, null, 2)
+    };
   },
   async capture(options) {
     const report = await output.capture(options);
@@ -121,7 +126,7 @@ const methods = {
     if (options.mermaidImageFallback && !pptx)
       throw Object.assign(new Error("--mermaid-image-fallback requires an explicit .pptx output."), { code: "usage_error" });
     const report = await output[pptx ? "exportPptx" : "exportPdf"](options);
-    return { report, exitCode: 0, text: JSON.stringify(report, null, 2) };
+    return { report, exitCode: 0, text: formatExportReport(report) };
   }
 };
 

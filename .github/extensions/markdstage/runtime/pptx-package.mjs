@@ -109,6 +109,16 @@ function nonNegativeNumber(value, path) {
   return number;
 }
 
+function optionalOwnBoolean(value, key, path, fallback = false) {
+  if (!Object.hasOwn(value, key)) {
+    if (key in value) fail(`${path}.${key} must be an own property`);
+    return fallback;
+  }
+  if (value[key] === undefined) return fallback;
+  if (typeof value[key] !== "boolean") fail(`${path}.${key} must be a boolean`);
+  return value[key];
+}
+
 function optionalUnitInterval(value, path, fallback = 1) {
   if (value === undefined) return fallback;
   const number = finiteNumber(value, path);
@@ -499,13 +509,19 @@ function runXml(run, path, relationships) {
   }
   if (typeof run.text !== "string") fail(`${path}.text must be a string`);
   const size = fontSizeOf(run, path);
+  const preserveHyperlinkColor = optionalOwnBoolean(run, "preserveHyperlinkColor", path);
+  if (preserveHyperlinkColor && run.href === undefined) {
+    fail(`${path}.preserveHyperlinkColor requires href`);
+  }
   const attributes = [
     'lang="en-US"',
     'noProof="1"',
     `sz="${size}"`,
-    run.bold ? 'b="1"' : "",
-    run.italic ? 'i="1"' : "",
-    run.underline ? 'u="sng"' : "",
+    optionalOwnBoolean(run, "bold", path) ? 'b="1"' : "",
+    optionalOwnBoolean(run, "italic", path) ? 'i="1"' : "",
+    optionalOwnBoolean(run, "underline", path) ? 'u="sng"'
+      : preserveHyperlinkColor && run.underline === false ? 'u="none"' : "",
+    optionalOwnBoolean(run, "strikethrough", path) ? 'strike="sngStrike"' : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -526,25 +542,32 @@ function runXml(run, path, relationships) {
       fail(`${path}.href must be a non-empty string`);
     }
     const relationshipId = relationships.hyperlink(run.href);
-    properties += `<a:hlinkClick r:id="${relationshipId}"/>`;
+    if (preserveHyperlinkColor) {
+      // Office otherwise replaces explicit run colors with its hyperlink theme color.
+      const extension = '<a:extLst><a:ext uri="{A12FA001-AC4F-418D-AE19-62706E023703}"><ahyp:hlinkClr xmlns:ahyp="http://schemas.microsoft.com/office/drawing/2018/hyperlinkcolor" val="tx"/></a:ext></a:extLst>';
+      properties += `<a:hlinkClick r:id="${relationshipId}">${extension}</a:hlinkClick>`;
+    } else {
+      properties += `<a:hlinkClick r:id="${relationshipId}"/>`;
+    }
   }
   const preserve = /^\s|\s$|\s{2}/.test(run.text) ? ' xml:space="preserve"' : "";
   return `<a:r><a:rPr ${attributes}>${properties}</a:rPr><a:t${preserve}>${xmlEscape(run.text)}</a:t></a:r>`;
 }
 
-function textBodyPropertiesXml(options, path) {
-  const anchor = {
+function textAnchorAttributeXml(options, path) {
+  if (options.verticalAlignment === undefined) return "";
+  const anchors = {
     top: "t",
     middle: "ctr",
     bottom: "b",
-  }[options.verticalAlignment];
-  if (options.verticalAlignment !== undefined && !anchor) {
+  };
+  if (typeof options.verticalAlignment !== "string" || !Object.hasOwn(anchors, options.verticalAlignment)) {
     fail(`${path}.verticalAlignment must be "top", "middle", or "bottom"`);
   }
-  const wrap = options.textWrap === undefined ? "square" : options.textWrap;
-  if (wrap !== "square" && wrap !== "none") {
-    fail(`${path}.textWrap must be "square" or "none"`);
-  }
+  return ` anchor="${anchors[options.verticalAlignment]}"`;
+}
+
+function textInsetsOf(options, path) {
   const insets = { left: 0, top: 0, right: 0, bottom: 0 };
   if (options.textInsets !== undefined) {
     if (
@@ -563,7 +586,16 @@ function textBodyPropertiesXml(options, path) {
       }
     }
   }
-  const anchorAttribute = anchor ? ` anchor="${anchor}"` : "";
+  return insets;
+}
+
+function textBodyPropertiesXml(options, path) {
+  const anchorAttribute = textAnchorAttributeXml(options, path);
+  const wrap = options.textWrap === undefined ? "square" : options.textWrap;
+  if (wrap !== "square" && wrap !== "none") {
+    fail(`${path}.textWrap must be "square" or "none"`);
+  }
+  const insets = textInsetsOf(options, path);
   return `<a:bodyPr wrap="${wrap}" lIns="${emu(insets.left)}" tIns="${emu(insets.top)}" rIns="${emu(insets.right)}" bIns="${emu(insets.bottom)}"${anchorAttribute}/>`;
 }
 
@@ -590,11 +622,20 @@ function textBodyXml(
   return `<${tag}>${textBodyPropertiesXml(bodyOptions, bodyPath)}<a:lstStyle/>${paragraphs}</${tag}>`;
 }
 
-function shapeBase(id, name, bounds, properties, text = "", rotationUnits = 0) {
-  return `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${xmlEscape(name)}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr>${xfrmXml(bounds, "a:xfrm", rotationUnits)}${properties}</p:spPr>${text}</p:sp>`;
+function shapeBase(id, name, bounds, properties, text = "", rotationUnits = 0, hyperlink = "") {
+  const identity = `id="${id}" name="${xmlEscape(name)}"`;
+  const nonVisual = hyperlink ? `<p:cNvPr ${identity}>${hyperlink}</p:cNvPr>` : `<p:cNvPr ${identity}/>`;
+  return `<p:sp><p:nvSpPr>${nonVisual}<p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr>${xfrmXml(bounds, "a:xfrm", rotationUnits)}${properties}</p:spPr>${text}</p:sp>`;
 }
 
 function textShapeXml(element, path, id, relationships) {
+  let hyperlink = "";
+  if (element.href !== undefined) {
+    if (!Object.hasOwn(element, "href") || typeof element.href !== "string" || !element.href) {
+      fail(`${path}.href must be an own non-empty string`);
+    }
+    hyperlink = `<a:hlinkClick r:id="${relationships.hyperlink(element.href)}"/>`;
+  }
   const bounds = boundsOf(element, path);
   const rotationUnits = optionalOwnRotationUnits(element, path);
   const text = { paragraphs: element.paragraphs };
@@ -628,6 +669,7 @@ function textShapeXml(element, path, id, relationships) {
       bulletInsetPx,
     ),
     rotationUnits,
+    hyperlink,
   );
 }
 
@@ -732,6 +774,47 @@ function pictureXml(
   return `<p:pic><p:nvPicPr><p:cNvPr id="${id}" name="${xmlEscape(name)}"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr${userDrawn ? ' userDrawn="1"' : ""}/></p:nvPicPr><p:blipFill><a:blip r:embed="${relationshipId}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>${xfrmXml(bounds)}<a:prstGeom prst="${preset}"><a:avLst/></a:prstGeom></p:spPr></p:pic>`;
 }
 
+function scaledTableExtents(values, totalEmu, path) {
+  const total = positiveNumber(values.reduce((sum, value) => sum + value, 0), path);
+  positiveNumber(totalEmu, `${path} in EMUs`);
+  let accumulated = 0;
+  let previousEdge = 0;
+  return values.map((value, index) => {
+    accumulated += value;
+    // Round cumulative edges so measured rows and columns exactly fill the frame.
+    const edge = index === values.length - 1
+      ? totalEmu
+      : Math.round(totalEmu * (accumulated / total));
+    const extent = edge - previousEdge;
+    if (extent <= 0) fail(`${path}[${index}] must remain positive after EMU rounding`);
+    previousEdge = edge;
+    return extent;
+  });
+}
+
+function measuredTableRowHeights(rows, height, path) {
+  const heights = Array.from(rows, (row, index) => {
+    const rowPath = `${path}.rows[${index}].height`;
+    if (!row || !Object.hasOwn(row, "height")) fail(`${rowPath} must be an own property`);
+    return positiveNumber(row.height, rowPath);
+  });
+  const total = heights.reduce((sum, value) => sum + value, 0);
+  const tolerance = 0.1 + Number.EPSILON * Math.max(total, height) * heights.length;
+  if (!Number.isFinite(total) || Math.abs(total - height) > tolerance) {
+    fail(`${path} row heights must sum to height within 0.1px`);
+  }
+  return scaledTableExtents(heights, emu(height), `${path}.rows`);
+}
+
+function tableCellPropertiesXml(cell, path) {
+  let attributes = "";
+  if (cell.textInsets !== undefined) {
+    const insets = textInsetsOf(cell, path);
+    attributes = ` marL="${emu(insets.left)}" marR="${emu(insets.right)}" marT="${emu(insets.top)}" marB="${emu(insets.bottom)}"`;
+  }
+  return attributes + textAnchorAttributeXml(cell, path);
+}
+
 function tableXml(element, path, id, relationships) {
   const bounds = boundsOf(element, path);
   if (!Array.isArray(element.rows) || element.rows.length === 0) {
@@ -741,25 +824,35 @@ function tableXml(element, path, id, relationships) {
   if (!Number.isInteger(columnCount) || columnCount === 0) {
     fail(`${path}.rows[0].cells must be a non-empty array`);
   }
+  const firstRowAsHeaders = optionalOwnBoolean(element, "firstRowAsHeaders", path, true);
+  const bandRows = optionalOwnBoolean(element, "bandRows", path, true);
+  const measuredRows = optionalOwnBoolean(element, "measuredRows", path);
+  // Legacy collectors supply height metadata without promising measured geometry.
+  const measuredRowHeights = measuredRows
+    ? measuredTableRowHeights(element.rows, bounds.height, path)
+    : null;
   const rowHeight = emu(bounds.height) / element.rows.length;
   let columnWidths = Array.from({ length: columnCount }, () => 1);
   if (element.columnWidths !== undefined) {
     if (!Array.isArray(element.columnWidths) || element.columnWidths.length !== columnCount) {
       fail(`${path}.columnWidths must contain exactly ${columnCount} widths`);
     }
-    columnWidths = element.columnWidths.map((width, columnIndex) =>
+    columnWidths = Array.from(element.columnWidths, (width, columnIndex) =>
       positiveNumber(width, `${path}.columnWidths[${columnIndex}]`),
     );
   }
   const totalColumnWidth = columnWidths.reduce((sum, width) => sum + width, 0);
   const tableWidth = emu(bounds.width);
+  const gridWidths = measuredRowHeights
+    ? scaledTableExtents(columnWidths, tableWidth, `${path}.columnWidths`)
+    : columnWidths.map((width) => Math.round((tableWidth * width) / totalColumnWidth));
   const rows = element.rows
     .map((row, rowIndex) => {
       const rowPath = `${path}.rows[${rowIndex}]`;
       if (!row || !Array.isArray(row.cells) || row.cells.length !== columnCount) {
         fail(`${rowPath}.cells must contain exactly ${columnCount} cells`);
       }
-      const cells = row.cells
+      const cells = Array.from(row.cells)
         .map((cell, cellIndex) => {
           const cellPath = `${rowPath}.cells[${cellIndex}]`;
           if (!cell || typeof cell !== "object" || Array.isArray(cell)) {
@@ -774,7 +867,10 @@ function tableXml(element, path, id, relationships) {
           const strokeWidth =
             cell.strokeWidth === undefined
               ? 1
-              : positiveNumber(cell.strokeWidth, `${cellPath}.strokeWidth`);
+              : nonNegativeNumber(cell.strokeWidth, `${cellPath}.strokeWidth`);
+          if (strokeWidth === 0 && cell.stroke !== null) {
+            fail(`${cellPath}.strokeWidth can be zero only when stroke is null`);
+          }
           const borderFill = strokeColor
             ? `<a:solidFill><a:srgbClr val="${strokeColor.hex}"/></a:solidFill>`
             : "<a:noFill/>";
@@ -784,20 +880,17 @@ function tableXml(element, path, id, relationships) {
                 `<a:ln${side} w="${emu(strokeWidth)}">${borderFill}</a:ln${side}>`,
             )
             .join("");
-          return `<a:tc>${textBodyXml(text, `${cellPath}.text`, relationships, "a:txBody")}<a:tcPr>${borders}${fill}</a:tcPr></a:tc>`;
+          const properties = tableCellPropertiesXml(cell, cellPath);
+          // Table margins belong to tcPr; duplicating them in bodyPr doubles the inset.
+          const bodyOptions = { textWrap: cell.textWrap, verticalAlignment: cell.verticalAlignment };
+          return `<a:tc>${textBodyXml(text, `${cellPath}.text`, relationships, "a:txBody", bodyOptions, cellPath)}<a:tcPr${properties}>${borders}${fill}</a:tcPr></a:tc>`;
         })
         .join("");
-      return `<a:tr h="${Math.round(rowHeight)}">${cells}</a:tr>`;
+      return `<a:tr h="${measuredRowHeights?.[rowIndex] ?? Math.round(rowHeight)}">${cells}</a:tr>`;
     })
     .join("");
-  const columns = Array.from(
-    { length: columnCount },
-    (_, columnIndex) =>
-      `<a:gridCol w="${Math.round(
-        (tableWidth * columnWidths[columnIndex]) / totalColumnWidth,
-      )}"/>`,
-  ).join("");
-  return `<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="${id}" name="Table ${id}"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>${xfrmXml(bounds, "p:xfrm")}<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl><a:tblPr firstRow="1" bandRow="1"/><a:tblGrid>${columns}</a:tblGrid>${rows}</a:tbl></a:graphicData></a:graphic></p:graphicFrame>`;
+  const columns = gridWidths.map((width) => `<a:gridCol w="${width}"/>`).join("");
+  return `<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="${id}" name="Table ${id}"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>${xfrmXml(bounds, "p:xfrm")}<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl><a:tblPr firstRow="${firstRowAsHeaders ? 1 : 0}" bandRow="${bandRows ? 1 : 0}"/><a:tblGrid>${columns}</a:tblGrid>${rows}</a:tbl></a:graphicData></a:graphic></p:graphicFrame>`;
 }
 
 function arrowXml(value, path, end = "tailEnd") {

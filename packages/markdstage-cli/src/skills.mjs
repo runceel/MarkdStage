@@ -81,12 +81,12 @@ workspace guidance; it does not install the AI tool or the Canvas Extension.
    required diagrams, and output format.
 2. Read only the relevant guidance. Start with
    \`markdstage guide slide-format\`, then retrieve \`themes\`,
-   \`custom-themes\`, or \`architecture-schema\` when needed. Before drafting
+   \`custom-themes\`, \`adaptive-cards\`, or \`architecture-schema\` when needed. Before drafting
    Architecture DSL, read the compact \`architecture-schema\` contract first;
    use \`architecture-dsl\` for advanced behavior.
 3. Create the complete deck as one Markdown source file (see
    \`references/slide-format.md\`).
-4. Validate structure, themes, and Architecture DSL before visual review:
+4. Validate structure, themes, Adaptive Cards and Architecture DSL before visual review:
    \`markdstage validate slides.md --json\`. Review diagnostic codes, JSON Pointers,
    and completeness, fix independent issues together, and preserve the same
    validated content when presenting. Suggestions are never automatic repairs.
@@ -149,7 +149,7 @@ the complete path rules and import behavior.
 | \`markdstage <file>\` | Open the full UI in live slide view with automatic refresh, editing, presenting, and UI export. |
 | \`markdstage present <file> [--watch]\` | Open presenter view; Store/MSIX also opens the native audience window. Native watching is always on; npm \`--watch\` enables it initially. |
 | \`markdstage preview <file> [--watch]\` | Open slide view in the native app (Store/MSIX) or browser (npm). Native watching is always on; npm \`--watch\` enables it initially. |
-| \`markdstage validate <file> [--json]\` | Check deck structure, Architecture DSL blocks, and themes. |
+| \`markdstage validate <file> [--json]\` | Check deck structure, Architecture DSL, static Adaptive Card JSON, and themes. |
 | \`markdstage inspect <file> [--json]\` | Report 1280x720 clipping diagnostics for the deck or one slide; use \`--fail-on-issues\` for quality gates. |
 | \`markdstage capture <file> [--pages 2,4]\` | Write 1280x720 PNG files; without \`--pages\` only clipped slides are captured. |
 | \`markdstage export <file> [--output slides.pdf|slides.pptx]\` | Produce a 16:9 PDF or hybrid editable PowerPoint. |
@@ -169,6 +169,7 @@ Read the reference that matches the task before writing Markdown:
 - \`references/theme-schema.md\` — custom theme properties.
 - \`references/architecture-dsl.md\` — Architecture DSL v1 diagrams.
 - \`references/architecture-schema.md\` — Architecture DSL schema summary.
+- \`references/adaptive-cards.md\` — resolved schema-1.5 cards, safe image placeholders, diagnostics, whole-card PNG export (not editable card objects).
 - \`references/overview.md\` — how MarkdStage works.
 
 ## Notes for ${label}
@@ -187,6 +188,7 @@ const REFERENCE_HEADERS = {
   "theme-schema": "Custom theme schema",
   "architecture-dsl": "Architecture DSL v1",
   "architecture-schema": "Architecture DSL schema summary",
+  "adaptive-cards": "Static Adaptive Cards",
 };
 
 /**

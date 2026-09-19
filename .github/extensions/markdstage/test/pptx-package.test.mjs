@@ -592,6 +592,294 @@ test("emits native text, hyperlinks, tables, images, shapes, and connector segme
   assert.match(slide, /<a:t>Flow<\/a:t>/);
 });
 
+test("preserves opted-in hyperlink text colors in native text, shapes and tables", () => {
+  const extension = '<a:extLst><a:ext uri="{A12FA001-AC4F-418D-AE19-62706E023703}"><ahyp:hlinkClr xmlns:ahyp="http://schemas.microsoft.com/office/drawing/2018/hyperlinkcolor" val="tx"/></a:ext></a:extLst>';
+  for (const type of ["text", "shape", "table"]) {
+    const paragraphs = [{ runs: [
+      {
+        text: "Safe link", color: "#E6EDF3", underline: false,
+        href: "https://example.com/?a=1&b=2", preserveHyperlinkColor: true,
+      },
+      { text: "Default link", color: "#123456", underline: true, href: "https://example.com/default" },
+      { text: "Plain text", preserveHyperlinkColor: false },
+    ] }];
+    const element = {
+      type, x: 10, y: 20, width: 300, height: 60,
+      ...(type === "table"
+        ? { rows: [{ cells: [{ paragraphs }] }] }
+        : { ...(type === "shape" ? { shape: "rect" } : {}), paragraphs }),
+    };
+    const files = readStoredZip(buildPptxPackage({ slides: [{ elements: [element] }] }));
+    const slide = xml(files, "ppt/slides/slide1.xml");
+    const links = [...slide.matchAll(/<a:hlinkClick r:id="rId\d+">([\s\S]*?)<\/a:hlinkClick>/g)];
+    assert.deepEqual(links.map((match) => match[1]), [extension], type);
+    assert.equal((slide.match(/<a:hlinkClick r:id="rId\d+"\/>/g) || []).length, 1, type);
+    const runs = [...slide.matchAll(/<a:r>[\s\S]*?<\/a:r>/g)].map((match) => match[0]);
+    assert.match(runs[0], /<a:srgbClr val="E6EDF3">/);
+    assert.match(runs[0], /<a:rPr[^>]* u="none"/);
+    assert.match(runs[1], /<a:rPr[^>]* u="sng"/);
+    assert.doesNotMatch(runs[1], /ahyp:/);
+    assert.doesNotMatch(runs[2], /<a:hlinkClick|ahyp:/);
+    assert.match(xml(files, "ppt/slides/_rels/slide1.xml.rels"),
+      /Target="https:\/\/example\.com\/\?a=1&amp;b=2" TargetMode="External"/);
+  }
+});
+
+test("keeps hyperlink preservation opt-in without changing absent or false writer bytes", () => {
+  for (const href of [undefined, "https://example.com/"]) {
+    const run = { text: "Original", color: "#E6EDF3", underline: false, ...(href ? { href } : {}) };
+    const packageWithRun = (value) => buildPptxPackage({
+      slides: [{ elements: [{
+        type: "text", x: 10, y: 20, width: 300, height: 60,
+        paragraphs: [{ runs: [value] }],
+      }] }],
+    });
+    const original = packageWithRun(run);
+    for (const preserveHyperlinkColor of [undefined, false]) {
+      assert.deepEqual(packageWithRun({ ...run, preserveHyperlinkColor }), original);
+    }
+    const slide = xml(readStoredZip(original), "ppt/slides/slide1.xml");
+    assert.doesNotMatch(slide, /ahyp:|hyperlinkcolor|A12FA001/);
+    if (href) assert.match(slide, /<a:hlinkClick r:id="rId\d+"\/>/);
+    else assert.doesNotMatch(slide, /<a:hlinkClick/);
+  }
+});
+
+test("requires a strict own boolean and a hyperlink for opted-in hyperlink color preservation", () => {
+  const packageWithRun = (run) => buildPptxPackage({
+    slides: [{ elements: [{
+      type: "text", x: 10, y: 20, width: 300, height: 60,
+      paragraphs: [{ runs: [run] }],
+    }] }],
+  });
+  const linked = { text: "Link", href: "https://example.com/" };
+  for (const value of [null, 0, 1, "true", "false", [], {}, new Boolean(true)]) {
+    assert.throws(() => packageWithRun({ ...linked, preserveHyperlinkColor: value }),
+      /preserveHyperlinkColor must be a boolean/);
+  }
+  const inherited = Object.assign(Object.create({ preserveHyperlinkColor: true }), linked);
+  assert.throws(() => packageWithRun(inherited), /preserveHyperlinkColor must be an own property/);
+  assert.throws(() => packageWithRun({ text: "Unlinked", preserveHyperlinkColor: true }),
+    /preserveHyperlinkColor requires href/);
+  for (const href of [null, "", 42]) {
+    assert.throws(() => packageWithRun({ text: "Invalid", href, preserveHyperlinkColor: true }),
+      /href must be a non-empty string/);
+  }
+});
+
+test("writes strict boolean underline and strikethrough on native runs without changing defaults", () => {
+  const element = {
+    type: "text", x: 10, y: 20, width: 300, height: 60,
+    paragraphs: [{ runs: [
+      { text: "Underline", underline: true },
+      { text: "Strike", strikethrough: true },
+      { text: "Both", underline: true, strikethrough: true, href: "https://example.com/" },
+      { text: "False", bold: false, italic: false, underline: false, strikethrough: false },
+      { text: "Default" },
+    ] }],
+  };
+  const files = readStoredZip(buildPptxPackage({ slides: [{ elements: [element] }] }));
+  const slide = xml(files, "ppt/slides/slide1.xml");
+  const properties = [...slide.matchAll(/<a:rPr ([^>]*)>/g)].map((match) => match[1]);
+  const defaults = 'lang="en-US" noProof="1" sz="1800"';
+  assert.deepEqual(properties, [
+    `${defaults} u="sng"`, `${defaults} strike="sngStrike"`,
+    `${defaults} u="sng" strike="sngStrike"`, defaults, defaults,
+  ]);
+  assert.equal((slide.match(/<a:hlinkClick /g) || []).length, 1);
+  assert.match(xml(files, "ppt/slides/_rels/slide1.xml.rels"), /Target="https:\/\/example\.com\/" TargetMode="External"/);
+
+  for (const key of ["bold", "italic", "underline", "strikethrough"]) {
+    for (const value of [null, "true", "false", 0, 1, [], {}, new Boolean(true)]) {
+      const invalid = { ...element, paragraphs: [{ runs: [{ text: "Invalid", [key]: value }] }] };
+      assert.throws(() => buildPptxPackage({ slides: [{ elements: [invalid] }] }), new RegExp(`${key} must be a boolean`));
+    }
+    const inherited = Object.assign(Object.create({ [key]: true }), { text: "Inherited" });
+    assert.throws(() => buildPptxPackage({
+      slides: [{ elements: [{ ...element, paragraphs: [{ runs: [inherited] }] }] }],
+    }), new RegExp(`${key} must be an own property`));
+  }
+});
+
+test("keeps legacy native table XML unchanged when measured options are absent", () => {
+  const table = {
+    type: "table", x: 0, y: 0, width: 100.1, height: 100.1,
+    rows: Array.from({ length: 3 }, () => ({ cells: Array.from({ length: 3 }, () => ({ text: "Cell" })) })),
+  };
+  const slide = xml(readStoredZip(buildPptxPackage({ slides: [{ elements: [table] }] })), "ppt/slides/slide1.xml");
+  const borders = ["L", "R", "T", "B"].map((side) => `<a:ln${side} w="9525"><a:noFill/></a:ln${side}>`).join("");
+  const cell = `<a:tc><a:txBody><a:bodyPr wrap="square" lIns="0" tIns="0" rIns="0" bIns="0"/><a:lstStyle/><a:p><a:pPr algn="l" lvl="0"></a:pPr><a:r><a:rPr lang="en-US" noProof="1" sz="1800"><a:solidFill><a:srgbClr val="000000"></a:srgbClr></a:solidFill><a:ea typeface="Yu Gothic UI"/></a:rPr><a:t>Cell</a:t></a:r><a:endParaRPr lang="en-US" noProof="1"><a:ea typeface="Yu Gothic UI"/></a:endParaRPr></a:p></a:txBody><a:tcPr>${borders}<a:noFill/></a:tcPr></a:tc>`;
+  const row = `<a:tr h="317818">${cell.repeat(3)}</a:tr>`;
+  assert.equal(/<a:tbl>[\s\S]*?<\/a:tbl>/.exec(slide)?.[0],
+    `<a:tbl><a:tblPr firstRow="1" bandRow="1"/><a:tblGrid>${'<a:gridCol w="317818"/>'.repeat(3)}</a:tblGrid>${row.repeat(3)}</a:tbl>`);
+  assert.deepEqual(
+    buildPptxPackage({ slides: [{ elements: [table] }] }),
+    buildPptxPackage({ slides: [{ elements: [{ ...table, measuredRows: false, firstRowAsHeaders: true, bandRows: true }] }] }),
+  );
+});
+
+test("ignores legacy row-height metadata unless measuredRows is explicitly true", () => {
+  const table = {
+    type: "table", x: 0, y: 0, width: 100.1, height: 100.1,
+    rows: Array.from({ length: 3 }, () => ({
+      cells: Array.from({ length: 3 }, () => ({ text: "Legacy cell" })),
+    })),
+  };
+  const original = buildPptxPackage({ slides: [{ elements: [table] }] });
+  for (const heights of [[5, 35, 60.3], [5, 35, 60.1], [null, "ignored", -1]]) {
+    const rows = table.rows.map((row, index) => ({ ...row, height: heights[index] }));
+    for (const options of [{}, { measuredRows: undefined }, { measuredRows: false }]) {
+      const actual = buildPptxPackage({ slides: [{ elements: [{ ...table, ...options, rows }] }] });
+      assert.ok(actual.equals(original), "legacy row and column XML stays byte-identical");
+    }
+  }
+});
+
+test("controls native table headers and row banding independently", () => {
+  for (const firstRowAsHeaders of [false, true]) {
+    for (const bandRows of [false, true]) {
+      const table = {
+        type: "table", x: 0, y: 0, width: 100, height: 30,
+        firstRowAsHeaders, bandRows, rows: [{ cells: [{ text: "Cell" }] }],
+      };
+      const slide = xml(readStoredZip(buildPptxPackage({
+        slides: [{ elements: [table] }],
+      })), "ppt/slides/slide1.xml");
+      assert.match(slide, new RegExp(`<a:tblPr firstRow="${firstRowAsHeaders ? 1 : 0}" bandRow="${bandRows ? 1 : 0}"/>`));
+    }
+  }
+});
+
+test("writes measured table rows, aggregate-preserving columns, cell margins and premeasured text once", () => {
+  const table = {
+    type: "table", x: 10, y: 20, width: 101.03, height: 100.03,
+    measuredRows: true,
+    columnWidths: [20.02, 30.01, 51],
+    firstRowAsHeaders: false, bandRows: false,
+    rows: [20.01, 30.01, 50.01].map((height, rowIndex) => ({
+      height,
+      cells: [0, 1, 2].map((columnIndex) => ({
+        text: `${rowIndex}:${columnIndex}`, stroke: null, strokeWidth: 0,
+      })),
+    })),
+  };
+  table.rows[0].cells[0] = {
+    paragraphs: [
+      { alignment: "right", lineSpacing: 22, spaceBefore: 0, spaceAfter: 3, runs: [{ text: "Title", fontSize: 16, bold: true }] },
+      { lineSpacing: 22, spaceBefore: 3, spaceAfter: 0, runs: [{ text: "Value", fontSize: 16, strikethrough: true }] },
+    ],
+    textInsets: { left: 0, top: 2.5, right: 4, bottom: 5 },
+    textWrap: "none", verticalAlignment: "middle",
+    fill: "#ffffff", stroke: "#112233", strokeWidth: 1.25,
+  };
+  table.rows[0].cells[1].verticalAlignment = "top";
+  table.rows[0].cells[2].verticalAlignment = "bottom";
+  const slide = xml(readStoredZip(buildPptxPackage({ slides: [{ elements: [table] }] })), "ppt/slides/slide1.xml");
+  const rowHeights = [...slide.matchAll(/<a:tr h="(\d+)">/g)].map((match) => Number(match[1]));
+  const columnWidths = [...slide.matchAll(/<a:gridCol w="(\d+)"\/>/g)].map((match) => Number(match[1]));
+  assert.deepEqual(rowHeights, [190595, 285846, 476345]);
+  assert.deepEqual(columnWidths, [190691, 285845, 485775]);
+  assert.equal(rowHeights.reduce((sum, value) => sum + value, 0), Math.round(table.height * PPTX_DIMENSIONS.emusPerPx));
+  assert.equal(columnWidths.reduce((sum, value) => sum + value, 0), Math.round(table.width * PPTX_DIMENSIONS.emusPerPx));
+  assert.match(slide, /<a:tblPr firstRow="0" bandRow="0"\/>/);
+  assert.match(slide, /<a:tcPr marL="0" marR="38100" marT="23813" marB="47625" anchor="ctr">/);
+  assert.match(slide, /<a:bodyPr wrap="none" lIns="0" tIns="0" rIns="0" bIns="0" anchor="ctr"\/>/);
+  assert.match(slide, /<a:tcPr anchor="t">/);
+  assert.match(slide, /<a:tcPr anchor="b">/);
+  assert.match(slide, /<a:pPr algn="r" lvl="0"><a:lnSpc><a:spcPts val="1650"\/><\/a:lnSpc><a:spcBef><a:spcPts val="0"\/><\/a:spcBef><a:spcAft><a:spcPts val="225"\/><\/a:spcAft>/);
+  assert.match(slide, /<a:pPr algn="l" lvl="0"><a:lnSpc><a:spcPts val="1650"\/><\/a:lnSpc><a:spcBef><a:spcPts val="225"\/><\/a:spcBef><a:spcAft><a:spcPts val="0"\/><\/a:spcAft>/);
+  for (const side of ["L", "R", "T", "B"]) {
+    assert.match(slide, new RegExp(`<a:ln${side} w="11906"><a:solidFill><a:srgbClr val="112233"/></a:solidFill></a:ln${side}>`));
+    assert.match(slide, new RegExp(`<a:ln${side} w="0"><a:noFill/></a:ln${side}>`));
+  }
+  assert.equal((slide.match(/<a:t>Title<\/a:t>/g) || []).length, 1);
+  assert.equal((slide.match(/<a:t>Value<\/a:t>/g) || []).length, 1);
+  assert.doesNotMatch(slide, /<p:sp>|<a:(?:normAutofit|spAutoFit)/);
+});
+
+test("requires every measured table row to be finite, positive and consistent with the frame height", () => {
+  const table = {
+    type: "table", x: 0, y: 0, width: 100, height: 100,
+    measuredRows: true,
+    rows: [{ height: 20, cells: [{ text: "First" }] }, { height: 80, cells: [{ text: "Second" }] }],
+  };
+  for (const value of [undefined, null, 0, -1, Number.NaN, Infinity, "20", true, new Number(20)]) {
+    const invalid = { ...table, rows: [{ ...table.rows[0], height: value }, table.rows[1]] };
+    assert.throws(() => buildPptxPackage({ slides: [{ elements: [invalid] }] }), /rows\[0\]\.height/);
+  }
+  assert.throws(() => buildPptxPackage({
+    slides: [{ elements: [{ ...table, rows: [table.rows[0], { cells: table.rows[1].cells }] }] }],
+  }), /rows\[1\]\.height/);
+  assert.throws(() => buildPptxPackage({
+    slides: [{ elements: [{ ...table, rows: table.rows.map(({ cells }) => ({ cells })) }] }],
+  }), /rows\[0\]\.height/);
+  for (const height of [99.89, 100.11]) {
+    assert.throws(() => buildPptxPackage({ slides: [{ elements: [{ ...table, height }] }] }), /row heights.*height/);
+  }
+  for (const height of [99.9, 100, 100.1]) {
+    const slide = xml(readStoredZip(buildPptxPackage({
+      slides: [{ elements: [{ ...table, height }] }],
+    })), "ppt/slides/slide1.xml");
+    assert.equal([...slide.matchAll(/<a:tr h="(\d+)">/g)].reduce((sum, match) => sum + Number(match[1]), 0),
+      Math.round(height * PPTX_DIMENSIONS.emusPerPx));
+  }
+});
+
+test("rejects incomplete measured table geometry and extents lost to EMU rounding", () => {
+  const cells = [{ text: "First" }, { text: "Second" }];
+  const row = { height: 50, cells };
+  const table = { type: "table", x: 0, y: 0, width: 100, height: 100, measuredRows: true, rows: [row, row] };
+  const rejects = (overrides, pattern) => assert.throws(() => buildPptxPackage({
+    slides: [{ elements: [{ ...table, ...overrides }] }],
+  }), pattern);
+  const sparseRows = new Array(2);
+  sparseRows[0] = { height: 100, cells };
+  rejects({ rows: sparseRows }, /rows\[1\]\.height/);
+  const sparseWidths = new Array(2);
+  sparseWidths[0] = 100;
+  rejects({ columnWidths: sparseWidths }, /columnWidths\[1\]/);
+  const sparseCells = new Array(2);
+  sparseCells[0] = cells[0];
+  rejects({ rows: [{ height: 50, cells: sparseCells }, row] }, /cells\[1\] must be an object/);
+  rejects({ rows: [row, { height: 50, cells: [cells[0]] }] }, /cells must contain exactly 2 cells/);
+  rejects({ rows: [row, Object.assign(Object.create({ height: 50 }), { cells })] }, /height must be an own property/);
+  rejects({ rows: [{ height: 1e-9, cells }, { height: 100 - 1e-9, cells }] }, /positive after EMU rounding/);
+  rejects({ columnWidths: [1e-9, 100] }, /positive after EMU rounding/);
+  rejects({ columnWidths: [Number.MAX_VALUE, Number.MAX_VALUE] }, /columnWidths.*finite number/);
+});
+
+test("validates explicit table cell layout, no-line borders and presentation flags", () => {
+  const table = { type: "table", x: 0, y: 0, width: 100, height: 30, rows: [{ cells: [{ text: "Cell" }] }] };
+  const cellRejects = (options, pattern) => assert.throws(() => buildPptxPackage({
+    slides: [{ elements: [{ ...table, rows: [{ cells: [{ text: "Cell", ...options }] }] }] }],
+  }), pattern);
+  for (const textInsets of [null, "0", []]) cellRejects({ textInsets }, /textInsets must be an object/);
+  for (const side of ["left", "top", "right", "bottom"]) {
+    for (const value of [-1, Number.NaN, Infinity, "1"]) {
+      cellRejects({ textInsets: { [side]: value } }, new RegExp(`textInsets\\.${side}`));
+    }
+  }
+  for (const textWrap of [null, false, "tight"]) cellRejects({ textWrap }, /textWrap/);
+  for (const verticalAlignment of [null, false, "center", "constructor", "__proto__", ["top"]]) {
+    cellRejects({ verticalAlignment }, /verticalAlignment/);
+  }
+  for (const strokeWidth of [-1, Number.NaN, Infinity, "0"]) cellRejects({ stroke: null, strokeWidth }, /strokeWidth/);
+  for (const stroke of [undefined, "#000000", "transparent"]) cellRejects({ stroke, strokeWidth: 0 }, /strokeWidth.*stroke/);
+  for (const key of ["firstRowAsHeaders", "bandRows", "measuredRows"]) {
+    for (const value of [null, 0, 1, "false", [], {}]) {
+      assert.throws(() => buildPptxPackage({ slides: [{ elements: [{ ...table, [key]: value }] }] }), new RegExp(`${key} must be a boolean`));
+    }
+    const inherited = Object.assign(Object.create({ [key]: true }), table);
+    assert.throws(() => buildPptxPackage({ slides: [{ elements: [inherited] }] }), new RegExp(`${key} must be an own property`));
+  }
+
+  const slide = xml(readStoredZip(buildPptxPackage({
+    slides: [{ elements: [{ ...table, rows: [{ cells: [{ text: "Partial", textInsets: { left: 2 } }] }] }] }],
+  })), "ppt/slides/slide1.xml");
+  assert.match(slide, /<a:tcPr marL="19050" marR="0" marT="0" marB="0">/);
+  assert.match(slide, /<a:bodyPr wrap="square" lIns="0" tIns="0" rIns="0" bIns="0"\/>/);
+});
+
 test("emits proportional native table grid widths", () => {
   const files = readStoredZip(
     buildPptxPackage({

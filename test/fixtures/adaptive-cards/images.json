@@ -1,0 +1,17 @@
+{
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "id": "images",
+  "body": [
+    { "type": "TextBlock", "text": "Approved local and data images", "size": "Medium", "weight": "Bolder" },
+    { "type": "Image", "id": "local-image", "url": "/assets/card-local.svg", "altText": "Local square with transparent corners", "width": "96px", "height": "96px" },
+    {
+      "type": "ImageSet", "id": "image-set", "imageSize": "Small", "separator": true, "spacing": "Medium",
+      "images": [
+        { "type": "Image", "id": "set-local", "url": "assets/card-local.svg", "altText": "Local icon" },
+        { "type": "Image", "id": "set-data", "url": "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='64'%20height='64'%20viewBox='0%200%2064%2064'%3E%3Ccircle%20cx='32'%20cy='32'%20r='24'%20fill='%230078d4'/%3E%3C/svg%3E", "altText": "Data image blue circle" }
+      ]
+    },
+    { "type": "TextBlock", "text": "The same approved bytes are used for rendering and raster capture.", "wrap": true }
+  ]
+}

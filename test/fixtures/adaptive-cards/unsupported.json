@@ -1,0 +1,9 @@
+{
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "id": "unsupported",
+  "body": [
+    { "type": "TextBlock", "text": "No unsupported element may silently disappear." },
+    { "type": "Custom.Widget", "id": "unsupported-widget" }
+  ]
+}

@@ -1,4 +1,6 @@
 using System.Net;
+using System.Security.Cryptography;
+using System.Text.Json;
 using MarkdStageApp.Services;
 
 namespace MarkdStage.Core.Tests;
@@ -40,6 +42,17 @@ public sealed class NativeMappedAssetRoutesTests
             {
                 Assert.Equal(HttpStatusCode.OK, response.StatusCode);
                 Assert.Equal("application/json", response.Content.Headers.ContentType?.MediaType);
+                using var manifest = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+                foreach (var name in new[] { "mermaid.min.js", "adaptivecards.min.js" })
+                {
+                    var asset = manifest.RootElement.GetProperty("assets").GetProperty(name);
+                    using var script = await client.GetAsync("vendor/" + name);
+                    Assert.Equal(HttpStatusCode.OK, script.StatusCode);
+                    Assert.Equal("text/javascript", script.Content.Headers.ContentType?.MediaType);
+                    var bytes = await script.Content.ReadAsByteArrayAsync();
+                    Assert.Equal(asset.GetProperty("size").GetInt32(), bytes.Length);
+                    Assert.Equal(asset.GetProperty("sha256").GetString(), Convert.ToHexStringLower(SHA256.HashData(bytes)));
+                }
             }
             using (var oversized = File.OpenWrite(file)) oversized.SetLength(SlideBackgrounds.MaxBytes + 1);
             using (var response = await client.GetAsync("background-assets/photo%20space.png"))

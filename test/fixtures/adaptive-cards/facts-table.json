@@ -1,0 +1,35 @@
+{
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "id": "facts-table",
+  "body": [
+    {
+      "type": "FactSet", "id": "facts",
+      "facts": [
+        { "title": "SDK", "value": "3.0.6" },
+        { "title": "Schema", "value": "1.5" },
+        { "title": "Export", "value": "**Editable** native table" }
+      ]
+    },
+    {
+      "type": "Table", "id": "table", "firstRowAsHeaders": true, "showGridLines": true, "gridStyle": "emphasis", "separator": true,
+      "columns": [{ "width": 1 }, { "width": 2 }],
+      "rows": [
+        {
+          "type": "TableRow", "id": "header-row", "style": "emphasis",
+          "cells": [
+            { "type": "TableCell", "id": "header-name", "items": [{ "type": "TextBlock", "text": "Element", "wrap": true }] },
+            { "type": "TableCell", "id": "header-geometry", "items": [{ "type": "TextBlock", "text": "Geometry contract", "wrap": true }] }
+          ]
+        },
+        {
+          "type": "TableRow", "id": "data-row",
+          "cells": [
+            { "type": "TableCell", "id": "cell-name", "items": [{ "type": "TextBlock", "text": "TableCell", "wrap": true }] },
+            { "type": "TableCell", "id": "cell-geometry", "items": [{ "type": "TextBlock", "text": "Public renderedElement; typed parent and order.", "wrap": true }] }
+          ]
+        }
+      ]
+    }
+  ]
+}

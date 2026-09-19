@@ -66,8 +66,8 @@ Without a file it starts empty; use **Open Markdown** to choose a deck.
 | --- | --- |
 | `present` | Packaged: opens/reuses the native workspace window in presenter view and opens the native audience window. Repeating it reuses the audience window instead of closing or duplicating it. npm: opens the browser UI in presenter view; use **Start presentation** for its audience window. |
 | `preview` | Opens normal slide view: the native app when packaged, the browser UI with npm. |
-| `validate` | Checks deck structure, Architecture DSL blocks, themes, and theme paths. |
-| `inspect` | Reports the same compact 1280x720 clipping diagnostics as the canvas `inspect_layout` action. Use `--slide <n>` for one page, `--all` to include slides that fit, and `--fail-on-issues` to exit with code 5. |
+| `validate` | Checks deck structure, Architecture DSL, resolved static Adaptive Card JSON, themes, and theme paths. Card assets and SDK rendering require browser inspection. |
+| `inspect` | Reports the same compact 1280x720 diagnostics as Canvas `inspect_layout`, including Adaptive Card content diagnostics separately from clipping. Use `--slide <n>` for one page, `--all` to include slides that fit, and `--fail-on-issues` to exit with code 5 for clipping or card content diagnostics. |
 | `capture` | Writes 1280x720 PNG files. Without `--pages` only the slides reported as clipped are captured. |
 | `export` | Produces the same 16:9 PDF or hybrid editable PowerPoint as the Canvas Extension. The `--output` extension selects the format; PDF remains the default. Use `--mermaid-image-fallback` with an explicit `.pptx` output to place each Mermaid diagram as one image instead of editable PowerPoint shapes, equivalent to choosing **Images** in the UI export dialog. |
 | `guide` | Prints the canonical MarkdStage authoring guide: `overview`, `slide-format`, `themes`, `custom-themes`, `theme-schema`, `architecture-dsl`, and `architecture-schema`. |

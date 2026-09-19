@@ -55,6 +55,24 @@
           "sha256": "a5f4e5d4bc208e7258bbc408dfcd9cb48599da8c34e46866b4655d4c1512907f"
         }
       ]
+    },
+    "adaptivecards.min.js": {
+      "source": "adaptivecards.min.js",
+      "size": 334964,
+      "sha256": "5e7c13f3300ae7b89b34703501e08d709fbb6635f1c6755b92495577a77344f2",
+      "upstream": {
+        "name": "adaptivecards",
+        "version": "3.0.6",
+        "source": "https://www.npmjs.com/package/adaptivecards"
+      },
+      "chunks": [
+        {
+          "index": 1,
+          "file": "adaptivecards.min.js.part-0001",
+          "size": 334964,
+          "sha256": "5e7c13f3300ae7b89b34703501e08d709fbb6635f1c6755b92495577a77344f2"
+        }
+      ]
     }
   }
 }

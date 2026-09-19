@@ -128,10 +128,10 @@ internal static class HostCommands
                 markdstage <file.md> [options]
                 markdstage [--workspace <folder>] [--no-open]
                 markdstage <present|preview|validate|inspect|capture|export> <file.md> [options]
-                markdstage guide [overview|slide-format|themes|custom-themes|theme-schema|architecture-dsl|architecture-schema]
+                markdstage guide [overview|slide-format|themes|custom-themes|theme-schema|architecture-dsl|architecture-schema|adaptive-cards]
                 markdstage skill <install|check> [--root <folder>] [--target codex,claude,copilot|all] [--force]
                 """,
-            "guide" => "markdstage guide [overview|slide-format|themes|custom-themes|theme-schema|architecture-dsl|architecture-schema] [--json]",
+            "guide" => "markdstage guide [overview|slide-format|themes|custom-themes|theme-schema|architecture-dsl|architecture-schema|adaptive-cards] [--json]",
             "skill" => "markdstage skill <install|check> [--root <folder>] [--target codex,claude,copilot|all] [--force] [--json]",
             "present" or "preview" => $"markdstage {command} <file.md> [--watch] [--no-open]",
             "validate" => "markdstage validate <file.md> [--json]",

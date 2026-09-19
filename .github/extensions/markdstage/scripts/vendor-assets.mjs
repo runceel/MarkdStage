@@ -20,7 +20,8 @@ function chunkName(sourceName, index) {
 
 export async function readManifest(manifestPath) {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-  if (!manifest || manifest.schemaVersion !== 1 || !manifest.assets) {
+  if (!manifest || manifest.schemaVersion !== 1 || !manifest.assets ||
+      !Number.isInteger(manifest.chunkSize) || manifest.chunkSize <= 0) {
     throw new Error(`Invalid vendor asset manifest: ${manifestPath}`);
   }
   return manifest;
@@ -55,9 +56,20 @@ export async function reconstructAsset(vendorDir, assetName, manifestPath) {
   return result;
 }
 
-async function splitAsset(sourcePath, vendorDir, manifestPath, assetName, upstreamVersion) {
+export async function splitAsset(sourcePath, vendorDir, manifestPath, assetName, upstreamVersion, upstreamName = "mermaid") {
+  if (!/^[a-z][a-z0-9.-]*\.js$/.test(assetName) ||
+      !/^[a-z][a-z0-9.-]*$/.test(upstreamName)) {
+    throw new Error("Vendor asset and upstream package names must be simple file/package names.");
+  }
+  let previous;
+  try {
+    previous = await readManifest(manifestPath);
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
   const source = await readFile(sourcePath);
-  const chunkSize = DEFAULT_CHUNK_SIZE;
+  if (source.length === 0) throw new Error("A vendor asset must not be empty.");
+  const chunkSize = previous?.chunkSize ?? DEFAULT_CHUNK_SIZE;
   const chunks = [];
   await mkdir(vendorDir, { recursive: true });
   for (let offset = 0, index = 0; offset < source.length; offset += chunkSize, index += 1) {
@@ -75,14 +87,15 @@ async function splitAsset(sourcePath, vendorDir, manifestPath, assetName, upstre
     schemaVersion: 1,
     chunkSize,
     assets: {
+      ...previous?.assets,
       [assetName]: {
         source: assetName,
         size: source.length,
         sha256: sha256(source),
         upstream: {
-          name: "mermaid",
+          name: upstreamName,
           version: upstreamVersion,
-          source: "https://www.npmjs.com/package/mermaid",
+          source: `https://www.npmjs.com/package/${upstreamName}`,
         },
         chunks,
       },
@@ -101,7 +114,7 @@ async function verifyManifest(vendorDir, manifestPath) {
 
 function usage() {
   console.error(
-    "Usage: node vendor-assets.mjs split <source> <vendor-dir> <manifest> [upstream-version]\n" +
+    "Usage: node vendor-assets.mjs split <source> <vendor-dir> <manifest> [upstream-version] [asset-name] [package-name]\n" +
       "       node vendor-assets.mjs verify <vendor-dir> <manifest>",
   );
 }
@@ -110,14 +123,16 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const [, , command, ...args] = process.argv;
   try {
     if (command === "split" && args.length >= 3) {
+      const assetName = args[4] || "mermaid.min.js";
       await splitAsset(
         resolve(args[0]),
         resolve(args[1]),
         resolve(args[2]),
-        "mermaid.min.js",
+        assetName,
         args[3] || "unknown",
+        args[5] || "mermaid",
       );
-      console.log(`Split mermaid.min.js into ${DEFAULT_CHUNK_SIZE}-byte chunks.`);
+      console.log(`Split ${assetName} into locked vendor chunks.`);
     } else if (command === "verify" && args.length === 2) {
       const manifest = await verifyManifest(resolve(args[0]), resolve(args[1]));
       console.log(`Verified ${Object.keys(manifest.assets).length} vendor asset(s).`);

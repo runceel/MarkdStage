@@ -2,8 +2,79 @@
 
 > English version: [English](../diagrams-and-media.md)
 
-MarkdStage では、Markdown の画像、自動でレイアウトされる Mermaid、位置や経路を固定できる
-Architecture DSL、そして読み込んだ Archify の図を使えます。
+MarkdStage では、Markdown の画像、静的な Adaptive Cards、自動でレイアウトされる Mermaid、
+位置や経路を固定できる Architecture DSL、そして読み込んだ Archify の図を使えます。
+
+## 静的な Adaptive Cards を表示する
+
+`adaptive-card` フェンスには、値を展開済みの完全なスキーマ 1.5 の JSON を記述します。
+
+````markdown
+```adaptive-card
+{
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "body": [
+    { "type": "TextBlock", "text": "リリース **準備完了**", "size": "Large", "wrap": true },
+    { "type": "Image", "url": "assets/release.png", "altText": "リリースのアイコン", "width": "64px" }
+  ]
+}
+```
+````
+
+公式 SDK 3.0.6 を同梱し、カードがある場合だけ読み込みます。対応する静的要素は
+TextBlock、RichTextBlock/TextRun、Container、ColumnSet/Column、Image/ImageSet、
+FactSet、Table/Row/Cell です。MarkdStage HostConfig v1 はデッキのフォントと
+foreground、muted、accent、surface、border のテーマ色を反映します。
+Teams や Outlook の外観を再現するホストではありません。
+
+JSON の上限は UTF-8 で 262,144 バイト、オブジェクト・配列は 256 個、入れ子は
+16 階層です。画像はワークスペースの `assets/`、または静的な PNG/JPEG/GIF/SVG の
+data URL に限定し、1 枚 10 MiB・合計 100 MiB の制限を適用します。
+外部 URL、リダイレクト、SVG の移動・色変化を含むアニメーション、アニメーション
+GIF/APNG は拒否します。画像が存在しない、読み込めない、または拒否された場合は、
+一定の **Image unavailable** プレースホルダーに置き換え、カードの残りは表示します。
+
+カードは操作不可のままです。入力は初期値またはプレースホルダー、アクションは静的なラベル、
+メディアは許可されたポスター画像とラベルで表します。Submit/Execute は実行せず、
+ShowCard は折りたたんだままです。安全な OpenUrl のラベルは PowerPoint のリンクにできますが、
+ブラウザー上でクリックできる操作にはなりません。これらの静的な表現には内容への影響を伴う
+診断を付けます。背景画像、refresh、認証、テンプレート、外部データは引き続き未対応です。
+構造やバージョンが不正なカードは、エラーパネルで問題を表示します。未知のプロパティ、未充足の `requires`、
+明示した静的フォールバックへの置換・削除、Markdown のサニタイズは、内容への影響を
+伴う診断として報告します。フォールバックでも画像の制約は緩和しません。
+ホストが公開する機能は `adaptiveCards` のバージョン 1.5 以下（または `"*"`）のみです。
+ただし、記述するカード本体の `version` は**厳密に `"1.5"`**である必要があります。
+`requires` の判定と、入力として受け付けるバージョンは別です。
+
+`markdstage validate slides.md --json` でブラウザー不要の構造検証を行い、
+続いて `markdstage inspect slides.md --json` で SDK、画像、描画の診断を確認します。
+構造検証は画像を取得せず、正常に読み込めることの保証ではありません。
+`inspect --fail-on-issues` は、クリッピングまたはカードの内容診断があると失敗します。
+診断にはページ、カード、`adaptive-card[0]$.body[1].url` のような JSON の位置を含みます。
+検査や出力は、許可された画像とフォントの準備完了を待ちます。
+ブラウザーのレポートでは、画像検証を実行した `browser-checked` と、
+構造エラーなどで実行に至らなかった `not-run` を区別します。
+検証を実行していても、読み込めない画像の内容診断は残ります。
+診断が上限で打ち切られた場合は、PowerPoint の JSON と CLI のテキストにも検証未完了を示します。
+
+PowerPoint では、対応する静的要素を**編集可能な文字・図形・画像・区切り線・表**として出力します。
+対応する FactSet と結合のない Table も含みます。文字は、全体が再折り返しされる単一の
+テキストボックスではなく、計測した行や run ごとに分かれる場合があります。
+未対応の部分だけを表示範囲に切り出した透明 PNG にし、周囲の対応要素は編集可能なまま残します。
+エラーパネルはカード全体の画像として保持します。出力レポートの `adaptiveCards` と
+`adaptiveCardConversionSummary` は、ネイティブオブジェクト、静的な近似、画像フォールバックを、
+ソース内の位置や内容への影響とともに示します。近似として分類される表現にも編集可能な要素があります。
+プロパティ、フォールバック、診断の上限は `markdstage guide adaptive-cards`
+（Canvas では `markdstage_guide` の `adaptive-cards`）で確認してください。
+[型・プロパティ別の対応表](../../../.github/extensions/markdstage/docs/adaptive-cards.md#versioned-support-matrix)は、
+共通の検証規則と機能宣言から生成し、ブラウザーと PowerPoint の両方の動作を定義しています。
+FactSet・Table の編集可能な出力には条件があり、リスト、RTL、Person 画像、
+編集可能な形で表せない切り抜きは画像として保持します。入力・アクション・メディアは静的な近似です。
+ActionSet の向きは静的レイアウトに反映せず、診断で報告します。
+フォールバックが発生した場合は、対象の要素と理由を出力レポートに記載します。
+テンプレート、カスタム要素登録、追加のスキーマバージョン、ホストのプリセット、
+外部画像の許可リスト、プレゼンター操作は未実装です。Adaptive Cards 全体や Teams・Outlook との完全互換は保証しません。
 
 ## Mermaid で自動レイアウトする
 

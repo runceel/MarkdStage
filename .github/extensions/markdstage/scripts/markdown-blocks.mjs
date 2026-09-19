@@ -8,21 +8,14 @@
 // (`test/harness/server.mjs`). Keep this free of runtime npm dependencies because
 // the extension is distributed as a ZIP.
 
-// Opening fence: three or more ` or ~ characters, as in marked; inspect only one info word.
-const FENCE_OPEN = /^([ \t]{0,3})(`{3,}|~{3,})[ \t]*([^\s`~]*)[ \t]*$/;
-
-/**
- * Split Markdown into lines. Normalize CRLF / CR to LF for scanning.
- */
-function toLines(markdown) {
-  return String(markdown).replace(/\r\n?/g, "\n").split("\n");
-}
+import { findFencedBlocks } from "../renderer/fenced-blocks.mjs";
+export { findFencedBlocks } from "../renderer/fenced-blocks.mjs";
 
 /**
  * Split Markdown into body text plus the line's newline sequence. This preserves
  * every byte of newline data outside the fence during replacement.
  *
- * Uses the same boundaries as toLines, so line numbers match findArchitectureBlocks results.
+ * Uses the same boundaries as the fence scanner, so line numbers match its results.
  */
 function splitLinesWithEol(markdown) {
   const text = String(markdown);
@@ -50,18 +43,6 @@ function dominantEol(lines) {
 }
 
 /**
- * Find the closing fence line corresponding to an opening fence.
- * Return the end of the document (lines.length) when absent, indicating an unclosed fence.
- */
-function findFenceEnd(lines, start, marker) {
-  const close = new RegExp(`^[ \\t]{0,3}[${marker[0]}]{${marker.length},}[ \\t]*$`);
-  for (let i = start; i < lines.length; i += 1) {
-    if (close.test(lines[i])) return i;
-  }
-  return lines.length;
-}
-
-/**
  * Scan ```architecture fences in Markdown.
  * Each item contains { index, open, end, indent, body }.
  * - index: zero-based sequence among architecture fences only (matching the
@@ -70,31 +51,7 @@ function findFenceEnd(lines, start, marker) {
  * - body: raw text inside the fence
  */
 export function findArchitectureBlocks(markdown) {
-  const lines = toLines(markdown);
-  const blocks = [];
-  let i = 0;
-  let seen = 0;
-  while (i < lines.length) {
-    const open = FENCE_OPEN.exec(lines[i]);
-    if (!open) {
-      i += 1;
-      continue;
-    }
-    const [, indent, marker, info] = open;
-    const end = findFenceEnd(lines, i + 1, marker);
-    if (info.toLowerCase() === "architecture") {
-      blocks.push({
-        index: seen,
-        open: i,
-        end,
-        indent,
-        body: lines.slice(i + 1, end).join("\n"),
-      });
-      seen += 1;
-    }
-    i = end + 1;
-  }
-  return blocks;
+  return findFencedBlocks(markdown, "architecture");
 }
 
 /**

@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "upstream": "https://github.com/microsoft/AdaptiveCards",
+  "commit": "8b62e1d5700192578050a4fe255658811e67ce43",
+  "license": "MIT",
+  "licenseUrl": "https://github.com/microsoft/AdaptiveCards/blob/8b62e1d5700192578050a4fe255658811e67ce43/LICENSE",
+  "samples": [
+    {
+      "file": "activity.json",
+      "urls": ["https://github.com/microsoft/AdaptiveCards/blob/8b62e1d5700192578050a4fe255658811e67ce43/samples/v1.5/Scenarios/ActivityUpdate.json"],
+      "adaptations": "Reduced description/facts, removed actions, replaced personal names with Schema team, resolved DATE macro to literal 2017-02-14, replaced remote portrait with authored ../assets/card-local.svg and default rectangular image style. Mixed and negative variants are explicit mutations in the shared corpus harness."
+    },
+    {
+      "file": "flight-table.json",
+      "urls": ["https://github.com/microsoft/AdaptiveCards/blob/8b62e1d5700192578050a4fe255658811e67ce43/samples/v1.5/Scenarios/FlightUpdateTable.json"],
+      "adaptations": "Retained passenger/seat table, reduced to two columns and three rows, anonymized names, enabled grid, removed remote images and empty cells. Non-grid variant explicitly tests bounded raster rather than claiming the original whole sample is native."
+    },
+    {
+      "file": "inputs.json",
+      "urls": ["https://github.com/microsoft/AdaptiveCards/blob/8b62e1d5700192578050a4fe255658811e67ce43/samples/v1.5/Scenarios/InputsWithValidation.json"],
+      "adaptations": "Selected four input examples and initial values, reduced labels, used two columns for fixed-slide fit, removed other inputs/actions. Required/min/max metadata intentionally remains non-interactive."
+    },
+    {
+      "file": "actions-media.json",
+      "urls": [
+        "https://github.com/microsoft/AdaptiveCards/blob/8b62e1d5700192578050a4fe255658811e67ce43/samples/v1.5/Scenarios/InputsWithValidation.json",
+        "https://github.com/microsoft/AdaptiveCards/blob/8b62e1d5700192578050a4fe255658811e67ce43/samples/v1.1/Tests/MediaInColumnSet.json"
+      ],
+      "adaptations": "Combined reduced Submit/ShowCard and media columns, added explicit Execute/OpenUrl/orientation probes, authored collapsed-content sentinels, local poster and never-fetched local media reference. Upgraded resolved root to the accepted 1.5 envelope; no remote bytes copied or fetched."
+    },
+    {
+      "file": "fallbacks.json",
+      "urls": [
+        "https://github.com/microsoft/AdaptiveCards/blob/8b62e1d5700192578050a4fe255658811e67ce43/samples/v1.2/Tests/SimpleFallback.json",
+        "https://github.com/microsoft/AdaptiveCards/blob/8b62e1d5700192578050a4fe255658811e67ce43/samples/v1.2/Tests/Element.Requires.json"
+      ],
+      "adaptations": "Resolved root version to 1.5; retained explicit drop, Graph replacement and unsupported acTest replacement, shortened labels, removed irrelevant custom fields and layout. Uses valid major.minor requires syntax."
+    }
+  ],
+  "assets": [
+    { "file": "../assets/card-local.svg", "license": "MIT", "origin": "Original MarkdStage fixture artwork; not an upstream portrait or downloaded content." },
+    { "file": "../assets/animated-motion.svg", "license": "MIT", "origin": "Original MarkdStage negative SVG fixture; deliberately rejected, never displayed." }
+  ],
+  "network": "No upstream retrieval at test or product runtime. External URL strings in negative mutations must be rejected before fetch. URLs used as PPTX links are metadata, not resource approvals."
+}

@@ -1,0 +1,99 @@
+import assert from "node:assert/strict";
+
+export const CARD_EDGE_TOLERANCE = 2;
+export const CARD_TEXT_RECT_TOLERANCE = 3;
+
+export function compareCardNativeModels(reference, actual) {
+  const measurements = [];
+  const compare = (expected, value, path) => {
+    if (Array.isArray(expected)) {
+      assert.ok(Array.isArray(value), `${path}: missing collection`);
+      assert.equal(value.length, expected.length, `${path}: native object/line count changed`);
+      expected.forEach((entry, index) => compare(entry, value[index], `${path}[${index}]`));
+    } else if (expected && typeof expected === "object") {
+      assert.deepEqual(Object.keys(value).sort(), Object.keys(expected).sort(), `${path}: native contract changed`);
+      for (const name of Object.keys(expected)) compare(expected[name], value[name], `${path}.${name}`);
+    } else if (typeof expected === "number" &&
+        /(?:\.(?:x|y|width|height|left|top|right|bottom|lineSpacing)|\.columnWidths\[\d+\])$/.test(path)) {
+      const delta = Math.round(Math.abs(expected - value) * 1000) / 1000;
+      assert.ok(Number.isFinite(delta), `${path}: non-finite metric`);
+      measurements.push({ path, delta, tolerance: CARD_EDGE_TOLERANCE });
+    } else assert.deepEqual(value, expected, `${path}: native semantics changed`);
+  };
+  compare(reference, actual, "native");
+  return { edgeTolerance: CARD_EDGE_TOLERANCE, maximumDelta: Math.max(0, ...measurements.map((entry) => entry.delta)),
+    measuredMetrics: measurements.length, violations: measurements.filter((entry) => entry.delta > entry.tolerance) };
+}
+
+export function compareCardGeometry(reference, actual) {
+  const measurements = [];
+  const bounds = (left, right, path, tolerance) => {
+    assert.equal(Boolean(left), Boolean(right), `${path}: missing geometry`);
+    if (!left) return;
+    for (const [name, a, b] of [
+      ["left", left.x, right.x], ["top", left.y, right.y],
+      ["right", left.x + left.width, right.x + right.width],
+      ["bottom", left.y + left.height, right.y + right.height],
+    ]) {
+      const delta = Math.round(Math.abs(a - b) * 1000) / 1000;
+      assert.ok(Number.isFinite(delta), `${path}.${name}: non-finite geometry`);
+      measurements.push({ path: `${path}.${name}`, delta, tolerance });
+    }
+  };
+  assert.equal(actual.length, reference.length, "slide count");
+  for (const [index, slide] of reference.entries()) {
+    assert.equal(actual[index].cards.length, slide.cards.length, `slide ${index}: card count`);
+    for (const [cardIndex, card] of slide.cards.entries()) {
+      const other = actual[index].cards[cardIndex];
+      assert.deepEqual(other.diagnostics, card.diagnostics, "card diagnostics");
+      assert.equal(other.status, card.status, "card status");
+      assert.equal(other.objects.length, card.objects.length, "typed object count");
+      bounds(card.bounds, other.bounds, `${index}.${cardIndex}`, CARD_EDGE_TOLERANCE);
+      for (const [objectIndex, object] of card.objects.entries()) {
+        const counterpart = other.objects[objectIndex];
+        const { bounds: box, separatorBounds, textRects, ...semantics } = object;
+        const { bounds: otherBox, separatorBounds: otherSeparator, textRects: otherText, ...otherSemantics } = counterpart;
+        assert.deepEqual(otherSemantics, semantics, object.sourcePath);
+        bounds(box, otherBox, object.sourcePath, CARD_EDGE_TOLERANCE);
+        bounds(separatorBounds, otherSeparator, `${object.sourcePath}.separator`, CARD_EDGE_TOLERANCE);
+        assert.equal(otherText.length, textRects.length, `${object.sourcePath}: text layout changed`);
+        textRects.forEach((rect, rectIndex) => bounds(rect, otherText[rectIndex],
+          `${object.sourcePath}.textRects[${rectIndex}]`, CARD_TEXT_RECT_TOLERANCE));
+      }
+    }
+  }
+  return {
+    edgeTolerance: CARD_EDGE_TOLERANCE, textRectTolerance: CARD_TEXT_RECT_TOLERANCE,
+    maximumEdgeDelta: Math.max(0, ...measurements.filter((item) => item.tolerance === CARD_EDGE_TOLERANCE).map((item) => item.delta)),
+    maximumTextRectDelta: Math.max(0, ...measurements.filter((item) => item.tolerance === CARD_TEXT_RECT_TOLERANCE).map((item) => item.delta)),
+    violations: measurements.filter((item) => item.delta > item.tolerance),
+    measuredEdges: measurements.length,
+  };
+}
+
+// Image comparisons are supporting evidence, not a substitute for edge/text,
+// missing-object and occlusion review.
+export async function compareCardPngs(page, reference, actual) {
+  return page.evaluate(async ({ left, right }) => {
+    const images = await Promise.all([left, right].map(async (data) => {
+      const image = new Image(); image.src = `data:image/png;base64,${data}`; await image.decode(); return image;
+    }));
+    if (images.some((image) => image.width !== 1280 || image.height !== 720)) throw new Error("Expected 1280x720 images.");
+    const canvas = document.createElement("canvas"); canvas.width = 2560; canvas.height = 720;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    images.forEach((image, index) => context.drawImage(image, index * 1280, 0));
+    const a = context.getImageData(0, 0, 1280, 720).data, b = context.getImageData(1280, 0, 1280, 720).data;
+    let changedPixels = 0, changedPixelsOver20 = 0;
+    for (let offset = 0; offset < a.length; offset += 4) {
+      const delta = Math.max(...[0, 1, 2, 3].map((channel) => Math.abs(a[offset + channel] - b[offset + channel])));
+      if (delta) changedPixels++;
+      if (delta > 20) changedPixelsOver20++;
+    }
+    const sideBySide = canvas.toDataURL("image/png").split(",")[1];
+    canvas.width = 1280;
+    context.drawImage(images[0], 0, 0);
+    context.globalAlpha = 0.5;
+    context.drawImage(images[1], 0, 0);
+    return { changedPixels, changedPixelsOver20, sideBySide, overlay: canvas.toDataURL("image/png").split(",")[1] };
+  }, { left: reference.toString("base64"), right: actual.toString("base64") });
+}

@@ -5,7 +5,7 @@ import { sanitizeLayoutReport } from "./layout-report.mjs";
 import {
   MAX_CAPTURE_SLIDES, MAX_PPTX_ASSET_BYTES, createOutputSnapshot, createOutputJob,
   selectLayoutResults, normalizeCaptureIndexes, preparePptxPackageModel,
-  buildValidatedPptx, pptxFallbackReport, decodeBase64, verifyPdfBytes, verifyPngBytes,
+  buildValidatedPptx, pptxFallbackReport, pptxAdaptiveCardReport, adaptiveCardOutputReport, decodeBase64, verifyPdfBytes, verifyPngBytes,
 } from "./output-model.mjs";
 import { captureOutputPng, capturePptxModel } from "./output-cdp.mjs";
 
@@ -221,7 +221,7 @@ export function createPortableOutput({ runtime, io, baseUrl, sendCdp }) {
     exportPdf(options = {}) {
       return run("pdf", options, async (snapshot, session) => {
         const path = outputPath(options.output, `${sourceStem(session.sourceName)}.pdf`, ".pdf");
-        const bytes = await render(snapshot, "pdf", { print: 1 }, async (cdp) => {
+        const { bytes, cards } = await render(snapshot, "pdf", { print: 1 }, async (cdp, job) => {
           const result = await cdp.send("Page.printToPDF", {
             printBackground: true, displayHeaderFooter: false, preferCSSPageSize: true,
             paperWidth: 13.3333333333, paperHeight: 7.5,
@@ -231,10 +231,10 @@ export function createPortableOutput({ runtime, io, baseUrl, sendCdp }) {
           if (typeof result.data !== "string") throw new Error("Chromium did not return PDF data.");
           const bytes = decodeBase64(result.data);
           verifyPdfBytes(bytes);
-          return bytes;
+          return { bytes, cards: adaptiveCardOutputReport(job.layout) };
         });
         await write(path, bytes);
-        return { ok: true, format: "pdf", path, total: snapshot.slides.length, theme: snapshot.theme, bytes: bytes.length };
+        return { ok: true, format: "pdf", path, total: snapshot.slides.length, theme: snapshot.theme, bytes: bytes.length, ...cards };
       });
     },
     exportPptx(options = {}) {
@@ -249,7 +249,7 @@ export function createPortableOutput({ runtime, io, baseUrl, sendCdp }) {
         await write(path, bytes);
         const fallbacks = pptxFallbackReport(model);
         return { ok: true, format: "pptx", path, total: snapshot.slides.length, theme: snapshot.theme,
-          bytes: bytes.length, fallbackCount: fallbacks.length, fallbacks };
+          bytes: bytes.length, fallbackCount: fallbacks.length, fallbacks, ...pptxAdaptiveCardReport(model) };
       });
     },
   });

@@ -1,0 +1,25 @@
+{
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "body": [
+    { "type": "TextBlock", "text": "Static actions and approved media poster", "size": "Large", "wrap": true },
+    { "type": "ColumnSet", "columns": [
+      { "type": "Column", "width": 2, "items": [
+        { "type": "ActionSet", "id": "actions", "actions": [
+      { "type": "Action.Submit", "title": "Submit (static)", "data": { "operation": "never-submitted" } },
+      { "type": "Action.Execute", "title": "Execute (static)", "verb": "never-executed" },
+      { "type": "Action.OpenUrl", "title": "Review documentation", "url": "https://example.com/documentation" },
+      { "type": "Action.ShowCard", "title": "Details remain collapsed", "card": {
+        "type": "AdaptiveCard", "version": "1.5", "body": [
+          { "type": "TextBlock", "text": "This collapsed content must not be rendered." }
+        ]
+      } }
+        ] }
+      ] },
+      { "type": "Column", "width": 1, "items": [
+        { "type": "Media", "id": "media", "poster": "assets/card-local.svg", "altText": "Approved local poster",
+          "sources": [{ "mimeType": "video/mp4", "url": "https://blocked.example/never-requested.mp4" }] }
+      ] }
+    ] }
+  ]
+}

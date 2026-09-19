@@ -31,6 +31,33 @@ function scene(nodes) {
   })).scene;
 }
 
+test("renders Adaptive Card Scene text decorations independently and together", () => {
+  const source = normalizeScene(createScene({
+    width: 400,
+    height: 300,
+    source: { kind: "adaptive-card", path: "card.body[0]" },
+    nodes: [{
+      kind: "text", bounds, z: 0,
+      text: { paragraphs: [{ runs: [
+        { text: "Underlined", underline: true },
+        { text: "Struck", strikethrough: true },
+        { text: "Both\nNext", underline: true, strikethrough: true },
+        { text: "Plain", underline: false, strikethrough: false },
+        { text: "Default" },
+      ] }] },
+    }],
+  })).scene;
+  const svg = sceneToSvg(JSON.parse(JSON.stringify(source)), { document });
+  const spans = all(svg).filter((node) => node.tagName === "tspan");
+  assert.deepEqual(spans.map((span) => span.textContent), [
+    "Underlined", "Struck", "Both", "Next", "Plain", "Default",
+  ]);
+  assert.deepEqual(spans.map((span) => span.attributes.get("text-decoration")), [
+    "underline", "line-through", "underline line-through", "underline line-through", undefined, undefined,
+  ]);
+  assert.equal(all(svg).filter((node) => node.attributes?.has("data-scene-node")).length, 1);
+});
+
 test("explicit scene line height preserves baseline spacing and vertical alignment", () => {
   for (const [verticalAlignment, firstY] of [["top", 29], ["middle", 32], ["bottom", 35]]) {
     const svg = sceneToSvg(scene([{

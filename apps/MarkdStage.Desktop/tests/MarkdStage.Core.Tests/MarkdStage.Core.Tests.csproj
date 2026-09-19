@@ -54,7 +54,7 @@
       <Link>Web\renderer\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="..\..\..\..\.github\extensions\markdstage\vendor\mermaid.min.js.part-*;..\..\..\..\.github\extensions\markdstage\vendor\vendor-assets.lock.json">
+    <Content Include="..\..\..\..\.github\extensions\markdstage\vendor\*.js.part-*;..\..\..\..\.github\extensions\markdstage\vendor\vendor-assets.lock.json;..\..\..\..\.github\extensions\markdstage\vendor\marked.min.js">
       <Link>Web\vendor\%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

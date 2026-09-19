@@ -5,6 +5,8 @@ import { join, resolve } from "node:path";
 import test from "node:test";
 
 import { loadCustomTheme } from "../runtime/custom-theme.mjs";
+import { parseSlideMarkdown } from "../renderer/fenced-blocks.mjs";
+import { markedLexer } from "../renderer/marked-lexer.mjs";
 
 const css = await readFile(new URL("../renderer/slides.css", import.meta.url), "utf8");
 const renderer = await readFile(new URL("../renderer/renderer.js", import.meta.url), "utf8");
@@ -36,7 +38,11 @@ test("size presets stay in the last layer and gain a compact step", () => {
     /body\.fixed-output-mode \.deck\.size-compact\{[^}]*--slide-h1-size:\s*40px;[^}]*--slide-body-size:\s*18px;[^}]*--slide-code-size:\s*13px;/,
   );
   assert.match(renderer, /SIZE_MODES = new Set\(\["auto", "compact", "normal", "large", "xlarge"\]\)/);
-  assert.match(renderer, /\(auto\|compact\|normal\|large\|xlarge\)/);
+  for (const size of ["auto", "compact", "normal", "large", "xlarge"]) {
+    const parsed = parseSlideMarkdown(`<!-- slide-size: ${size} -->\n# Sized slide`, markedLexer);
+    assert.equal(parsed.size, size);
+    assert.equal(parsed.body, "# Sized slide");
+  }
   assert.match(renderer, /deck\.classList\.remove\("size-compact", "size-large", "size-xlarge"\)/);
   // A theme with its own type scale keeps it: auto sizing must not enlarge it.
   assert.match(renderer, /customThemeSizesSlides && deck\.dataset\.theme === "custom"/);

@@ -27,12 +27,12 @@ import { parseSlideBackground } from "./slide-background.mjs";
 import {
   extractSpeakerNotes,
   speakerNotesToPlainText,
-  splitSpeakerNotes,
   stripSpeakerNotes,
 } from "./speaker-notes.mjs";
 import { splitImportPath } from "./import-path.mjs";
 import { deriveTitle, splitFrontMatter } from "./slide-title.mjs";
 import { createSlideViewport, OUTPUT_WIDTH, OUTPUT_HEIGHT } from "./slide-viewport.mjs";
+import { parseSlideMarkdown } from "./fenced-blocks.mjs";
 
 // Client-side slide renderer for the MarkdStage canvas.
 //
@@ -166,17 +166,6 @@ function normalizeSizeMode(value) {
   return SIZE_MODES.has(size) ? size : DEFAULT_SIZE_MODE;
 }
 
-function extractSlideSizeDirective(body) {
-  const match = body.match(
-    /^\s*<!--\s*slide-size\s*:\s*(auto|compact|normal|large|xlarge)\s*-->\s*/i,
-  );
-  if (!match) return { body, size: "" };
-  return {
-    body: body.slice(match[0].length),
-    size: match[1].toLowerCase(),
-  };
-}
-
 function setSizeLevel(deck, level) {
   deck.classList.remove("size-compact", "size-large", "size-xlarge");
   if (level === "compact" || level === "large" || level === "xlarge") {
@@ -222,7 +211,7 @@ function applyAutoSize(deck, bodyEl) {
   if (
     (customThemeSizesSlides && deck.dataset.theme === "custom") ||
     !bodyEl.textContent.trim() ||
-    bodyEl.querySelector("pre, table, img, .mermaid, svg, video, iframe")
+    bodyEl.querySelector("pre, table, img, .mermaid, .adaptive-card-host, svg, video, iframe")
   ) {
     return;
   }
@@ -442,6 +431,10 @@ function collectSlideLayout(slide, index, architectureLimit = ARCHITECTURE_LAYOU
     scrollContainers,
     elements: [...hints, ...architectureElements],
     ...architectureDetails,
+    ...(adaptiveCardModule && deck.querySelector(".adaptive-card-host") ? {
+      adaptiveCards: [...deck.querySelectorAll(".adaptive-card-host")]
+        .map((host) => adaptiveCardModule.getAdaptiveCardDiagnostics(host)).filter(Boolean),
+    } : {}),
   };
 }
 
@@ -502,6 +495,7 @@ function updateFixedPreviewWarning() {
 function refreshLayout() {
   const target = layoutTarget;
   if (!target || !target.deck.isConnected) return;
+  if (document.body.classList.contains("mermaid-loading") && target.deck.querySelector(".adaptive-card-host")) return;
   if (target.autoSize) applyAutoSize(target.deck, target.bodyEl);
   updateBodyScroll(target.bodyEl);
   updateFixedPreviewWarning();
@@ -701,8 +695,19 @@ function renderArchifyBlocks(scope, deckEl, token) {
  * Archify runs first: it inserts real geometry, and auto-sizing and layout
  * diagnostics must measure that geometry rather than an empty placeholder.
  */
-async function renderDeferredDiagrams(scope, deckEl, token, revealWhenDone = true) {
+let adaptiveCardModule;
+
+async function renderDeferredDiagrams(scope, deckEl, token, revealWhenDone = true, cardResources = {}) {
   await renderArchifyBlocks(scope, deckEl, token);
+  const cards = [...scope.querySelectorAll(".adaptive-card-host")];
+  if (cards.length) {
+    adaptiveCardModule ??= await import("./adaptive-card.mjs");
+    cardResources.context ??= adaptiveCardModule.createAdaptiveCardResourceContext();
+    const palette = { ...archifyThemeTokens(deckEl), fontFamily: getComputedStyle(deckEl).fontFamily };
+    for (const host of cards) {
+      await adaptiveCardModule.renderAdaptiveCard(host, host.__adaptiveCardSource, palette, cardResources.context);
+    }
+  }
   return runMermaid(scope, deckEl, token, revealWhenDone);
 }
 
@@ -907,10 +912,8 @@ function createSlide(
 ) {
   const placeholder = !nonEmpty(markdown);
   const md = placeholder ? PLACEHOLDER : markdown;
-  const { meta, body: rawBody } = splitFrontMatter(md);
-  const directive = extractSlideSizeDirective(rawBody);
-  const speakerNotes = splitSpeakerNotes(directive.body);
-  const body = speakerNotes.markdown;
+  const parsed = parseSlideMarkdown(md, window.marked);
+  const { meta } = parsed;
 
   const layout = (meta.layout || "").toLowerCase();
   const titleSlide = layout === "title";
@@ -921,7 +924,7 @@ function createSlide(
   // Standard slides align to the top. Only `layout: center` vertically centers
   // the heading and body as a unit; heading extraction and automatic sizing still apply.
   const centerSlide = layout === "center";
-  const sizeMode = normalizeSizeMode(meta.size || directive.size);
+  const sizeMode = normalizeSizeMode(meta.size || parsed.size);
 
   // A slide-level `theme:` overrides the deck theme. Keep it on the deck element
   // as well as <html> so print mode can render differently themed pages together.
@@ -988,7 +991,15 @@ function createSlide(
   // marked renders the markdown; DOMPurify strips anything dangerous (scripts,
   // event handlers, javascript: URLs) while keeping safe formatting such as the
   // <br> tags the title slide relies on.
-  bodyEl.innerHTML = window.DOMPurify.sanitize(window.marked.parse(body));
+  const cardMarkers = new Map();
+  for (const card of parsed.cards) {
+    const marker = crypto.randomUUID();
+    cardMarkers.set(marker, card);
+    card.token.type = "html";
+    card.token.text = `<div data-markdstage-card="${marker}"></div>\n`;
+    card.token.block = true;
+  }
+  bodyEl.innerHTML = window.DOMPurify.sanitize(window.marked.parser(parsed.tokens));
   bodyEl.querySelectorAll('img[src^="/assets/"]').forEach((image) => {
     image.setAttribute("src", localAssetUrl(image.getAttribute("src")));
   });
@@ -1000,6 +1011,17 @@ function createSlide(
   );
   if (slideTitle) deck.classList.add("has-slide-title");
 
+  for (const [marker, card] of cardMarkers) {
+    const placeholder = bodyEl.querySelector(`[data-markdstage-card="${marker}"]`);
+    if (!placeholder) throw new Error("The Adaptive Card token placeholder is missing.");
+    const host = document.createElement("div");
+    host.className = "adaptive-card adaptive-card-host";
+    host.dataset.adaptiveCardBlock = String(card.index);
+    host.dataset.adaptiveCardState = "loading";
+    host.__adaptiveCardSource = card.body;
+    host.__adaptiveCardFenceClosed = card.closed;
+    placeholder.replaceWith(host);
+  }
   // marked emits ```mermaid fences as <pre><code class="language-mermaid">.
   // Convert them to the <pre class="mermaid"> shape mermaid.run expects.
   codeBlocksForLanguage(bodyEl, "mermaid").forEach((code) => {
@@ -1110,7 +1132,7 @@ function createSlide(
     sectionSlide,
     centerSlide,
     backcoverSlide,
-    speakerNotes: speakerNotes.notes,
+    speakerNotes: parsed.notes,
     title: meta.title || meta.deck || "Slide",
   };
 }
@@ -1825,18 +1847,30 @@ function subtreeEffectPaintPadding(element) {
 
 function assignPptxPaintOrder(deck) {
   const elements = [...deck.querySelectorAll("*")];
+  const domOrders = new Map(elements.map((element, index) => [element, index]));
+  const styles = new Map([deck, ...elements].map((element) => [element, getComputedStyle(element)]));
   const entries = elements.map((element, domOrder) => {
     const stacking = [];
     const ancestors = [];
+    let positioned = false;
     for (let current = element; current && current !== deck; current = current.parentElement) {
       ancestors.push(current);
     }
     for (const current of ancestors.reverse()) {
-      const zIndex = getComputedStyle(current).zIndex;
-      if (zIndex !== "auto" && Number.isFinite(Number(zIndex))) {
-        stacking.push(Number(zIndex));
+      const style = styles.get(current);
+      const flexOrGridItem = ["flex", "inline-flex", "grid", "inline-grid"].includes(styles.get(current.parentElement)?.display);
+      if (style.zIndex !== "auto" && Number.isFinite(Number(style.zIndex)) &&
+          (style.position !== "static" || flexOrGridItem)) {
+        const z = Number(style.zIndex);
+        // Positioned zero paints after in-flow content. Equal-z sibling
+        // contexts keep their entire subtrees together in source order.
+        stacking.push(z < 0 ? z : z + 1, domOrders.get(current));
+        positioned = false;
+      } else if (style.position !== "static") {
+        positioned = true;
       }
     }
+    stacking.push(positioned ? 1 : 0, domOrder);
     return { element, domOrder, stacking };
   });
   entries.sort((left, right) => {
@@ -2637,7 +2671,7 @@ async function collectPptxSlide(slide, index, options = {}) {
     if (fallbackRoots.has(element)) return;
     if ([...fallbackRoots].some((root) => root.contains(element))) return;
     [...fallbackRoots]
-      .filter((root) => element.contains(root))
+      .filter((root) => element.contains(root) && fallbackByRoot.get(root)?.type !== "adaptive-card")
       .forEach(removeFallback);
     fallbackRoots.add(element);
     const fallback = pptxFallback(type, element, deck, reason, options);
@@ -2647,8 +2681,86 @@ async function collectPptxSlide(slide, index, options = {}) {
 
   const effectFallbacks = new Map();
   const genericShadowElements = new Map();
+  const cardHosts = [...deck.querySelectorAll(".adaptive-card-host")];
+  const adaptiveCards = [];
+  if (cardHosts.length) {
+    const { assertAdaptiveCardCaptureSafe, getAdaptiveCardDiagnostics, collectAdaptiveCardPptx,
+      setAdaptiveCardCapture } = await import("./adaptive-card.mjs");
+    window.__markdStageSetPptxCardCapture = (active) => {
+      for (const host of document.querySelectorAll(".adaptive-card-host")) setAdaptiveCardCapture(host, active);
+    };
+    // Host-side paint effects belong to their compositing context, not to SDK
+    // semantics. Flatten that context once, including any neighboring HTML,
+    // rather than applying opacity/filter separately to each card fragment.
+    const contextCandidates = new Set();
+    for (const host of cardHosts) {
+      let context;
+      for (let current = host; current && current !== deck; current = current.parentElement) {
+        const effects = unsupportedEffects(current).filter((effect) => effect !== "box-shadow" || current === host);
+        if (effects.length) context = current;
+      }
+      if (context) contextCandidates.add(context);
+    }
+    const paintContexts = [...contextCandidates].filter((candidate) =>
+      ![...contextCandidates].some((other) => other !== candidate && other.contains(candidate)));
+    const contextOwners = new Map();
+    for (const host of cardHosts) {
+      assertAdaptiveCardCaptureSafe(host);
+      const card = getAdaptiveCardDiagnostics(host);
+      const paintContext = paintContexts.find((context) => context.contains(host));
+      if (paintContext) {
+        const sourcePath = `adaptive-card[${host.dataset.adaptiveCardBlock}]$`;
+        const existing = contextOwners.get(paintContext);
+        if (!existing) {
+          addFallback("adaptive-card", paintContext, "adaptive-card-paint-context", {
+            includeDescendants: true, padding: subtreeEffectPaintPadding(paintContext),
+          });
+          const fallback = fallbackByRoot.get(paintContext);
+          fallback.path = sourcePath;
+          fallback.sourcePath = sourcePath;
+          fallback.cardSources = [];
+          const ownedHosts = cardHosts.filter((candidate) => paintContext.contains(candidate));
+          fallback.zOrder = Math.min(...ownedHosts.map((candidate) => Number(candidate.dataset.pptxZOrder)));
+          contextOwners.set(paintContext, fallback);
+        }
+        const fallback = contextOwners.get(paintContext);
+        fallback.cardSources.push(sourcePath);
+        if (fallback.captureId && host !== paintContext) {
+          host.setAttribute("data-pptx-fallback-ids", fallback.captureId);
+        }
+        adaptiveCards.push({ ...card, nativeObjectCount: 0, rasterizedSubtreeCount: !existing && fallback.artwork !== false ? 1 : 0,
+          conversions: [{ sourcePath, sourceType: "AdaptiveCard", mode: "rasterized", reason: fallback.reason,
+            nativeObjects: 0, impact: "content", sharedCapturePath: fallback.path }] });
+        continue;
+      }
+      const converted = await collectAdaptiveCardPptx(host, deck);
+      if (converted) {
+        elements.push(...converted.elements);
+        for (const entry of converted.fallbacks) {
+          const capture = pptxFallback("adaptive-card", entry.element, deck, entry.reason, { artwork: entry.artwork });
+          const { element: _element, ...data } = entry;
+          fallbacks.push({ ...capture, ...data,
+            ...(entry.reason === "adaptive-card-diagnostic-note" ? { diagnostics: card.diagnostics } : {}) });
+        }
+        for (const [element, kind] of converted.nativeElements) element.setAttribute("data-pptx-native", kind);
+        adaptiveCards.push({ ...card, conversions: converted.conversions,
+          nativeObjectCount: converted.elements.length, rasterizedSubtreeCount: converted.fallbacks.filter((entry) => entry.artwork !== false).length });
+        fallbackRoots.add(host);
+      } else {
+        addFallback("adaptive-card", host, `adaptive-card-${card.diagnostics.at(-1).code}`);
+        const fallback = fallbackByRoot.get(host);
+        fallback.path = `adaptive-card[${host.dataset.adaptiveCardBlock}]`;
+        fallback.sourcePath = fallback.path;
+        if (fallback.artwork === false) fallback.reason = "adaptive-card-outside-slide";
+        if (card.diagnostics.length) fallback.diagnostics = card.diagnostics;
+        adaptiveCards.push({ ...card, nativeObjectCount: 0, rasterizedSubtreeCount: fallback.artwork === false ? 0 : 1,
+          conversions: [{ sourcePath: `${fallback.path}$`, sourceType: "AdaptiveCard", mode: "rasterized",
+            reason: fallback.reason, nativeObjects: 0, impact: "content" }] });
+      }
+    }
+  }
   for (const element of deck.querySelectorAll("header *, .body, .body *, footer *")) {
-    if (element.closest("pre, .architecture-diagram, .architecture-error")) continue;
+    if (element.closest("pre, .architecture-diagram, .architecture-error, .adaptive-card-host")) continue;
     const allEffects = unsupportedEffects(element);
     if (
       allEffects.includes("box-shadow") &&
@@ -2700,7 +2812,7 @@ async function collectPptxSlide(slide, index, options = {}) {
   );
   deck
     .querySelectorAll(
-      ".body div:not(.architecture-diagram):not(.architecture-error):not(.architecture-routing-warning):not(.archify-diagram), .body section, .body article, .body aside, .body details, .body video, .body audio, .body iframe, .body canvas, .body object, .body embed",
+      ".body div:not(.architecture-diagram):not(.architecture-error):not(.architecture-routing-warning):not(.archify-diagram):not(.adaptive-card-host), .body section, .body article, .body aside, .body details, .body video, .body audio, .body iframe, .body canvas, .body object, .body embed",
     )
     .forEach((element) => {
       const covered = [...fallbackRoots].some(
@@ -3100,6 +3212,7 @@ async function collectPptxSlide(slide, index, options = {}) {
     ...(notes ? { notes } : {}),
     elements,
     fallbacks,
+    ...(adaptiveCards.length ? { adaptiveCards } : {}),
   };
 }
 
@@ -3144,8 +3257,9 @@ async function renderPptxDeck(
   if (document.fonts?.ready) await document.fonts.ready;
   await afterLayout();
   const token = ++renderToken;
+  const cardResources = {};
   for (const slide of rendered) {
-    await renderDeferredDiagrams(slide.bodyEl, slide.deck, token, false);
+    await renderDeferredDiagrams(slide.bodyEl, slide.deck, token, false, cardResources);
   }
   await waitForImages(stage);
   await afterLayout();
@@ -3278,8 +3392,9 @@ async function renderPrintDeck(
 
   if (document.fonts?.ready) await document.fonts.ready;
   await afterLayout();
+  const cardResources = {};
   for (const slide of rendered) {
-    await renderDeferredDiagrams(slide.bodyEl, slide.deck, renderToken, false);
+    await renderDeferredDiagrams(slide.bodyEl, slide.deck, renderToken, false, cardResources);
   }
   await waitForImages(stage);
   await afterLayout();

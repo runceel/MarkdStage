@@ -11,6 +11,7 @@ export const GUIDE_TOPICS = [
   "theme-schema",
   "architecture-dsl",
   "architecture-schema",
+  "adaptive-cards",
 ];
 
 export async function guideCommand({ topic = "overview" } = {}) {

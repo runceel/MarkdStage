@@ -1,4 +1,55 @@
 import { validateArchitectureInput } from "../architecture-validation.mjs";
+import { parseSlideMarkdown } from "../renderer/fenced-blocks.mjs";
+import { markedLexer } from "../renderer/marked-lexer.mjs";
+import { validateAdaptiveCardSource, cardDiagnostic } from "../renderer/adaptive-card-validation.mjs";
+
+export function adaptiveCardValidationReport(slides, { file } = {}) {
+  const diagnostics = [], blocks = [];
+  let scannedChars = 0, truncated = false;
+  for (const [slideIndex, slide] of slides.entries()) {
+    scannedChars += slide.length;
+    if (slideIndex >= 200 || scannedChars > 2_097_152 || blocks.length >= 200 || diagnostics.length >= 200) {
+      truncated = true;
+      diagnostics.push(cardDiagnostic("card-validation-incomplete", "$",
+        "Card validation reached the deck inspection limit; validate smaller inputs.", "error"));
+      break;
+    }
+    for (const block of parseSlideMarkdown(slide, markedLexer).cards) {
+      if (blocks.length >= 200 || diagnostics.length >= 200) {
+        truncated = true;
+        diagnostics.push(cardDiagnostic("card-validation-incomplete", "$",
+          "Card validation reached the block or diagnostic inspection limit; validate smaller inputs.", "error"));
+        break;
+      }
+      const result = validateAdaptiveCardSource(block.body);
+      const position = {
+        ...(file ? { file } : {}), slideIndex, page: slideIndex + 1, blockIndex: block.index,
+        adaptiveCard: block.index + 1, markdownPath: block.markdownPath,
+        openLine: block.openLine, closeLine: block.closeLine, lineBasis: "visible-markdown-body",
+      };
+      const issues = [...result.diagnostics];
+      if (!block.closed) issues.push(cardDiagnostic("unclosed-adaptive-card-fence", "$",
+        "The adaptive-card fence is not closed. Add the matching closing fence.", "error"));
+      const remaining = 200 - diagnostics.length;
+      if (issues.length > remaining) {
+        truncated = true;
+        issues.splice(Math.max(0, remaining - 1), issues.length, cardDiagnostic("card-validation-incomplete", "$",
+          "Card validation reached the diagnostic inspection limit; validate smaller inputs.", "error"));
+      }
+      diagnostics.push(...issues.map((entry) => ({
+        ...entry, ...position, sourcePath: `adaptive-card[${block.index}]${entry.path}`,
+      })));
+      blocks.push({ ...position, valid: result.valid && block.closed,
+        complete: result.complete, diagnosticCount: issues.length });
+      truncated ||= result.truncated;
+    }
+  }
+  return {
+    valid: !truncated && blocks.every((block) => block.valid),
+    complete: !truncated, truncated, diagnostics, blocks,
+    resourceValidation: "deferred-to-browser",
+  };
+}
 
 export function hasFrontMatter(markdown) {
   const normalized = markdown.replace(/\r\n?/g, "\n").replace(/^[\n \t\uFEFF]+/, "");
@@ -72,6 +123,7 @@ export function validateLoadedDeck(session, { file, workspace } = {}) {
   const errors = [];
   const warnings = [];
   const validation = architectureValidationReport(session.slides);
+  const cards = adaptiveCardValidationReport(session.slides, { file: file ?? session.file ?? session.sourceName });
   for (const issue of architectureValidationErrors(session.slides, { validation })) {
     errors.push({
       code: issue.code,
@@ -99,11 +151,16 @@ export function validateLoadedDeck(session, { file, workspace } = {}) {
       });
     }
   });
+  for (const diagnostic of cards.diagnostics.filter((entry) => entry.severity === "error")) {
+    errors.push({ code: diagnostic.code, page: diagnostic.page, adaptiveCard: diagnostic.adaptiveCard,
+      path: diagnostic.path, sourcePath: diagnostic.sourcePath, impact: diagnostic.impact, message: diagnostic.message });
+  }
+  const diagnostics = [...validation.diagnostics, ...cards.diagnostics];
   return {
-    ok: errors.length === 0 && validation.valid,
-    valid: errors.length === 0 && validation.valid,
-    complete: validation.complete,
-    truncated: validation.truncated,
+    ok: errors.length === 0 && validation.valid && cards.valid,
+    valid: errors.length === 0 && validation.valid && cards.valid,
+    complete: validation.complete && cards.complete,
+    truncated: validation.truncated || cards.truncated,
     file: file ?? session.file ?? session.sourceName,
     workspace: workspace ?? session.workspaceRoot,
     total: session.slides.length,
@@ -112,8 +169,9 @@ export function validateLoadedDeck(session, { file, workspace } = {}) {
     errors,
     warnings,
     stages: validation.stages,
-    diagnostics: validation.diagnostics,
-    diagnosticCount: validation.diagnosticCount,
+    diagnostics,
+    diagnosticCount: diagnostics.length,
+    adaptiveCards: cards,
     blocks: validation.blocks,
     skipped: validation.skipped,
     limits: validation.limits,

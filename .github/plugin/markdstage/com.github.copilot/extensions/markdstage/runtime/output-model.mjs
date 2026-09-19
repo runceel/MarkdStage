@@ -234,13 +234,16 @@ export function selectLayoutResults(layout, requestedIndex, includeFits) {
   // Routing degradation prints a visible banner but is not clipping, so keep it out of
   // issueCount and report it separately rather than changing the existing fit verdict.
   const routingDegradedCount = selected.reduce((total, slide) => total + (slide.routingDegradedCount ?? 0), 0);
+  const adaptiveCardIssueCount = selected.reduce((total, slide) => total + (slide.adaptiveCardIssueCount ?? 0), 0);
   return {
     ok: true, scope: requestedIndex === undefined ? "deck" : "slide",
     ...(requestedIndex === undefined ? {} : { index: requestedIndex, page: requestedIndex + 1 }),
     width: layout.width, height: layout.height, total: layout.total,
     inspected: selected.length, issueCount, hasIssues: issueCount > 0,
     routingDegradedCount, hasRoutingIssues: routingDegradedCount > 0,
-    slides: includeFits ? selected : selected.filter((slide) => slide.pdfClipped || slide.architecture?.length > 0),
+    adaptiveCardIssueCount, hasAdaptiveCardIssues: adaptiveCardIssueCount > 0,
+    slides: includeFits ? selected : selected.filter((slide) =>
+      slide.pdfClipped || slide.architecture?.length > 0 || slide.adaptiveCards?.length > 0 || slide.adaptiveCardsTruncated),
   };
 }
 
@@ -256,6 +259,22 @@ export function normalizeCaptureIndexes(requestedIndexes, total) {
     throw new MarkdStageError("too_many_slides", `At most ${MAX_CAPTURE_SLIDES} slides can be captured at once.`);
   }
   return indexes.sort((a, b) => a - b);
+}
+
+export function adaptiveCardOutputReport(layout) {
+  const report = sanitizeLayoutReport(layout);
+  if (!report) return {};
+  const cards = report.slides.flatMap((slide) => (slide.adaptiveCards || []).map((card) => ({
+    slideIndex: slide.index, page: slide.page, ...card,
+  })));
+  if (!cards.length && !report.slides.some((slide) => slide.adaptiveCardsTruncated)) return {};
+  return {
+    adaptiveCards: cards, adaptiveCardIssueCount: report.adaptiveCardIssueCount,
+    adaptiveCardsTruncated: report.slides.some((slide) => slide.adaptiveCardsTruncated) ||
+      cards.some((card) => card.diagnosticsTruncated),
+    adaptiveCardsComplete: !report.slides.some((slide) => slide.adaptiveCardsTruncated) &&
+      cards.every((card) => card.complete),
+  };
 }
 
 export function buildValidatedPptx(model, packageModel, total, title, dependencies = {}) {
@@ -275,13 +294,34 @@ export function pptxFallbackReport(model) {
   return model.slides.flatMap((slide, slideIndex) =>
     (Array.isArray(slide.fallbacks) ? slide.fallbacks : []).map((fallback) => {
       const { artwork: _artwork, captureId: _captureId, zOrder: _zOrder, ...reportedFallback } = fallback;
-      const impact = fallback.artwork === false
+      const impact = fallback.type === "adaptive-card" ? "content" : fallback.artwork === false
         ? "none"
         : fallback.behindNative === true
           ? "decoration"
           : "content";
       return { slideIndex, page: slideIndex + 1, ...reportedFallback, impact };
     }));
+}
+
+export function pptxAdaptiveCardReport(model) {
+  const adaptiveCards = model.slides.flatMap((slide, slideIndex) =>
+    (slide.adaptiveCards || []).map((card) => ({ slideIndex, page: slideIndex + 1, ...card })));
+  if (!adaptiveCards.length) return {};
+  return {
+    adaptiveCards,
+    adaptiveCardIssueCount: adaptiveCards.reduce((count, card) =>
+      count + Math.max(card.diagnostics.length, card.complete === false || card.diagnosticsTruncated ? 1 : 0), 0),
+    adaptiveCardsTruncated: adaptiveCards.some((card) => card.diagnosticsTruncated ||
+      card.diagnostics.some((entry) => entry.code === "diagnostics-truncated")),
+    adaptiveCardsComplete: adaptiveCards.every((card) => card.complete !== false && !card.diagnosticsTruncated &&
+      !card.diagnostics.some((entry) => entry.code === "diagnostics-truncated")),
+    adaptiveCardConversionSummary: {
+      nativeObjects: adaptiveCards.reduce((count, card) => count + card.nativeObjectCount, 0),
+      approximated: adaptiveCards.reduce((count, card) =>
+        count + card.conversions.filter((entry) => entry.mode === "approximated").length, 0),
+      rasterizedSubtrees: adaptiveCards.reduce((count, card) => count + card.rasterizedSubtreeCount, 0),
+    },
+  };
 }
 
 export function verifyPdfBytes(data) {

@@ -7,6 +7,7 @@ import {
   architectureValidationErrors,
   architectureValidationReport,
   hasFrontMatter,
+  adaptiveCardValidationReport,
 } from "./runtime/deck-validation.mjs";
 
 export {
@@ -83,7 +84,7 @@ export async function readGuide(topic = "overview") {
         "For a source-backed deck, **More controls > Shape editing** opens the detailed Architecture designer directly; changes affect Markdown only after explicit **Save**. In the npm CLI, `markdstage preview slides.md --watch` starts in viewing mode; `--watch` controls initial automatic refresh, not editing permission. Native Windows watching is always enabled. In-memory Canvas decks without a source association use lightweight placement editing instead.",
         "Before drafting Architecture DSL, request `architecture-schema` for the generated authoring contract. Before displaying a diagram, call `markdstage_validate` with explicit `format: \"dsl\"` and `source`, or `format: \"slides\"` and one-slide `slides` fragments. This read-only preflight needs no open canvas and does not read or change files.",
         "",
-        "For details, request `slide-format`, `themes`, `custom-themes`, `theme-schema`, `architecture-dsl`, or `architecture-schema`.",
+        "For details, request `slide-format`, `themes`, `custom-themes`, `theme-schema`, `architecture-dsl`, `architecture-schema`, or `adaptive-cards`.",
       ].join("\n");
     case "slide-format":
       return [
@@ -92,6 +93,8 @@ export async function readGuide(topic = "overview") {
         section(readme, "### Canvas API file and `slides` inputs"),
         "",
         section(readme, "### `sourceName` role"),
+        "",
+        "Use `adaptive-card` fences for fully resolved schema-1.5 JSON. Read the `adaptive-cards` guide for non-interactive input/action/media projection, editable static PowerPoint objects, bounded unsupported-subtree PNG fallback, approved images and precise content diagnostics.",
       ].join("\n");
     case "themes":
       return section(readme, "### Choosing a theme");
@@ -104,6 +107,8 @@ export async function readGuide(topic = "overview") {
     }
     case "architecture-dsl":
       return section(readme, "## Architecture DSL v1");
+    case "adaptive-cards":
+      return readFile(join(EXT_DIR, "docs", "adaptive-cards.md"), "utf8");
     default:
       throw new Error(`unknown MarkdStage guide topic: ${topic}`);
   }
@@ -112,7 +117,9 @@ export async function readGuide(topic = "overview") {
 export function deckValidationFeedback(slides, { validation } = {}) {
   if (Array.isArray(slides) && slides.length === 0 && !validation) return undefined;
   const warnings = [];
+  const cardSlides = [];
   slides.forEach((slide, slideIndex) => {
+    cardSlides.push(slide);
     if (!hasFrontMatter(slide)) {
       warnings.push(
         `slide ${slideIndex + 1}: front matter is missing. Add the required deck/layout/page/total/size fields to the leading --- block.`,
@@ -138,5 +145,9 @@ export function deckValidationFeedback(slides, { validation } = {}) {
         : "Architecture validation is incomplete: later stages were skipped after earlier errors. Fix the reported issues and validate again.",
     );
   }
+  const cards = adaptiveCardValidationReport(cardSlides);
+  for (const diagnostic of cards.diagnostics) warnings.push(
+    `${diagnostic.page ? `slide ${diagnostic.page}, ` : ""}${diagnostic.sourcePath || "Adaptive Card"}: ${diagnostic.message} [${diagnostic.code}; content impact]. Review adaptive-cards in markdstage_guide.`,
+  );
   return warnings.length ? `Slide validation feedback:\n- ${warnings.join("\n- ")}` : undefined;
 }

@@ -1,0 +1,23 @@
+{
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "body": [
+    { "type": "TextBlock", "text": "Static inputs: no editing or submission in the browser", "size": "Large", "wrap": true },
+    { "type": "ColumnSet", "columns": [
+      { "type": "Column", "width": 1, "items": [
+        { "type": "Input.Text", "id": "name", "label": "Name", "value": "Ada Lovelace" },
+        { "type": "Input.Text", "id": "placeholder", "placeholder": "Unfilled field" },
+        { "type": "Input.Number", "id": "count", "label": "Count", "value": 12 },
+        { "type": "Input.Date", "id": "date", "value": "2026-09-19" }
+      ] },
+      { "type": "Column", "width": 1, "items": [
+        { "type": "Input.Time", "id": "time", "value": "09:30" },
+        { "type": "Input.Toggle", "id": "toggle", "title": "Reviewed", "value": "true" },
+        { "type": "Input.ChoiceSet", "id": "choice", "value": "ready", "choices": [
+          { "title": "Ready", "value": "ready" },
+          { "title": "Pending", "value": "pending" }
+        ] }
+      ] }
+    ] }
+  ]
+}

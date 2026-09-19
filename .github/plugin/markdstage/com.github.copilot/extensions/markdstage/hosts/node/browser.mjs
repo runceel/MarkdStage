@@ -573,7 +573,7 @@ export async function runPptxOutputBrowser(browser, pageUrl, profileDir, job, to
           fallback.reason === "mermaid-rendered-as-artwork";
         // Align local Mermaid artwork too: fractional PNG placement resamples
         // translucent strokes and changes their composited theme colors.
-        const bounds = fallback.type === "mermaid" ? {
+        const bounds = ["mermaid", "adaptive-card"].includes(fallback.type) ? {
           x: Math.floor(left),
           y: Math.floor(top),
           width: Math.ceil(right) - Math.floor(left),
@@ -587,7 +587,9 @@ export async function runPptxOutputBrowser(browser, pageUrl, profileDir, job, to
             for (const element of document.querySelectorAll("[data-pptx-fallback-ids]")) {
               const ids = (element.getAttribute("data-pptx-fallback-ids") || "").split(/\\s+/);
               element.classList.toggle("pptx-fallback-hidden", !ids.includes(active));
+              element.classList.toggle("pptx-card-capture-active", ids.includes(active) && element.classList.contains("adaptive-card-host"));
             }
+            window.__markdStageSetPptxCardCapture?.(active);
             return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
           })()`,
           awaitPromise: true,
@@ -641,7 +643,7 @@ export async function runPptxOutputBrowser(browser, pageUrl, profileDir, job, to
     }
     await cdp.send("Runtime.evaluate", {
       expression:
-        'document.querySelectorAll(".pptx-fallback-hidden").forEach(element => element.classList.remove("pptx-fallback-hidden"));',
+        'document.querySelectorAll(".pptx-fallback-hidden").forEach(element => element.classList.remove("pptx-fallback-hidden"));window.__markdStageSetPptxCardCapture?.("");',
     });
     return { model, layoutArtworks, slideFallbackImages };
   } finally {

@@ -1,0 +1,11 @@
+{
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "body": [
+    { "type": "TextBlock", "text": "Fallback test:", "wrap": true, "requires": { "adaptiveCards": "1.2" } },
+    { "type": "Unknown.Widget", "fallback": "drop" },
+    { "type": "Graph", "fallback": { "type": "TextBlock", "text": "No graph support. Static text is retained.", "wrap": true } },
+    { "type": "TextBlock", "text": "Unsupported capability content", "requires": { "acTest": "2.0" },
+      "fallback": { "type": "TextBlock", "text": "The required host is unavailable.", "wrap": true } }
+  ]
+}

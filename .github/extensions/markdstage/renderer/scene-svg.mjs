@@ -452,6 +452,7 @@ export function sceneToSvg(scene, {
           fill: run.color === null ? "none" : run.color ?? "#000000", "font-size": run.fontSize ?? 16,
           "font-family": run.fontFace, "font-weight": run.fontWeight || (run.bold ? 700 : 400),
           "font-style": run.italic ? "italic" : "normal", opacity: run.opacity,
+          "text-decoration": [run.underline ? "underline" : "", run.strikethrough ? "line-through" : ""].filter(Boolean).join(" ") || undefined,
         });
         span.textContent = run.text;
         label.appendChild(span);

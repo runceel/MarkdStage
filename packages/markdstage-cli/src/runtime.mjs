@@ -49,6 +49,7 @@ const [
   presenterWindow,
   markdownFiles,
   architectureValidation,
+  outputReport,
 ] = await Promise.all([
   load("runtime/errors.mjs"),
   load("runtime/deck-session.mjs"),
@@ -60,6 +61,7 @@ const [
   load("presenter-window.mjs"),
   load("scripts/markdown-files.mjs"),
   load("architecture-validation.mjs"),
+  load("runtime/export-report.mjs"),
 ]);
 
 export const { MarkdStageError } = errors;
@@ -85,3 +87,4 @@ export const {
 export const { validateArchitectureInput, createArchitectureValidationTool } = architectureValidation;
 export const { buildPresenterBrowserArgs } = presenterWindow;
 export const { isMarkdownPath, MARKDOWN_MAX_BYTES } = markdownFiles;
+export const { formatExportReport } = outputReport;

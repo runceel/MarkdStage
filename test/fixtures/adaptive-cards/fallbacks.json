@@ -1,0 +1,14 @@
+{
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "body": [
+    { "type": "TextBlock", "text": "Explicit, diagnosed fallback", "size": "Large", "wrap": true },
+    {
+      "type": "TextBlock",
+      "text": "Requires another host",
+      "requires": { "anotherHost": "1.0" },
+      "fallback": { "type": "TextBlock", "id": "safe-fallback", "text": "Safe static replacement is visible.", "wrap": true }
+    },
+    { "type": "Custom.Widget", "id": "omitted-widget", "fallback": "drop" }
+  ]
+}

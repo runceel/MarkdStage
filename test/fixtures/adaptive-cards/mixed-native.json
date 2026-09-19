@@ -1,0 +1,26 @@
+{
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "id": "mixed-native",
+  "body": [
+    { "type": "TextBlock", "id": "native-before", "text": "Editable neighbors survive local fallback", "size": "Large", "weight": "Bolder", "wrap": true },
+    {
+      "type": "ColumnSet",
+      "columns": [
+        { "type": "Column", "width": "128px", "items": [
+          { "type": "Image", "id": "person-fallback", "url": "assets/card-local.svg", "style": "Person", "width": "96px", "height": "96px" }
+        ] },
+        { "type": "Column", "width": "stretch", "style": "emphasis", "items": [
+          { "type": "TextBlock", "id": "list-fallback", "text": "- Bounded list artwork\n- No duplicate native descendants", "wrap": true },
+          { "type": "TextBlock", "id": "native-inside", "text": "This sibling is still native.", "wrap": true }
+        ] }
+      ]
+    },
+    { "type": "TextBlock", "id": "native-after", "text": "Approved images and native text keep their authored paths.", "wrap": true },
+    { "type": "RichTextBlock", "id": "native-link", "inlines": [
+      { "type": "TextRun", "text": "A supported ", "weight": "Bolder" },
+      { "type": "TextRun", "text": "safe link", "selectAction": { "type": "Action.OpenUrl", "url": "https://example.com/review" } },
+      { "type": "TextRun", "text": " and styled text", "italic": true, "underline": true, "strikethrough": true }
+    ] }
+  ]
+}

@@ -80,21 +80,43 @@ npm run test:unit
 ```
 
 The Windows-only CLI tests exercise the native message layout, STA message pump,
-and WebView2 event delivery after forced garbage collection. Run them natively on
-both x64 and ARM64 (CI uses separate runners):
+WebView2 event delivery after forced garbage collection, and the production
+packaged script host. They verify the generated validation/scanner-module closure,
+SHA-256-identical validation/scanner modules, the pinned Marked lexer, and Adaptive Cards SDK chunks over
+the native virtual-host mapping, and schema diagnostics without loading the SDK
+or launching an external browser, including quoted/list-prefixed, info-suffixed,
+and unclosed card fences. The Core tests also verify the modules and
+assembled SDK bytes through the native HTTP `PresentationServer`.
+Run them natively on both x64 and ARM64 (CI uses separate runners):
 
 ```powershell
 dotnet test tests\MarkdStage.Cli.Tests\MarkdStage.Cli.Tests.csproj -c Release -r win-arm64 -p:Platform=ARM64
 dotnet build src\MarkdStage.Cli\MarkdStage.Cli.csproj -c Release -r win-arm64 -p:Platform=ARM64
 $env:MARKDSTAGE_NATIVE_CLI = (Resolve-Path "src\MarkdStage.Cli\bin\ARM64\Release\net10.0-windows10.0.26100.0\win-arm64\MarkdStageCli.exe").Path
-node --test tests\native-cli.test.mjs
+node --test tests\native-export-report.test.mjs tests\native-cli.test.mjs
 ```
 
-Use `win-x64` and `Platform=x64` for x64. The command smoke tests require WebView2
-and an installed Chromium browser, bound each command to 120 seconds, and verify
-inspection results and actual PNG/PDF/PowerPoint files. For installed-MSIX
+Use `win-x64` and `Platform=x64` for x64. The command smoke tests verify the
+packaged `guide adaptive-cards` topic, valid and invalid schema diagnostics,
+inspection results, and actual PNG/PDF/PowerPoint files, including Adaptive Card
+PNG and whole-card raster PowerPoint output. They require WebView2 and an
+installed Chromium browser and bound each command to 120 seconds. To run only
+the guide and validation checks, without an external Chromium browser:
+
+```powershell
+node --test --test-name-pattern "guide|validation" tests\native-cli.test.mjs
+```
+
+These tests exercise native host and CLI paths, not the complete WinUI shell.
+For installed-MSIX
 acceptance, set `MARKDSTAGE_NATIVE_CLI` to the installed `markdstage.exe` alias
 instead; source-build smoke tests do not replace package activation checks.
+
+The optional `tests\MarkdStage.WebView2.Probe` console harness measures real
+1280x720 WebView2 rendering using the existing STA dispatcher. It is not the
+hidden CLI script host or a test of the WinUI shell. See the
+[Adaptive Cards fixture instructions](../../test/fixtures/adaptive-cards/README.md)
+for engine comparison, actual PPTX generation, and PowerPoint COM inspection.
 
 ## MSIX build
 
@@ -197,6 +219,13 @@ markdstage export slides.md --output slides.pptx
 Both GUI and CLI exports require the external Chromium-based browser described above. Export
 paths must remain inside the workspace.
 
+CLI export text uses the canonical shared formatter and reports native/static/bounded
+PowerPoint conversion reasons and card warnings with their page, source JSONPath,
+severity, message, diagnostic code, and content impact, matching the npm CLI.
+Incomplete/truncated card validation and browser resource checks not reached remain explicit.
+`--json` retains the structured report; PDF card decks additionally include `adaptiveCards`,
+`adaptiveCardIssueCount`, and `adaptiveCardsTruncated`. Those fields are absent on card-free PDF decks.
+
 ## Desktop packages and Microsoft Store distribution
 
 MarkdStage is available from the
@@ -248,6 +277,12 @@ Packaged skill installation also defaults to the current directory; specify anot
 target root with, for example, `markdstage skill install --target codex --root C:\decks`.
 Help, version, `guide`, and `skill` need no browser. These and `validate`, `inspect`,
 `capture`, and `export` stay console-only and never activate the presentation app.
+
+`inspect --fail-on-issues` exits with code 5 for clipping or Adaptive Card content
+diagnostics. Card warnings and image placeholders are not clipping:
+`hasAdaptiveCardIssues` and `adaptiveCardIssueCount` report them separately from
+`hasIssues` and `issueCount`. Inspection text and JSON output retain the card diagnostic
+code, JSONPath, source path, severity, and content impact.
 
 ### Store listing prerequisite disclosure
 
