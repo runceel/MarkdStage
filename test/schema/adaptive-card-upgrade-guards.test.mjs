@@ -7,7 +7,7 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { deflateSync } from "node:zlib";
 import {
-  CARD_REVIEW_THEMES, expectedCardReviewFixtures, compareAdaptiveCardReviews,
+  CARD_REVIEW_THEMES, expectedCardReviewFixtures, compareAdaptiveCardReviews, isReportOutputPath,
 } from "../scripts/compare-adaptive-cards-review.mjs";
 import { resolveCandidateArtifact, writeCandidateArtifact } from "../scripts/adaptive-card-upgrade-guard.mjs";
 import { buildPptxPackage } from "../../.github/extensions/markdstage/runtime/pptx-package.mjs";
@@ -191,6 +191,14 @@ function proofFixture(suite = "compatibility") {
     counts: () => ({ launches, comparisons }),
     change(file, mutate) { const value = JSON.parse(files.get(file)); mutate(value); json(file, value); },
     manifests(mutate) { for (const directory of [before, after]) this.change(path.join(directory, "evidence.json"), mutate); },
+    outputPath(directory, value) {
+      const replace = (report) => {
+        if (value === undefined) delete report.path;
+        else report.path = value;
+      };
+      this.change(path.join(directory, "dark", "export-report.json"), replace);
+      this.change(path.join(directory, "evidence.json"), (manifest) => replace(manifest.themes.dark.export));
+    },
     // Keep redundant local copies in step: a validator must still reject an
     // impossible contract, and compare valid changed outcomes across the pair.
     rewriteOutcome(directory, mutate) {
@@ -235,6 +243,92 @@ for (const suite of ["baseline", "compatibility"]) test(`complete ${suite} proof
   assert.equal(report.backCovers.length, 4);
   assert.deepEqual(Object.keys(report.exportOutcomes), CARD_REVIEW_THEMES);
   assert.equal(report.baselineUpdated, false);
+});
+
+for (const [name, value] of [
+  ["missing", undefined], ["null", null], ["number", 42], ["boolean", false], ["object", {}], ["array", []],
+  ["empty", ""], ["spaces", "   "], ["Unicode whitespace", "\u3000\u00a0"],
+  ["tab", "\t"], ["newline", "\n"], ["reviewer whitespace/control", " \t "],
+  ["embedded tab", "cards\t.pptx"], ["embedded newline", "cards\n.pptx"],
+  ["embedded NUL", "cards\u0000.pptx"], ["embedded DEL", "cards\u007f.pptx"],
+  ["embedded escape", "\u001b[32mcards.pptx"], ["trailing control", "cards.pptx\r\n"],
+  ["trailing space", "cards.pptx "], ["directory only", "/"],
+  ["directory suffix", "cards.pptx/"], ["current directory", "."],
+  ["empty drive", "C:\\"], ["drive relative", "C:cards.pptx"],
+  ["URI not a producer pathname", "https://example.invalid/cards.pptx"],
+  ["blank UNC server", "\\\\   \\share\\cards.pptx"],
+]) {
+  test(`mandatory output path rejects ${name} before path omission on either or both sides`, async () => {
+    assert.equal(isReportOutputPath(value), false);
+    for (const sides of [["after"], ["before", "after"]]) {
+      const fixture = proofFixture("baseline");
+      for (const side of sides) fixture.outputPath(fixture[side], value);
+      const report = await fixture.run();
+      assert.equal(report.automatedComparisonPassed, false);
+      assert.equal(fixture.counts().launches, 0);
+      assert.ok(report.failures.some((message) => message.includes("invalid mandatory output path metadata")),
+        report.failures.join("\n"));
+    }
+  });
+}
+
+for (const [name, value] of [
+  ["Windows absolute", String.raw`C:\different location\cards.pptx`],
+  ["Windows forward slash", "D:/other/cards.PPTX"],
+  ["POSIX absolute", "/different/日本語 deck/cards.pptx"],
+  ["portable relative", "exports/another deck.pptx"],
+  ["relative filename", "another.pptx"],
+  ["portable dotfile", ".pptx"],
+  ["portable leading filename space", " another.pptx"],
+  ["Windows UNC metadata", String.raw`\\review-server\share\deck.pptx`],
+  ["Windows long-path metadata", String.raw`\\?\C:\decks\deck.pptx`],
+]) test(`different valid ${name} paths are accepted without lookup or normalization`, async () => {
+  assert.equal(isReportOutputPath(value), true);
+  const fixture = proofFixture("baseline");
+  fixture.outputPath(fixture.after, value);
+  const report = await fixture.run();
+  assert.equal(report.automatedComparisonPassed, true, report.failures.join("\n"));
+  assert.equal(fixture.reads.includes(value), false, "Reported paths must never be read, including network metadata.");
+  assert.equal(JSON.parse(fixture.files.get(path.join(fixture.after, "dark", "export-report.json"))).path, value);
+});
+
+test("required metadata strings reject blank/control-only engine and SDK identities", async () => {
+  for (const mutate of [
+    (manifest) => { manifest.bundle.sdkVersion = " \t "; },
+    (manifest) => { manifest.chromium.version = "   "; },
+    (manifest) => { manifest.chromium.executable = "\n"; },
+    (manifest) => { manifest.webview2.probe = "\t"; },
+    (manifest) => { manifest.webview2.host = "\u3000"; },
+    (manifest) => { manifest.themes.dark.pages[0].engine.runtimeVersion = " \r "; },
+  ]) {
+    const fixture = proofFixture();
+    fixture.manifests(mutate);
+    const report = await fixture.run();
+    assert.equal(report.automatedComparisonPassed, false);
+    assert.equal(fixture.counts().launches, 0);
+  }
+});
+
+test("required diagnostic metadata cannot be blank but authored empty/whitespace text remains valid", async () => {
+  const broken = proofFixture("baseline");
+  for (const directory of [broken.before, broken.after]) broken.rewriteOutcome(directory, (model) => {
+    const card = model.slides.flatMap((slide) => slide.adaptiveCards || []).find((card) => card.diagnostics.length);
+    card.diagnostics[0].message = " \t ";
+  });
+  assert.equal((await broken.run()).automatedComparisonPassed, false);
+  const fixture = proofFixture("baseline");
+  for (const directory of [fixture.before, fixture.after]) {
+    for (const relative of [path.join("chromium", "slide-001.json"),
+      path.join("webview2", "slide-001", "geometry-1.json"), path.join("webview2", "slide-001", "geometry-2.json")]) {
+      fixture.change(path.join(directory, "dark", relative), (geometry) => {
+        const source = geometry.slides[0].cards[0].objects[0];
+        geometry.slides[0].cards[0].objects.push({ ...source, type: "TextBlock", sourcePath: "$.body[0]", text: "" },
+          { ...source, type: "TextBlock", sourcePath: "$.body[1]", text: " \t\n " });
+      });
+    }
+  }
+  const report = await fixture.run();
+  assert.equal(report.automatedComparisonPassed, true, report.failures.join("\n"));
 });
 
 for (const sides of [["after"], ["before"], ["before", "after"]]) {

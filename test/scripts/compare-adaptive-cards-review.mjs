@@ -26,7 +26,10 @@ const SOURCE_TYPES = new Set([...Object.keys(adaptiveCardSchemaEnvelope()), "Dia
 const TREATMENTS = new Set(["static-input", "static-action", "static-media", "static-link"]);
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const object = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
-const nonempty = (value) => typeof value === "string" && value.length > 0;
+// Required metadata, never authored card text. Test the original value without
+// trimming it into validity or admitting control-only/whitespace-only evidence.
+const nonempty = (value) => typeof value === "string" && /\S/u.test(value) &&
+  !/[\u0000-\u001f\u007f]/u.test(value);
 const pageName = (index) => `slide-${String(index + 1).padStart(3, "0")}`;
 const complete = (value, label) => {
   assert.ok(object(value), `${label}: missing proof`);
@@ -51,6 +54,17 @@ const cardPath = (value, index, rootWithoutDollar = false) => {
   if (rootWithoutDollar && value === prefix) return true;
   return value.startsWith(`${prefix}$`) && ["", ".", "["].includes(value.slice(prefix.length + 1, prefix.length + 2));
 };
+
+export function isReportOutputPath(value) {
+  if (!nonempty(value) || !value.toLowerCase().endsWith(".pptx")) return false;
+  // Node reports absolute Windows/POSIX paths; portable output can report a
+  // workspace-relative path (including a .pptx dotfile). Parse only: report
+  // metadata never authorizes a lookup, resolution or network request.
+  const { root } = paths.win32.parse(value);
+  if (root && !paths.win32.isAbsolute(value)) return false;
+  if (!root.split(/[\\/]+/u).filter(Boolean).every(nonempty)) return false;
+  return isWorkspacePath(value.slice(root.length).replaceAll("\\", "/"));
+}
 
 function assertConversions(conversions, blockIndex, label) {
   assert.ok(Array.isArray(conversions), `${label}: missing conversions`);
@@ -163,7 +177,7 @@ export function assertExportOutcome(report, embeddedReport, model, fixtures, the
   }
   assert.equal(report.adaptiveCards.length, reportedIndex, `${theme}: extra/duplicate reported cards`);
   assert.ok(!model.slides.at(-1).adaptiveCards?.length, `${theme}: unexpected back-cover cards`);
-  assert.ok(nonempty(report.path), `${theme}: missing output path`);
+  assert.ok(isReportOutputPath(report.path), `${theme}: invalid mandatory output path metadata`);
   const fallbacks = pptxFallbackReport(model);
   const produced = { ok: true, format: "pptx", path: report.path, total: model.slides.length, theme,
     bytes: packageBytes, fallbackCount: fallbacks.length, fallbacks, ...pptxAdaptiveCardReport(model) };

@@ -341,6 +341,12 @@ accept a changed declaration, fallback, renderer, output count or corpus.
    only per-run report field excluded; no mode, impact, diagnostic, completion
    flag or counter is normalized away. Matching invalid reports on both sides
    still fail. There is no missing-report or default-empty success path.
+   Before exclusion, output `path` must be a meaningful, control-free `.pptx`
+   pathname in the producer's absolute Windows/POSIX or workspace-relative
+   syntax. Validation is lexical only: it never trims a corrupted value into
+   validity and never reads or resolves the reported location (including UNC
+   metadata). Required metadata strings cannot consist only of whitespace or
+   controls; this rule does not apply to authored card text, which may be empty.
    All fixture pages are compared in all three engines. The appended back cover
    additionally requires a PowerPoint pixel comparison in every theme; the
    harness does not record browser/controller geometry for that non-card page.
