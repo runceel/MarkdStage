@@ -46,3 +46,16 @@ test("v4 release publishes portable and signed desktop packages independently of
   assert.match(postRelease, /MarkdStage-Store-<version>\.msixupload\.sha256/);
   assert.match(postRelease, /does not submit it to Partner Center/);
 });
+
+test("release requirements describe native viewing, GUI export, and separate Store updates", async () => {
+  const workflow = await readFile(new URL("../../.github/workflows/npm-publish.yml", import.meta.url), "utf8");
+  const releaseProcess = await readFile(new URL("../../.github/RELEASING.md", import.meta.url), "utf8");
+
+  assert.match(workflow, /WebView2 for native viewing and validation/);
+  assert.match(workflow, /installed Chromium for layout inspection, capture, and export/);
+  assert.match(workflow, /export is available from both the graphical app and CLI/);
+  assert.match(workflow, /https:\/\/apps\.microsoft\.com\/detail\/9N9DG772RM03/);
+  assert.match(workflow, /this GitHub Release does not publish a Store update/);
+  assert.doesNotMatch(workflow, /export remains CLI-only|Store availability and the Store URL will be announced/);
+  assert.doesNotMatch(releaseProcess, /exports are\s+CLI-only/);
+});

@@ -19,10 +19,12 @@ requirements, portable ZIPs, and sideloading.
 
 ## Open a workspace and a Markdown file
 
-1. Select **Open folder…** and choose your deck folder.
+1. Select **Open folder…** and choose your deck folder, or drag the folder from File Explorer
+   onto the window.
 2. Find the `.md` or `.markdown` file in **MARKDOWN FILES**. Use **Filter Markdown files** to
    narrow the list, or **Refresh** after adding files.
-3. Select the file to open slide view. **Open Markdown file…** also provides a Windows file picker.
+3. Select the file to open slide view. You can also drop a `.md` or `.markdown` file onto the
+   window, or use **Open Markdown file…** to choose it with the Windows file picker.
 
 ![Desktop workspace with a sample Markdown file, filter, and Install skills button](images/windows-workspace.png)
 

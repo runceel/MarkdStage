@@ -19,11 +19,12 @@ AI チャット画面は内蔵していません。
 
 ## ワークスペースと Markdown ファイルを開く
 
-1. **Open folder…** を選び、資料を保存するフォルダーを開きます。
+1. **Open folder…** を選び、資料を保存するフォルダーを開きます。エクスプローラーから
+   フォルダーをウィンドウへドラッグ＆ドロップして開くこともできます。
 2. **MARKDOWN FILES** の一覧で `.md` または `.markdown` ファイルを探します。
    **Filter Markdown files** で絞り込み、ファイル追加後は **Refresh** で一覧を更新できます。
-3. ファイルを選ぶとスライド表示になります。**Open Markdown file…** から Windows の
-   ファイルピッカーで選ぶこともできます。
+3. ファイルを選ぶとスライド表示になります。`.md` または `.markdown` ファイルをウィンドウへ
+   ドロップするか、**Open Markdown file…** から Windows のファイルピッカーで選ぶこともできます。
 
 ![サンプルの Markdown、フィルター、Install skills ボタンを表示した Desktop のワークスペース](../images/windows-workspace.png)
 
