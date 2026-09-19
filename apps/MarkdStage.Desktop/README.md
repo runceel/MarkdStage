@@ -21,7 +21,8 @@ remote debugging prevents layout inspection, capture, and export.
 
 ## Features
 
-- Open a workspace folder, browse and filter its deck files, and return to recent workspaces.
+- Open a workspace folder with the picker or drag and drop, browse and filter its deck files,
+  and return to recent workspaces.
 - Open `.md` and `.markdown` files with the Windows file picker or drag and drop.
 - Use the shared slide controls, theme selection, and fixed 16:9 Output preview.
 - Switch to presenter view for current/next slides and Slidev/Marp-style speaker notes.
@@ -376,8 +377,11 @@ verification. Repeat the relevant checks for future package submissions.
 - Confirm external Chromium can write the package temporary profile and produce
   inspection, PNG, PDF, and editable PowerPoint output. Repeat this check with
   the Store-distributed candidate before future submission approval.
-- Test folder/file picker, file association, drag-and-drop, `.git` worktree files,
-  explicit workspace containment, symlinks/junctions/mount points, and size limits.
+- Test folder/file pickers and folder/Markdown drops on the start screen, workspace list, and
+  slide view. Dropped folders must follow normal workspace-window reuse; unsupported or
+  unreadable drops must show an error without replacing the current workspace.
+- Test file association, `.git` worktree files, explicit workspace containment,
+  symlinks/junctions/mount points, and size limits.
 - Test recent-folder order/limit, unavailable-folder locate/remove, loss of an
   open workspace, one window per canonical root, and independent navigation across
   different workspaces. Failed reloads must retain the displayed deck.

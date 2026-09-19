@@ -114,9 +114,9 @@ Attach the following files to the release:
 - `MarkdStage.cer.sha256`
 
 Bundle Windows App SDK and .NET, but no Node runtime. Document WebView2 Runtime and
-the packaged CLI's installed-Chromium/remote-debugging requirements in the listing,
-installation guide, and release notes. The desktop GUI is a presenter; exports are
-CLI-only.
+the installed-Chromium/remote-debugging requirements for layout inspection,
+capture, and GUI/CLI export in the listing, installation guide, and release notes.
+Native viewing and CLI validation need WebView2, but no external browser.
 
 Before each Store submission, complete the Windows checklist in
 `apps/MarkdStage.Desktop/README.md`, including the external browser's ability to
@@ -196,7 +196,9 @@ Actions OIDC; do not add a long-lived npm token.
 
 Before tagging:
 
-1. Update `packages/markdstage-cli/package.json` to the new shared product version.
+1. Update `packages/markdstage-cli/package.json` and the hand-maintained
+   `.github/plugin/markdstage/plugin.json` to the new shared product version.
+   `awesome:sync` regenerates the Extension tree, not this plugin manifest.
 2. Update every current-release Extension and Desktop URL in `README.md` and `README.ja.md` to use
    the new tag. Do not change historical migration references.
 3. Add `.github/release-notes/vMAJOR.MINOR.PATCH.md` with the overview, compatibility statement,

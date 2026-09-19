@@ -646,11 +646,6 @@ public sealed partial class MainPage : Page
     {
         var root = await new FilePickerService().PickFolderAsync(WinRT.Interop.WindowNative.GetWindowHandle(_window));
         if (root is null) return;
-        if (WorkspaceRoot is not null)
-        {
-            await App.OpenAsync(workspace: root, requestingWindow: _window);
-            return;
-        }
         await EnterWorkspaceAsync(root);
     }
 
@@ -673,6 +668,12 @@ public sealed partial class MainPage : Page
     /// </summary>
     private async Task EnterWorkspaceAsync(string path)
     {
+        ViewModel.IsErrorOpen = false;
+        if (WorkspaceRoot is not null)
+        {
+            await App.OpenAsync(workspace: path, requestingWindow: _window);
+            return;
+        }
         BeginWorkspaceListLoad("Opening folder…", resetFilter: true);
         await App.OpenAsync(workspace: path, requestingWindow: _window);
         // Another window may already own that workspace and take the request, which leaves this
@@ -740,8 +741,34 @@ public sealed partial class MainPage : Page
     private async void OnDrop(object sender, DragEventArgs args)
     {
         if (!args.DataView.Contains(StandardDataFormats.StorageItems)) return;
-        var file = (await args.DataView.GetStorageItemsAsync()).OfType<StorageFile>().FirstOrDefault(item => App.IsMarkdown(item.Path));
-        if (file is not null) await App.OpenAsync(file: file.Path, requestingWindow: _window);
+        args.Handled = true;
+        var deferral = args.GetDeferral();
+        try
+        {
+            var items = await args.DataView.GetStorageItemsAsync();
+            var file = items.OfType<StorageFile>().FirstOrDefault(item => App.IsMarkdown(item.Path));
+            if (file is not null)
+            {
+                await App.OpenAsync(file: file.Path, requestingWindow: _window);
+            }
+            else if (items.OfType<StorageFolder>().FirstOrDefault() is { } folder)
+            {
+                await EnterWorkspaceAsync(folder.Path);
+            }
+            else
+            {
+                ShowOpenError("Drop a folder or a Markdown file (.md or .markdown).");
+            }
+        }
+        catch (Exception error) when (
+            error is COMException or IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException)
+        {
+            ShowOpenError("The dropped folder or Markdown file could not be opened.");
+        }
+        finally
+        {
+            deferral.Complete();
+        }
     }
     /// <summary>
     /// The renderer owns Escape for its own overlays (import, overview, more controls) and calls
