@@ -200,3 +200,14 @@ use rendered-link approval, distinct from image-fetch policy, and do not become
 browser interactions. [ADR 0006](adr/0006-adaptive-card-editable-static-projection.md)
 records the native boundary; the semantic and resource rules of
 [ADR 0005](adr/0005-adaptive-card-semantic-and-raster-boundary.md) remain in force.
+
+Compatibility governance stays at this same shared boundary. The support matrix
+is derived from the closed validator envelope and explicit browser/output
+contracts, rather than separate host whitelists. Pinned SDK, HostConfig,
+capability and deterministic local-corpus expectations are checked together.
+Changed geometry, styling, fallback ownership, visible content or output modes
+require comparison evidence and independent actual-PowerPoint approval before
+updating expectations. A candidate fingerprint is not approval. Network,
+interaction, template, custom-host and additional-version capabilities remain
+deferred until separately accepted; diagnostics never imply full upstream-host
+compatibility or turn incomplete validation into success.

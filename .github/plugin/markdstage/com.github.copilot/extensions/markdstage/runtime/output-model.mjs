@@ -270,7 +270,10 @@ export function adaptiveCardOutputReport(layout) {
   if (!cards.length && !report.slides.some((slide) => slide.adaptiveCardsTruncated)) return {};
   return {
     adaptiveCards: cards, adaptiveCardIssueCount: report.adaptiveCardIssueCount,
-    adaptiveCardsTruncated: report.slides.some((slide) => slide.adaptiveCardsTruncated),
+    adaptiveCardsTruncated: report.slides.some((slide) => slide.adaptiveCardsTruncated) ||
+      cards.some((card) => card.diagnosticsTruncated),
+    adaptiveCardsComplete: !report.slides.some((slide) => slide.adaptiveCardsTruncated) &&
+      cards.every((card) => card.complete),
   };
 }
 
@@ -306,7 +309,12 @@ export function pptxAdaptiveCardReport(model) {
   if (!adaptiveCards.length) return {};
   return {
     adaptiveCards,
-    adaptiveCardIssueCount: adaptiveCards.reduce((count, card) => count + card.diagnostics.length, 0),
+    adaptiveCardIssueCount: adaptiveCards.reduce((count, card) =>
+      count + Math.max(card.diagnostics.length, card.complete === false || card.diagnosticsTruncated ? 1 : 0), 0),
+    adaptiveCardsTruncated: adaptiveCards.some((card) => card.diagnosticsTruncated ||
+      card.diagnostics.some((entry) => entry.code === "diagnostics-truncated")),
+    adaptiveCardsComplete: adaptiveCards.every((card) => card.complete !== false && !card.diagnosticsTruncated &&
+      !card.diagnostics.some((entry) => entry.code === "diagnostics-truncated")),
     adaptiveCardConversionSummary: {
       nativeObjects: adaptiveCards.reduce((count, card) => count + card.nativeObjectCount, 0),
       approximated: adaptiveCards.reduce((count, card) =>

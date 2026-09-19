@@ -1,11 +1,10 @@
+// Shared by npm and native CLI. Canvas returns the same structured report.
 export function formatExportReport(report) {
   const format = report.format === "pptx" ? "PowerPoint" : "PDF";
   const exported = `Exported ${report.total} slide(s) to ${report.path} (${report.bytes} bytes, ${format}, theme ${report.theme})`;
   const contentFallbacks = report.format === "pptx" && Array.isArray(report.fallbacks)
-    ? report.fallbacks.filter((fallback) => fallback?.impact === "content")
-    : [];
-  const pages = [...new Set(contentFallbacks.map((fallback) => fallback.page).filter(Number.isInteger))]
-    .sort((a, b) => a - b);
+    ? report.fallbacks.filter((fallback) => fallback?.impact === "content") : [];
+  const pages = [...new Set(contentFallbacks.map((fallback) => fallback.page).filter(Number.isInteger))].sort((a, b) => a - b);
   const summary = !contentFallbacks.length ? `${exported}.` : pages.length === 1
     ? `${exported} — an image on slide ${pages[0]} is not editable.`
     : `${exported} — images on slides ${pages.join(", ")} are not editable.`;
@@ -22,7 +21,13 @@ export function formatExportReport(report) {
       if (conversion.mode !== "native") lines.push(`  ${conversion.mode} slide ${card.page}: ${conversion.sourcePath} (${conversion.reason}; ${conversion.impact} impact)`);
     }
     for (const diagnostic of card.diagnostics || []) {
-      lines.push(`  ${diagnostic.severity} slide ${card.page}: ${diagnostic.sourcePath} ${diagnostic.message} (${diagnostic.code})`);
+      lines.push(`  ${diagnostic.severity} slide ${card.page}: ${diagnostic.sourcePath} ${diagnostic.message} (${diagnostic.code}; ${diagnostic.impact || "content"} impact)`);
+    }
+    if (card.complete === false || card.diagnosticsTruncated) {
+      lines.push(`  slide ${card.page} adaptive-card[${card.blockIndex}]: Card validation is incomplete; inspect smaller inputs.`);
+    }
+    if (card.resourceValidation === "not-run") {
+      lines.push(`  slide ${card.page} adaptive-card[${card.blockIndex}]: Browser image validation was not run because the card could not be rendered.`);
     }
   }
   if (report.adaptiveCardsTruncated) lines.push("  Card diagnostic details are truncated; inspect smaller inputs.");

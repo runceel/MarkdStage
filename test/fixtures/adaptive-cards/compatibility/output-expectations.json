@@ -1,0 +1,188 @@
+{
+  "native-activity": {
+    "nativeTypes": { "text": 4, "image": 1, "table": 1 }, "counts": [6, 0, 0],
+    "conversions": [
+      ["adaptive-card[0]$.body[0]", "TextBlock", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[1].columns[0].items[0]", "Image", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[1].columns[0]", "Column", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[1].columns[1].items[0]", "TextBlock", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[1].columns[1].items[1]", "TextBlock", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[1].columns[1]", "Column", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[1]", "ColumnSet", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[2]", "TextBlock", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[3]", "FactSet", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$", "AdaptiveCard", "native", "adaptive-card-native", 0]
+    ], "fallbacks": []
+  },
+  "mixed-activity": {
+    "nativeTypes": { "text": 4, "table": 1 }, "counts": [5, 0, 2],
+    "conversions": [
+      ["adaptive-card[0]$.body[0]", "TextBlock", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[1].columns[0].items[0]", "Image", "rasterized", "adaptive-card-image-style", 0],
+      ["adaptive-card[0]$.body[1].columns[0]", "Column", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[1].columns[1].items[0]", "TextBlock", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[1].columns[1].items[1]", "TextBlock", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[1].columns[1]", "Column", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[1]", "ColumnSet", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[2]", "TextBlock", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[3]", "FactSet", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[4]", "TextBlock", "rasterized", "adaptive-card-markdown-list", 0],
+      ["adaptive-card[0]$", "AdaptiveCard", "native", "adaptive-card-native", 0]
+    ], "fallbacks": [
+      ["adaptive-card[0]$.body[1].columns[0].items[0]", "adaptive-card-image-style", true],
+      ["adaptive-card[0]$.body[4]", "adaptive-card-markdown-list", true]
+    ]
+  },
+  "native-flight-table": {
+    "nativeTypes": { "text": 1, "table": 1 }, "counts": [2, 0, 0],
+    "conversions": [
+      ["adaptive-card[0]$.body[0]", "TextBlock", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[1]", "Table", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$", "AdaptiveCard", "native", "adaptive-card-native", 0]
+    ], "fallbacks": []
+  },
+  "nongrid-flight-table": {
+    "nativeTypes": { "text": 1 }, "counts": [1, 0, 1],
+    "conversions": [
+      ["adaptive-card[0]$.body[0]", "TextBlock", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[1]", "Table", "rasterized", "adaptive-card-table-cell-spacing", 0],
+      ["adaptive-card[0]$", "AdaptiveCard", "native", "adaptive-card-native", 0]
+    ], "fallbacks": [["adaptive-card[0]$.body[1]", "adaptive-card-table-cell-spacing", true]]
+  },
+  "static-inputs": {
+    "nativeTypes": { "shape": 4, "text": 11 }, "counts": [15, 11, 1],
+    "conversions": [
+      ["adaptive-card[0]$.body[0].columns[0].items[0].label", "TextRun", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[0].columns[0].items[0].label", "RichTextBlock", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[0].columns[0].items[0].placeholder", "Input.Text", "approximated", "adaptive-card-static-input", 1],
+      ["adaptive-card[0]$.body[0].columns[0].items[0].placeholder", "RichTextBlock", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[0].columns[0].items[0]", "Input.Text", "approximated", "adaptive-card-static-input", 1],
+      ["adaptive-card[0]$.body[0].columns[0].items[1].label", "TextRun", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[0].columns[0].items[1].label", "RichTextBlock", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[0].columns[0].items[1].value", "Input.Number", "approximated", "adaptive-card-static-input", 1],
+      ["adaptive-card[0]$.body[0].columns[0].items[1].value", "RichTextBlock", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[0].columns[0].items[1]", "Input.Number", "approximated", "adaptive-card-static-input", 1],
+      ["adaptive-card[0]$.body[0].columns[0]", "Column", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[0].columns[1].items[0].label", "TextRun", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[0].columns[1].items[0].label", "RichTextBlock", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[0].columns[1].items[0].choices[0].title", "Input.ChoiceSet", "approximated", "adaptive-card-static-input", 1],
+      ["adaptive-card[0]$.body[0].columns[1].items[0].value", "TextRun", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[0].columns[1].items[0].choices[2].title", "Input.ChoiceSet", "approximated", "adaptive-card-static-input", 1],
+      ["adaptive-card[0]$.body[0].columns[1].items[0].value", "Input.ChoiceSet", "approximated", "adaptive-card-static-input", 0],
+      ["adaptive-card[0]$.body[0].columns[1].items[0]", "Input.ChoiceSet", "approximated", "adaptive-card-static-input", 1],
+      ["adaptive-card[0]$.body[0].columns[1].items[1].label", "TextRun", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[0].columns[1].items[1].label", "RichTextBlock", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[0].columns[1].items[1].title", "Input.Toggle", "approximated", "adaptive-card-static-input", 1],
+      ["adaptive-card[0]$.body[0].columns[1].items[1].title", "RichTextBlock", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[0].columns[1].items[1].value", "Input.Toggle", "approximated", "adaptive-card-static-input", 1],
+      ["adaptive-card[0]$.body[0].columns[1].items[1].value", "RichTextBlock", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[0].columns[1].items[1]", "Input.Toggle", "approximated", "adaptive-card-static-input", 1],
+      ["adaptive-card[0]$.body[0].columns[1]", "Column", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[0]", "ColumnSet", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$", "AdaptiveCard", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.diagnostics", "Diagnostic", "rasterized", "adaptive-card-diagnostic-note", 0]
+    ], "fallbacks": [["adaptive-card[0]$.diagnostics", "adaptive-card-diagnostic-note", true]]
+  },
+  "static-actions-media": {
+    "nativeTypes": { "shape": 4, "text": 9, "image": 1 }, "counts": [14, 11, 1],
+    "conversions": [
+      ["adaptive-card[0]$.body[0].columns[0].items[0].actions[0].title", "Action.Submit", "approximated", "adaptive-card-static-action", 1],
+      ["adaptive-card[0]$.body[0].columns[0].items[0].actions[0].title", "RichTextBlock", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[0].columns[0].items[0].actions[0]", "TextRun", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[0].columns[0].items[0].actions[0]", "RichTextBlock", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[0].columns[0].items[0].actions[0]", "Action.Submit", "approximated", "adaptive-card-static-action", 1],
+      ["adaptive-card[0]$.body[0].columns[0].items[0].actions[1].title", "Action.Execute", "approximated", "adaptive-card-static-action", 1],
+      ["adaptive-card[0]$.body[0].columns[0].items[0].actions[1].title", "RichTextBlock", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[0].columns[0].items[0].actions[1]", "TextRun", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[0].columns[0].items[0].actions[1]", "RichTextBlock", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[0].columns[0].items[0].actions[1]", "Action.Execute", "approximated", "adaptive-card-static-action", 1],
+      ["adaptive-card[0]$.body[0].columns[0].items[0].actions[2].title", "Action.OpenUrl", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[0].columns[0].items[0].actions[2].title", "RichTextBlock", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[0].columns[0].items[0].actions[2]", "TextRun", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[0].columns[0].items[0].actions[2]", "RichTextBlock", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[0].columns[0].items[0].actions[2]", "Action.OpenUrl", "approximated", "adaptive-card-static-action", 1],
+      ["adaptive-card[0]$.body[0].columns[0].items[0].actions[3].title", "Action.ShowCard", "approximated", "adaptive-card-static-action", 1],
+      ["adaptive-card[0]$.body[0].columns[0].items[0].actions[3].title", "RichTextBlock", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[0].columns[0].items[0].actions[3]", "TextRun", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[0].columns[0].items[0].actions[3]", "RichTextBlock", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[0].columns[0].items[0].actions[3]", "Action.ShowCard", "approximated", "adaptive-card-static-action", 1],
+      ["adaptive-card[0]$.body[0].columns[0].items[0]", "ActionSet", "approximated", "adaptive-card-static-action", 0],
+      ["adaptive-card[0]$.body[0].columns[0]", "Column", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[0].columns[1].items[0].poster", "Media", "approximated", "adaptive-card-static-media", 1],
+      ["adaptive-card[0]$.body[0].columns[1].items[0].altText", "Media", "approximated", "adaptive-card-static-media", 1],
+      ["adaptive-card[0]$.body[0].columns[1].items[0].altText", "RichTextBlock", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[0].columns[1].items[0]", "Media", "approximated", "adaptive-card-static-media", 0],
+      ["adaptive-card[0]$.body[0].columns[1]", "Column", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[0]", "ColumnSet", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$", "AdaptiveCard", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.diagnostics", "Diagnostic", "rasterized", "adaptive-card-diagnostic-note", 0]
+    ], "fallbacks": [["adaptive-card[0]$.diagnostics", "adaptive-card-diagnostic-note", true]]
+  },
+  "fallback-resolution": {
+    "nativeTypes": { "text": 3 }, "counts": [3, 0, 1],
+    "conversions": [
+      ["adaptive-card[0]$.body[0]", "TextBlock", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[2].fallback", "TextBlock", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[3].fallback", "TextBlock", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$", "AdaptiveCard", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.diagnostics", "Diagnostic", "rasterized", "adaptive-card-diagnostic-note", 0]
+    ], "fallbacks": [["adaptive-card[0]$.diagnostics", "adaptive-card-diagnostic-note", true]]
+  },
+  "unknown-property": {
+    "nativeTypes": { "text": 4, "image": 1, "table": 1 }, "counts": [6, 0, 1],
+    "conversions": [
+      ["adaptive-card[0]$.body[0]", "TextBlock", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[1].columns[0].items[0]", "Image", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[1].columns[0]", "Column", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[1].columns[1].items[0]", "TextBlock", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[1].columns[1].items[1]", "TextBlock", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[1].columns[1]", "Column", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[1]", "ColumnSet", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[2]", "TextBlock", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[3]", "FactSet", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$", "AdaptiveCard", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.diagnostics", "Diagnostic", "rasterized", "adaptive-card-diagnostic-note", 0]
+    ], "fallbacks": [["adaptive-card[0]$.diagnostics", "adaptive-card-diagnostic-note", true]]
+  },
+  "unsupported-type": { "nativeTypes": {}, "counts": [0, 0, 1], "conversions": [["adaptive-card[0]$", "AdaptiveCard", "rasterized", "adaptive-card-unsupported-element", 0]], "fallbacks": [["adaptive-card[0]", "adaptive-card-unsupported-element", true]] },
+  "unsupported-version-1.4": { "nativeTypes": {}, "counts": [0, 0, 1], "conversions": [["adaptive-card[0]$", "AdaptiveCard", "rasterized", "adaptive-card-unsupported-version", 0]], "fallbacks": [["adaptive-card[0]", "adaptive-card-unsupported-version", true]] },
+  "unsupported-version-1.6": { "nativeTypes": {}, "counts": [0, 0, 1], "conversions": [["adaptive-card[0]$", "AdaptiveCard", "rasterized", "adaptive-card-unsupported-version", 0]], "fallbacks": [["adaptive-card[0]", "adaptive-card-unsupported-version", true]] },
+  "requires-failed": { "nativeTypes": {}, "counts": [0, 0, 1], "conversions": [["adaptive-card[0]$", "AdaptiveCard", "rasterized", "adaptive-card-requires-not-met", 0]], "fallbacks": [["adaptive-card[0]", "adaptive-card-requires-not-met", true]] },
+  "invalid-unused-fallback": { "nativeTypes": {}, "counts": [0, 0, 1], "conversions": [["adaptive-card[0]$", "AdaptiveCard", "rasterized", "adaptive-card-invalid-property", 0]], "fallbacks": [["adaptive-card[0]", "adaptive-card-invalid-property", true]] },
+  "blocked-link": {
+    "nativeTypes": { "text": 4, "image": 1, "table": 1 }, "counts": [6, 1, 1],
+    "conversions": [
+      ["adaptive-card[0]$.body[0]", "TextBlock", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[1].columns[0].items[0]", "Image", "approximated", "adaptive-card-static-action", 1],
+      ["adaptive-card[0]$.body[1].columns[0]", "Column", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[1].columns[1].items[0]", "TextBlock", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[1].columns[1].items[1]", "TextBlock", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[1].columns[1]", "Column", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[1]", "ColumnSet", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[2]", "TextBlock", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[3]", "FactSet", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$", "AdaptiveCard", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.diagnostics", "Diagnostic", "rasterized", "adaptive-card-diagnostic-note", 0]
+    ], "fallbacks": [["adaptive-card[0]$.diagnostics", "adaptive-card-diagnostic-note", true]]
+  },
+  "custom-protocol": { "nativeTypes": {}, "counts": [0, 0, 1], "conversions": [["adaptive-card[0]$", "AdaptiveCard", "rasterized", "adaptive-card-unsupported-protocol", 0]], "fallbacks": [["adaptive-card[0]", "adaptive-card-unsupported-protocol", true]] },
+  "blocked-missing-invalid-assets": {
+    "nativeTypes": { "text": 2, "image": 4 }, "counts": [6, 0, 1],
+    "conversions": [
+      ["adaptive-card[0]$.body[0]", "TextBlock", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[1].columns[0].items[0]", "Image", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[1].columns[0]", "Column", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[1].columns[1].items[0]", "Image", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[1].columns[1]", "Column", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[1].columns[2].items[0]", "Image", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[1].columns[2]", "Column", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[1].columns[3].items[0]", "Image", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$.body[1].columns[3]", "Column", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[1]", "ColumnSet", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.body[2]", "TextBlock", "native", "adaptive-card-native", 1],
+      ["adaptive-card[0]$", "AdaptiveCard", "native", "adaptive-card-native", 0],
+      ["adaptive-card[0]$.diagnostics", "Diagnostic", "rasterized", "adaptive-card-diagnostic-note", 0]
+    ], "fallbacks": [["adaptive-card[0]$.diagnostics", "adaptive-card-diagnostic-note", true]]
+  },
+  "diagnostics-truncated": { "nativeTypes": {}, "counts": [0, 0, 1], "conversions": [["adaptive-card[0]$", "AdaptiveCard", "rasterized", "adaptive-card-diagnostics-truncated", 0]], "fallbacks": [["adaptive-card[0]", "adaptive-card-diagnostics-truncated", true]] }
+}

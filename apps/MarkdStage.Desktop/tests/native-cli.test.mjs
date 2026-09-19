@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { readGuide } from "../../../.github/extensions/markdstage/markdstage-guide.mjs";
+import { adaptiveCardCompatibilityCases, compatibilityDiagnostics, CARD_COMPATIBILITY_DIRECTORY } from "../../../test/harness/adaptive-card-compatibility.mjs";
+import { CARD_FIXTURE_DIRECTORY } from "../../../test/harness/adaptive-cards.mjs";
 
 const executable = process.env.MARKDSTAGE_NATIVE_CLI;
 assert.ok(executable, "Set MARKDSTAGE_NATIVE_CLI to the built CLI executable or installed execution alias.");
@@ -181,11 +183,48 @@ for (const format of ["pdf", "pptx"]) {
     }
     const text = invoke(args, 0, { json: false });
     assert.match(text, /^Exported \d+ slide\(s\) to card-warning\.(?:pdf|pptx)/);
-    assert.match(text, /warning slide 1: adaptive-card\[0\]\$\.body\[0\]\.url .* \(blocked-image\)/);
+    assert.match(text, /warning slide 1: adaptive-card\[0\]\$\.body\[0\]\.url .* \(blocked-image; content impact\)/);
     if (format === "pptx")
       assert.match(text, /rasterized slide 1: adaptive-card\[0\]\$\.diagnostics \(adaptive-card-diagnostic-note; content impact\)/);
   });
 }
+
+  test("actual native CLI preserves official corpus validation/export paths, output modes and incomplete status", async () => {
+    const cases = await adaptiveCardCompatibilityCases();
+    cpSync(join(CARD_FIXTURE_DIRECTORY, "assets"), join(workspace, "assets"), { recursive: true });
+    writeFileSync(join(workspace, "compatibility.md"), cases.map((entry) => entry.markdown).join("\n\n---\n\n"));
+    const validated = invoke(["validate", "compatibility.md", "--workspace", workspace], 2);
+    assert.equal(validated.complete, false);
+    assert.equal(validated.truncated, true);
+    assert.equal(validated.adaptiveCards.resourceValidation, "deferred-to-browser");
+    for (const [index, entry] of cases.entries()) {
+      assert.deepEqual(compatibilityDiagnostics(validated.adaptiveCards.diagnostics.filter((item) => item.slideIndex === index)),
+        entry.static.diagnostics, entry.name);
+    }
+    const expected = JSON.parse(readFileSync(join(CARD_COMPATIBILITY_DIRECTORY, "output-expectations.json"), "utf8"));
+    const args = ["export", "compatibility.md", "--workspace", workspace, "--output", "compatibility.pptx"];
+    const report = invoke(args);
+    assert.equal(report.ok, true);
+    assert.equal(report.adaptiveCardsComplete, false);
+    assert.equal(report.adaptiveCardsTruncated, true);
+    assert.deepEqual(report.adaptiveCardConversionSummary, { nativeObjects: 64, approximated: 23, rasterizedSubtrees: 16 });
+    for (const [index, entry] of cases.entries()) {
+      const card = report.adaptiveCards[index];
+      assert.equal(card.slideIndex, index); assert.equal(card.page, index + 1); assert.equal(card.blockIndex, 0);
+      assert.equal(card.complete, entry.static.complete);
+      assert.deepEqual(compatibilityDiagnostics(card.diagnostics), entry.browser.diagnostics, entry.name);
+      assert.deepEqual(card.conversions.map(({ sourcePath, sourceType, mode, reason, nativeObjects }) =>
+        [sourcePath, sourceType, mode, reason, nativeObjects]), expected[entry.name].conversions, entry.name);
+      for (const diagnostic of card.diagnostics) assert.equal(diagnostic.sourcePath, `adaptive-card[0]${diagnostic.path}`);
+    }
+    const text = invoke(args, 0, { json: false });
+    assert.match(text, /64 editable native objects, 23 approximated elements, 16 rasterized subtrees/);
+    assert.match(text, /Card validation is incomplete/);
+    assert.match(text, /unsupported-version; content impact/);
+    assert.match(text, /adaptive-card\[0\]\$\.body\[2\]\.fallback/);
+    const inspect = invoke(["inspect", "compatibility.md", "--workspace", workspace, "--fail-on-issues"], 5);
+    assert.equal(inspect.hasAdaptiveCardIssues, true);
+  });
 
 test("native PNG and PowerPoint output render a static Adaptive Card with the pinned SDK", () => {
   const file = join(workspace, "deck.md");

@@ -1,0 +1,126 @@
+{
+  "schemaVersion": 1,
+  "sdk": {
+    "version": "3.0.6",
+    "sha256": "5e7c13f3300ae7b89b34703501e08d709fbb6635f1c6755b92495577a77344f2",
+    "bytes": 334964
+  },
+  "schema": {
+    "version": "1.5",
+    "envelopeSha256": "4037972a14c39afddea975957e5dfbc2e5eb70ce146a4150b9b5490a22728625"
+  },
+  "capability": {
+    "revision": 1,
+    "sha256": "10d3ea09ffe2677dbec7a9a4e637f3f4cb630d384ddd22eba0bb808511d2091f",
+    "supportMatrixSha256": "cfabb08e68b258f68f8ba0530c074a8911862691b9ce474032b92fdebcd0a3f9"
+  },
+  "hostConfig": {
+    "version": 1,
+    "fixturePalettes": {
+      "dark": {
+        "fontFamily": "Segoe UI, sans-serif",
+        "fg": "#f4f4f4",
+        "muted": "#a0a0a0",
+        "accent": "#7c5cff",
+        "surface": "#222222",
+        "border": "#444444"
+      },
+      "light": {
+        "fontFamily": "Segoe UI, sans-serif",
+        "fg": "#202020",
+        "muted": "#606060",
+        "accent": "#6748d9",
+        "surface": "#eeeeee",
+        "border": "#cccccc"
+      },
+      "microsoft": {
+        "fontFamily": "Segoe UI, sans-serif",
+        "fg": "#242424",
+        "muted": "#616161",
+        "accent": "#0078d4",
+        "surface": "#f3f2f1",
+        "border": "#d1d1d1"
+      },
+      "custom": {
+        "fontFamily": "Consolas, monospace",
+        "fg": "#fefefe",
+        "muted": "#adbccc",
+        "accent": "#ff6600",
+        "surface": "#203040",
+        "border": "#405060"
+      }
+    },
+    "resolvedSha256": {
+      "dark": "ef71515f6246e7f02ee9a2b8e6f753027b5a32b7c34831b99a1649c662d3ce5c",
+      "light": "5daa37153a179383ac5b19fe6610e6e7d218bba5f76d4917e265853954fe4bd4",
+      "microsoft": "7aade3d292821e5126b3c0a4d1b4dec7f7b3e5cd492c9a3165f4004331053d06",
+      "custom": "4dd6c4025aa37dbd54fe6ddfacd90fcb46674a2a931c8828f7fd4db757665f43"
+    }
+  },
+  "review": {
+    "viewport": {
+      "width": 1280,
+      "height": 720,
+      "dpr": 1
+    },
+    "edgeTolerancePx": 2,
+    "textBaselineTolerancePx": 3,
+    "repeatChangedPixels": 0,
+    "independentActualPowerPointApprovalRequired": true,
+    "webview2": "Real CoreWebView2 controller; not WinUI/MSIX shell",
+    "automaticBaselineUpdateAllowed": false
+  },
+  "files": {
+    ".github/extensions/markdstage/renderer/adaptive-card-capabilities.mjs": "7a6c42441cb8c295470ea7f00bedee72c407fc08b068c683ff6125910b7a74dd",
+    ".github/extensions/markdstage/renderer/adaptive-card-markdown.mjs": "7d5f055d851ceab0837c4f78e4413af45d61c789270be60be480a28eeea7988e",
+    ".github/extensions/markdstage/renderer/adaptive-card-pptx.mjs": "db8546553bd76d64f3a5b93a67ebb1cd9985764ee135747b3a5f5dda570243ed",
+    ".github/extensions/markdstage/renderer/adaptive-card-static.mjs": "94deb28c9d1863d76293a369748d83fe648f21a3e85e122e1a7455b031609129",
+    ".github/extensions/markdstage/renderer/adaptive-card-validation.mjs": "394e946e296e360f3b86d7ba11dd8f0ca34a68ecc7a5969e0954237db9ed9524",
+    ".github/extensions/markdstage/renderer/adaptive-card.mjs": "9dd6f1273c417368a47e7f195a165fd9ab4f8ab1aebf66a27568eeecbc7c578e",
+    ".github/extensions/markdstage/renderer/fenced-blocks.mjs": "2a4bc3fb02ebd92bf0b947227d2b3d456f38c763b5910465e2841be1bc8c1a41",
+    ".github/extensions/markdstage/renderer/image-source.mjs": "161d0c1176f40e633c1f9962e74ca41b52f08b2d8b814b9c4d6d57f2994d8e05",
+    ".github/extensions/markdstage/renderer/marked-lexer.mjs": "31c092d8b043200d322558784b65809fccc57ed15b29568d48816174f5d8c50f",
+    ".github/extensions/markdstage/renderer/renderer.js": "5e82d1b59a25c3e28a172f1d6fc9618154123b25c279ac68e2be1f989c0490e2",
+    ".github/extensions/markdstage/renderer/scene-graph.mjs": "f6de5fbe5eb6e89f4a5925c4d619a4ea57bc347722aeadff3fefee6e06f461b6",
+    ".github/extensions/markdstage/renderer/scene-pptx.mjs": "20bee8c942faa8b3aaad64aa7ddbb682dab902501ce4121d1e23d603fd6d20cb",
+    ".github/extensions/markdstage/renderer/slides.css": "a472c4bc69a1d9b9deeb35f6a6ee64f6978e356bc559ce29f02dcdfe429fe003",
+    ".github/extensions/markdstage/runtime/deck-validation.mjs": "10645ce51efc24ccbf4de8708611dd62f5c5d6817bcdd344c11066d494f83fb6",
+    ".github/extensions/markdstage/runtime/export-report.mjs": "01d7d04af53065c1351bff10ce2d309564cf2f2efbf53020872c19b1eb676590",
+    ".github/extensions/markdstage/runtime/layout-report.mjs": "62b715792cfe18355c9d6d342ba9d2ede40bc44891befa65647a816693b1b26c",
+    ".github/extensions/markdstage/runtime/output-cdp.mjs": "3c0de4fdff104e223d39eda3c90cfc62ad9303d319fefbec228b1a59010ea2b7",
+    ".github/extensions/markdstage/runtime/output-model.mjs": "b93b22b323ff6e38d3f372be20dcb55fd4eca99a8eb527d115c5cbd743a5404e",
+    ".github/extensions/markdstage/runtime/pptx-package.mjs": "fd4c97883ac298a0c3dde33fa0a61584d75a8a117ac71022287396040db878ba",
+    ".github/extensions/markdstage/vendor/adaptivecards.LICENSE": "f4537a9a339834394f5242176a4ed19b239a88a600bcb02041205f48b3c07dfc",
+    ".github/extensions/markdstage/vendor/adaptivecards.min.js.LICENSE.txt": "56a1d2f3680c123ae9e35c9d1b8e5d59f755567c336201a50fb8f663220de908",
+    ".github/extensions/markdstage/vendor/marked.min.js": "15fabce5b65898b32b03f5ed25e9f891a729ad4c0d6d877110a7744aa847a894",
+    ".github/extensions/markdstage/vendor/purify.min.js": "6407576993a5aa1303eaf9fefb95e5cfc1c0c80645bd3717db671727e6b55b91",
+    "test/fixtures/adaptive-cards/assets/animated-motion.svg": "3afcd601aebf4d286f085b663ca294fa7fa814c6063628f1bc0184b7bf18177c",
+    "test/fixtures/adaptive-cards/assets/card-local.svg": "35934cb0d852a670a4346300af2e94b96f4375a763e28545246eb89b9bc5f947",
+    "test/fixtures/adaptive-cards/blocked-images.json": "2b9a075a591e499774237a423959baaa8cda80665aafb814933a7d6c344a7ab4",
+    "test/fixtures/adaptive-cards/clipping.json": "51ff7daaacbd9ba12541f8615a459e48d75fed7a635a20e6dd9b89bb98e0a3ad",
+    "test/fixtures/adaptive-cards/columns.json": "ba60ee42255cc5f287f7df656e6b4a2ac53596ac9c621ba0916d88d007df5f96",
+    "test/fixtures/adaptive-cards/compatibility/LICENSE": "f4537a9a339834394f5242176a4ed19b239a88a600bcb02041205f48b3c07dfc",
+    "test/fixtures/adaptive-cards/compatibility/actions-media.json": "d48e24cb65ac24e1c1704e2560e84439e1ce1651b195af1443514611f9f3d448",
+    "test/fixtures/adaptive-cards/compatibility/activity.json": "4f36e6f157d0e2ba04305eb9c477b8184aae48e8088d5ade7eaf27d870140454",
+    "test/fixtures/adaptive-cards/compatibility/fallbacks.json": "9a50c3453b2cdec05a76e0d39e57979440be07d03922c2bfcec95fc0bf125763",
+    "test/fixtures/adaptive-cards/compatibility/flight-table.json": "30b245e61e36c982d45e8a0c58479812e265942351f0aa3e1f4677ccb7084723",
+    "test/fixtures/adaptive-cards/compatibility/inputs.json": "9b2bec27cf640b19284a4d6f2e5ba016d65c20965deb9fd4f87e30732cad432d",
+    "test/fixtures/adaptive-cards/compatibility/output-expectations.json": "c5ad3eaebcccbd93f2f9792301ead758d4b9027ef5c74c5ff1378fa367ca53da",
+    "test/fixtures/adaptive-cards/compatibility/provenance.json": "754873e3637ab93d26e2687faae954d10f4e952e5e3c9b5053bcfd79f9241afb",
+    "test/fixtures/adaptive-cards/facts-table.json": "e042d08127f1cb88616ea7d099153511d3783e3409c7d43780719c2b821163d2",
+    "test/fixtures/adaptive-cards/fallbacks.json": "069e33eb308160cbe68fca8ff12748efd6cbfc9981f0ba68d185d313626058fd",
+    "test/fixtures/adaptive-cards/images.json": "fbc970306b24bec84f163628e5c0446ca6de17b5cedf81a2a6a7f5f06c9bb2e1",
+    "test/fixtures/adaptive-cards/malformed.json": "63c23a01eb9ea4f6c822baf7fec8c23e62c8d4f2694ce66b8010fee99e336e00",
+    "test/fixtures/adaptive-cards/mixed-native.json": "6f57bd3e6c0359f2d37f10ca8a673d8b2b62794520c2edaad3f4f816c77230ae",
+    "test/fixtures/adaptive-cards/native-text.json": "62d81b9c955da13afe67f2c34778442a016b88c4798ee0be2ab8e4d22bcd2876",
+    "test/fixtures/adaptive-cards/static-actions-media.json": "1e8f04cf32574ebd0b01ce0e478ebdabf37b79b55bb41aa2b32876f6fc5c4966",
+    "test/fixtures/adaptive-cards/static-inputs.json": "ae066d31580b72afc1f31c7bfae0e93aad49ab49ff4e0fee98c0fb020b47f434",
+    "test/fixtures/adaptive-cards/typography.json": "211342c9ea7c0fe378089e9c2fb353e9f34343d1498751ba220e12898257b555",
+    "test/fixtures/adaptive-cards/unsupported.json": "b8842463933cba955f437e3c766db2a52dd057bdb8baf4b28a548f3a0b85e828",
+    "test/harness/adaptive-card-compatibility.mjs": "9d64a9befca38ec56b39af4c48b9ed278f295b32c6f057f67fa63487579e38dd",
+    "test/harness/adaptive-cards.mjs": "a33c321773b9fd74c60432ae2c79eb7d73020b362718e2a0080bf6e5815a5b0a",
+    "test/scripts/adaptive-card-upgrade-guard.mjs": "0718e8a32268239ba664bc7740a8995f56c6791299e8c814729a26b2adc2aaf7",
+    "test/scripts/adaptive-cards-review.mjs": "f84cbacc9faad70bea223618139e4bc2a79e86924324f1fa506e95bfa29d65dd",
+    "test/scripts/compare-adaptive-cards-review.mjs": "61edc63c5115823d5786e7973c396df432e91d3869eac0fe3ab4f536bc05952e"
+  }
+}

@@ -19,7 +19,7 @@ distribution terms provide multiple license options, users should review the ups
 The Adaptive Cards license and the upstream bundle's embedded third-party notice are
 preserved in [`vendor/adaptivecards.LICENSE`](./vendor/adaptivecards.LICENSE) and
 [`vendor/adaptivecards.min.js.LICENSE.txt`](./vendor/adaptivecards.min.js.LICENSE.txt).
-The JavaScript SDK is loaded only for the experimental `adaptive-card` fence.
+The JavaScript SDK is loaded only for the static `adaptive-card` fence.
 
 Include this file in this repository's extension distribution. Do not remove copyright notices
 or license links for bundled open-source software from release ZIP files or other distributions.

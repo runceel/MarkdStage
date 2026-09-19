@@ -147,6 +147,10 @@ Adaptive Card のレポートには、オブジェクトごとの変換を示す
 置換して他の内容を保持します。`inspect` はこれらをクリッピングと区別して報告します。
 納品前に `inspect --fail-on-issues` を実行してください。カード全体がページ外の場合は
 大きさゼロの画像を生成せず、`adaptive-card-outside-slide` を報告します。
+ネイティブ件数には、静的な近似の中にある編集可能なオブジェクトも含みます。
+近似の件数は追加の図形数ではありません。検証が未完了の場合は、
+`adaptiveCardsComplete: false`・`adaptiveCardsTruncated: true` をレポートに残します。
+エラーパネルを書き出せたことは、カード内容の検証成功を意味しません。
 記述方法と制限は[静的な Adaptive Cards](diagrams-and-media.md#静的な-adaptive-cards-を表示する)を参照してください。
 
 書き出したプレゼンテーションには、デッキで使われたテーマごとにスライドマスターが作られ、

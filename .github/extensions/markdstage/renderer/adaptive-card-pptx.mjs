@@ -386,6 +386,7 @@ export function adaptiveCardToPptx({ host, deck, card, SDK, objects, markdown, p
     try {
       separator(entry);
       if (!intersects(bounds, clip)) {
+        reportRetainedSeparator(entry, before.nodes);
         fallback(entry, "adaptive-card-outside-slide");
         return;
       }
@@ -417,8 +418,16 @@ export function adaptiveCardToPptx({ host, deck, card, SDK, objects, markdown, p
       fallbacks.length = before.fallbacks; conversions.length = before.conversions; order = before.order;
       for (const native of nativeElements.keys()) if (native === element || element.contains(native)) nativeElements.delete(native);
       separator(entry);
+      reportRetainedSeparator(entry, before.nodes);
       fallback(entry, error.reason);
     }
+  };
+  const reportRetainedSeparator = (entry, previousNodes) => {
+    if (nodes.length > previousNodes) conversions.push({
+      sourcePath: `${fullPath(entry)}.separator`,
+      sourceType: provenance.get(entry.projectedPath)?.type || entry.object.getJsonTypeName(),
+      mode: "native", reason: "adaptive-card-native", nativeObjects: nodes.length - previousNodes, impact: "none",
+    });
   };
   try {
     if (forceFallbackReason) unsupported(forceFallbackReason);

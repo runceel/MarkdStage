@@ -1,0 +1,25 @@
+{
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "body": [
+    { "type": "ColumnSet", "columns": [
+      { "type": "Column", "width": 2, "items": [
+        { "type": "ActionSet", "orientation": "horizontal", "actions": [
+          { "type": "Action.Submit", "title": "Submit", "data": { "id": "local-only" } },
+          { "type": "Action.Execute", "title": "Execute", "verb": "never-run" },
+          { "type": "Action.OpenUrl", "title": "Documentation", "url": "https://adaptivecards.microsoft.com/" },
+          { "type": "Action.ShowCard", "title": "Show Card", "card": {
+            "type": "AdaptiveCard", "body": [
+              { "type": "TextBlock", "text": "Collapsed content must not appear" },
+              { "type": "Image", "url": "assets/collapsed-never-fetched.svg" }
+            ]
+          } }
+        ] }
+      ] },
+      { "type": "Column", "width": 1, "items": [
+        { "type": "Media", "poster": "assets/card-local.svg", "altText": "Local poster",
+          "sources": [{ "mimeType": "video/mp4", "url": "assets/never-fetched.mp4" }] }
+      ] }
+    ] }
+  ]
+}

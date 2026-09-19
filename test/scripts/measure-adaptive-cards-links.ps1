@@ -2,6 +2,7 @@ param([Parameter(Mandatory = $true)][string]$ArtifactDirectory)
 
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path -LiteralPath $ArtifactDirectory).Path
+$evidence = Get-Content -LiteralPath (Join-Path $root 'evidence.json') -Raw | ConvertFrom-Json
 $application = New-Object -ComObject PowerPoint.Application
 $startedEmpty = $application.Presentations.Count -eq 0
 $report = @{ method = 'Read-only PowerPoint hyperlink character formatting and target; PNG appearance is reviewed separately'; themes = @{} }
@@ -60,7 +61,11 @@ try {
             }
         } finally { $deck.Close(); [void][Runtime.InteropServices.Marshal]::ReleaseComObject($deck) }
         if ((Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash -ne $hash) { throw "Read-only link review changed $file." }
-        if ($links.Count -lt 3) { throw "$theme lacks the required native link witnesses." }
+        if ($evidence.suite -eq 'compatibility') {
+            if ($links.Count -ne 1 -or $links[0].href -ne 'https://adaptivecards.microsoft.com/') {
+                throw "$theme compatibility corpus must retain exactly its one approved documentation link, never the blocked link."
+            }
+        } elseif ($links.Count -lt 3) { throw "$theme lacks the required native link witnesses." }
         $report.themes[$theme] = @{ links = $links; readOnly = $true; sourceSha256 = $hash }
         Write-Output "$theme`: $($links.Count) real native hyperlink labels retain their exact color, underline and target."
     }

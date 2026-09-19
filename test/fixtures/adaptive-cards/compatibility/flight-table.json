@@ -1,0 +1,24 @@
+{
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "body": [
+    { "type": "TextBlock", "text": "Update for your Flight", "wrap": true, "style": "heading" },
+    { "type": "Table", "showGridLines": true, "firstRowAsHeaders": true,
+      "columns": [{ "width": 2 }, { "width": 1 }],
+      "rows": [
+        { "type": "TableRow", "cells": [
+          { "type": "TableCell", "items": [{ "type": "TextBlock", "text": "Passengers", "wrap": true }] },
+          { "type": "TableCell", "items": [{ "type": "TextBlock", "text": "Seat", "horizontalAlignment": "right", "wrap": true }] }
+        ] },
+        { "type": "TableRow", "cells": [
+          { "type": "TableCell", "items": [{ "type": "TextBlock", "text": "Passenger A", "wrap": true }] },
+          { "type": "TableCell", "items": [{ "type": "TextBlock", "text": "14A", "horizontalAlignment": "right", "wrap": true }] }
+        ] },
+        { "type": "TableRow", "cells": [
+          { "type": "TableCell", "items": [{ "type": "TextBlock", "text": "Passenger B", "wrap": true }] },
+          { "type": "TableCell", "items": [{ "type": "TextBlock", "text": "14B", "horizontalAlignment": "right", "wrap": true }] }
+        ] }
+      ]
+    }
+  ]
+}

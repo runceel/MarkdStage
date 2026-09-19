@@ -44,7 +44,9 @@ refresh, authentication, templates and external data remain unsupported.
 Invalid card structure or versions produce a visible error panel. Unknown properties,
 unmet `requires`, explicit static fallback replacements/drops and Markdown
 sanitization have content diagnostics; fallback never bypasses asset policy.
-Only `adaptiveCards` up to version 1.5 is an advertised capability.
+Only `adaptiveCards` up to version 1.5 (or `"*"`) is an advertised capability.
+The authored source `version` must still be **exactly `"1.5"`**; other source
+versions are not automatically upgraded.
 
 Run `markdstage validate slides.md --json` for browser-free structural checks,
 then `markdstage inspect slides.md --json` for SDK, asset and rendering
@@ -53,6 +55,10 @@ diagnostics. Validation does not fetch images or prove they loaded.
 Reports locate the slide/card and JSON path, for example
 `adaptive-card[0]$.body[1].url`. Cards wait for fonts and permitted images before
 inspection or output.
+Browser reports distinguish image checks that ran (`browser-checked`) from
+checks not reached (`not-run`). Missing/invalid images still have content
+diagnostics when checks ran. Incomplete/truncated diagnostics are never a clean
+validation result, including in PowerPoint export reports and CLI text.
 
 PowerPoint preserves the supported static subset as **editable text, shapes,
 images, separators and tables**, including supported FactSet and non-merged
@@ -64,6 +70,14 @@ native objects, static approximations and raster fallbacks with source locations
 and content impact. Static approximations may themselves contain editable objects.
 Read `markdstage guide adaptive-cards` (Canvas: `markdstage_guide` topic
 `adaptive-cards`) for exact properties, fallback and reporting limits.
+The [generated type/property support matrix](../../.github/extensions/markdstage/docs/adaptive-cards.md#versioned-support-matrix)
+defines both browser and PowerPoint behavior. In particular, FactSet/Table
+native output is conditional; lists, RTL, Person images and unsupported clipping
+use bounded artwork. Static inputs/actions/media are approximations, not live
+controls. ActionSet orientation is ignored with a diagnostic.
+Templates, custom registration, additional schema versions, host presets,
+remote allowlists and presenter interactions remain unimplemented; no full
+Adaptive Cards, Teams or Outlook compatibility is claimed.
 
 ## Use Mermaid for automatic layout
 

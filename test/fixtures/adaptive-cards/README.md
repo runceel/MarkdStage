@@ -191,3 +191,144 @@ The implementation-session evidence does not replace the coordinator's
 independent visual gate on the committed SHA. Record that gate separately, and
 keep installed-MSIX/WinUI-shell, PowerPoint Web and Impress results distinct from
 the native controller and desktop PowerPoint results.
+
+## Official-sample compatibility corpus
+
+`compatibility/` adds **17 separate pages and a back cover**, without changing the
+original 16-page native fixture suite. Its expected counts per theme are **64
+native objects, 23 approximation entries and 16 bounded card pictures**.
+Approximation entries are semantic conversion records, not additional shapes:
+their editable objects are already included in the native count.
+
+The five reduced payloads come from official Microsoft AdaptiveCards ActivityUpdate,
+FlightUpdateTable, InputsWithValidation, MediaInColumnSet, SimpleFallback and
+Element.Requires samples. [provenance.json](compatibility/provenance.json) pins
+every upstream URL to commit `8b62e1d5700192578050a4fe255658811e67ce43`, records
+all reductions/mutations and distinguishes original MarkdStage assets. The
+[upstream MIT license](compatibility/LICENSE) is retained. No external sample
+images, portraits or media are copied; the tests never retrieve upstream samples
+or runtime assets. Negative remote URL strings must be rejected before fetch.
+
+The shared corpus harness explicitly declares each mutation, static/browser
+diagnostic code, severity, content impact and authored path, plus visible and
+absent text. It covers native and mixed output, conditional/non-grid tables,
+static input/action/media projections, exact source versions, unknown
+types/properties, requires/substitution/drop, fatal unused fallback, credentialed
+and custom links, blocked/missing/invalid/animated images and diagnostic overflow.
+[output-expectations.json](compatibility/output-expectations.json) additionally
+pins every conversion's source path/type/mode/reason/native-object count and
+bounded-picture ownership. Its `counts` tuple is native objects, approximation
+entries, rasterized subtrees; conversion tuples are source path, source type,
+mode, reason, native objects. These are executable expectations, not claims that
+unmodified upstream samples are fully supported.
+
+```powershell
+npm run check:adaptive-cards
+npm run sync --prefix .\packages\markdstage-cli
+node --test .\.github\extensions\markdstage\test\adaptive-card*.test.mjs
+npx playwright test --project=pptx adaptive-card-compatibility adaptive-cards-canvas --workers=1
+# Use the real probe built above; the default is all four themes.
+node .\test\scripts\adaptive-cards-review.mjs '<absolute-corpus-output>' --suite compatibility --webview2-probe $probe
+.\test\scripts\render-adaptive-cards-review.ps1 -ArtifactDirectory '<absolute-corpus-output>'
+node .\test\scripts\measure-adaptive-cards-powerpoint.mjs '<absolute-corpus-output>'
+.\test\scripts\measure-adaptive-cards-links.ps1 -ArtifactDirectory '<absolute-corpus-output>'
+```
+
+The original review command without `--suite compatibility` remains mandatory:
+it locks **122 / 26 / 12** and the F01 decoration, hyperlink, clipping and p7/p12
+stacking regressions. The corpus does not replace those fixtures.
+`--themes dark` is useful for a targeted investigation, **not** a four-theme gate.
+Each corpus export writes `compatibility-output.json`, `export-report.txt`,
+the normal JSON report/model, actual PPTX and all normal review images.
+
+The production Canvas HTTP/export test and source-built native CLI consume
+these same cases and expectations. Canvas only stubs Copilot registration
+transport, not the renderer/exporter; it is not live Copilot UI coverage.
+The native CLI tests exercise actual WebView2 script-host validation, native
+asset serving and external-browser export. Run from the repository root:
+
+```powershell
+dotnet test .\apps\MarkdStage.Desktop\tests\MarkdStage.Core.Tests\MarkdStage.Core.Tests.csproj -p:Platform=ARM64 -r win-arm64
+dotnet test .\apps\MarkdStage.Desktop\tests\MarkdStage.Cli.Tests\MarkdStage.Cli.Tests.csproj -p:Platform=ARM64 -r win-arm64
+dotnet build .\apps\MarkdStage.Desktop\src\MarkdStage.Cli\MarkdStage.Cli.csproj -p:Platform=ARM64 -r win-arm64
+$env:MARKDSTAGE_NATIVE_CLI = (Resolve-Path .\apps\MarkdStage.Desktop\src\MarkdStage.Cli\bin\ARM64\Debug\net10.0-windows10.0.26100.0\win-arm64\MarkdStageCli.exe).Path
+node --test .\apps\MarkdStage.Desktop\tests\native-export-report.test.mjs .\apps\MarkdStage.Desktop\tests\native-cli.test.mjs
+```
+
+Use the corresponding x64 runtime/platform on an x64 machine. Source binaries,
+real CoreWebView2-controller probes and Windows PowerPoint COM are not
+installed-MSIX activation or full WinUI-shell evidence. Linux/Chromium runs must
+record Windows/Office checks as not run. A product-tool naming conflict with an
+installed user tool does not authorize renaming tools or changing user settings.
+
+## SDK / HostConfig / compatibility upgrade gate
+
+[contract-lock.json](compatibility/contract-lock.json) pins the SDK bytes/version,
+authored schema/envelope, capability revision and generated matrix, resolved
+HostConfig defaults for four fixed palette probes, relevant parser/render/export
+sources, Marked/DOMPurify bytes, original fixtures, local assets, corpus provenance
+and exact output expectations. Text fingerprints normalize only line endings.
+HostConfig probes inspect the real vendored SDK without rendering or networking;
+they are not a substitute for the four actual theme renders.
+`test:schema` and the targeted guard test fail on drift. CI cannot silently
+accept a changed declaration, fallback, renderer, output count or corpus.
+
+1. **Before changing the dependency**, retain clean accepted-SHA evidence for
+   **both** suites using the commands above. Use a separate, clean candidate
+   checkout and separate output directories; never overwrite accepted evidence.
+   Record browser, WebView2, OS/fonts and actual PowerPoint versions. A fixture
+   hash difference is a corpus change needing explicit review, not an SDK delta.
+2. For an explicitly requested upgrade only, acquire a reviewed npm archive in
+   a checkout-local staging directory (`npm pack adaptivecards@<version>
+   --pack-destination .\test-results\adaptive-card-upgrade`). Check upstream
+   release notes/API/property and license changes, then extract locally. Split
+   the reviewed bundle with the existing vendor tool:
+
+   ```powershell
+   node .\.github\extensions\markdstage\scripts\vendor-assets.mjs split .\test-results\adaptive-card-upgrade\package\dist\adaptivecards.min.js .\.github\extensions\markdstage\vendor .\.github\extensions\markdstage\vendor\vendor-assets.lock.json <version> adaptivecards.min.js adaptivecards
+   npm run test:vendor
+   ```
+
+   Retain the upstream LICENSE and embedded bundle notice; update the canonical
+   SDK constant/notices together. Do **not** automatically broaden the source
+   version, requires capability, properties or HostConfig. No product runtime
+   SDK download is introduced. Startup chunk verification remains mandatory.
+3. Make the narrowly accepted canonical changes and update declarations/docs.
+   Run `npm run generate:adaptive-cards`; review its diff. Start with the targeted
+   unit/corpus/browser tests, then `test:schema`, `test:docs`, `test:vendor`,
+   `test:unit`, `test:cli`, native host/CLI tests when affected, and the existing
+   Markdown/Mermaid/Architecture/Archify/PDF/PPTX regressions. Synchronize
+   `shared` **before**, not during, browser tests; regenerate/check Awesome
+   Copilot with `npm run awesome:sync` and `npm run awesome:check`.
+4. Run both four-theme review suites against the candidate using actual WebView2
+   and PowerPoint. Compare **each suite separately** to its accepted directory:
+
+   ```powershell
+   node .\test\scripts\compare-adaptive-cards-review.mjs '<before-baseline>' '<after-baseline>' '.\test-results\upgrade-baseline-comparison'
+   node .\test\scripts\compare-adaptive-cards-review.mjs '<before-corpus>' '<after-corpus>' '.\test-results\upgrade-corpus-comparison'
+   ```
+
+   The destination must be new. `comparison.json` lists source/SDK changes,
+   exact semantic/count/path failures, unchanged **2 px** edge / **3 px** text
+   rectangle limits, and pixel changes in Chromium, real WebView2 and actual
+   PowerPoint. It writes before/after PNG pairs and changed-image overlays.
+   Missing Windows/Office artifacts or any pixel change returns exit 2 for
+   investigation/explicit review, never an automatic snapshot refresh.
+   Actual capital-glyph baseline checks retain their separate **3 px** limit;
+   text rectangles are not baselines. Review every page for missing/obscured
+   content and confirm persisted existing-object edits and hyperlinks.
+5. Only after independent actual-PPTX visual approval, record the reviewed
+   expectation changes and approval evidence in the PR/gate record. A candidate
+   fingerprint is deliberately **not** written to the committed lock:
+
+   ```powershell
+   node .\test\scripts\adaptive-card-upgrade-guard.mjs --candidate .\test-results\adaptive-card-upgrade\candidate-contract.json
+   npm run check:adaptive-cards
+   ```
+
+   `--candidate` refuses overwrite and cannot target `contract-lock.json`.
+   `--check` continues failing until a human-reviewed lock change is committed;
+   there is no `--update` or visual-approval bypass. Update source, matrix,
+   precise corpus expectations and approved lock together, then rerun checks.
+   Retain the accepted and candidate evidence. Neither a fingerprint change
+   nor successful XML/COM measurements self-declares independent visual approval.

@@ -164,6 +164,25 @@ const TABLE_COLUMN_SCHEMA = {
   horizontalCellContentAlignment: horizontal, verticalCellContentAlignment: vertical,
 };
 
+// Documentation/upgrade tooling reads this closed envelope, not a second schema
+// whitelist. Validators and collection-role checks above remain authoritative.
+export function adaptiveCardSchemaEnvelope() {
+  const roles = (value) => Object.fromEntries(Object.entries(value || {}).map(([name, types]) => [name, [...types]]));
+  const records = {
+    Fact: FACT_SCHEMA, Choice: CHOICE_SCHEMA, MediaSource: MEDIA_SOURCE_SCHEMA,
+    TableColumnDefinition: TABLE_COLUMN_SCHEMA,
+  };
+  return Object.fromEntries(Object.entries({ ...SCHEMA, ...records }).map(([type, properties]) => [type, {
+    properties: Object.keys(properties),
+    required: [...REQUIRED[type] || []],
+    collections: roles(COLLECTIONS[type]),
+    children: roles(CHILDREN[type]),
+    records: type === "FactSet" ? { facts: "Fact" } : type === "Input.ChoiceSet" ? { choices: "Choice" }
+      : type === "Media" ? { sources: "MediaSource" } : type === "Table" ? { columns: "TableColumnDefinition" } : {},
+    capabilityProperties: Object.hasOwn(SCHEMA, type) ? ["requires", ...(type === "AdaptiveCard" ? [] : ["fallback"])] : [],
+  }]));
+}
+
 // A strict, syntactic subset of pinned DOMPurify's rendered-link URI policy.
 // The browser rechecks hrefs with DOMPurify before native export. Resource
 // approval is deliberately separate: a hyperlink is never an asset.
@@ -174,6 +193,7 @@ export function isAllowedCardHref(value) {
   let url;
   try { url = new URL(value); }
   catch { return false; }
+  if (url.username || url.password) return false;
   if (url.protocol === "http:" || url.protocol === "https:") return /^https?:\/\/[^/]/i.test(value) && Boolean(url.hostname);
   return (url.protocol === "mailto:" || url.protocol === "tel:") && Boolean(url.pathname);
 }
@@ -205,6 +225,9 @@ function validateCardStructure(value, path, allowed, ids = new Map(), branch = n
   }
   if (value.type === "AdaptiveCard" && Object.hasOwn(value, "fallback")) {
     fail("unsupported-fallback", `${path}.fallback`, "Card-root fallback is not supported; use element fallbacks.");
+  }
+  if (value.type === "AdaptiveCard" && Object.hasOwn(value, "version") && value.version !== ADAPTIVE_CARD_SCHEMA_VERSION) {
+    fail("unsupported-version", `${path}.version`, `MarkdStage supports authored schema ${ADAPTIVE_CARD_SCHEMA_VERSION} only, including collapsed cards.`);
   }
   for (const key of Object.keys(value)) {
     if (INTERACTIVE.has(key)) fail("unsupported-interactivity", `${path}.${key}`, "Refresh, authentication and dynamic host queries are not supported.");
@@ -455,6 +478,8 @@ export function validateAdaptiveCardSource(source, { baseURI = "https://markdsta
       }
       if (INPUT_TYPES.includes(value.type)) {
         warn("static-input", path, "Only the initial value or placeholder is shown with a non-interactive label; input editing and validation are unavailable.");
+      } else if (value.type === "ActionSet" && Object.hasOwn(value, "orientation")) {
+        warn("static-property-ignored", `${path}.orientation`, "Static action labels use the owned vertical projection; authored action orientation is not applied.");
       } else if (value.type === "Media") {
         warn("static-media", path, "Only an approved poster and static media label are shown. Media sources are never fetched or played.");
       } else if (ACTION_TYPES.includes(value.type)) {

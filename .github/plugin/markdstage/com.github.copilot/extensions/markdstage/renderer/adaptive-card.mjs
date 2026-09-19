@@ -354,7 +354,7 @@ function showCardDiagnostics(shadow, documentRef, diagnostics, fatal = false) {
 export async function renderAdaptiveCard(host, source, palette, resources = createAdaptiveCardResourceContext()) {
   const documentRef = host.ownerDocument;
   const state = { status: "loading", diagnostics: [], card: null, semanticCard: null, SDK: null, approvedImages: new Set(),
-    sourcePaths: new Map(), markdown: new Map(), provenance: new Map() };
+    sourcePaths: new Map(), markdown: new Map(), provenance: new Map(), resourceValidation: "not-run" };
   states.set(host, state);
   host.dataset.adaptiveCardState = "loading";
   try {
@@ -396,6 +396,7 @@ export async function renderAdaptiveCard(host, source, palette, resources = crea
     state.sourcePaths = projected.sourcePaths;
     state.provenance = projected.provenance;
     state.approvedImages = await prepareCardImages(projected.json, documentRef, state, resources);
+    state.resourceValidation = "browser-checked";
     const card = parseModel(projected.json);
     const shadow = shadowContent(host);
     const objects = typedObjects(card, SDK, state.sourcePaths);
@@ -433,6 +434,9 @@ export async function renderAdaptiveCard(host, source, palette, resources = crea
         fail("geometry-unavailable", sourcePath, "A visible SDK object has no renderedElement.");
       }
     }
+    if (state.diagnostics.some((entry) => entry.code === "diagnostics-truncated")) {
+      fail("diagnostics-truncated", "$", "Browser card diagnostics reached the reporting limit; rendering is incomplete.");
+    }
     showCardDiagnostics(shadow, documentRef, state.diagnostics);
     // Cards introduce fonts after the slide's first fonts.ready. Force layout
     // before waiting again, including monospace and diagnostic/placeholder text.
@@ -464,9 +468,12 @@ export function getAdaptiveCardDiagnostics(host) {
   const state = states.get(host);
   if (!state) return null;
   const blockIndex = Number(host.dataset.adaptiveCardBlock);
+  const truncated = state.diagnostics.some((entry) => entry.code === "diagnostics-truncated");
   return {
     blockIndex, status: state.status, sdkVersion: ADAPTIVE_CARDS_SDK_VERSION,
     schemaVersion: ADAPTIVE_CARD_SCHEMA_VERSION, hostConfigVersion: ADAPTIVE_CARD_HOST_CONFIG_VERSION,
+    complete: state.status !== "loading" && !truncated, diagnosticsTruncated: truncated,
+    resourceValidation: state.resourceValidation,
     diagnostics: state.diagnostics.map((entry) => ({
       ...entry, sourcePath: `adaptive-card[${blockIndex}]${entry.path}`,
     })),

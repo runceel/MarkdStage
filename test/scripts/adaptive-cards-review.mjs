@@ -1,4 +1,4 @@
-// node test\scripts\adaptive-cards-review.mjs <absolute-output-dir> [--webview2-probe <absolute-exe>]
+// node test\scripts\adaptive-cards-review.mjs <absolute-output-dir> [--webview2-probe <absolute-exe>] [--suite compatibility] [--themes dark,light,microsoft,custom]
 import assert from "node:assert/strict";
 import { spawn, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -13,15 +13,27 @@ import { reconstructAsset } from "../../.github/extensions/markdstage/scripts/ve
 import { inspectPptxPackage } from "../../.github/extensions/markdstage/runtime/pptx-package.mjs";
 import { adaptiveCardGeometry, adaptiveCardNativeModel, adaptiveCardReviewCases, CARD_FIXTURE_DIRECTORY } from "../harness/adaptive-cards.mjs";
 import { compareCardGeometry, compareCardNativeModels, compareCardPngs } from "../utils/adaptive-card-comparison.mjs";
+import { adaptiveCardCompatibilityCases, compatibilityOutputSignature, assertCompatibilityOutput } from "../harness/adaptive-card-compatibility.mjs";
+import { formatExportReport } from "../../.github/extensions/markdstage/runtime/export-report.mjs";
 
-const [output, flag, probe] = process.argv.slice(2);
-if (!output || !isAbsolute(output) || (flag && (flag !== "--webview2-probe" || !isAbsolute(probe || "")))) {
-  throw new Error("Provide an absolute output directory and, optionally, --webview2-probe <absolute-exe>.");
+const [output, ...flags] = process.argv.slice(2);
+const options = new Map();
+for (let index = 0; index < flags.length; index += 2) {
+  if (!["--webview2-probe", "--suite", "--themes"].includes(flags[index]) || !flags[index + 1] || options.has(flags[index])) {
+    throw new Error("Expected unique --webview2-probe, --suite or --themes option/value pairs.");
+  }
+  options.set(flags[index], flags[index + 1]);
+}
+const probe = options.get("--webview2-probe"), suite = options.get("--suite") || "baseline";
+const themes = (options.get("--themes") || "dark,light,microsoft,custom").split(",");
+if (!output || !isAbsolute(output) || (probe && !isAbsolute(probe)) ||
+    !["baseline", "compatibility"].includes(suite) || themes.some((theme) => !["dark", "light", "microsoft", "custom"].includes(theme))) {
+  throw new Error("Provide an absolute output directory/probe, suite baseline|compatibility, and known themes.");
 }
 await mkdir(output, { recursive: true });
 const json = (path, value) => writeFile(path, JSON.stringify(value, null, 2) + "\n");
 const browser = await chromium.launch({ headless: true });
-const cases = await adaptiveCardReviewCases();
+const cases = await (suite === "compatibility" ? adaptiveCardCompatibilityCases() : adaptiveCardReviewCases());
 const slides = cases.map((entry) => entry.markdown);
 const expression = `(async () => {
   const deadline = performance.now() + 40000;
@@ -57,6 +69,7 @@ async function runProbe(url, directory) {
 }
 
 const report = {
+  suite,
   head: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
   workingTreeChanged: Boolean(execFileSync("git", ["status", "--porcelain"], { encoding: "utf8" }).trim()),
   chromium: { version: browser.version(), executable: chromium.executablePath() },
@@ -71,7 +84,7 @@ const sdk = await reconstructAsset(vendorDirectory, "adaptivecards.min.js", join
 report.bundle = { sdkVersion: "3.0.6", bytes: sdk.length, gzipBytes: gzipSync(sdk).length,
   sha256: createHash("sha256").update(sdk).digest("hex"), chunks: 1 };
 report.sourceHashes = {};
-for (const name of ["adaptive-card.mjs", "adaptive-card-validation.mjs", "adaptive-card-static.mjs",
+for (const name of ["adaptive-card.mjs", "adaptive-card-validation.mjs", "adaptive-card-capabilities.mjs", "adaptive-card-static.mjs",
   "adaptive-card-markdown.mjs", "adaptive-card-pptx.mjs", "scene-graph.mjs", "scene-pptx.mjs",
   "fenced-blocks.mjs", "marked-lexer.mjs", "renderer.js", "slides.css"]) {
   const bytes = await readFile(resolve(".github", "extensions", "markdstage", "renderer", name));
@@ -84,7 +97,7 @@ for (const segments of [["runtime", "pptx-package.mjs"], ["runtime", "output-mod
 }
 
 try {
-  for (const theme of ["dark", "light", "microsoft", "custom"]) {
+  for (const theme of themes) {
     const directory = join(output, theme);
     await mkdir(join(directory, "chromium"), { recursive: true });
     await cp(join(CARD_FIXTURE_DIRECTORY, "assets"), join(directory, "assets"), { recursive: true });
@@ -188,6 +201,12 @@ try {
         assert.equal(inspectPptxPackage(pptx).valid, true);
         await json(join(directory, "model.json"), rendered.model);
         await json(join(directory, "export-report.json"), result.export);
+        await writeFile(join(directory, "export-report.txt"), formatExportReport(result.export) + "\n");
+        if (suite === "compatibility") await json(join(directory, "compatibility-output.json"),
+          Object.fromEntries(cases.map((entry, index) => [entry.name, compatibilityOutputSignature(rendered.model.slides[index])])));
+        if (suite === "compatibility") await assertCompatibilityOutput(cases, rendered.model);
+        else assert.deepEqual(result.export.adaptiveCardConversionSummary,
+          { nativeObjects: 122, approximated: 26, rasterizedSubtrees: 12 }, "Existing native/raster baseline changed.");
         for (let index = 0; index < slides.length; index++) {
           const slide = rendered.model.slides[index];
           const captures = rendered.slideFallbackImages[index].filter((capture) => slide.fallbacks[capture.fallbackIndex].type === "adaptive-card");

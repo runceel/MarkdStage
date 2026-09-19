@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { formatExportReport } from "../src/MarkdStage.Cli/export-report.mjs";
+import { formatExportReport } from "../../../.github/extensions/markdstage/runtime/export-report.mjs";
 import { formatExportReport as formatNodeExportReport } from "../../../packages/markdstage-cli/src/commands/export.mjs";
 
 const diagnostic = {

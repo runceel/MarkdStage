@@ -150,6 +150,10 @@ missing/blocked images retain deterministic placeholders and the remaining conte
 `inspect` reports these separately from clipping; run
 `inspect --fail-on-issues` before delivery. Fully off-slide cards have no
 zero-sized image and report `adaptive-card-outside-slide`.
+Native object counts include editable objects within static approximations;
+approximation entries are not additional shapes. The report explicitly retains
+`adaptiveCardsComplete: false` / `adaptiveCardsTruncated: true` when checks were
+incomplete. An exported error panel is not successful validation of its payload.
 See [Adaptive Card authoring and limits](diagrams-and-media.md#render-static-adaptive-cards).
 
 The exported presentation creates one slide master for each theme used in the deck, with named

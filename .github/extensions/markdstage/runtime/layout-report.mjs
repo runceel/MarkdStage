@@ -133,17 +133,20 @@ export function sanitizeLayoutReport(layout) {
           path: text(entry.path, 512), sourcePath: text(entry.sourcePath, 560), message: text(entry.message, 512),
         }));
         remainingCardDiagnostics -= diagnostics.length;
+        const diagnosticsTruncated = supplied.length > diagnostics.length || card.diagnosticsTruncated === true ||
+          diagnostics.some((entry) => entry.code === "diagnostics-truncated");
         return {
           blockIndex: nonnegative(card.blockIndex),
           status: card.status === "ready" ? "ready" : "error",
           sdkVersion: text(card.sdkVersion, 16), schemaVersion: text(card.schemaVersion, 16),
           hostConfigVersion: nonnegative(card.hostConfigVersion), diagnostics,
-          diagnosticsTruncated: supplied.length > diagnostics.length || card.diagnosticsTruncated === true,
+          diagnosticsTruncated, complete: card.complete !== false && !diagnosticsTruncated,
+          resourceValidation: card.resourceValidation === "browser-checked" ? "browser-checked" : "not-run",
         };
       });
       result.adaptiveCardsTruncated = slide.adaptiveCards.length > result.adaptiveCards.length || slide.adaptiveCardsTruncated === true;
       result.adaptiveCardIssueCount = result.adaptiveCards.filter((card) =>
-        card.status === "error" || card.diagnostics.length || card.diagnosticsTruncated).length +
+        card.status === "error" || card.diagnostics.length || card.diagnosticsTruncated || !card.complete).length +
         (result.adaptiveCardsTruncated ? 1 : 0);
     }
     return result;

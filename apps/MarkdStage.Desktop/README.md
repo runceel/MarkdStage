@@ -219,8 +219,10 @@ markdstage export slides.md --output slides.pptx
 Both GUI and CLI exports require the external Chromium-based browser described above. Export
 paths must remain inside the workspace.
 
-CLI export text reports whole-card PowerPoint artwork reasons and card warnings with their
-page, source JSONPath, severity, message, and diagnostic code, matching the npm CLI.
+CLI export text uses the canonical shared formatter and reports native/static/bounded
+PowerPoint conversion reasons and card warnings with their page, source JSONPath,
+severity, message, diagnostic code, and content impact, matching the npm CLI.
+Incomplete/truncated card validation and browser resource checks not reached remain explicit.
 `--json` retains the structured report; PDF card decks additionally include `adaptiveCards`,
 `adaptiveCardIssueCount`, and `adaptiveCardsTruncated`. Those fields are absent on card-free PDF decks.
 

@@ -39,6 +39,7 @@ for (const name of await readdir(resolve(source, "schema"))) {
   if (name.endsWith(".json")) await copyModule(`schema/${name}`);
 }
 await mkdir(resolve(output, "CliData"), { recursive: true });
-for (const name of ["host.html", "host.mjs", "export-report.mjs"])
+for (const name of ["host.html", "host.mjs"])
   await cp(fileURLToPath(new URL(name, import.meta.url)), resolve(output, "CliData", name));
+await cp(resolve(source, "runtime/export-report.mjs"), resolve(output, "CliData/export-report.mjs"));
 await writeFile(resolve(output, "CliData/shared-modules.json"), JSON.stringify([...seen].sort()), "utf8");

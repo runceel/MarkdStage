@@ -115,7 +115,7 @@ test("real PPTX embeds editable cards and only bounded unsupported artwork, with
         await writeFile(testInfo.outputPath(`card-${index + 1}-${cardIndex + 1}.png`), capture.data);
       }
     }
-    expect(report.adaptiveCardConversionSummary.nativeObjects).toBeGreaterThan(44);
+    expect(report.adaptiveCardConversionSummary).toEqual({ nativeObjects: 122, approximated: 26, rasterizedSubtrees: 12 });
     const nativeCards = rendered.model.slides.slice(0, 4);
     expect(nativeCards.every((slide) => slide.fallbacks.every((entry) => entry.type !== "adaptive-card"))).toBe(true);
     expect(nativeCards[2].elements.filter((entry) => entry.type === "image" && entry.adaptiveCard)).toHaveLength(3);

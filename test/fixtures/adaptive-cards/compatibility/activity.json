@@ -1,0 +1,22 @@
+{
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "body": [
+    { "type": "TextBlock", "text": "Publish Adaptive Card schema", "weight": "bolder", "size": "medium", "wrap": true, "style": "heading" },
+    { "type": "ColumnSet", "columns": [
+      { "type": "Column", "width": "auto", "items": [
+        { "type": "Image", "url": "assets/card-local.svg", "altText": "Authored local schema icon", "size": "small", "style": "default" }
+      ] },
+      { "type": "Column", "width": "stretch", "items": [
+        { "type": "TextBlock", "text": "Schema team", "weight": "bolder", "wrap": true },
+        { "type": "TextBlock", "text": "Created 2017-02-14", "spacing": "none", "isSubtle": true, "wrap": true }
+      ] }
+    ] },
+    { "type": "TextBlock", "text": "Publish the schema and reference documentation.", "wrap": true },
+    { "type": "FactSet", "facts": [
+      { "title": "Board:", "value": "Adaptive Card" },
+      { "title": "List:", "value": "Backlog" }
+    ] }
+  ]
+}

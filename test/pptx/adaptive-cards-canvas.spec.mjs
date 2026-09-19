@@ -1,15 +1,19 @@
 import { expect, test } from "@playwright/test";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { startCanvasServer } from "../harness/canvas-server.mjs";
-import { cardFence, staticCard, adaptiveCardGeometry } from "../harness/adaptive-cards.mjs";
+import { cardFence, staticCard, adaptiveCardGeometry, CARD_FIXTURE_DIRECTORY } from "../harness/adaptive-cards.mjs";
+import { adaptiveCardCompatibilityCases, compatibilityDiagnostics, CARD_COMPATIBILITY_DIRECTORY } from "../harness/adaptive-card-compatibility.mjs";
 import { inspectPptxPackage } from "../../.github/extensions/markdstage/runtime/pptx-package.mjs";
 
 test("actual Canvas HTTP host serves the pinned SDK, renders cards and exports diagnostic PPTX", async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   const workspace = testInfo.outputPath("canvas-workspace");
   await mkdir(join(workspace, "assets"), { recursive: true });
+  // Keep Canvas's real nearest-repository workspace resolution inside the
+  // isolated fixture even when Playwright artifacts live in this checkout.
+  await mkdir(join(workspace, ".git"));
   await writeFile(join(workspace, "assets", "card.svg"), '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><circle cx="32" cy="32" r="24" fill="#0078d4"/></svg>');
   await writeFile(join(workspace, "cards.md"), [
     "---\ndeck: Canvas card host\nlayout: default\n---\n## Canvas card host",
@@ -40,6 +44,7 @@ test("actual Canvas HTTP host serves the pinned SDK, renders cards and exports d
       data: { outputPath: "canvas-cards.pptx" },
       timeout: 120_000,
     });
+
     expect(response.ok()).toBe(true);
     const report = await response.json();
     expect(report.ok).toBe(true);
@@ -64,5 +69,41 @@ test("actual Canvas HTTP host serves the pinned SDK, renders cards and exports d
     expect(pdf.adaptiveCardIssueCount).toBe(1);
     expect((await readFile(pdf.path)).subarray(0, 5).toString()).toBe("%PDF-");
     await writeFile(testInfo.outputPath("canvas-pdf-report.json"), JSON.stringify(pdf, null, 2));
+  } finally { await host.close(); }
+});
+
+test("Canvas production export endpoint preserves the official corpus contract and incomplete diagnostics", async ({ page }, testInfo) => {
+  test.setTimeout(180_000);
+  const workspace = testInfo.outputPath("canvas-corpus");
+  await mkdir(workspace, { recursive: true });
+  await mkdir(join(workspace, ".git"));
+  await cp(join(CARD_FIXTURE_DIRECTORY, "assets"), join(workspace, "assets"), { recursive: true });
+  const cases = await adaptiveCardCompatibilityCases();
+  const expected = JSON.parse(await readFile(join(CARD_COMPATIBILITY_DIRECTORY, "output-expectations.json"), "utf8"));
+  await writeFile(join(workspace, "cards.md"), cases.map((entry) => entry.markdown).join("\n\n---\n\n"));
+  const host = await startCanvasServer(workspace);
+  try {
+    const response = await page.request.post(new URL("export-pptx", host.url).href, {
+      headers: { Origin: new URL(host.url).origin }, data: { outputPath: "canvas-corpus.pptx" }, timeout: 120_000,
+    });
+    expect(response.ok()).toBe(true);
+    const report = await response.json();
+    expect(report.ok).toBe(true);
+    expect(report.adaptiveCardsComplete).toBe(false);
+    expect(report.adaptiveCardsTruncated).toBe(true);
+    expect(report.adaptiveCardConversionSummary).toEqual({ nativeObjects: 64, approximated: 23, rasterizedSubtrees: 16 });
+    for (const [index, entry] of cases.entries()) {
+      const card = report.adaptiveCards[index];
+      expect(card.slideIndex).toBe(index);
+      expect(card.page).toBe(index + 1);
+      expect(card.blockIndex).toBe(0);
+      expect(card.complete).toBe(entry.static.complete);
+      expect(compatibilityDiagnostics(card.diagnostics), entry.name).toEqual(entry.browser.diagnostics);
+      expect(card.conversions.map(({ sourcePath, sourceType, mode, reason, nativeObjects }) =>
+        [sourcePath, sourceType, mode, reason, nativeObjects]), entry.name).toEqual(expected[entry.name].conversions);
+      for (const diagnostic of card.diagnostics) expect(diagnostic.sourcePath).toBe(`adaptive-card[0]${diagnostic.path}`);
+    }
+    expect(inspectPptxPackage(await readFile(report.path)).valid).toBe(true);
+    await writeFile(testInfo.outputPath("canvas-corpus-report.json"), JSON.stringify(report, null, 2));
   } finally { await host.close(); }
 });
