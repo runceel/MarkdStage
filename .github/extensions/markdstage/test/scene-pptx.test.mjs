@@ -14,6 +14,45 @@ import {
 
 const buildPptxPackage = (model) => Buffer.from(buildPptxBytes(model));
 
+test("maps Adaptive Card Scene decorations and bounded fallback without new node kinds", () => {
+  const text = { paragraphs: [{ runs: [
+    { text: "Underlined", underline: true, strikethrough: false },
+    { text: "Struck", underline: false, strikethrough: true },
+    { text: "Both", underline: true, strikethrough: true },
+    { text: "Default" },
+  ] }] };
+  const bounds = { x: 10, y: 20, width: 180, height: 40 };
+  const source = normalizeScene(createScene({
+    width: 400, height: 300, source: { kind: "adaptive-card", path: "card" },
+    nodes: [
+      { kind: "shape", preset: "rect", z: 0, sourcePath: "body[0]", bounds, text },
+      { kind: "text", z: 1, sourcePath: "body[1]", bounds, text },
+      {
+        kind: "connector", z: 2, sourcePath: "body[2]",
+        points: [{ x: 10, y: 80 }, { x: 190, y: 80 }],
+        style: { stroke: "#000000" }, label: { text, bounds },
+      },
+      { kind: "fallback", z: 3, sourcePath: "body[3]", bounds, reason: "unsupported-card-content" },
+    ],
+  })).scene;
+  const { elements, fallbacks } = sceneToPptxElements(JSON.parse(JSON.stringify(source)));
+  assert.deepEqual(elements.map((element) => element.type), ["shape", "text", "connector"]);
+  assert.deepEqual(elements[0].text, text);
+  assert.deepEqual(elements[1].paragraphs, text.paragraphs);
+  assert.deepEqual(elements[2].label, text);
+  assert.deepEqual(fallbacks.map(({ type, sourcePath, reason, x, y, width, height }) =>
+    ({ type, sourcePath, reason, x, y, width, height })), [{
+    type: "adaptive-card", sourcePath: "body[3]", reason: "unsupported-card-content", ...bounds,
+  }]);
+  const xml = buildPptxPackage({ slides: [{ elements }] }).toString("utf8");
+  assert.equal((xml.match(/u="sng"/g) || []).length, 6);
+  assert.equal((xml.match(/strike="sngStrike"/g) || []).length, 6);
+  assert.equal((xml.match(/u="sng" strike="sngStrike"/g) || []).length, 3);
+  assert.doesNotMatch(xml, /<a:hlinkClick/);
+  elements[0].text.paragraphs[0].runs[0].underline = false;
+  assert.equal(source.nodes[0].text.paragraphs[0].runs[0].underline, true);
+});
+
 test("scene line height becomes exact native PowerPoint paragraph spacing", () => {
   const source = createScene({
     width: 400, height: 300, source: { kind: "architecture", path: "diagram" },

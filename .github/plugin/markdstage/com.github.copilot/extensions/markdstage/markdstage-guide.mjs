@@ -94,7 +94,7 @@ export async function readGuide(topic = "overview") {
         "",
         section(readme, "### `sourceName` role"),
         "",
-        "Use `adaptive-card` fences for fully resolved static schema-1.5 JSON. Read the `adaptive-cards` guide for its closed feature envelope, image placeholders, diagnostics and whole-card PNG PowerPoint output; card content is not exported as editable objects.",
+        "Use `adaptive-card` fences for fully resolved schema-1.5 JSON. Read the `adaptive-cards` guide for non-interactive input/action/media projection, editable static PowerPoint objects, bounded unsupported-subtree PNG fallback, approved images and precise content diagnostics.",
       ].join("\n");
     case "themes":
       return section(readme, "### Choosing a theme");

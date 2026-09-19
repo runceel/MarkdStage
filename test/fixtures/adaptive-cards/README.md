@@ -14,21 +14,32 @@ documents the shipping envelope, diagnostics and image placeholders.
 | `images.json` | Workspace SVG, data SVG, ImageSet, transparency | 7 / 0 |
 | `facts-table.json` | FactSet and Table/Row/Cell semantics, header and grid styles | 13 / 3 Facts |
 | `clipping.json` | Deliberately over-tall card; top visible, bottom clipped in fixed output | 4 / 0 |
-| `unsupported.json` | Input.Text rejection must be visible and reported | 0 / 0 (rejected) |
+| `unsupported.json` | Custom.Widget rejection must be visible and reported | 0 / 0 (rejected) |
 | `placementSlide` in `test/harness/adaptive-cards.mjs` | Card between generic background artwork and native foreground text | 3 / 0 |
-| `fallbacks.json` | Unmet capability with static replacement; explicit Input.Text drop, both reported | 3 / 0 |
+| `fallbacks.json` | Unmet capability with static replacement; explicit Custom.Widget drop, both reported | 3 / 0 |
 | `blocked-images.json` | Local animateMotion, missing file, external URL; three deterministic placeholders with surrounding text preserved | 10 / 0 |
 | `malformed.json` | Invalid TextBlock text type; structural error panel before SDK loading | 0 / 0 (rejected) |
-| `multipleCardsSlide` in the harness | Two valid cards and one malformed card, three independent pictures | 5 / 0 |
+| `multipleCardsSlide` in the harness | Two native cards and one malformed-card picture with separate ownership | 5 / 0 |
 | `boundarySlide` in the harness | Card inside generic HTML crossing the bottom/right page edges | 3 / 0 |
+| `mixed-native.json` | Native neighbors around Person-image/list artwork; styled runs and a safe link | projected typed tree |
+| `native-text.json` | English, long wrapping, Japanese, Markdown link and bounded RTL with a native Latin neighbor | projected typed tree |
+| `static-inputs.json` | All seven input examples, initial values/placeholder and explicit static treatment | original and projected typed trees |
+| `static-actions-media.json` | Submit/Execute/OpenUrl/collapsed ShowCard and approved poster, no media fetch | original and projected typed trees |
 
 The review cases are ordered as the table above: **12 fixture pages per theme**,
-**14 card pictures**, **78 measured CardElements** and **3 aggregate-only Facts**.
-The automatically appended back cover is page 13 and contains no card picture.
-Phase 0's first seven fixture pages remain in their original order.
-The Phase 1 expected state/codes for every card are declared in
+followed by the four native/static-projection pages: **16 fixture pages per
+theme** and an automatically appended back cover on page **17**. The Phase 1
+whole-card-raster count is historical, not the Phase 2 expectation. The native
+fixtures currently produce **122 editable native objects, 26 static
+approximations and 12 bounded card PNGs per theme**; approximated objects can
+still be editable. Individual facts retain aggregate-only SDK geometry, but
+their supported content is a real editable PowerPoint table.
+Phase 0's first seven fixture pages remain in their original order. The expected
+state/codes for every card are declared in
 `adaptiveCardReviewCases`; scripts check them rather than assuming one card per
-page or accepting any visible image.
+page or accepting any visible image. Unsupported-card fixtures now use a
+genuinely unsupported custom element, not inputs that Phase 2 intentionally
+projects into static values.
 
 `assets/card-local.svg` is authored local artwork with transparent corners.
 `assets/animated-motion.svg` is a negative fixture: local and data image inputs
@@ -53,14 +64,25 @@ npx playwright test --project=visual --project=pptx adaptive-card --workers=1
 The browser tests load real SDK objects, scramble SDK-generated class names,
 reload and compare geometry/pixels, exercise all four themes, check exact
 tolerance boundaries, and deny remote/redirect/SVG/implicit-image paths.
-The PPTX tests perform actual export, inspect embedded picture relationships and
-PNG transparency/bounds, verify stacking, and reject post-approval image changes.
+The PPTX tests perform actual export, inspect native text/shapes/lines/images and
+two genuine tables, inspect bounded picture relationships and PNG transparency,
+verify stacking, and reject post-approval image changes. Native collection is
+checked before/after for identical browser geometry and pixels. The entire
+native model is compared across engines, not just the card's outside rectangle.
 They do not regenerate visual baselines.
 The Canvas test runs the production Extension HTTP host and export endpoint;
 only Copilot registration transport is stubbed. It is not an app-UI automation
 or an installed-MSIX test. The shared scanner, browser-free CLI validation,
 sanitizer, lazy load, URL policy, exact image budgets, animation denial and
 font/image readiness each have targeted regressions.
+
+`test/pptx/adaptive-card-decorations.spec.mjs` reuses the unchanged
+`mixed-native.json` failure case and adds a separate four-combination
+underline/strike matrix with regular, italic and safe-link runs. Across all four
+themes it compares actual SDK paint, retained typed properties, before/after
+collection pixels, native runs and real exported PPTX formatting. TextRun's
+pinned underline-over-strike precedence does not suppress combined decorations
+in TextBlock Markdown or alter the existing fixture counts.
 
 Do not run `test:cli`/`sync` concurrently with tests that import its `shared`
 mirror: synchronization replaces that directory. Test outputs may be redirected
@@ -83,6 +105,8 @@ $output = '<absolute-session-artifact-directory>'
 npm run sync --prefix .\packages\markdstage-cli
 node .\test\scripts\adaptive-cards-review.mjs $output --webview2-probe $probe
 .\test\scripts\render-adaptive-cards-review.ps1 -ArtifactDirectory $output
+node .\test\scripts\measure-adaptive-cards-powerpoint.mjs $output
+.\test\scripts\measure-adaptive-cards-links.ps1 -ArtifactDirectory $output
 ```
 
 Use `Platform=x64`, `win-x64`, and the corresponding output path for x64.
@@ -103,6 +127,14 @@ The expression is evaluated twice with native Core CDP `awaitPromise`. The
 probe captures both runs with `CoreWebView2.CapturePreviewAsync`, closes its
 own controller/process, and removes its isolated profile.
 
+The PowerPoint script opens every original read-only, correlates actual native
+shapes and card pictures to the model, and checks their order and placement.
+It then edits **existing** native text, fill, position, image and table objects
+in a disposable copy, saves/reopens that copy, verifies persisted values and
+renders the edited pages. It never proves editing by adding substitute objects
+or by merely finding XML tags. Original hashes must remain unchanged. A missing
+native type or mismatched native shape is a failure.
+
 ## Evidence layout and interpretation
 
 `evidence.json` records source hashes, Chromium/version, bundle size, cold-load
@@ -110,15 +142,26 @@ observations and per-theme comparisons. Each theme directory contains:
 
 - `cards.md`, `assets/`, and the actual `cards.pptx`;
 - `model.json`, `export-report.json`, and transparent `card-N.png` (or
-  `card-N-M.png` for page N with multiple cards);
-- `chromium/slide-NNN.png` and typed geometry JSON;
+  `card-N-M.png` for page N with multiple bounded fallback subtrees);
+- `chromium/slide-NNN.png` and typed geometry/native scene/model JSON;
 - `webview2/slide-NNN/` with two geometry snapshots, two native PNGs and
   `native-engine.json`;
-- `powerpoint/slide-NNN.png` for all 13 pages and `powerpoint-report.json` from
+- `powerpoint/slide-NNN.png` for all 17 pages and `powerpoint-report.json` from
   actual COM rendering, including shape names, order, pixel-converted bounds,
-  original file hash and per-page card-placement differences;
+  original file hash, native counts and per-page placement differences;
+- `editability-report.json` and disposable edited PPTX/PNG copies;
 - `comparisons/` with Chromium-left / native-right image pairs and WebView2
   50%-opacity overlays.
+
+`powerpoint-baseline-measurements.json` records a separate pixel-based check of
+baseline-aligned capital glyphs in actual browser and PowerPoint renders.
+It uses measured flat-background/ink coverage so thin ClearType stems are not
+mistaken for a capital's top crossbar. Its **3 px** limit is unchanged. It
+explicitly excludes underlines, italic and non-Latin baselines; those still
+require actual-image review, not a claimed baseline derived from a Range.
+`powerpoint-link-measurements.json` verifies actual PowerPoint link addresses,
+RGB colors and underline states; merely writing an explicit run color is not
+enough to disable Office's automatic hyperlink styling.
 
 The repository's existing presentation-application review tolerances are
 **2 px** for edges and **3 px** for text, at 1280x720. Compare typed identity,
@@ -126,15 +169,23 @@ hierarchy, content, styles, counts and text-rectangle count exactly before
 comparing geometry. Text rectangles are not actual baseline measurements.
 Within-engine repetition requires zero changed pixels; across-engine image
 counts are diagnostic and cannot excuse missing content or wrong stacking.
-PowerPoint visual inspection is mandatory, even when picture placement is exact.
+PowerPoint visual inspection is mandatory, even when native/picture placement is exact.
 The COM script also compares every actual card picture to its integer capture
 bounds (0.02 px allowance for COM floating-point representation, not a visual
 tolerance). Page 9 must retain all three placeholders and both text blocks;
-page 11 must contain three distinct cards; page 12 must remain partially clipped
+page 11 must contain three distinct cards, with only its error card rasterized;
+page 12 must remain partially clipped
 with no duplicate card in the generic parent artwork. Its positioned card must
 paint above the in-flow footer rule and page badge, matching Chromium: the footer
 must not cross or obscure the visible card label. Page 7 separately checks that
-an explicitly higher-z native foreground still paints above the card.
+an explicitly higher-z native foreground still paints above the card. Page 13
+must retain its native siblings, local image/list artwork and link label, without
+duplicates. Its final italic TextRun must remain underlined **without** a strike,
+matching SDK 3.0.6 paint even though both authored decoration flags are true.
+Page 14 keeps the RTL subtree as artwork and native English/Japanese
+neighbors. Pages 15/16 never contain a live control or media player. PowerPoint
+hyperlinks must retain the browser's text color/decoration, not Office's default
+blue-link styling.
 
 The implementation-session evidence does not replace the coordinator's
 independent visual gate on the committed SHA. Record that gate separately, and

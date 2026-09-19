@@ -14,9 +14,15 @@ test("accepts only resolved, bounded schema 1.5 JSON and diagnoses unsupported m
   assert.deepEqual(parse(card()), card());
   assert.throws(() => parseAdaptiveCardSource("{"), (error) => error.code === "invalid-json");
   for (const version of [undefined, "1.4", "1.6", "2.0", 1.5]) rejects({ ...card(), version }, "unsupported-version");
-  rejects(card([{ type: "Input.Text", id: "input" }]), "unsupported-element");
-  rejects({ ...card(), actions: [] }, "unsupported-interactivity");
-  rejects(card([{ type: "Image", url: "assets/image.png", selectAction: { type: "Action.OpenUrl", url: "https://example.com" } }]), "unsupported-interactivity");
+  rejects(card([{ type: "Input.Custom", id: "input" }]), "unsupported-element");
+  assert.deepEqual(parse({ ...card(), actions: [] }), { ...card(), actions: [] });
+  const interactive = card([{ type: "Input.Text", id: "input" },
+    { type: "Image", url: "assets/image.png", selectAction: { type: "Action.OpenUrl", url: "https://example.com" } }]);
+  assert.deepEqual(parse(interactive), interactive);
+  assert.deepEqual(validateAdaptiveCardSource(JSON.stringify(interactive)).diagnostics.map((entry) => entry.code), ["static-input", "static-link"]);
+  rejects({ ...card(), refresh: {} }, "unsupported-interactivity");
+  rejects({ ...card(), authentication: {} }, "unsupported-interactivity");
+  rejects({ ...card(), actions: [{ type: "Action.Custom" }] }, "unsupported-action");
   rejects({ ...card(), fallback: "drop" }, "unsupported-fallback");
   rejects({ ...card(), requires: { unknown: "1.0" } }, "requires-not-met");
   rejects(card([{ type: "TextBlock", text: "${unresolved}" }]), "unresolved-template");
@@ -59,7 +65,7 @@ test("known requirements succeed; substitutions, drops and inherited fallback re
   assert.ok(result.diagnostics.some((entry) => entry.code === "fallback-substituted"));
   assert.ok(result.diagnostics.some((entry) => entry.code === "fallback-dropped"));
   assert.ok(result.diagnostics.every((entry) => entry.severity === "warning" && entry.impact === "content"));
-  rejects(card([{ type: "Unknown", fallback: { type: "Image", url: "assets/a.png", selectAction: {} } }]), "unsupported-interactivity");
+  rejects(card([{ type: "Unknown", fallback: { type: "Image", url: "assets/a.png", selectAction: {} } }]), "unsupported-element");
   rejects(card([{ type: "Unknown", fallback: { type: "Column", items: [] } }]), "unsupported-element");
   rejects(card([{ type: "TextBlock", text: "x", requires: [], fallback: "drop" }]), "invalid-property");
 });

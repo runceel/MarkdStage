@@ -11,8 +11,8 @@ import { createOutputJob, createOutputSnapshot, exportPptx } from "../../.github
 import { runPptxOutputBrowser } from "../../.github/extensions/markdstage/hosts/node/browser.mjs";
 import { reconstructAsset } from "../../.github/extensions/markdstage/scripts/vendor-assets.mjs";
 import { inspectPptxPackage } from "../../.github/extensions/markdstage/runtime/pptx-package.mjs";
-import { adaptiveCardGeometry, adaptiveCardReviewCases, CARD_FIXTURE_DIRECTORY } from "../harness/adaptive-cards.mjs";
-import { compareCardGeometry, compareCardPngs } from "../utils/adaptive-card-comparison.mjs";
+import { adaptiveCardGeometry, adaptiveCardNativeModel, adaptiveCardReviewCases, CARD_FIXTURE_DIRECTORY } from "../harness/adaptive-cards.mjs";
+import { compareCardGeometry, compareCardNativeModels, compareCardPngs } from "../utils/adaptive-card-comparison.mjs";
 
 const [output, flag, probe] = process.argv.slice(2);
 if (!output || !isAbsolute(output) || (flag && (flag !== "--webview2-probe" || !isAbsolute(probe || "")))) {
@@ -33,7 +33,8 @@ const expression = `(async () => {
   await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   return {
     viewport: { width: innerWidth, height: innerHeight, deviceScaleFactor: devicePixelRatio },
-    slides: await (${adaptiveCardGeometry.toString()})()
+    slides: await (${adaptiveCardGeometry.toString()})(),
+    native: await (${adaptiveCardNativeModel.toString()})()
   };
 })()`;
 const expressionFile = join(output, "geometry.js");
@@ -62,16 +63,24 @@ const report = {
   webview2: probe ? { probe, host: "Real CoreWebView2 controller using the Desktop STA infrastructure; not the WinUI shell." }
     : { status: "not run", reason: "No --webview2-probe supplied. Chromium is not a substitute." },
   themes: {},
-  fixtures: cases.map(({ name, expected }) => ({ name, expected })),
+  fixtures: cases.map(({ name, expected, markdown }) => ({ name, expected,
+    sha256: createHash("sha256").update(markdown).digest("hex") })),
 };
 const vendorDirectory = resolve(".github", "extensions", "markdstage", "vendor");
 const sdk = await reconstructAsset(vendorDirectory, "adaptivecards.min.js", join(vendorDirectory, "vendor-assets.lock.json"));
 report.bundle = { sdkVersion: "3.0.6", bytes: sdk.length, gzipBytes: gzipSync(sdk).length,
   sha256: createHash("sha256").update(sdk).digest("hex"), chunks: 1 };
 report.sourceHashes = {};
-for (const name of ["adaptive-card.mjs", "adaptive-card-validation.mjs", "fenced-blocks.mjs", "marked-lexer.mjs", "renderer.js", "slides.css"]) {
+for (const name of ["adaptive-card.mjs", "adaptive-card-validation.mjs", "adaptive-card-static.mjs",
+  "adaptive-card-markdown.mjs", "adaptive-card-pptx.mjs", "scene-graph.mjs", "scene-pptx.mjs",
+  "fenced-blocks.mjs", "marked-lexer.mjs", "renderer.js", "slides.css"]) {
   const bytes = await readFile(resolve(".github", "extensions", "markdstage", "renderer", name));
   report.sourceHashes[name] = createHash("sha256").update(bytes).digest("hex");
+}
+for (const segments of [["runtime", "pptx-package.mjs"], ["runtime", "output-model.mjs"],
+  ["runtime", "output-cdp.mjs"], ["hosts", "node", "browser.mjs"]]) {
+  const bytes = await readFile(resolve(".github", "extensions", "markdstage", ...segments));
+  report.sourceHashes[segments.join("/")] = createHash("sha256").update(bytes).digest("hex");
 }
 
 try {
@@ -93,15 +102,19 @@ try {
       });
       const page = await context.newPage();
       const result = { pages: [], lazyLoad: [] };
+      report.themes[theme] = result;
       try {
         for (let index = 0; index < slides.length; index++) {
           const name = `slide-${String(index + 1).padStart(3, "0")}`;
           const url = `${session.url}?capture=1&token=${token}&index=${index}`;
           await page.goto(url);
+          await page.waitForFunction(() => document.documentElement.dataset.captureReady === "true");
+          const beforeCollection = await page.screenshot();
           const geometry = await page.evaluate(expression);
           assert.deepEqual(geometry.viewport, { width: 1280, height: 720, deviceScaleFactor: 1 });
           assert.deepEqual(await page.evaluate(expression), geometry, "Chromium repeat geometry");
           const original = await page.screenshot({ path: join(directory, "chromium", `${name}.png`) });
+          assert.ok(original.equals(beforeCollection), "Native collection must not change browser pixels");
           assert.ok(original.equals(await page.screenshot()), "Chromium repeat PNG");
           await json(join(directory, "chromium", `${name}.json`), geometry);
           const cards = geometry.slides[0].cards;
@@ -109,7 +122,11 @@ try {
             cards: cards.map((card) => ({ status: card.status, codes: card.diagnostics.map((entry) => entry.code) })),
             coverage: cards.flatMap((card) => card.objects).reduce((counts, object) => {
               counts[object.geometry] = (counts[object.geometry] || 0) + 1; return counts;
-            }, {}), chromiumRepeatGeometry: true, chromiumRepeatPng: true };
+            }, {}), chromiumRepeatGeometry: true, chromiumRepeatPng: true, nativeCollectionUnchanged: true,
+            nativeObjects: geometry.native[0].cards.reduce((count, card) => count + (card?.elements.length || 0), 0),
+            boundedFallbacks: geometry.native[0].cards.flatMap((card) => card?.fallbacks || []).map((entry) => ({
+              sourcePath: entry.sourcePath, reason: entry.reason, artwork: entry.artwork !== false,
+            })) };
           assert.equal(cards.length, cases[index].expected.length);
           for (const [cardIndex, expected] of cases[index].expected.entries()) {
             assert.equal(cards[cardIndex].status, expected.status);
@@ -122,6 +139,7 @@ try {
             assert.deepEqual(JSON.parse(await readFile(join(nativeDirectory, "geometry-2.json"), "utf8")), native, "WebView2 repeat geometry");
             assert.deepEqual(native.viewport, geometry.viewport);
             measurement.geometryComparison = compareCardGeometry(geometry.slides, native.slides);
+            measurement.nativeComparison = compareCardNativeModels(geometry.native, native.native);
             const nativePng = await readFile(join(nativeDirectory, "slide-001.png"));
             const repeat = await compareCardPngs(page, nativePng, await readFile(join(nativeDirectory, "slide-002.png")));
             assert.equal(repeat.changedPixels, 0, "WebView2 repeat visible output");
@@ -173,11 +191,16 @@ try {
         for (let index = 0; index < slides.length; index++) {
           const slide = rendered.model.slides[index];
           const captures = rendered.slideFallbackImages[index].filter((capture) => slide.fallbacks[capture.fallbackIndex].type === "adaptive-card");
-          assert.equal(captures.length, cases[index].expected.length);
+          assert.equal(slide.adaptiveCards.length, cases[index].expected.length);
+          assert.equal(captures.length, slide.fallbacks.filter((entry) => entry.type === "adaptive-card" && entry.artwork !== false).length);
+          result.pages[index].exportedNativeObjects = slide.elements.filter((entry) => entry.adaptiveCard).length;
+          result.pages[index].exportedNativeTypes = slide.elements.filter((entry) => entry.adaptiveCard).reduce((counts, entry) => {
+            counts[entry.type] = (counts[entry.type] || 0) + 1; return counts;
+          }, {});
+          result.pages[index].rasterizedSubtrees = captures.length;
           for (const [cardIndex, capture] of captures.entries()) {
             const fallback = slide.fallbacks[capture.fallbackIndex];
-            assert.equal(fallback.reason, cases[index].expected[cardIndex].status === "ready"
-              ? "adaptive-card-rendered-as-artwork" : `adaptive-card-${cases[index].expected[cardIndex].codes.at(-1)}`);
+            assert.ok(fallback.sourcePath && fallback.reason && fallback.captureId);
             await writeFile(join(directory, `card-${index + 1}${captures.length > 1 ? `-${cardIndex + 1}` : ""}.png`), capture.data);
           }
         }
@@ -187,8 +210,9 @@ try {
       console.log(`${theme}: ${result.pages.length} fixture pages; ${join(directory, "cards.pptx")}`);
     });
   }
-  const violations = Object.values(report.themes).flatMap((theme) => theme.pages.flatMap((page) => page.geometryComparison?.violations || []));
-  assert.deepEqual(violations, [], "Geometry exceeded the existing review tolerances; keep raster-only and notify the coordinator.");
+  const violations = Object.values(report.themes).flatMap((theme) => theme.pages.flatMap((page) =>
+    [...page.geometryComparison?.violations || [], ...page.nativeComparison?.violations || []]));
+  assert.deepEqual(violations, [], "Geometry exceeded the existing review tolerances; preserve bounded safety fallback and notify the coordinator.");
 } finally {
   await browser.close();
   await json(join(output, "evidence.json"), report);

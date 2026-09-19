@@ -5,7 +5,7 @@ import { sanitizeLayoutReport } from "./layout-report.mjs";
 import {
   MAX_CAPTURE_SLIDES, MAX_PPTX_ASSET_BYTES, createOutputSnapshot, createOutputJob,
   selectLayoutResults, normalizeCaptureIndexes, preparePptxPackageModel,
-  buildValidatedPptx, pptxFallbackReport, adaptiveCardOutputReport, decodeBase64, verifyPdfBytes, verifyPngBytes,
+  buildValidatedPptx, pptxFallbackReport, pptxAdaptiveCardReport, adaptiveCardOutputReport, decodeBase64, verifyPdfBytes, verifyPngBytes,
 } from "./output-model.mjs";
 import { captureOutputPng, capturePptxModel } from "./output-cdp.mjs";
 
@@ -249,7 +249,7 @@ export function createPortableOutput({ runtime, io, baseUrl, sendCdp }) {
         await write(path, bytes);
         const fallbacks = pptxFallbackReport(model);
         return { ok: true, format: "pptx", path, total: snapshot.slides.length, theme: snapshot.theme,
-          bytes: bytes.length, fallbackCount: fallbacks.length, fallbacks };
+          bytes: bytes.length, fallbackCount: fallbacks.length, fallbacks, ...pptxAdaptiveCardReport(model) };
       });
     },
   });

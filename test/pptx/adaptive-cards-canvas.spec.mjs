@@ -44,7 +44,10 @@ test("actual Canvas HTTP host serves the pinned SDK, renders cards and exports d
     const report = await response.json();
     expect(report.ok).toBe(true);
     expect(report.fallbacks.filter((entry) => entry.type === "adaptive-card").map((entry) => entry.reason))
-      .toEqual(["adaptive-card-rendered-as-artwork", "adaptive-card-invalid-property"]);
+      .toEqual(["adaptive-card-invalid-property"]);
+    expect(report.adaptiveCards[0].nativeObjectCount).toBe(2);
+    expect(report.adaptiveCards[0].conversions.filter((entry) => entry.sourceType !== "AdaptiveCard")
+      .every((entry) => entry.mode === "native")).toBe(true);
     const pptx = await readFile(report.path);
     expect(inspectPptxPackage(pptx).valid).toBe(true);
     await writeFile(testInfo.outputPath("canvas-export-report.json"), JSON.stringify(report, null, 2));

@@ -17,7 +17,7 @@ test("readGuide returns every document-backed topic", async () => {
     "theme-schema": "--bg",
     "architecture-dsl": "```architecture",
     "architecture-schema": '"builtIn"',
-    "adaptive-cards": "adaptive-card-rendered-as-artwork",
+    "adaptive-cards": "adaptiveCardConversionSummary",
   };
 
   for (const [topic, expected] of Object.entries(expectations)) {

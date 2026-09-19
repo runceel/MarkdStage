@@ -2682,18 +2682,81 @@ async function collectPptxSlide(slide, index, options = {}) {
   const effectFallbacks = new Map();
   const genericShadowElements = new Map();
   const cardHosts = [...deck.querySelectorAll(".adaptive-card-host")];
+  const adaptiveCards = [];
   if (cardHosts.length) {
-    const { assertAdaptiveCardCaptureSafe, getAdaptiveCardDiagnostics } = await import("./adaptive-card.mjs");
+    const { assertAdaptiveCardCaptureSafe, getAdaptiveCardDiagnostics, collectAdaptiveCardPptx,
+      setAdaptiveCardCapture } = await import("./adaptive-card.mjs");
+    window.__markdStageSetPptxCardCapture = (active) => {
+      for (const host of document.querySelectorAll(".adaptive-card-host")) setAdaptiveCardCapture(host, active);
+    };
+    // Host-side paint effects belong to their compositing context, not to SDK
+    // semantics. Flatten that context once, including any neighboring HTML,
+    // rather than applying opacity/filter separately to each card fragment.
+    const contextCandidates = new Set();
+    for (const host of cardHosts) {
+      let context;
+      for (let current = host; current && current !== deck; current = current.parentElement) {
+        const effects = unsupportedEffects(current).filter((effect) => effect !== "box-shadow" || current === host);
+        if (effects.length) context = current;
+      }
+      if (context) contextCandidates.add(context);
+    }
+    const paintContexts = [...contextCandidates].filter((candidate) =>
+      ![...contextCandidates].some((other) => other !== candidate && other.contains(candidate)));
+    const contextOwners = new Map();
     for (const host of cardHosts) {
       assertAdaptiveCardCaptureSafe(host);
       const card = getAdaptiveCardDiagnostics(host);
-      addFallback("adaptive-card", host, card.status === "ready"
-        ? "adaptive-card-rendered-as-artwork" : `adaptive-card-${card.diagnostics.at(-1).code}`);
-      const fallback = fallbackByRoot.get(host);
-      fallback.path = `adaptive-card[${host.dataset.adaptiveCardBlock}]`;
-      fallback.sourcePath = fallback.path;
-      if (fallback.artwork === false) fallback.reason = "adaptive-card-outside-slide";
-      if (card.diagnostics.length) fallback.diagnostics = card.diagnostics;
+      const paintContext = paintContexts.find((context) => context.contains(host));
+      if (paintContext) {
+        const sourcePath = `adaptive-card[${host.dataset.adaptiveCardBlock}]$`;
+        const existing = contextOwners.get(paintContext);
+        if (!existing) {
+          addFallback("adaptive-card", paintContext, "adaptive-card-paint-context", {
+            includeDescendants: true, padding: subtreeEffectPaintPadding(paintContext),
+          });
+          const fallback = fallbackByRoot.get(paintContext);
+          fallback.path = sourcePath;
+          fallback.sourcePath = sourcePath;
+          fallback.cardSources = [];
+          const ownedHosts = cardHosts.filter((candidate) => paintContext.contains(candidate));
+          fallback.zOrder = Math.min(...ownedHosts.map((candidate) => Number(candidate.dataset.pptxZOrder)));
+          contextOwners.set(paintContext, fallback);
+        }
+        const fallback = contextOwners.get(paintContext);
+        fallback.cardSources.push(sourcePath);
+        if (fallback.captureId && host !== paintContext) {
+          host.setAttribute("data-pptx-fallback-ids", fallback.captureId);
+        }
+        adaptiveCards.push({ ...card, nativeObjectCount: 0, rasterizedSubtreeCount: !existing && fallback.artwork !== false ? 1 : 0,
+          conversions: [{ sourcePath, sourceType: "AdaptiveCard", mode: "rasterized", reason: fallback.reason,
+            nativeObjects: 0, impact: "content", sharedCapturePath: fallback.path }] });
+        continue;
+      }
+      const converted = await collectAdaptiveCardPptx(host, deck);
+      if (converted) {
+        elements.push(...converted.elements);
+        for (const entry of converted.fallbacks) {
+          const capture = pptxFallback("adaptive-card", entry.element, deck, entry.reason, { artwork: entry.artwork });
+          const { element: _element, ...data } = entry;
+          fallbacks.push({ ...capture, ...data,
+            ...(entry.reason === "adaptive-card-diagnostic-note" ? { diagnostics: card.diagnostics } : {}) });
+        }
+        for (const [element, kind] of converted.nativeElements) element.setAttribute("data-pptx-native", kind);
+        adaptiveCards.push({ ...card, conversions: converted.conversions,
+          nativeObjectCount: converted.elements.length, rasterizedSubtreeCount: converted.fallbacks.filter((entry) => entry.artwork !== false).length });
+        fallbackRoots.add(host);
+      } else {
+        addFallback("adaptive-card", host, `adaptive-card-${card.diagnostics.at(-1).code}`);
+        const fallback = fallbackByRoot.get(host);
+        fallback.path = `adaptive-card[${host.dataset.adaptiveCardBlock}]`;
+        fallback.sourcePath = fallback.path;
+        if (fallback.artwork === false) fallback.reason = "adaptive-card-outside-slide";
+        if (card.diagnostics.length) fallback.diagnostics = card.diagnostics;
+        adaptiveCards.push({ ...card, nativeObjectCount: 0, rasterizedSubtreeCount: fallback.artwork === false ? 0 : 1,
+          conversions: [{ sourcePath: `${fallback.path}$`, sourceType: "AdaptiveCard", mode: "rasterized",
+            reason: fallback.reason, nativeObjects: 0, impact: "content" }] });
+      }
     }
   }
   for (const element of deck.querySelectorAll("header *, .body, .body *, footer *")) {
@@ -3149,6 +3212,7 @@ async function collectPptxSlide(slide, index, options = {}) {
     ...(notes ? { notes } : {}),
     elements,
     fallbacks,
+    ...(adaptiveCards.length ? { adaptiveCards } : {}),
   };
 }
 

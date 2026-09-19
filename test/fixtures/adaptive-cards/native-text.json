@@ -1,0 +1,14 @@
+{
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "id": "native-text",
+  "body": [
+    { "type": "TextBlock", "id": "english", "text": "English **semibold**, *italic*, `monospace` and [review link](https://example.com/review).", "wrap": true },
+    { "type": "TextBlock", "id": "long-lines", "text": "Measured lines preserve this deliberately long paragraph. Text stays editable without asking PowerPoint to reproduce Chromium wrapping. Every visible character is correlated to sanitized Markdown before conversion. This sentence extends the paragraph so the fixture actually crosses several lines and exercises repeated words, punctuation, spacing, and stable line positions.", "wrap": true },
+    { "type": "TextBlock", "id": "japanese-lines", "text": "日本語の編集可能なテキストを確認します。ブラウザーで計測した行をそのまま配置し、文字の欠落と重複がないことを確認します。異なるフォントエンジンを使うため、実際の PowerPoint で文字位置と折り返しを比較します。", "wrap": true },
+    { "type": "Container", "id": "rtl-container", "rtl": true, "style": "emphasis", "items": [
+      { "type": "TextBlock", "id": "rtl-text", "text": "مراجعة النص العربي 123 — שלום עולם", "wrap": true },
+      { "type": "TextBlock", "id": "rtl-neighbor", "text": "RTL text is bounded artwork; this Latin neighbor remains editable.", "wrap": true }
+    ] }
+  ]
+}
