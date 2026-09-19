@@ -46,7 +46,9 @@ function textStyle(object, SDK, overrides = {}) {
     color: color(object.effectiveIsSubtle ? colors.subtle : colors.default),
     lineHeight: config.lineHeights[object instanceof SDK.TextBlock ? size : "default"],
     italic: object.italic === true, underline: object.underline === true,
-    strikethrough: object.strikethrough === true,
+    // SDK 3.0.6 TextRun.applyStylesTo replaces line-through with underline,
+    // rather than combining them. Export that paint, not both authored flags.
+    strikethrough: object.strikethrough === true && !(object instanceof SDK.TextRun && object.underline === true),
     ...(object.highlight ? { highlight: color(object.effectiveIsSubtle
       ? colors.highlightColors.subtle : colors.highlightColors.default) } : {}),
   };

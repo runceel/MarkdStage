@@ -76,6 +76,14 @@ or an installed-MSIX test. The shared scanner, browser-free CLI validation,
 sanitizer, lazy load, URL policy, exact image budgets, animation denial and
 font/image readiness each have targeted regressions.
 
+`test/pptx/adaptive-card-decorations.spec.mjs` reuses the unchanged
+`mixed-native.json` failure case and adds a separate four-combination
+underline/strike matrix with regular, italic and safe-link runs. Across all four
+themes it compares actual SDK paint, retained typed properties, before/after
+collection pixels, native runs and real exported PPTX formatting. TextRun's
+pinned underline-over-strike precedence does not suppress combined decorations
+in TextBlock Markdown or alter the existing fixture counts.
+
 Do not run `test:cli`/`sync` concurrently with tests that import its `shared`
 mirror: synchronization replaces that directory. Test outputs may be redirected
 with Playwright's `--output` option to a session artifact directory.
@@ -172,7 +180,9 @@ paint above the in-flow footer rule and page badge, matching Chromium: the foote
 must not cross or obscure the visible card label. Page 7 separately checks that
 an explicitly higher-z native foreground still paints above the card. Page 13
 must retain its native siblings, local image/list artwork and link label, without
-duplicates. Page 14 keeps the RTL subtree as artwork and native English/Japanese
+duplicates. Its final italic TextRun must remain underlined **without** a strike,
+matching SDK 3.0.6 paint even though both authored decoration flags are true.
+Page 14 keeps the RTL subtree as artwork and native English/Japanese
 neighbors. Pages 15/16 never contain a live control or media player. PowerPoint
 hyperlinks must retain the browser's text color/decoration, not Office's default
 blue-link styling.

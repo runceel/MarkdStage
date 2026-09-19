@@ -166,6 +166,14 @@ Font sizes are 16/20/24/28/32 px and weights 300/400/600; monospace uses
 Consolas with the system monospace fallback. Card styles are isolated from slide
 paragraph, image and table rules.
 
+TextRun decorations follow the pinned SDK 3.0.6 precedence: when both
+`underline` and `strikethrough` are true, underline replaces line-through.
+Native export preserves that underline-only paint and remains editable; strike
+alone still paints line-through, and italic is independent. Authored typed
+properties and browser styling are not changed. This rule is specific to
+TextRun, not TextBlock Markdown: supported nested `<u>`/`<s>` formatting can
+still paint and export both decorations together.
+
 Cards finish loading permitted images and fonts, including fonts introduced by
 card content, before auto-sizing, inspection, PNG/PDF capture or PowerPoint
 readiness. Fixed output is 1280x720. Oversized cards are clipped, not resized to
