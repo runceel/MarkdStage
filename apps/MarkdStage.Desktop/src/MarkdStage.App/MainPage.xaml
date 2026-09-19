@@ -15,17 +15,6 @@
             x:Name="StageWebView"
             AutomationProperties.AutomationId="StageWebView" />
 
-        <InfoBar
-            x:Name="PresentationErrorInfoBar"
-            Margin="24"
-            VerticalAlignment="Top"
-            AutomationProperties.AutomationId="PresentationErrorInfoBar"
-            IsClosable="True"
-            IsOpen="{x:Bind ViewModel.IsErrorOpen, Mode=TwoWay}"
-            Message="{x:Bind ViewModel.ErrorMessage, Mode=OneWay}"
-            Severity="Error"
-            Title="Couldn't update the display" />
-
         <Border
             x:Name="WorkspaceStartScreen"
             Background="{ThemeResource BrandStageBrush}">
@@ -181,6 +170,17 @@
                 </ScrollViewer>
             </Grid>
         </Border>
+
+        <InfoBar
+            x:Name="PresentationErrorInfoBar"
+            Margin="24"
+            VerticalAlignment="Top"
+            AutomationProperties.AutomationId="PresentationErrorInfoBar"
+            IsClosable="True"
+            IsOpen="{x:Bind ViewModel.IsErrorOpen, Mode=TwoWay}"
+            Message="{x:Bind ViewModel.ErrorMessage, Mode=OneWay}"
+            Severity="Error"
+            Title="Couldn't update the display" />
 
         <Border
             x:Name="LoadingOverlay"

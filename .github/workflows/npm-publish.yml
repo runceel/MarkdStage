@@ -454,16 +454,17 @@ jobs:
 
           - npm CLI: Node.js 24 or later and Microsoft Edge, Google Chrome, or Chromium
           - Desktop: Windows 10 or Windows 11, x64 or ARM64, and Microsoft Edge WebView2 Runtime
-          - Packaged CLI: WebView2 for script execution; installed Chromium for presentation, inspection, capture, and export. Remote-debugging policy can disable inspection, capture, and export.
+          - Packaged CLI: WebView2 for native viewing and validation; installed Chromium for layout inspection, capture, and export. Remote-debugging policy can disable inspection, capture, and export.
 
           Windows portable packages contain the presenter and command-line executables and
           require no Node runtime. For GitHub Release sideloading, import \`MarkdStage.cer\`
           into the trusted people certificate store, then install the MSIX matching the device
           architecture. The Microsoft Store upload package is created locally and submitted
           separately through Partner Center.
-          PDF/PowerPoint export remains CLI-only; the graphical app is a presenter.
-          Store availability and the Store URL will be announced separately after Partner Center
-          submission. Portable and sideloading packages remain available from this release.
+          PDF/PowerPoint export is available from both the graphical app and CLI.
+          Microsoft Store installation is available at https://apps.microsoft.com/detail/9N9DG772RM03;
+          this GitHub Release does not publish a Store update. Portable and sideloading packages
+          remain available from this release.
           Third-party license information is included in each distribution.
 
           Install the version-pinned Extension from:
