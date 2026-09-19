@@ -229,11 +229,18 @@ function loadSdk(documentRef) {
 }
 
 export function createAdaptiveCardHostConfig(SDK, palette) {
-  const colors = Object.fromEntries(["default", "dark", "light", "accent", "good", "warning", "attention"]
-    .map((name) => [name, {
-      default: name === "accent" ? palette.accent : palette.fg, subtle: palette.muted,
-      highlightColors: { default: palette.border, subtle: palette.border },
-    }]));
+  const pick = (value, fallback) => (typeof value === "string" && value ? value : fallback);
+  const roleColor = {
+    default: palette.fg, dark: palette.fg, light: palette.fg,
+    accent: pick(palette.primary, palette.accent),
+    good: pick(palette.success, palette.accent),
+    warning: pick(palette.warning, palette.accent),
+    attention: pick(palette.danger, palette.accent),
+  };
+  const colors = Object.fromEntries(Object.entries(roleColor).map(([name, value]) => [name, {
+    default: value, subtle: palette.muted,
+    highlightColors: { default: palette.border, subtle: palette.border },
+  }]));
   const font = {
     fontFamily: palette.fontFamily,
     fontSizes: { small: 16, default: 20, medium: 24, large: 28, extraLarge: 32 },
@@ -248,6 +255,37 @@ export function createAdaptiveCardHostConfig(SDK, palette) {
     containerStyles: {
       default: { backgroundColor: "#00000000", foregroundColors: colors, borderColor: palette.border },
       emphasis: { backgroundColor: palette.surface, foregroundColors: colors, borderColor: palette.border },
+      // The SDK's built-in ContainerStyle enum only recognizes
+      // default/emphasis/accent/good/attention/warning by name, so "warning"
+      // can be redefined directly, but "success"/"info"/"danger" must be
+      // registered through customStyles to be resolvable by Container.style.
+      warning: {
+        backgroundColor: pick(palette.surfaceWarning, palette.surface), foregroundColors: colors,
+        borderColor: pick(palette.borderWarning, palette.border),
+      },
+      customStyles: [
+        {
+          name: "success",
+          style: {
+            backgroundColor: pick(palette.surfaceSuccess, palette.surface), foregroundColors: colors,
+            borderColor: pick(palette.borderSuccess, palette.border),
+          },
+        },
+        {
+          name: "info",
+          style: {
+            backgroundColor: pick(palette.surfaceInfo, palette.surface), foregroundColors: colors,
+            borderColor: pick(palette.borderInfo, palette.border),
+          },
+        },
+        {
+          name: "danger",
+          style: {
+            backgroundColor: pick(palette.surfaceDanger, palette.surface), foregroundColors: colors,
+            borderColor: pick(palette.borderDanger, palette.border),
+          },
+        },
+      ],
     },
     adaptiveCard: { allowCustomStyle: true },
     imageSizes: { small: 48, medium: 96, large: 144 },

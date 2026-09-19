@@ -622,7 +622,12 @@ When writing explicit JSON, `elements` is required by the JSON Schema.
 - `style` supports `fill`, `stroke`, `textColor`, `strokeWidth`, `fontSize`,
   `opacity`, `dash`, `cornerRadius`, and the text controls below. Prefer theme tokens `accent`,
   `accentStrong`, `accentSoft`, `accentLine`, `surface`, `fg`, `muted`, `body`,
-  `border`, and `bg`. Literal colors are limited to hex, white, black, and
+  `border`, and `bg`, or the semantic tokens `primary`, `secondary`, `success`,
+  `info`, `warning`, `danger`, `light`, `dark`, `surfaceSuccess`, `surfaceInfo`,
+  `surfaceWarning`, `surfaceDanger`, `borderSuccess`, `borderInfo`,
+  `borderWarning`, and `borderDanger` (each falls back to `accent`/`surface`/
+  `border` on a theme that does not define the matching CSS custom property).
+  Literal colors are limited to hex, white, black, and
   transparent. Omit `dash` (or use an empty value) for a solid line, use
   `"dash": "1 5"` for a dotted line, or provide another space-separated numeric
   pattern such as `"10 6"` for dashed/custom output.

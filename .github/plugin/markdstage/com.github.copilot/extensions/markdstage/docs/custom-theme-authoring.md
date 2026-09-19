@@ -81,6 +81,52 @@ that a partial custom theme cannot make controls unreadable.
 | `--code-fg` | Code block text |
 | `--border` | Borders |
 
+### Semantic colors
+
+These roles give diagrams, cards, and callouts a consistent state palette
+without hardcoding hex values in Markdown, Architecture DSL, or Adaptive
+Cards. Every semantic property is **optional**: a theme that omits one falls
+back to an existing base token (`--accent`, `--surface`, `--border`, `--fg`,
+`--muted`), so existing custom themes keep rendering exactly as before.
+
+| Property | Purpose | Falls back to |
+| --- | --- | --- |
+| `--primary` | Primary emphasis | `--accent` |
+| `--secondary` | Secondary emphasis | `--muted` |
+| `--success` | Success/positive state | `--accent` |
+| `--info` | Informational state | `--accent` |
+| `--warning` | Warning/caution state | `--accent` |
+| `--danger` | Error/negative state | `--accent` |
+| `--light` | Light neutral surface | `--surface` |
+| `--dark` | Dark neutral surface | `--fg` |
+| `--surface-success` | Success surface tint | `--surface` |
+| `--surface-info` | Info surface tint | `--surface` |
+| `--surface-warning` | Warning surface tint | `--surface` |
+| `--surface-danger` | Danger surface tint | `--surface` |
+| `--border-success` | Success border tint | `--border` |
+| `--border-info` | Info border tint | `--border` |
+| `--border-warning` | Warning border tint | `--border` |
+| `--border-danger` | Danger border tint | `--border` |
+
+These roles are used consistently everywhere a theme token is accepted:
+
+- **Architecture DSL** diagrams accept them as `fill`/`stroke`/`textColor`
+  theme tokens (for example `"fill": "success"`), on nodes, groups, connectors,
+  and images, rendered identically in the live SVG and in PowerPoint export.
+- **Adaptive Cards** gain `success`, `info`, `warning`, and `danger` container
+  `style` values alongside the existing `default`/`emphasis`, and the built-in
+  `good`/`warning`/`attention` text color roles resolve to `--success`,
+  `--warning`, and `--danger` (with `accent` resolving to `--primary`). Browser
+  rendering and native PowerPoint export both read the same HostConfig, so
+  they stay in sync automatically.
+- **Mermaid** diagrams map these roles onto the theme variables Mermaid
+  already exposes: Gantt `doneTask*`/`activeTask*`/`crit*` colors follow
+  `--success`/`--info`/`--danger` when set. Mermaid does not expose a
+  per-node semantic-role concept in its own syntax, so node/edge colors set
+  with Mermaid's own `style`/`classDef` directives are unaffected, and the
+  categorical/series palette used for pie charts, git graphs, and similar
+  diagrams is unchanged.
+
 ### Code syntax
 
 `--syntax-comment`, `--syntax-keyword`, `--syntax-string`,

@@ -248,6 +248,22 @@ const THEME_TOKENS = Object.freeze({
   body: "var(--body)",
   border: "var(--border)",
   bg: "var(--bg)",
+  primary: "var(--primary, var(--accent))",
+  secondary: "var(--secondary, var(--muted))",
+  success: "var(--success, var(--accent))",
+  info: "var(--info, var(--accent))",
+  warning: "var(--warning, var(--accent))",
+  danger: "var(--danger, var(--accent))",
+  light: "var(--light, var(--surface))",
+  dark: "var(--dark, var(--fg))",
+  surfaceSuccess: "var(--surface-success, var(--surface))",
+  surfaceInfo: "var(--surface-info, var(--surface))",
+  surfaceWarning: "var(--surface-warning, var(--surface))",
+  surfaceDanger: "var(--surface-danger, var(--surface))",
+  borderSuccess: "var(--border-success, var(--border))",
+  borderInfo: "var(--border-info, var(--border))",
+  borderWarning: "var(--border-warning, var(--border))",
+  borderDanger: "var(--border-danger, var(--border))",
 });
 const LITERAL_COLORS = /^(?:#[0-9a-f]{3,8}|black|white|transparent|none)$/i;
 

@@ -14,7 +14,11 @@ export const THEME_CSS_MAX_BYTES = IO_LIMITS.themeCss;
 export const KNOWN_THEME_VARIABLES = Object.freeze([
   "--bg", "--fg", "--muted", "--body", "--accent", "--accent-strong",
   "--accent-soft", "--accent-line", "--surface", "--code", "--code-fg",
-  "--border", "--syntax-comment", "--syntax-keyword", "--syntax-string",
+  "--border", "--primary", "--secondary", "--success", "--info", "--warning",
+  "--danger", "--light", "--dark", "--surface-success", "--surface-info",
+  "--surface-warning", "--surface-danger", "--border-success", "--border-info",
+  "--border-warning", "--border-danger",
+  "--syntax-comment", "--syntax-keyword", "--syntax-string",
   "--syntax-number", "--syntax-title", "--syntax-type", "--syntax-meta",
   "--syntax-variable", "--syntax-addition", "--syntax-addition-bg",
   "--syntax-deletion", "--syntax-deletion-bg", "--glow-1", "--glow-2",
