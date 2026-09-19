@@ -436,12 +436,10 @@ export function adaptiveCardToPptx({ host, deck, card, SDK, objects, markdown, p
   const mapped = sceneToPptxElements(scene, { zOrderBase: base, zOrderStep: step, groupPreset: "rect" });
   for (const element of mapped.elements) {
     const href = element.adaptiveCard?.href;
-    if (href) for (const paragraph of element.paragraphs || []) {
-      for (const run of paragraph.runs) {
-        run.href = href;
-        run.preserveHyperlinkColor = true;
-      }
-    }
+    // Office can visually underline a linked run even when its public font
+    // reports no underline. A link on this measured text fragment's shape
+    // retains the SDK appearance without changing browser rendering.
+    if (href) element.href = href;
   }
   return { scene, elements: [...mapped.elements, ...direct.map(({ z, ...element }) => ({ ...element, zOrder: base + z * step }))],
     fallbacks: fallbacks.map(({ z, ...entry }) => ({ ...entry, zOrder: base + z * step })),

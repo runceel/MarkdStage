@@ -73,8 +73,7 @@ test("unsupported children stay bounded, with native siblings and no duplicate d
     expect(mixed.adaptiveCards[0].nativeObjectCount).toBeGreaterThan(5);
     expect(mixed.elements.some((element) => element.paragraphs?.some((paragraph) =>
       paragraph.runs.some((run) => run.text.includes("still native"))))).toBe(true);
-    expect(mixed.elements.some((element) => element.paragraphs?.some((paragraph) =>
-      paragraph.runs.some((run) => run.href === "https://example.com/review")))).toBe(true);
+    expect(mixed.elements.some((element) => element.href === "https://example.com/review")).toBe(true);
     for (const slide of model.slides) {
       for (const fallback of slide.fallbacks.filter((entry) => entry.type === "adaptive-card")) {
         expect(slide.elements.some((element) =>
@@ -152,8 +151,7 @@ test("inputs, actions and media use typed static projection without any browser 
       entry.treatment === "static-input" && entry.nativeObjects > 0)).toBe(true);
     expect(model.slides[1].elements.some((element) => element.type === "image" &&
       element.src.startsWith("data:image/svg+xml;base64,"))).toBe(true);
-    expect(model.slides[1].elements.some((element) => element.paragraphs?.some((paragraph) =>
-      paragraph.runs.some((run) => run.href === "https://example.com/documentation")))).toBe(true);
+    expect(model.slides[1].elements.some((element) => element.href === "https://example.com/documentation")).toBe(true);
     for (const slide of await page.evaluate(adaptiveCardGeometry)) {
       expect(slide.cards[0].bounds.y + slide.cards[0].bounds.height, names[slide.index]).toBeLessThanOrEqual(720);
     }

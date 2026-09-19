@@ -264,6 +264,10 @@ The common Scene Graph explicitly accepts `adaptive-card` sources and reuses
 shape/text/image/connector primitives. Tables and hyperlinks remain direct
 PowerPoint model features; no card action, input or table scene kind is added.
 Scene underline/strikethrough have equivalent SVG and PowerPoint mappings.
+Links on measured text fragments use a direct text-shape hyperlink so Office
+cannot add its automatic run underline to a plain SDK label. This links the
+label's measured rectangle, not the entire action chip. Table Markdown links
+remain run-level links with explicit color preservation.
 This is not a round-trip card editor: PowerPoint edits do not change Markdown.
 
 Review the **actual exported file** in desktop PowerPoint. The reproducible

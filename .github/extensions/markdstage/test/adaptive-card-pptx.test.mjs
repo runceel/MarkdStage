@@ -50,3 +50,17 @@ test("card hyperlink appearance explicitly disables Office underline without cha
   assert.ok(card.includes(Buffer.from('ahyp:hlinkClr')));
   assert.ok(card.includes(Buffer.from('val="tx"')));
 });
+
+test("measured text-shape links do not opt its characters into Office hyperlink styling", () => {
+  const element = { type: "text", x: 10, y: 20, width: 160, height: 27, href: "https://example.com/review",
+    paragraphs: [{ runs: [{ text: "Plain label", color: "#123456", underline: false }] }] };
+  const bytes = Buffer.from(buildPptxPackage({ slides: [{ elements: [element] }] })).toString("utf8");
+  assert.match(bytes, /<p:cNvPr id="\d+" name="Text \d+"><a:hlinkClick r:id="rId\d+"\/><\/p:cNvPr>/);
+  assert.match(bytes, /Target="https:\/\/example\.com\/review" TargetMode="External"/);
+  const run = /<a:r>[\s\S]*?<a:t>Plain label<\/a:t><\/a:r>/.exec(bytes)?.[0];
+  assert.ok(run);
+  assert.doesNotMatch(run, /hlinkClick|u="sng"/);
+  for (const href of ["", true, null]) {
+    assert.throws(() => buildPptxPackage({ slides: [{ elements: [{ ...element, href }] }] }), /href/);
+  }
+});

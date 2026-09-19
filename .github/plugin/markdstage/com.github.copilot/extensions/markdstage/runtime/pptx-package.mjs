@@ -622,11 +622,20 @@ function textBodyXml(
   return `<${tag}>${textBodyPropertiesXml(bodyOptions, bodyPath)}<a:lstStyle/>${paragraphs}</${tag}>`;
 }
 
-function shapeBase(id, name, bounds, properties, text = "", rotationUnits = 0) {
-  return `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${xmlEscape(name)}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr>${xfrmXml(bounds, "a:xfrm", rotationUnits)}${properties}</p:spPr>${text}</p:sp>`;
+function shapeBase(id, name, bounds, properties, text = "", rotationUnits = 0, hyperlink = "") {
+  const identity = `id="${id}" name="${xmlEscape(name)}"`;
+  const nonVisual = hyperlink ? `<p:cNvPr ${identity}>${hyperlink}</p:cNvPr>` : `<p:cNvPr ${identity}/>`;
+  return `<p:sp><p:nvSpPr>${nonVisual}<p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr>${xfrmXml(bounds, "a:xfrm", rotationUnits)}${properties}</p:spPr>${text}</p:sp>`;
 }
 
 function textShapeXml(element, path, id, relationships) {
+  let hyperlink = "";
+  if (element.href !== undefined) {
+    if (!Object.hasOwn(element, "href") || typeof element.href !== "string" || !element.href) {
+      fail(`${path}.href must be an own non-empty string`);
+    }
+    hyperlink = `<a:hlinkClick r:id="${relationships.hyperlink(element.href)}"/>`;
+  }
   const bounds = boundsOf(element, path);
   const rotationUnits = optionalOwnRotationUnits(element, path);
   const text = { paragraphs: element.paragraphs };
@@ -660,6 +669,7 @@ function textShapeXml(element, path, id, relationships) {
       bulletInsetPx,
     ),
     rotationUnits,
+    hyperlink,
   );
 }
 

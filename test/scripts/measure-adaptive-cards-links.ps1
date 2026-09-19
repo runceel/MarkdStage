@@ -16,13 +16,14 @@ try {
         try {
             for ($page = 0; $page -lt $model.slides.Count; $page++) {
                 $elements = @($model.slides[$page].elements | Where-Object {
-                    $_.adaptiveCard -and $_.type -eq 'text' -and $_.paragraphs[0].runs[0].href
+                    $_.adaptiveCard -and $_.type -eq 'text' -and ($_.href -or $_.paragraphs[0].runs[0].href)
                 })
                 if (-not $elements.Count) { continue }
                 $slide = $deck.Slides.Item($page + 1)
                 try {
                     foreach ($element in $elements) {
                         $run = $element.paragraphs[0].runs[0]
+                        $expectedHref = if ($element.href) { $element.href } else { $run.href }
                         if ($run.color -notmatch '^#[0-9a-fA-F]{6}$') { throw "Unsupported witness color $($run.color)." }
                         $expectedRgb = [Convert]::ToInt32($run.color.Substring(1, 2), 16) +
                             256 * [Convert]::ToInt32($run.color.Substring(3, 2), 16) +
@@ -42,10 +43,11 @@ try {
                                     try {
                                         $actualRgb = $characters.Font.Color.RGB
                                         $underline = $characters.Font.Underline -eq -1
-                                        $href = $characters.ActionSettings.Item(1).Hyperlink.Address
+                                        $href = if ($element.href) { $shape.ActionSettings.Item(1).Hyperlink.Address }
+                                            else { $characters.ActionSettings.Item(1).Hyperlink.Address }
                                     } finally { [void][Runtime.InteropServices.Marshal]::ReleaseComObject($characters) }
-                                    if ($actualRgb -ne $expectedRgb -or $underline -ne [bool]$run.underline -or $href -ne $run.href) {
-                                        throw "Slide $($page + 1), $($element.path): RGB $actualRgb/$expectedRgb, underline $underline/$([bool]$run.underline), target '$href'/'$($run.href)' differ."
+                                    if ($actualRgb -ne $expectedRgb -or $underline -ne [bool]$run.underline -or $href -ne $expectedHref) {
+                                        throw "Slide $($page + 1), $($element.path): RGB $actualRgb/$expectedRgb, underline $underline/$([bool]$run.underline), target '$href'/'$expectedHref' differ."
                                     }
                                     $links += @{ page = $page + 1; sourcePath = $element.path; text = $range.Text
                                         color = $run.color; actualRgb = $actualRgb; underline = $underline; href = $href }
