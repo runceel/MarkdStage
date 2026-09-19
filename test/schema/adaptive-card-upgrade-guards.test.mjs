@@ -11,6 +11,7 @@ import {
 } from "../scripts/compare-adaptive-cards-review.mjs";
 import { resolveCandidateArtifact, writeCandidateArtifact } from "../scripts/adaptive-card-upgrade-guard.mjs";
 import { buildPptxPackage } from "../../.github/extensions/markdstage/runtime/pptx-package.mjs";
+import { pptxAdaptiveCardReport, pptxFallbackReport } from "../../.github/extensions/markdstage/runtime/output-model.mjs";
 
 const repository = fileURLToPath(new URL("../../", import.meta.url));
 const sha = (value) => createHash("sha256").update(value).digest("hex");
@@ -67,13 +68,53 @@ function proofFixture(suite = "compatibility") {
       const source = path.join(themeDirectory, "cards.pptx");
       const editedFile = path.join(themeDirectory, "editability", "owned", "edited.pptx");
       const editedPng = path.join(themeDirectory, "editability", "owned", "powerpoint", "slide-001.png");
+      const model = { version: 1, width: 1280, height: 720, slides: fixtures.map((fixture) => {
+        const elements = [], fallbacks = [];
+        const adaptiveCards = fixture.expected.map(({ status, codes }, blockIndex) => {
+          const prefix = `adaptive-card[${blockIndex}]`;
+          const diagnostics = codes.map((code, index) => {
+            const location = code === "diagnostics-truncated" ? "$" : `$.body[${index}]`;
+            return { category: "adaptive-card", code,
+              severity: status === "error" && code !== "unknown-property" ? "error" : "warning",
+              path: location, sourcePath: prefix + location, message: `Synthetic ${code}`, impact: "content" };
+          });
+          const truncated = codes.includes("diagnostics-truncated");
+          const card = { blockIndex, status, sdkVersion: "3.0.6", schemaVersion: "1.5", hostConfigVersion: 1,
+            complete: !truncated, diagnosticsTruncated: truncated,
+            resourceValidation: status === "ready" ? "browser-checked" : "not-run", diagnostics, conversions: [],
+            nativeObjectCount: status === "ready" ? 1 : 0, rasterizedSubtreeCount: 0 };
+          if (status === "ready") {
+            elements.push({ type: "text", ...bounds,
+              adaptiveCard: { sourcePath: `${prefix}$.body[0]`, sourceType: "TextBlock", renderedType: "TextBlock" } });
+            card.conversions.push({ sourcePath: `${prefix}$.body[0]`, sourceType: "TextBlock", mode: "native",
+              reason: "adaptive-card-native", nativeObjects: 1, impact: "none" });
+          }
+          if (diagnostics.length) {
+            const sourcePath = status === "error" ? prefix : `${prefix}$.diagnostics`;
+            const reason = status === "error" ? `adaptive-card-${diagnostics.at(-1).code}` : "adaptive-card-diagnostic-note";
+            fallbacks.push({ type: "adaptive-card", sourcePath, path: sourcePath, reason, ...bounds, diagnostics });
+            card.rasterizedSubtreeCount = 1;
+            card.conversions.push({ sourcePath: status === "error" ? `${prefix}$` : sourcePath,
+              sourceType: status === "error" ? "AdaptiveCard" : "Diagnostic",
+              mode: "rasterized", reason, nativeObjects: 0, impact: "content" });
+          }
+          return card;
+        });
+        return { adaptiveCards, elements, fallbacks };
+      }) };
+      model.slides.push({ layout: "backcover", elements: [], fallbacks: [] });
+      const fallbackReport = pptxFallbackReport(model);
+      const exportReport = { ok: true, format: "pptx", path: source, total: model.slides.length, theme,
+        bytes: original.length, fallbackCount: fallbackReport.length, fallbacks: fallbackReport, ...pptxAdaptiveCardReport(model) };
       manifest.themes[theme] = {
-        export: { ok: true, format: "pptx", total: fixtures.length + 1 },
+        export: exportReport,
         pages: fixtures.map((fixture, index) => ({
           index, name: fixture.name, cards: fixture.expected,
           chromiumRepeatGeometry: true, chromiumRepeatPng: true, nativeCollectionUnchanged: true,
           webview2RepeatGeometry: true, webview2RepeatPng: true,
-          exportedNativeObjects: 0, exportedNativeTypes: {}, rasterizedSubtrees: 0,
+          exportedNativeObjects: model.slides[index].elements.length,
+          exportedNativeTypes: model.slides[index].elements.length ? { text: model.slides[index].elements.length } : {},
+          rasterizedSubtrees: model.slides[index].fallbacks.length,
           geometryComparison: { edgeTolerance: 2, textRectTolerance: 3, maximumEdgeDelta: 0, maximumTextRectDelta: 0, violations: [], measuredEdges: 4 },
           nativeComparison: { edgeTolerance: 2, maximumDelta: 0, violations: [], measuredMetrics: 0 },
           engine: nativeEngine,
@@ -102,21 +143,23 @@ function proofFixture(suite = "compatibility") {
           inMemoryChecks: [{ passed: true }], reopenChecks: [{ passed: true }],
         })), inventoryChecks: [{ passed: true }], outputPngPaths: [editedPng],
       });
-      json(path.join(themeDirectory, "model.json"), {
-        version: 1, width: 1280, height: 720,
-        slides: [...fixtures.map((fixture) => ({ adaptiveCards: fixture.expected, elements: [], fallbacks: [] })), { layout: "backcover" }],
-      });
+      json(path.join(themeDirectory, "model.json"), model);
+      json(path.join(themeDirectory, "export-report.json"), exportReport);
       files.set(path.join(themeDirectory, "powerpoint", `${pageName(fixtures.length + 1)}.png`), png);
       for (const [index, fixture] of fixtures.entries()) {
         const name = pageName(index + 1);
         const geometry = {
           viewport: { width: 1280, height: 720, deviceScaleFactor: 1 },
-          slides: [{ index: 0, cards: fixture.expected.map(({ status, codes }) => ({
-            status, bounds, diagnostics: codes.map((code) => ({ code })),
-            objects: status === "ready" ? [{ type: "AdaptiveCard", sourcePath: "$", bounds, textRects: [] }] : [],
+          slides: [{ index: 0, cards: model.slides[index].adaptiveCards.map((card) => ({
+            status: card.status, sdkVersion: card.sdkVersion, schemaVersion: card.schemaVersion, hostConfigVersion: card.hostConfigVersion,
+            bounds, diagnostics: card.diagnostics.map(({ sourcePath: _sourcePath, ...entry }) => entry),
+            objects: card.status === "ready" ? [{ type: "AdaptiveCard", sourcePath: "$", bounds, textRects: [] }] : [],
           })) }],
-          native: [{ index: 0, cards: fixture.expected.map(({ status }) => status === "error" ? null :
-            { scene: {}, elements: [], conversions: [], fallbacks: [] }) }],
+          native: [{ index: 0, cards: model.slides[index].adaptiveCards.map((card) => card.status === "error" ? null :
+            { scene: {}, elements: model.slides[index].elements.filter((element) =>
+              element.adaptiveCard.sourcePath.startsWith(`adaptive-card[${card.blockIndex}]$`)),
+            conversions: card.conversions, fallbacks: model.slides[index].fallbacks.filter((fallback) =>
+              fallback.sourcePath.startsWith(`adaptive-card[${card.blockIndex}]`)) }) }],
         };
         json(path.join(themeDirectory, "chromium", `${name}.json`), geometry);
         json(path.join(themeDirectory, "webview2", name, "geometry-1.json"), geometry);
@@ -148,6 +191,36 @@ function proofFixture(suite = "compatibility") {
     counts: () => ({ launches, comparisons }),
     change(file, mutate) { const value = JSON.parse(files.get(file)); mutate(value); json(file, value); },
     manifests(mutate) { for (const directory of [before, after]) this.change(path.join(directory, "evidence.json"), mutate); },
+    // Keep redundant local copies in step: a validator must still reject an
+    // impossible contract, and compare valid changed outcomes across the pair.
+    rewriteOutcome(directory, mutate) {
+      const themeDirectory = path.join(directory, "dark");
+      const model = JSON.parse(files.get(path.join(themeDirectory, "model.json")));
+      mutate(model);
+      for (const [index, slide] of model.slides.slice(0, fixtures.length).entries()) {
+        for (const card of slide.adaptiveCards) {
+          for (const fallback of slide.fallbacks.filter((entry) => entry.diagnostics &&
+              entry.sourcePath.startsWith(`adaptive-card[${card.blockIndex}]`))) fallback.diagnostics = card.diagnostics;
+        }
+        const name = pageName(index + 1);
+        for (const location of [path.join("chromium", `${name}.json`), path.join("webview2", name, "geometry-1.json"),
+          path.join("webview2", name, "geometry-2.json")]) {
+          const file = path.join(themeDirectory, location), geometry = JSON.parse(files.get(file));
+          slide.adaptiveCards.forEach((card, block) => {
+            Object.assign(geometry.slides[0].cards[block], { status: card.status, sdkVersion: card.sdkVersion,
+              schemaVersion: card.schemaVersion, hostConfigVersion: card.hostConfigVersion,
+              diagnostics: card.diagnostics.map(({ sourcePath: _sourcePath, ...entry }) => entry) });
+            if (geometry.native[0].cards[block]) geometry.native[0].cards[block].conversions = card.conversions;
+          });
+          json(file, geometry);
+        }
+      }
+      const reportFile = path.join(themeDirectory, "export-report.json");
+      const previous = JSON.parse(files.get(reportFile)), fallbackReport = pptxFallbackReport(model);
+      const report = { ...previous, fallbacks: fallbackReport, fallbackCount: fallbackReport.length, ...pptxAdaptiveCardReport(model) };
+      json(path.join(themeDirectory, "model.json"), model); json(reportFile, report);
+      this.change(path.join(directory, "evidence.json"), (value) => { value.themes.dark.export = report; });
+    },
   };
 }
 
@@ -160,7 +233,103 @@ for (const suite of ["baseline", "compatibility"]) test(`complete ${suite} proof
   assert.equal(report.pages.length, fixture.fixtures.length * 4);
   assert.equal(fixture.counts().comparisons, fixture.fixtures.length * 4 * 3 + 4);
   assert.equal(report.backCovers.length, 4);
+  assert.deepEqual(Object.keys(report.exportOutcomes), CARD_REVIEW_THEMES);
   assert.equal(report.baselineUpdated, false);
+});
+
+for (const sides of [["after"], ["before"], ["before", "after"]]) {
+  test(`actual comparator rejects missing export-report.json on ${sides.join("+")}`, async () => {
+    const fixture = proofFixture("baseline");
+    for (const side of sides) fixture.files.delete(path.join(fixture[side], "dark", "export-report.json"));
+    const report = await fixture.run();
+    assert.equal(report.automatedComparisonPassed, false);
+    assert.equal(fixture.counts().launches, 0);
+    assert.ok(report.failures.some((message) => message.includes("export-report.json") && message.includes("ENOENT")));
+  });
+  for (const [name, mutate, error] of [
+    ["unknown output mode", (value) => { value.adaptiveCards[0].conversions[0].mode = "unknown-output-mode"; }, /unknown conversion mode/],
+    ["new diagnostic truncation", (value) => {
+      value.adaptiveCardsComplete = false; value.adaptiveCardsTruncated = true;
+      value.adaptiveCards[0].complete = false; value.adaptiveCards[0].diagnosticsTruncated = true;
+    }, /unexpected diagnostic truncation/],
+    ["new incomplete outcome", (value) => { value.adaptiveCardsComplete = false; value.adaptiveCards[0].complete = false; }, /unexpected incomplete validation/],
+    ["unknown impact", (value) => { value.adaptiveCards[0].conversions[0].impact = "lossless"; }, /invalid content impact/],
+    ["wrong card source", (value) => { value.adaptiveCards[0].conversions[0].sourcePath = "adaptive-card[8]$.body[0]"; }, /invalid authored card source/],
+    ["unknown source type", (value) => { value.adaptiveCards[0].conversions[0].sourceType = "Custom.Widget"; }, /unknown source type/],
+    ["missing conversion mode", (value) => { delete value.adaptiveCards[0].conversions[0].mode; }, /producer fields/],
+    ["native count mismatch", (value) => { value.adaptiveCards[0].nativeObjectCount++; }, /native counts do not add up/],
+    ["approximation aggregate mismatch", (value) => { value.adaptiveCardConversionSummary.approximated++; }, /producer model\/aggregates/],
+    ["issue aggregate mismatch", (value) => { value.adaptiveCardIssueCount++; }, /producer model\/aggregates/],
+    ["raster aggregate mismatch", (value) => { value.adaptiveCardConversionSummary.rasterizedSubtrees++; }, /producer model\/aggregates/],
+    ["fallback count mismatch", (value) => { value.fallbackCount++; }, /producer model\/aggregates/],
+    ["missing aggregate completion flag", (value) => { delete value.adaptiveCardsComplete; }, /producer model\/aggregates/],
+    ["unrecognized report flag", (value) => { value.validationSkipped = true; }, /producer model\/aggregates/],
+    ["invalid diagnostic severity", (value) => { value.adaptiveCards.find((card) => card.diagnostics.length).diagnostics[0].severity = "information"; }, /invalid diagnostic severity/],
+    ["wrong diagnostic source path", (value) => { value.adaptiveCards.find((card) => card.diagnostics.length).diagnostics[0].sourcePath = "adaptive-card[7]$"; }, /diagnostic source identity/],
+    ["diagnostic content impact lost", (value) => { value.adaptiveCards.find((card) => card.diagnostics.length).diagnostics[0].impact = "none"; }, /diagnostic lost content impact/],
+  ]) test(`actual comparator rejects ${name} on ${sides.join("+")}`, async () => {
+    const fixture = proofFixture("baseline");
+    for (const side of sides) fixture.change(path.join(fixture[side], "dark", "export-report.json"), mutate);
+    const report = await fixture.run();
+    assert.equal(report.automatedComparisonPassed, false);
+    assert.equal(fixture.counts().launches, 0);
+    assert.ok(report.failures.some((message) => error.test(message)), report.failures.join("\n"));
+  });
+}
+
+test("identically unknown modes in reports, manifests, models and typed collectors still cannot pass", async () => {
+  const fixture = proofFixture("baseline");
+  for (const directory of [fixture.before, fixture.after]) fixture.rewriteOutcome(directory, (model) => {
+    model.slides[0].adaptiveCards[0].conversions[0].mode = "unknown-output-mode";
+  });
+  const report = await fixture.run();
+  assert.equal(report.automatedComparisonPassed, false);
+  assert.ok(report.failures.some((message) => message.includes("unknown conversion mode")));
+  assert.equal(fixture.counts().launches, 0);
+});
+
+test("valid but changed diagnostic outcomes are compared even when every local report copy agrees", async () => {
+  const fixture = proofFixture("baseline");
+  fixture.rewriteOutcome(fixture.after, (model) => {
+    const card = model.slides.flatMap((slide) => slide.adaptiveCards || []).find((card) => card.diagnostics.length);
+    card.diagnostics[0].message = "A different valid diagnostic message must not be normalized away.";
+  });
+  const report = await fixture.run();
+  assert.equal(report.automatedComparisonPassed, false);
+  assert.equal(fixture.counts().launches, 0);
+  assert.ok(report.failures.some((message) => message.includes("diagnostics") && message.includes("message")), report.failures.join("\n"));
+});
+
+for (const [name, mutate, field] of [
+  ["resource validation", (model) => {
+    model.slides.flatMap((slide) => slide.adaptiveCards || []).find((card) => card.status === "error").resourceValidation = "browser-checked";
+  }, "resourceValidation"],
+  ["known conversion classification", (model) => {
+    const card = model.slides.flatMap((slide) => slide.adaptiveCards || []).find((card) =>
+      card.diagnostics.some((diagnostic) => diagnostic.code === "static-input"));
+    Object.assign(card.conversions[0], { mode: "approximated", treatment: "static-input",
+      reason: "adaptive-card-static-input", impact: "content" });
+  }, "conversions"],
+]) test(`changed ${name} is not discarded when report/model/manifest/collector agree locally`, async () => {
+  const fixture = proofFixture("baseline");
+  fixture.rewriteOutcome(fixture.after, mutate);
+  const report = await fixture.run();
+  assert.equal(report.automatedComparisonPassed, false);
+  assert.equal(fixture.counts().launches, 0);
+  assert.ok(report.failures.some((message) => message.includes(field)), report.failures.join("\n"));
+});
+
+test("purposeful negative corpus outcomes remain intact, including the declared incomplete/truncated card", async () => {
+  const fixture = proofFixture("compatibility");
+  const source = JSON.parse(fixture.files.get(path.join(fixture.after, "dark", "export-report.json")));
+  assert.equal(source.adaptiveCardsComplete, false);
+  assert.equal(source.adaptiveCardsTruncated, true);
+  assert.equal(source.adaptiveCards.at(-1).status, "error");
+  assert.equal(source.adaptiveCards.at(-1).complete, false);
+  assert.equal(source.adaptiveCards.at(-1).diagnosticsTruncated, true);
+  const report = await fixture.run();
+  assert.equal(report.automatedComparisonPassed, true, report.failures.join("\n"));
+  assert.deepEqual(Object.keys(report.exportOutcomes), CARD_REVIEW_THEMES);
 });
 
 for (const [name, mutate] of [
@@ -196,6 +365,7 @@ for (const [name, mutate] of [
 for (const [name, relative] of [
   ["PPTX package", ["cards.pptx"]],
   ["model pages", ["model.json"]],
+  ["actual export report", ["export-report.json"]],
   ["PowerPoint report", ["powerpoint-report.json"]],
   ["editability report", ["editability-report.json"]],
   ["edited PPTX", ["editability", "owned", "edited.pptx"]],
@@ -272,6 +442,48 @@ test("real comparator CLI rejects empty/matching partial themes with exit 2, nev
     const report = JSON.parse(await readFile(path.join(output, "comparison.json")));
     assert.equal(report.automatedComparisonPassed, false);
     assert.equal(report.pages.length, 0);
+  }
+});
+
+test("actual comparator CLI rejects all three report mutations and symmetric copies using owned synthetic artifacts", async (t) => {
+  const { base } = await ownedWorkspace(t);
+  const fixture = proofFixture("baseline");
+  const directories = { before: path.join(base, "before"), after: path.join(base, "after") };
+  for (const [file, bytes] of fixture.files) {
+    const side = file.startsWith(fixture.before + path.sep) ? "before" : "after";
+    const destination = path.join(directories[side], path.relative(fixture[side], file));
+    await mkdir(path.dirname(destination), { recursive: true });
+    await writeFile(destination, bytes);
+  }
+  const originals = Object.fromEntries(await Promise.all(Object.entries(directories).map(async ([side, directory]) =>
+    [side, await readFile(path.join(directory, "dark", "export-report.json"))])));
+  for (const sides of [["after"], ["before", "after"]]) {
+    for (const mutation of ["unknown-export-mode", "missing-export-report", "truncated-export-diagnostics"]) {
+      for (const side of sides) {
+        const file = path.join(directories[side], "dark", "export-report.json");
+        if (mutation === "missing-export-report") await rm(file);
+        else {
+          const report = JSON.parse(originals[side]);
+          if (mutation === "unknown-export-mode") report.adaptiveCards[0].conversions[0].mode = "unknown-output-mode";
+          else {
+            report.adaptiveCardsComplete = false; report.adaptiveCardsTruncated = true;
+            report.adaptiveCards[0].complete = false; report.adaptiveCards[0].diagnosticsTruncated = true;
+          }
+          await writeFile(file, JSON.stringify(report));
+        }
+      }
+      const output = path.join(base, `${mutation}-${sides.join("-")}`);
+      const command = fileURLToPath(new URL("../scripts/compare-adaptive-cards-review.mjs", import.meta.url));
+      const result = spawnSync(process.execPath, [command, directories.before, directories.after, output],
+        { cwd: repository, encoding: "utf8", windowsHide: true, timeout: 30_000 });
+      assert.ifError(result.error);
+      assert.equal(result.status, 2, `${mutation}: ${result.stdout}\n${result.stderr}`);
+      const comparison = JSON.parse(await readFile(path.join(output, "comparison.json")));
+      assert.equal(comparison.automatedComparisonPassed, false);
+      assert.equal(comparison.preflightComplete, false);
+      assert.ok(comparison.failures.length > 0);
+      for (const side of sides) await writeFile(path.join(directories[side], "dark", "export-report.json"), originals[side]);
+    }
   }
 });
 

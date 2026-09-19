@@ -328,6 +328,19 @@ accept a changed declaration, fallback, renderer, output count or corpus.
    Geometry/repeat snapshots, native-controller identity, original PPTX/model,
    all engine PNGs and persisted existing-object edit artifacts are mandatory.
    Original and edited file hashes and complete edit checks are validated.
+   Each actual `export-report.json` is mandatory; an embedded manifest copy is
+   not a substitute. Card/conversion fields are validated before using the
+   canonical producer's report aggregators: only `native`, `approximated` and
+   `rasterized` modes and their existing content-impact classifications are
+   accepted. Authored source/card/slide identities, diagnostics, resource and
+   complete/truncated outcomes, treatment/reason and native/raster counters must
+   agree with the model, typed browser evidence and actual capture ownership.
+   The full emitted report must agree with the producer-derived result and its
+   manifest copy. The pair then compares all stable report fields, not just
+   pixels and geometry. The current producer's top-level output `path` is the
+   only per-run report field excluded; no mode, impact, diagnostic, completion
+   flag or counter is normalized away. Matching invalid reports on both sides
+   still fail. There is no missing-report or default-empty success path.
    All fixture pages are compared in all three engines. The appended back cover
    additionally requires a PowerPoint pixel comparison in every theme; the
    harness does not record browser/controller geometry for that non-card page.

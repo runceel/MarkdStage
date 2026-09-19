@@ -121,6 +121,6 @@
     "test/harness/adaptive-cards.mjs": "a33c321773b9fd74c60432ae2c79eb7d73020b362718e2a0080bf6e5815a5b0a",
     "test/scripts/adaptive-card-upgrade-guard.mjs": "1379fed4dcb705fb82f10348f8928a294dad21f6ac5bb953b4485ab15950f785",
     "test/scripts/adaptive-cards-review.mjs": "f84cbacc9faad70bea223618139e4bc2a79e86924324f1fa506e95bfa29d65dd",
-    "test/scripts/compare-adaptive-cards-review.mjs": "5cd8540f39e598393b735c9ea7686be7017ea65c49b082ddbadeb9b1594d8c9b"
+    "test/scripts/compare-adaptive-cards-review.mjs": "8e4651498862215bfc0ad4d004d172fa8fdfc2fdec755c36f0aba1b77c9235d2"
   }
 }

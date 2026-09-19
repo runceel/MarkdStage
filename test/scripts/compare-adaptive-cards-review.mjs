@@ -11,12 +11,19 @@ import { adaptiveCardCompatibilityCases } from "../harness/adaptive-card-compati
 import { compareCardGeometry, compareCardNativeModels, compareCardPngs } from "../utils/adaptive-card-comparison.mjs";
 import { contractDifferences } from "./adaptive-card-upgrade-guard.mjs";
 import { inspectPptxPackage } from "../../.github/extensions/markdstage/runtime/pptx-package.mjs";
-import { verifyPngBytes } from "../../.github/extensions/markdstage/runtime/output-model.mjs";
+import { verifyPngBytes, pptxAdaptiveCardReport, pptxFallbackReport } from "../../.github/extensions/markdstage/runtime/output-model.mjs";
 import { isWorkspacePath } from "../../.github/extensions/markdstage/runtime/io.mjs";
+import { adaptiveCardSchemaEnvelope, MAX_CARD_DIAGNOSTICS } from "../../.github/extensions/markdstage/renderer/adaptive-card-validation.mjs";
 
 export const CARD_REVIEW_THEMES = Object.freeze(["dark", "light", "microsoft", "custom"]);
 const EDIT_OPERATIONS = ["text", "fill", "position", "image", "table"];
 const EDIT_TYPES = ["text", "shape", "image", "table"];
+const CARD_FIELDS = ["blockIndex", "status", "sdkVersion", "schemaVersion", "hostConfigVersion",
+  "complete", "diagnosticsTruncated", "resourceValidation", "diagnostics", "conversions",
+  "nativeObjectCount", "rasterizedSubtreeCount"];
+const CONVERSION_MODES = new Set(["native", "approximated", "rasterized"]);
+const SOURCE_TYPES = new Set([...Object.keys(adaptiveCardSchemaEnvelope()), "Diagnostic"]);
+const TREATMENTS = new Set(["static-input", "static-action", "static-media", "static-link"]);
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const object = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const nonempty = (value) => typeof value === "string" && value.length > 0;
@@ -31,6 +38,142 @@ const setEquals = (value, expected, label) => {
   assert.ok(Array.isArray(value), `${label}: missing collection`);
   assert.deepEqual([...value].sort(), [...expected].sort(), `${label}: missing, extra or duplicate entries`);
 };
+const count = (value) => Number.isSafeInteger(value) && value >= 0;
+const keys = (value, required, optional, label) => {
+  assert.ok(object(value), `${label}: missing structured value`);
+  setEquals(Object.keys(value), [...required, ...optional.filter((key) => Object.hasOwn(value, key))],
+    `${label} producer fields`);
+};
+const cardPrefix = (index) => `adaptive-card[${index}]`;
+const cardPath = (value, index, rootWithoutDollar = false) => {
+  if (!nonempty(value)) return false;
+  const prefix = cardPrefix(index);
+  if (rootWithoutDollar && value === prefix) return true;
+  return value.startsWith(`${prefix}$`) && ["", ".", "["].includes(value.slice(prefix.length + 1, prefix.length + 2));
+};
+
+function assertConversions(conversions, blockIndex, label) {
+  assert.ok(Array.isArray(conversions), `${label}: missing conversions`);
+  for (const conversion of conversions) {
+    const at = `${label} ${conversion?.sourcePath || "(missing source)"}`;
+    keys(conversion, ["sourcePath", "sourceType", "mode", "reason", "nativeObjects", "impact"],
+      ["treatment", "sharedCapturePath"], at);
+    assert.ok(cardPath(conversion.sourcePath, blockIndex), `${at}: invalid authored card source path`);
+    assert.ok(SOURCE_TYPES.has(conversion.sourceType), `${at}: unknown source type`);
+    assert.ok(CONVERSION_MODES.has(conversion.mode), `${at}: unknown conversion mode ${conversion.mode}`);
+    assert.ok(count(conversion.nativeObjects), `${at}: invalid native object count`);
+    assert.equal(conversion.impact, conversion.mode === "native" ? "none" : "content", `${at}: invalid content impact`);
+    assert.match(conversion.reason, /^adaptive-card-[a-z0-9-]+$/, `${at}: missing conversion reason`);
+    if (conversion.mode === "native") assert.equal(conversion.reason, "adaptive-card-native", at);
+    if (conversion.mode === "rasterized") assert.equal(conversion.nativeObjects, 0, `${at}: rasterized content cannot claim native objects`);
+    if (Object.hasOwn(conversion, "treatment")) assert.ok(TREATMENTS.has(conversion.treatment), `${at}: unknown static treatment`);
+    if (conversion.mode === "approximated") {
+      assert.ok(["static-input", "static-action", "static-media"].includes(conversion.treatment), `${at}: missing approximation treatment`);
+      assert.equal(conversion.reason, `adaptive-card-${conversion.treatment}`, at);
+    }
+    if (conversion.mode === "native") {
+      assert.ok(!["static-input", "static-action", "static-media"].includes(conversion.treatment), `${at}: static projection cannot be mislabeled native`);
+    }
+    if (Object.hasOwn(conversion, "sharedCapturePath")) {
+      assert.equal(conversion.mode, "rasterized", at);
+      assert.equal(conversion.reason, "adaptive-card-paint-context", at);
+      assert.match(conversion.sharedCapturePath, /^adaptive-card\[(?:0|[1-9]\d*)\]\$$/, `${at}: invalid shared capture owner`);
+    }
+  }
+}
+
+function assertCardOutcome(card, expected, slideIndex, blockIndex, sdkVersion, reported, label) {
+  keys(card, [...CARD_FIELDS, ...(reported ? ["slideIndex", "page"] : [])], [], label);
+  if (reported) {
+    assert.equal(card.slideIndex, slideIndex, `${label}: wrong slide identity`);
+    assert.equal(card.page, slideIndex + 1, `${label}: wrong page identity`);
+  }
+  assert.equal(card.blockIndex, blockIndex, `${label}: wrong card identity`);
+  assert.equal(card.status, expected.status, `${label}: unexpected card outcome`);
+  assert.equal(card.sdkVersion, sdkVersion, `${label}: SDK identity differs from evidence`);
+  assert.ok(nonempty(card.schemaVersion) && Number.isSafeInteger(card.hostConfigVersion) && card.hostConfigVersion > 0,
+    `${label}: missing schema/HostConfig identity`);
+  assert.ok(["browser-checked", "not-run"].includes(card.resourceValidation), `${label}: unknown resource validation outcome`);
+  if (card.status === "ready") assert.equal(card.resourceValidation, "browser-checked", `${label}: ready card without browser asset validation`);
+  assert.ok(Array.isArray(card.diagnostics) && card.diagnostics.length <= MAX_CARD_DIAGNOSTICS, `${label}: invalid diagnostics`);
+  for (const diagnostic of card.diagnostics) {
+    keys(diagnostic, ["category", "code", "severity", "path", "sourcePath", "message", "impact"], [], `${label} diagnostic`);
+    assert.equal(diagnostic.category, "adaptive-card");
+    assert.match(diagnostic.code, /^[a-z][a-z0-9-]*$/);
+    assert.ok(["error", "warning"].includes(diagnostic.severity), `${label}: invalid diagnostic severity`);
+    assert.ok(nonempty(diagnostic.path) && diagnostic.path.startsWith("$") &&
+      nonempty(diagnostic.message), `${label}: missing authored diagnostic path/message`);
+    assert.equal(diagnostic.sourcePath, `${cardPrefix(blockIndex)}${diagnostic.path}`, `${label}: diagnostic source identity changed`);
+    assert.equal(diagnostic.impact, "content", `${label}: diagnostic lost content impact`);
+  }
+  assert.deepEqual(card.diagnostics.map((entry) => entry.code).sort(), [...expected.codes].sort(),
+    `${label}: diagnostic outcomes differ from the declared fixture`);
+  const intendedTruncation = expected.codes.includes("diagnostics-truncated");
+  assert.equal(card.diagnosticsTruncated, intendedTruncation, `${label}: unexpected diagnostic truncation`);
+  assert.equal(card.complete, !intendedTruncation, `${label}: unexpected incomplete validation`);
+  assert.equal(card.diagnostics.some((entry) => entry.severity === "error"), card.status === "error",
+    `${label}: status disagrees with diagnostic severity`);
+  assert.ok(count(card.nativeObjectCount) && count(card.rasterizedSubtreeCount), `${label}: invalid conversion counters`);
+  assertConversions(card.conversions, blockIndex, label);
+  assert.equal(card.conversions.reduce((total, entry) => total + entry.nativeObjects, 0), card.nativeObjectCount,
+    `${label}: conversion native counts do not add up`);
+}
+
+// Validate BEFORE calling the producer helpers: their aggregation is not a
+// schema validator (for example, filtering approximated entries skips unknown modes).
+export function assertExportOutcome(report, embeddedReport, model, fixtures, theme, sdkVersion, packageBytes) {
+  assert.ok(object(report), `${theme}: missing actual export report`);
+  assert.ok(Array.isArray(report.adaptiveCards), `${theme}: missing reported cards`);
+  let reportedIndex = 0;
+  for (const [slideIndex, fixture] of fixtures.entries()) {
+    const slide = model.slides[slideIndex];
+    assert.ok(Array.isArray(slide.adaptiveCards) && slide.adaptiveCards.length === fixture.expected.length,
+      `${theme} page ${slideIndex + 1}: missing model card outcomes`);
+    assert.ok(Array.isArray(slide.elements) && Array.isArray(slide.fallbacks), `${theme}: missing model objects/fallbacks`);
+    for (const [blockIndex, expected] of fixture.expected.entries()) {
+      const label = `${theme} page ${slideIndex + 1} ${cardPrefix(blockIndex)}`;
+      const card = slide.adaptiveCards[blockIndex];
+      assertCardOutcome(card, expected, slideIndex, blockIndex, sdkVersion, false, `${label} model`);
+      assertCardOutcome(report.adaptiveCards[reportedIndex++], expected, slideIndex, blockIndex, sdkVersion, true,
+        `${label} export report`);
+      const native = slide.elements.filter((element) => element.adaptiveCard && cardPath(element.adaptiveCard.sourcePath, blockIndex));
+      assert.equal(native.length, card.nativeObjectCount, `${label}: native count differs from actual model objects`);
+      const ownedFallbacks = slide.fallbacks.filter((entry) => entry.type === "adaptive-card" &&
+        cardPath(entry.sourcePath, blockIndex, true));
+      assert.equal(ownedFallbacks.filter((entry) => entry.artwork !== false).length, card.rasterizedSubtreeCount,
+        `${label}: raster count differs from owned model pictures`);
+      for (const fallback of ownedFallbacks) if (Object.hasOwn(fallback, "diagnostics") ||
+          fallback.reason === "adaptive-card-diagnostic-note" ||
+          (card.status === "error" && fallback.sourcePath === cardPrefix(blockIndex))) {
+        assert.deepEqual(fallback.diagnostics, card.diagnostics, `${label}: captured diagnostic note differs from card outcome`);
+      }
+      for (const conversion of card.conversions.filter((entry) => entry.mode === "rasterized")) {
+        const owner = conversion.sharedCapturePath || conversion.sourcePath;
+        const matches = slide.fallbacks.filter((entry) => entry.type === "adaptive-card" && entry.reason === conversion.reason &&
+          (entry.sourcePath === owner || (owner === `${cardPrefix(blockIndex)}$` && entry.sourcePath === cardPrefix(blockIndex))));
+        assert.equal(matches.length, 1, `${label}: rasterized source/reason has no unique capture owner`);
+        if (conversion.sharedCapturePath) assert.ok(matches[0].cardSources?.includes(`${cardPrefix(blockIndex)}$`),
+          `${label}: shared capture omits this card`);
+      }
+    }
+    assert.equal(slide.elements.filter((element) => element.adaptiveCard).length,
+      slide.adaptiveCards.reduce((sum, card) => sum + card.nativeObjectCount, 0), `${theme}: orphan native card objects`);
+    assert.equal(slide.fallbacks.filter((entry) => entry.type === "adaptive-card" && entry.artwork !== false).length,
+      slide.adaptiveCards.reduce((sum, card) => sum + card.rasterizedSubtreeCount, 0), `${theme}: orphan card pictures`);
+  }
+  assert.equal(report.adaptiveCards.length, reportedIndex, `${theme}: extra/duplicate reported cards`);
+  assert.ok(!model.slides.at(-1).adaptiveCards?.length, `${theme}: unexpected back-cover cards`);
+  assert.ok(nonempty(report.path), `${theme}: missing output path`);
+  const fallbacks = pptxFallbackReport(model);
+  const produced = { ok: true, format: "pptx", path: report.path, total: model.slides.length, theme,
+    bytes: packageBytes, fallbackCount: fallbacks.length, fallbacks, ...pptxAdaptiveCardReport(model) };
+  assert.deepEqual(report, produced, `${theme}: actual export report differs from the validated producer model/aggregates`);
+  assert.deepEqual(embeddedReport, report, `${theme}: manifest export result differs from the actual export-report.json`);
+  // Output path is the only per-run field emitted by these producer reports.
+  // Keep every outcome, mode, reason, source, impact, flag, count and byte count.
+  const { path: _outputPath, ...stable } = report;
+  return stable;
+}
 
 export async function expectedCardReviewFixtures(suite) {
   assert.ok(["baseline", "compatibility"].includes(suite), "A known baseline or compatibility suite is required.");
@@ -184,6 +327,9 @@ export async function readCardReviewEvidence(directory, evidence, fixtures, read
     assert.equal(model.version, 1); assert.equal(model.width, 1280); assert.equal(model.height, 720);
     assert.equal(model.slides?.length, slideCount, `${theme}: missing model pages`);
     assert.equal(model.slides.at(-1).layout, "backcover", `${theme}: missing model back cover`);
+    const exportReport = await json(theme, "export-report.json");
+    const outcome = assertExportOutcome(exportReport, evidence.themes[theme].export, model, fixtures,
+      theme, evidence.bundle.sdkVersion, original.length);
     for (const [index, page] of pp.pages.entries()) {
       complete(page, `${theme} PowerPoint page ${index}`);
       assert.equal(page.page, index + 1, `${theme}: duplicate or invalid PowerPoint page index`);
@@ -247,6 +393,27 @@ export async function readCardReviewEvidence(directory, evidence, fixtures, read
         webview2: await json(theme, "webview2", name, "geometry-1.json"),
       };
       for (const [engine, snapshot] of Object.entries(geometry)) assertGeometry(snapshot, fixture, `${theme} ${name} ${engine}`);
+      for (const [engine, snapshot] of Object.entries(geometry)) {
+        for (const [blockIndex, card] of model.slides[index].adaptiveCards.entries()) {
+          const measured = snapshot.slides[0].cards[blockIndex];
+          const label = `${theme} ${name} ${cardPrefix(blockIndex)} ${engine}`;
+          for (const key of ["sdkVersion", "schemaVersion", "hostConfigVersion", "status"]) {
+            assert.equal(measured[key], card[key], `${label}: exported card identity/outcome differs from measured evidence`);
+          }
+          assert.deepEqual(measured.diagnostics, card.diagnostics.map(({ sourcePath: _sourcePath, ...entry }) => entry),
+            `${label}: exported diagnostics differ from measured browser diagnostics`);
+          const native = snapshot.native[0].cards[blockIndex];
+          if (native) {
+            assertConversions(native.conversions, blockIndex, `${label} typed collector`);
+            // Shared paint contexts are owned by the full-slide collector, not
+            // an individual card. All other conversion records must agree.
+            if (!card.conversions.some((entry) => entry.sharedCapturePath)) {
+              assert.deepEqual(native.conversions, card.conversions, `${label}: exported conversions differ from typed collector`);
+              assert.equal(native.elements.length, card.nativeObjectCount, `${label}: native object accounting differs`);
+            }
+          }
+        }
+      }
       const repeat = await json(theme, "webview2", name, "geometry-2.json");
       assertGeometry(repeat, fixture, `${theme} ${name} WebView2 repetition`);
       assert.deepEqual(repeat, geometry.webview2, `${theme}: WebView2 geometry is not repeatable`);
@@ -260,7 +427,7 @@ export async function readCardReviewEvidence(directory, evidence, fixtures, read
         powerpoint: await png(paths.join(themeDirectory, "powerpoint", `${name}.png`)),
       } });
     }
-    themes[theme] = { pages, backCover };
+    themes[theme] = { pages, backCover, outcome };
   }
   return themes;
 }
@@ -282,7 +449,7 @@ export async function compareAdaptiveCardReviews(beforeArgument, afterArgument, 
   assert.notEqual(output, before); assert.notEqual(output, after);
   await makeDirectory(output, { recursive: false });
   const report = { before: { directory: before }, after: { directory: after },
-    pages: [], backCovers: [], failures: [], expectedPages: 0, preflightComplete: false, baselineUpdated: false,
+    pages: [], backCovers: [], exportOutcomes: {}, failures: [], expectedPages: 0, preflightComplete: false, baselineUpdated: false,
     independentActualPowerPointApproval: "required; this comparison never grants visual approval" };
   let browser;
   try {
@@ -301,6 +468,11 @@ export async function compareAdaptiveCardReviews(beforeArgument, afterArgument, 
     report.bundleChanges = contractDifferences(reference.bundle, candidate.bundle);
     const a = await readCardReviewEvidence(before, reference, fixtures, read);
     const b = await readCardReviewEvidence(after, candidate, fixtures, read);
+    for (const theme of CARD_REVIEW_THEMES) {
+      const comparison = compareCardNativeModels(a[theme].outcome, b[theme].outcome);
+      noErrors(comparison.violations, `${theme}: export report geometry changed beyond unchanged tolerances`);
+      report.exportOutcomes[theme] = comparison;
+    }
     report.preflightComplete = true;
     browser = await launch();
     const page = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 });
