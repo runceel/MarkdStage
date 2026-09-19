@@ -6,14 +6,22 @@ import { startCanvasServer } from "../harness/canvas-server.mjs";
 import { cardFence, staticCard, adaptiveCardGeometry, CARD_FIXTURE_DIRECTORY } from "../harness/adaptive-cards.mjs";
 import { adaptiveCardCompatibilityCases, compatibilityDiagnostics, CARD_COMPATIBILITY_DIRECTORY } from "../harness/adaptive-card-compatibility.mjs";
 import { inspectPptxPackage } from "../../.github/extensions/markdstage/runtime/pptx-package.mjs";
+import { resolveWorkspaceRoot } from "../../.github/extensions/markdstage/scripts/workspace-root.mjs";
+
+async function createCanvasWorkspace(testInfo, name) {
+  const workspace = testInfo.outputPath(name);
+  // Declare the fixture's own root even when Playwright output is nested in a
+  // real checkout. Production workspace resolution and transport stay intact.
+  await mkdir(join(workspace, ".git"), { recursive: true });
+  expect(resolveWorkspaceRoot(workspace, testInfo.outputDir),
+    "Canvas must resolve the owned fixture, not an ancestor repository").toBe(workspace);
+  return workspace;
+}
 
 test("actual Canvas HTTP host serves the pinned SDK, renders cards and exports diagnostic PPTX", async ({ page }, testInfo) => {
   test.setTimeout(180_000);
-  const workspace = testInfo.outputPath("canvas-workspace");
+  const workspace = await createCanvasWorkspace(testInfo, "canvas-workspace");
   await mkdir(join(workspace, "assets"), { recursive: true });
-  // Keep Canvas's real nearest-repository workspace resolution inside the
-  // isolated fixture even when Playwright artifacts live in this checkout.
-  await mkdir(join(workspace, ".git"));
   await writeFile(join(workspace, "assets", "card.svg"), '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><circle cx="32" cy="32" r="24" fill="#0078d4"/></svg>');
   await writeFile(join(workspace, "cards.md"), [
     "---\ndeck: Canvas card host\nlayout: default\n---\n## Canvas card host",
@@ -41,13 +49,14 @@ test("actual Canvas HTTP host serves the pinned SDK, renders cards and exports d
     await page.screenshot({ path: testInfo.outputPath("canvas-host.png") });
     const response = await page.request.post(new URL("export-pptx", host.url).href, {
       headers: { Origin: new URL(host.url).origin },
-      data: { outputPath: "canvas-cards.pptx" },
+      data: {},
       timeout: 120_000,
     });
 
     expect(response.ok()).toBe(true);
     const report = await response.json();
     expect(report.ok).toBe(true);
+    expect(report.path).toBe(join(workspace, "cards.pptx"));
     expect(report.fallbacks.filter((entry) => entry.type === "adaptive-card").map((entry) => entry.reason))
       .toEqual(["adaptive-card-invalid-property"]);
     expect(report.adaptiveCards[0].nativeObjectCount).toBe(2);
@@ -64,6 +73,7 @@ test("actual Canvas HTTP host serves the pinned SDK, renders cards and exports d
     });
     expect(pdfResponse.ok()).toBe(true);
     const pdf = await pdfResponse.json();
+    expect(pdf.path).toBe(join(workspace, "cards.pdf"));
     expect(pdf.adaptiveCards.map((card) => card.status)).toEqual(["ready", "error"]);
     expect(pdf.adaptiveCards[1].diagnostics[0].code).toBe("invalid-property");
     expect(pdf.adaptiveCardIssueCount).toBe(1);
@@ -74,9 +84,7 @@ test("actual Canvas HTTP host serves the pinned SDK, renders cards and exports d
 
 test("Canvas production export endpoint preserves the official corpus contract and incomplete diagnostics", async ({ page }, testInfo) => {
   test.setTimeout(180_000);
-  const workspace = testInfo.outputPath("canvas-corpus");
-  await mkdir(workspace, { recursive: true });
-  await mkdir(join(workspace, ".git"));
+  const workspace = await createCanvasWorkspace(testInfo, "canvas-corpus");
   await cp(join(CARD_FIXTURE_DIRECTORY, "assets"), join(workspace, "assets"), { recursive: true });
   const cases = await adaptiveCardCompatibilityCases();
   const expected = JSON.parse(await readFile(join(CARD_COMPATIBILITY_DIRECTORY, "output-expectations.json"), "utf8"));
@@ -84,11 +92,12 @@ test("Canvas production export endpoint preserves the official corpus contract a
   const host = await startCanvasServer(workspace);
   try {
     const response = await page.request.post(new URL("export-pptx", host.url).href, {
-      headers: { Origin: new URL(host.url).origin }, data: { outputPath: "canvas-corpus.pptx" }, timeout: 120_000,
+      headers: { Origin: new URL(host.url).origin }, data: {}, timeout: 120_000,
     });
     expect(response.ok()).toBe(true);
     const report = await response.json();
     expect(report.ok).toBe(true);
+    expect(report.path).toBe(join(workspace, "cards.pptx"));
     expect(report.adaptiveCardsComplete).toBe(false);
     expect(report.adaptiveCardsTruncated).toBe(true);
     expect(report.adaptiveCardConversionSummary).toEqual({ nativeObjects: 64, approximated: 23, rasterizedSubtrees: 16 });

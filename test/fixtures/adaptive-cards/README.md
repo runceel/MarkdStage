@@ -244,6 +244,18 @@ the normal JSON report/model, actual PPTX and all normal review images.
 The production Canvas HTTP/export test and source-built native CLI consume
 these same cases and expectations. Canvas only stubs Copilot registration
 transport, not the renderer/exporter; it is not live Copilot UI coverage.
+Both Canvas fixtures declare their own `.git` root inside the owned fixture
+directory. The tests assert that the production workspace resolver selects that
+directory and that actual PPTX/PDF output paths remain inside it. This prevents
+the default repository-local Playwright output from resolving `cards.md` or
+exports against an unrelated ancestor repository. Do not remove the marker or
+change product path policy to make a fixture pass. Exercise both locations:
+
+```powershell
+npx playwright test --project=pptx adaptive-cards-canvas --workers=1
+npx playwright test --project=pptx adaptive-cards-canvas --workers=1 --output '<absolute-owned-artifact-directory>'
+```
+
 The native CLI tests exercise actual WebView2 script-host validation, native
 asset serving and external-browser export. Run from the repository root:
 
