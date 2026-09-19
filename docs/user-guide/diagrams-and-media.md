@@ -2,8 +2,8 @@
 
 > 日本語版: [日本語](ja/diagrams-and-media.md)
 
-MarkdStage supports Markdown images, Mermaid for automatic layout, Architecture DSL for stable
-placement and routing, and imported Archify diagrams.
+MarkdStage supports Markdown images, static Adaptive Cards, Mermaid for automatic layout,
+Architecture DSL for stable placement and routing, and imported Archify diagrams.
 
 ## Render static Adaptive Cards
 
@@ -35,9 +35,13 @@ URLs, redirects and animation (including SVG motion/color animation and APNG/GIF
 animation) are blocked. A missing, failed or blocked image becomes a stable
 **Image unavailable** placeholder; the rest of the card stays visible.
 
-Cards are non-interactive. Inputs, actions, media, background images, refresh,
-authentication, templates and external data are not supported. Invalid card
-structure or versions produce a visible error panel. Unknown properties,
+Cards remain non-interactive. Inputs show their initial value or placeholder;
+actions become static labels and media shows an approved poster plus a label.
+Submit/Execute never run, ShowCard stays collapsed, and safe OpenUrl labels may
+become PowerPoint hyperlinks without becoming clickable browser controls.
+These static representations have content diagnostics. Background images,
+refresh, authentication, templates and external data remain unsupported.
+Invalid card structure or versions produce a visible error panel. Unknown properties,
 unmet `requires`, explicit static fallback replacements/drops and Markdown
 sanitization have content diagnostics; fallback never bypasses asset policy.
 Only `adaptiveCards` up to version 1.5 is an advertised capability.
@@ -50,9 +54,14 @@ Reports locate the slide/card and JSON path, for example
 `adaptive-card[0]$.body[1].url`. Cards wait for fonts and permitted images before
 inspection or output.
 
-PowerPoint uses **one transparent PNG per visible card**, with
-`adaptive-card-rendered-as-artwork` and content impact in the export report.
-Card text, images, facts and tables are **not separately editable**.
+PowerPoint preserves the supported static subset as **editable text, shapes,
+images, separators and tables**, including supported FactSet and non-merged
+Table layouts. Text can be split into measured line/run fragments instead of
+one reflowing text box. Unsupported subtrees use bounded transparent PNGs while
+supported neighbors remain editable; error panels retain whole-card artwork.
+The export report's `adaptiveCards` and `adaptiveCardConversionSummary` describe
+native objects, static approximations and raster fallbacks with source locations
+and content impact. Static approximations may themselves contain editable objects.
 Read `markdstage guide adaptive-cards` (Canvas: `markdstage_guide` topic
 `adaptive-cards`) for exact properties, fallback and reporting limits.
 
