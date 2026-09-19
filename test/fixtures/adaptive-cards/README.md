@@ -320,7 +320,22 @@ accept a changed declaration, fallback, renderer, output count or corpus.
    node .\test\scripts\compare-adaptive-cards-review.mjs '<before-corpus>' '<after-corpus>' '.\test-results\upgrade-corpus-comparison'
    ```
 
-   The destination must be new. `comparison.json` lists source/SDK changes,
+   The destination must be new. Comparison first requires a known suite, its
+   complete canonical fixture identities/hashes, all four themes, every unique
+   fixture page and the PowerPoint back cover. Empty or matching partial theme
+   maps, duplicate/invalid page indexes, incomplete export accounting and
+   truncated proof are rejected **before launching the comparison browser**.
+   Geometry/repeat snapshots, native-controller identity, original PPTX/model,
+   all engine PNGs and persisted existing-object edit artifacts are mandatory.
+   Original and edited file hashes and complete edit checks are validated.
+   All fixture pages are compared in all three engines. The appended back cover
+   additionally requires a PowerPoint pixel comparison in every theme; the
+   harness does not record browser/controller geometry for that non-card page.
+   A source fixture intentionally producing `diagnostics-truncated` is still an
+   expected negative card case; it does not excuse incomplete *review evidence*.
+   `--themes dark` generation is never a complete upgrade-comparison gate.
+
+   `comparison.json` lists source/SDK changes,
    exact semantic/count/path failures, unchanged **2 px** edge / **3 px** text
    rectangle limits, and pixel changes in Chromium, real WebView2 and actual
    PowerPoint. It writes before/after PNG pairs and changed-image overlays.
@@ -339,6 +354,12 @@ accept a changed declaration, fallback, renderer, output count or corpus.
    ```
 
    `--candidate` refuses overwrite and cannot target `contract-lock.json`.
+   It rejects outside paths, UNC/device/extended namespaces and invalid
+   workspace path syntax before any filesystem lookup. Existing destination
+   parents are checked against the canonical checkout root, without following
+   links/junctions or crossing mounts, then rechecked after fingerprinting.
+   Missing parents must be created explicitly; exclusive `wx` creation remains
+   mandatory and never replaces an existing file.
    `--check` continues failing until a human-reviewed lock change is committed;
    there is no `--update` or visual-approval bypass. Update source, matrix,
    precise corpus expectations and approved lock together, then rerun checks.

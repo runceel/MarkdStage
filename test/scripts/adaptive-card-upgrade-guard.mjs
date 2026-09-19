@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFile, readdir, writeFile } from "node:fs/promises";
-import { resolve, relative } from "node:path";
+import * as fileSystem from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
+import * as paths from "node:path";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import { adaptiveCardCapabilities } from "../../.github/extensions/markdstage/renderer/adaptive-card-capabilities.mjs";
@@ -9,6 +11,8 @@ import { adaptiveCardSchemaEnvelope } from "../../.github/extensions/markdstage/
 import { createAdaptiveCardHostConfig } from "../../.github/extensions/markdstage/renderer/adaptive-card.mjs";
 import { adaptiveCardSupportMatrix } from "../../.github/extensions/markdstage/scripts/generate-adaptive-card-contract.mjs";
 import { reconstructAsset } from "../../.github/extensions/markdstage/scripts/vendor-assets.mjs";
+import { isWorkspacePath } from "../../.github/extensions/markdstage/runtime/io.mjs";
+import { isPathInside } from "../../.github/extensions/markdstage/runtime/output-paths.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const extension = ".github/extensions/markdstage/";
@@ -93,16 +97,64 @@ export async function checkAdaptiveCardContract() {
   return actual;
 }
 
+export function resolveCandidateArtifact(requested, workspace = root, path = paths) {
+  assert.ok(typeof requested === "string" && requested.length > 0 &&
+    !/^(?:[\\/]{2}|\\\?\?\\)/u.test(requested),
+  "Candidate paths cannot use UNC, device or extended namespaces.");
+  const workspaceRoot = path.resolve(workspace);
+  const destination = path.resolve(workspaceRoot, requested);
+  const local = path.relative(workspaceRoot, destination);
+  const portable = local.split(path.sep).join("/");
+  assert.ok(local && !path.isAbsolute(local) && isWorkspacePath(portable),
+    "Write a candidate artifact inside this checkout using a normal workspace path.");
+  assert.notEqual(portable.toLowerCase(), "test/fixtures/adaptive-cards/compatibility/contract-lock.json",
+    "Candidate generation cannot overwrite the approved contract lock.");
+  return { workspaceRoot, destination, local };
+}
+
+export async function writeCandidateArtifact(requested, {
+  workspace = root, snapshot = adaptiveCardContractSnapshot, fs = fileSystem,
+} = {}) {
+  // Complete lexical rejection before realpath/lstat: a rejected UNC target must
+  // not cause even a filesystem lookup or network connection.
+  const location = resolveCandidateArtifact(requested, workspace);
+  const canonicalRoot = await fs.realpath(location.workspaceRoot);
+  const rootInfo = await fs.lstat(canonicalRoot);
+  assert.ok(rootInfo.isDirectory() && !rootInfo.isSymbolicLink(), "The checkout root must be a directory.");
+  const samePath = (a, b) => process.platform === "win32" ? a.toLowerCase() === b.toLowerCase() : a === b;
+  const checkedDestination = async () => {
+    assert.ok(samePath(await fs.realpath(location.workspaceRoot), canonicalRoot), "The checkout root changed.");
+    const currentRoot = await fs.lstat(canonicalRoot);
+    assert.ok(currentRoot.isDirectory() && !currentRoot.isSymbolicLink() &&
+      currentRoot.dev === rootInfo.dev && currentRoot.ino === rootInfo.ino, "The checkout root was replaced.");
+    let parent = canonicalRoot;
+    for (const segment of location.local.split(paths.sep).slice(0, -1)) {
+      parent = paths.join(parent, segment);
+      const info = await fs.lstat(parent);
+      assert.ok(info.isDirectory() && !info.isSymbolicLink() && info.dev === rootInfo.dev,
+        "Candidate parents cannot traverse links, junctions or mount points.");
+      const canonicalParent = await fs.realpath(parent);
+      assert.ok(isPathInside(canonicalRoot, canonicalParent) && samePath(parent, canonicalParent),
+        "Candidate parent escaped the canonical checkout.");
+    }
+    const destination = paths.join(parent, paths.basename(location.destination));
+    assert.ok(isPathInside(canonicalRoot, destination), "Candidate destination escaped the canonical checkout.");
+    return destination;
+  };
+  await checkedDestination();
+  const content = JSON.stringify(await snapshot(), null, 2) + "\n";
+  // Snapshotting reads the SDK/corpus; recheck parents before the exclusive write.
+  const destination = await checkedDestination();
+  await fs.writeFile(destination, content, { flag: "wx" });
+  return destination;
+}
+
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   if (process.argv[2] === "--check" && process.argv.length === 3) {
     await checkAdaptiveCardContract();
     console.log("Adaptive Card SDK/schema/HostConfig/capability/corpus lock matches.");
   } else if (process.argv[2] === "--candidate" && process.argv.length === 4) {
-    const destination = resolve(process.argv[3]);
-    const local = relative(root, destination);
-    assert.ok(local && !local.startsWith("..") && !/^[A-Za-z]:/.test(local) && destination !== CARD_CONTRACT_LOCK,
-      "Write a candidate artifact inside this checkout, never over the committed contract lock.");
-    await writeFile(destination, JSON.stringify(await adaptiveCardContractSnapshot(), null, 2) + "\n", { flag: "wx" });
+    const destination = await writeCandidateArtifact(process.argv[3]);
     console.log(`Candidate only: ${destination}. This is not baseline approval and --check still uses the committed lock.`);
   } else throw new Error("Usage: adaptive-card-upgrade-guard.mjs --check | --candidate <new-artifact.json>");
 }

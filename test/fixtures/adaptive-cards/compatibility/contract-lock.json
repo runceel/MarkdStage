@@ -119,8 +119,8 @@
     "test/fixtures/adaptive-cards/unsupported.json": "b8842463933cba955f437e3c766db2a52dd057bdb8baf4b28a548f3a0b85e828",
     "test/harness/adaptive-card-compatibility.mjs": "9d64a9befca38ec56b39af4c48b9ed278f295b32c6f057f67fa63487579e38dd",
     "test/harness/adaptive-cards.mjs": "a33c321773b9fd74c60432ae2c79eb7d73020b362718e2a0080bf6e5815a5b0a",
-    "test/scripts/adaptive-card-upgrade-guard.mjs": "0718e8a32268239ba664bc7740a8995f56c6791299e8c814729a26b2adc2aaf7",
+    "test/scripts/adaptive-card-upgrade-guard.mjs": "1379fed4dcb705fb82f10348f8928a294dad21f6ac5bb953b4485ab15950f785",
     "test/scripts/adaptive-cards-review.mjs": "f84cbacc9faad70bea223618139e4bc2a79e86924324f1fa506e95bfa29d65dd",
-    "test/scripts/compare-adaptive-cards-review.mjs": "61edc63c5115823d5786e7973c396df432e91d3869eac0fe3ab4f536bc05952e"
+    "test/scripts/compare-adaptive-cards-review.mjs": "5cd8540f39e598393b735c9ea7686be7017ea65c49b082ddbadeb9b1594d8c9b"
   }
 }
