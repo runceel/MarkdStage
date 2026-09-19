@@ -53,7 +53,7 @@ test("actual Canvas HTTP host serves the pinned SDK, renders cards and exports d
       timeout: 120_000,
     });
 
-    expect(response.ok()).toBe(true);
+    expect(response.ok(), await response.text()).toBe(true);
     const report = await response.json();
     expect(report.ok).toBe(true);
     expect(report.path).toBe(join(workspace, "cards.pptx"));
@@ -71,7 +71,7 @@ test("actual Canvas HTTP host serves the pinned SDK, renders cards and exports d
     const pdfResponse = await page.request.post(new URL("export", host.url).href, {
       headers: { Origin: new URL(host.url).origin }, data: {}, timeout: 120_000,
     });
-    expect(pdfResponse.ok()).toBe(true);
+    expect(pdfResponse.ok(), await pdfResponse.text()).toBe(true);
     const pdf = await pdfResponse.json();
     expect(pdf.path).toBe(join(workspace, "cards.pdf"));
     expect(pdf.adaptiveCards.map((card) => card.status)).toEqual(["ready", "error"]);
@@ -94,7 +94,7 @@ test("Canvas production export endpoint preserves the official corpus contract a
     const response = await page.request.post(new URL("export-pptx", host.url).href, {
       headers: { Origin: new URL(host.url).origin }, data: {}, timeout: 120_000,
     });
-    expect(response.ok()).toBe(true);
+    expect(response.ok(), await response.text()).toBe(true);
     const report = await response.json();
     expect(report.ok).toBe(true);
     expect(report.path).toBe(join(workspace, "cards.pptx"));

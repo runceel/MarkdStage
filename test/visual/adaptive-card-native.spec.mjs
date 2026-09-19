@@ -17,6 +17,14 @@ async function conversionSnapshot() {
     }))));
 }
 
+async function slideScreenshots(page) {
+  const screenshots = [];
+  // Full-page capture can relayout Linux fallback fonts outside the viewport.
+  // Keep every slide at its production viewport when checking collection purity.
+  for (const deck of await page.locator(".deck").all()) screenshots.push(await deck.screenshot());
+  return screenshots;
+}
+
 test("native collection retains SDK/browser content, geometry and pixels across all four themes", async ({ page }, testInfo) => {
   test.setTimeout(120_000);
   for (const theme of ["dark", "light", "microsoft", "custom"]) {
@@ -27,10 +35,15 @@ test("native collection retains SDK/browser content, geometry and pixels across 
       await page.goto(`${harness.url}/?print=1&token=${harness.printToken}`);
       await expect(page.locator("html")).toHaveAttribute("data-print-ready", "true");
       const geometry = await page.evaluate(adaptiveCardGeometry);
-      const before = await page.screenshot({ fullPage: true });
+      const before = await slideScreenshots(page);
       const first = await page.evaluate(conversionSnapshot);
       expect(await page.evaluate(adaptiveCardGeometry)).toEqual(geometry);
-      expect((await page.screenshot({ fullPage: true })).equals(before)).toBe(true);
+      const after = await slideScreenshots(page);
+      expect(before).toHaveLength(first.length);
+      expect(after).toHaveLength(before.length);
+      for (const [index, screenshot] of after.entries()) {
+        expect(screenshot.equals(before[index]), `${theme} fixture ${index}: unchanged pixels`).toBe(true);
+      }
       expect(await page.evaluate(conversionSnapshot)).toEqual(first);
       for (const [index, [card]] of first.entries()) {
         expect(card.scene.source.kind).toBe("adaptive-card");

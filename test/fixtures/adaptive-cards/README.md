@@ -67,12 +67,19 @@ tolerance boundaries, and deny remote/redirect/SVG/implicit-image paths.
 The PPTX tests perform actual export, inspect native text/shapes/lines/images and
 two genuine tables, inspect bounded picture relationships and PNG transparency,
 verify stacking, and reject post-approval image changes. Native collection is
-checked before/after for identical browser geometry and pixels. The entire
-native model is compared across engines, not just the card's outside rectangle.
+checked before/after for identical browser geometry and pixels on **every
+1280x720 slide**. These captures deliberately stay inside the fixed slide
+viewport: Chromium's full-document capture can change Linux fallback-font
+layout independently of native collection. Geometry equality and byte-identical
+pixel comparisons remain strict across all four themes. The entire native
+model is compared across engines, not just the card's outside rectangle.
 They do not regenerate visual baselines.
 The Canvas test runs the production Extension HTTP host and export endpoint;
-only Copilot registration transport is stubbed. It is not an app-UI automation
-or an installed-MSIX test. The shared scanner, browser-free CLI validation,
+only Copilot registration transport is stubbed. Its child-process PATH includes
+the installed Playwright browser directory, so the unchanged production browser
+discovery also works in the Linux CI container without system Chrome/Edge. It
+is not an app-UI automation or an installed-MSIX test.
+The shared scanner, browser-free CLI validation,
 sanitizer, lazy load, URL policy, exact image budgets, animation denial and
 font/image readiness each have targeted regressions.
 

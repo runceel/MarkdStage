@@ -1,5 +1,7 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { delimiter, dirname } from "node:path";
+import { chromium } from "@playwright/test";
 
 // Only the Copilot registration transport is stubbed. Open, file access,
 // routing, validation and export run the actual Canvas Extension entry point.
@@ -40,7 +42,13 @@ export async function startCanvasServer(workspace, sourcePath = "cards.md") {
       process.send({ ready: await canvas.open(ctx) });
     } catch (error) { process.send({ error: error.stack }); process.exitCode = 1; process.disconnect(); }
   `;
+  // Let production PATH discovery find the installed test browser in containers
+  // without a system Chrome/Edge, without replacing the browser or export adapter.
+  const env = { ...process.env };
+  const pathKey = Object.keys(env).find((key) => key.toLowerCase() === "path") || "PATH";
+  env[pathKey] = [dirname(chromium.executablePath()), env[pathKey]].filter(Boolean).join(delimiter);
   const child = spawn(process.execPath, ["--input-type=module", "--eval", script], {
+    env,
     windowsHide: true, stdio: ["ignore", "pipe", "pipe", "ipc"],
   });
   let logs = "";
