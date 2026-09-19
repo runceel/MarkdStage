@@ -21,7 +21,7 @@ export async function adaptiveCardSlides() {
 }
 
 export const multipleCardsSlide = [
-  "## Multiple cards, one picture per card",
+  "## Multiple cards, separate native and fallback ownership",
   cardFence(staticCard([{ type: "Container", style: "emphasis", items: [{ type: "TextBlock", text: "First card", weight: "Bolder" }] }])),
   cardFence(staticCard([{ type: "TextBlock", text: "Second transparent card" }])),
   cardFence("{"),
@@ -49,10 +49,21 @@ export async function adaptiveCardReviewCases() {
     name, markdown: `## Adaptive Cards: ${name}\n\n${cardFence(await readFile(join(CARD_FIXTURE_DIRECTORY, `${name}.json`), "utf8"))}`,
     expected: [{ status, codes }],
   });
+  const native = [];
+  for (const [name, codes] of [
+    ["mixed-native", ["static-link"]],
+    ["native-text", []],
+    ["static-inputs", Array(7).fill("static-input")],
+    ["static-actions-media", ["static-action", "static-action", "static-link", "static-action", "static-media"]],
+  ]) native.push({
+    name, markdown: `## Adaptive Cards: ${name}\n\n${cardFence(await readFile(join(CARD_FIXTURE_DIRECTORY, `${name}.json`), "utf8"))}`,
+    expected: [{ status: "ready", codes }],
+  });
   return [...initial, ...extra,
     { name: "multiple", markdown: multipleCardsSlide,
       expected: [{ status: "ready", codes: [] }, { status: "ready", codes: [] }, { status: "error", codes: ["invalid-json"] }] },
     { name: "boundary", markdown: boundarySlide, expected: [{ status: "ready", codes: [] }] },
+    ...native,
   ];
 }
 
@@ -62,4 +73,16 @@ export async function adaptiveCardGeometry() {
   return [...document.querySelectorAll(".deck:not(.pptx-layout-template)")].map((deck, index) => ({
     index, cards: [...deck.querySelectorAll(".adaptive-card-host")].map((host) => collectAdaptiveCardGeometry(host, deck)),
   }));
+}
+
+export async function adaptiveCardNativeModel() {
+  const { collectAdaptiveCardPptx } = await import(new URL("./renderer/adaptive-card.mjs", document.baseURI));
+  return Promise.all([...document.querySelectorAll(".deck:not(.pptx-layout-template)")].map(async (deck, index) => ({
+    index, cards: await Promise.all([...deck.querySelectorAll(".adaptive-card-host")].map(async (host) => {
+      const result = await collectAdaptiveCardPptx(host, deck);
+      if (!result) return null;
+      return { scene: result.scene, elements: result.elements, conversions: result.conversions,
+        fallbacks: result.fallbacks.map(({ element: _element, ...fallback }) => fallback) };
+    })),
+  })));
 }

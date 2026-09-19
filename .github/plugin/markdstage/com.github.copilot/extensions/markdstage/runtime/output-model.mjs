@@ -300,6 +300,22 @@ export function pptxFallbackReport(model) {
     }));
 }
 
+export function pptxAdaptiveCardReport(model) {
+  const adaptiveCards = model.slides.flatMap((slide, slideIndex) =>
+    (slide.adaptiveCards || []).map((card) => ({ slideIndex, page: slideIndex + 1, ...card })));
+  if (!adaptiveCards.length) return {};
+  return {
+    adaptiveCards,
+    adaptiveCardIssueCount: adaptiveCards.reduce((count, card) => count + card.diagnostics.length, 0),
+    adaptiveCardConversionSummary: {
+      nativeObjects: adaptiveCards.reduce((count, card) => count + card.nativeObjectCount, 0),
+      approximated: adaptiveCards.reduce((count, card) =>
+        count + card.conversions.filter((entry) => entry.mode === "approximated").length, 0),
+      rasterizedSubtrees: adaptiveCards.reduce((count, card) => count + card.rasterizedSubtreeCount, 0),
+    },
+  };
+}
+
 export function verifyPdfBytes(data) {
   if (data.length < 5 || new TextDecoder().decode(data.subarray(0, 5)) !== "%PDF-") {
     throw new Error("The generated file does not have a PDF header.");

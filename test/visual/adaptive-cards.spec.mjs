@@ -176,7 +176,7 @@ test("unsafe card resources, redirects, implicit images and fallback never trigg
     staticCard([{ type: "Image", url: "assets/disguised.png" }]),
     staticCard([{ type: "ImageSet", images: [{ url: "https://blocked.example/implicit.png" }] }]),
     { ...staticCard([]), fallback: staticCard([{ type: "Image", url: "https://blocked.example/fallback.png" }]) },
-    staticCard([{ type: "TextBlock", text: "Click", selectAction: { type: "Action.OpenUrl", url: "https://blocked.example/action" } }]),
+    staticCard([{ type: "TextBlock", text: "Click", refresh: { action: { type: "Action.Execute", verb: "never-run" } } }]),
     { ...staticCard([]), version: "1.6" },
   ];
   const sanitized = staticCard([{ type: "TextBlock", text:
@@ -195,8 +195,10 @@ test("unsafe card resources, redirects, implicit images and fallback never trigg
     expect(await page.evaluate(() => window.cardAttack)).toBeUndefined();
     await expect(page.locator(".adaptive-card-host").last().locator("button, input, img, iframe, a[href]")).toHaveCount(0);
     const model = await page.evaluate(() => window.__presentationPptxModel);
-    expect(model.slides.every((slide) => slide.elements.length === 0 &&
-      slide.fallbacks.length === 1 && slide.fallbacks[0].type === "adaptive-card")).toBe(true);
+    expect(model.slides.every((slide) => slide.adaptiveCards[0].diagnostics.length > 0)).toBe(true);
+    expect(model.slides.slice(0, 4).every((slide) => slide.elements.some((entry) => entry.type === "image"))).toBe(true);
+    expect(model.slides.slice(4, forbidden.length).every((slide) => slide.adaptiveCards[0].nativeObjectCount === 0 &&
+      slide.fallbacks.some((entry) => entry.type === "adaptive-card"))).toBe(true);
   } finally { await harness.close(); }
 });
 
@@ -214,7 +216,9 @@ test("over-limit local images become bounded placeholders without losing the car
     expect(result[0].cards[0].diagnostics[0].code).toBe("blocked-image");
     expect(result[0].cards[0].diagnostics[0].message).toContain("limit is 10 MiB");
     expect(sdkRequests).toHaveLength(1);
-    expect((await page.evaluate(() => window.__presentationPptxModel)).slides[0].fallbacks[0].reason).toBe("adaptive-card-rendered-as-artwork");
+    const slide = await page.evaluate(() => window.__presentationPptxModel.slides[0]);
+    expect(slide.elements.filter((entry) => entry.type === "image")).toHaveLength(1);
+    expect(slide.fallbacks[0].reason).toBe("adaptive-card-diagnostic-note");
   } finally { await harness.close(); }
 });
 
@@ -259,9 +263,9 @@ for (const [element, attributes] of [
         expect(geometry[0].cards[0].objects.map((object) => object.type)).toEqual(["AdaptiveCard", "Image"]);
         expect(geometry[0].cards[0].diagnostics).toEqual([expect.objectContaining({ code: "blocked-image" })]);
         const slide = await page.evaluate(() => window.__presentationPptxModel.slides[0]);
-        expect(slide.elements).toEqual([]);
+        expect(slide.elements.filter((entry) => entry.type === "image")).toHaveLength(1);
         expect(slide.fallbacks).toEqual([expect.objectContaining({
-          type: "adaptive-card", reason: "adaptive-card-rendered-as-artwork",
+          type: "adaptive-card", reason: "adaptive-card-diagnostic-note",
           diagnostics: [expect.objectContaining({ code: "blocked-image" })],
         })]);
         await testInfo.attach("blocked-svg-diagnostic", { body: JSON.stringify(geometry), contentType: "application/json" });
@@ -287,7 +291,7 @@ test("bad assets preserve neighboring card content and report canonical block pa
     await expect(host).toContainText("Retained after");
     await expect(host.locator("img")).toHaveAttribute("alt", "Image unavailable");
     const fallback = await page.evaluate(() => window.__presentationPptxModel.slides[0].fallbacks[0]);
-    expect(fallback.reason).toBe("adaptive-card-rendered-as-artwork");
+    expect(fallback.reason).toBe("adaptive-card-diagnostic-note");
     expect(fallback.diagnostics).toEqual([expect.objectContaining({
       code: "image-load-failed", severity: "warning", impact: "content",
       path: "$.body[1].url", sourcePath: "adaptive-card[0]$.body[1].url",
@@ -299,7 +303,7 @@ test("requires and fallback substitutions are visible without silent SDK content
   const payload = staticCard([
     { type: "TextBlock", text: "Not supported", requires: { otherHost: "1.0" },
       fallback: { type: "TextBlock", id: "substitution", text: "Safe replacement", wrap: true } },
-    { type: "Input.Text", fallback: "drop" },
+    { type: "Custom.Widget", fallback: "drop" },
   ]);
   const harness = await startHarness({ slides: [cardFence(payload)] });
   try {

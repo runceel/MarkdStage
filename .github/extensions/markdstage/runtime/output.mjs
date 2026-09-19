@@ -14,7 +14,7 @@ import { sanitizeLayoutReport } from "./layout-report.mjs";
 import {
   MAX_CAPTURE_SLIDES, createOutputSnapshot, createOutputJob,
   preparePptxPackageModel as preparePortablePptxPackageModel, selectLayoutResults, normalizeCaptureIndexes,
-  buildValidatedPptx, pptxFallbackReport, adaptiveCardOutputReport,
+  buildValidatedPptx, pptxFallbackReport, pptxAdaptiveCardReport, adaptiveCardOutputReport,
 } from "./output-model.mjs";
 export {
   MAX_CAPTURE_SLIDES, MAX_PPTX_ASSET_BYTES, MAX_PPTX_TOTAL_ASSET_BYTES,
@@ -413,6 +413,7 @@ export async function exportPptx(
         bytes: buffer.length,
         fallbackCount: fallbacks.length,
         fallbacks,
+        ...pptxAdaptiveCardReport(model),
       };
     } catch (error) {
       if (error instanceof MarkdStageError) throw error;

@@ -9,6 +9,6 @@
       "requires": { "anotherHost": "1.0" },
       "fallback": { "type": "TextBlock", "id": "safe-fallback", "text": "Safe static replacement is visible.", "wrap": true }
     },
-    { "type": "Input.Text", "id": "omitted-input", "fallback": "drop" }
+    { "type": "Custom.Widget", "id": "omitted-widget", "fallback": "drop" }
   ]
 }

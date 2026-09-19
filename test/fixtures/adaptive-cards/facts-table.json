@@ -8,7 +8,7 @@
       "facts": [
         { "title": "SDK", "value": "3.0.6" },
         { "title": "Schema", "value": "1.5" },
-        { "title": "Export", "value": "**Whole-card PNG** only" }
+        { "title": "Export", "value": "**Editable** native table" }
       ]
     },
     {

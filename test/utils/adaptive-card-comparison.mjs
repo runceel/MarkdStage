@@ -3,6 +3,28 @@ import assert from "node:assert/strict";
 export const CARD_EDGE_TOLERANCE = 2;
 export const CARD_TEXT_RECT_TOLERANCE = 3;
 
+export function compareCardNativeModels(reference, actual) {
+  const measurements = [];
+  const compare = (expected, value, path) => {
+    if (Array.isArray(expected)) {
+      assert.ok(Array.isArray(value), `${path}: missing collection`);
+      assert.equal(value.length, expected.length, `${path}: native object/line count changed`);
+      expected.forEach((entry, index) => compare(entry, value[index], `${path}[${index}]`));
+    } else if (expected && typeof expected === "object") {
+      assert.deepEqual(Object.keys(value).sort(), Object.keys(expected).sort(), `${path}: native contract changed`);
+      for (const name of Object.keys(expected)) compare(expected[name], value[name], `${path}.${name}`);
+    } else if (typeof expected === "number" &&
+        /(?:\.(?:x|y|width|height|left|top|right|bottom|lineSpacing)|\.columnWidths\[\d+\])$/.test(path)) {
+      const delta = Math.round(Math.abs(expected - value) * 1000) / 1000;
+      assert.ok(Number.isFinite(delta), `${path}: non-finite metric`);
+      measurements.push({ path, delta, tolerance: CARD_EDGE_TOLERANCE });
+    } else assert.deepEqual(value, expected, `${path}: native semantics changed`);
+  };
+  compare(reference, actual, "native");
+  return { edgeTolerance: CARD_EDGE_TOLERANCE, maximumDelta: Math.max(0, ...measurements.map((entry) => entry.delta)),
+    measuredMetrics: measurements.length, violations: measurements.filter((entry) => entry.delta > entry.tolerance) };
+}
+
 export function compareCardGeometry(reference, actual) {
   const measurements = [];
   const bounds = (left, right, path, tolerance) => {

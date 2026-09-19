@@ -5,8 +5,8 @@ export function fatalFallbackCases() {
   const base = { type: "TextBlock", text: "Original", requires: { otherHost: "1.0" }, fallback: replacement };
   return [
     { name: "invalid text before requires fallback", element: { ...base, text: 42 }, code: "invalid-property", path: "$.body[0].text" },
-    { name: "selectAction before requires fallback", element: { ...base, selectAction: { type: "Action.OpenUrl", url: "https://blocked.example/action" } },
-      code: "unsupported-interactivity", path: "$.body[0].selectAction" },
+    { name: "refresh before requires fallback", element: { ...base, refresh: { action: { type: "Action.Execute", verb: "never-run" } } },
+      code: "unsupported-interactivity", path: "$.body[0].refresh" },
     { name: "background before requires fallback", element: { ...base, backgroundImage: "https://blocked.example/background.png" },
       code: "unsupported-resource", path: "$.body[0].backgroundImage" },
     { name: "complete requires map validation", element: { ...base, requires: { otherHost: "1.0", adaptiveCards: true } },

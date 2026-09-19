@@ -102,8 +102,10 @@ Architecture editing applies only to `architecture` fences.
 For static Adaptive Cards, use an `adaptive-card` fence with resolved schema-1.5
 JSON and read `markdstage guide adaptive-cards`. Unsupported cards show errors;
 blocked/failed images use placeholders without removing the rest of the card.
-PowerPoint uses one bounded PNG per visible card and reports
-`adaptive-card-rendered-as-artwork`; card internals are not editable.
+PowerPoint exports the supported static subset as editable text, shapes, images
+and tables, using bounded PNGs for unsupported children. Inputs/actions/media
+have explicit non-interactive treatment. JSON and plain reports distinguish
+native, approximated and rasterized content with authored source locations.
 
 ## Architecture editing
 

@@ -1,4 +1,5 @@
 import { checkImageBytes, decodePercentImageData, inspectImageSource } from "./image-source.mjs";
+import { prepareAdaptiveCardMarkdown } from "./adaptive-card-markdown.mjs";
 import {
   ADAPTIVE_CARDS_SDK_VERSION, ADAPTIVE_CARD_SCHEMA_VERSION, ADAPTIVE_CARD_HOST_CONFIG_VERSION,
   AdaptiveCardError, validateAdaptiveCardSource, resolveCardImageUrl,
@@ -12,6 +13,8 @@ export {
 
 const states = new WeakMap();
 let sdkPromise;
+const CARD_TAGS = ["div", "span", "p", "br", "strong", "b", "em", "i", "u", "s", "strike", "code",
+  "ol", "ul", "li", "a", "img", "table", "thead", "tbody", "tr", "th", "td"];
 const PLACEHOLDER_IMAGE = "data:image/svg+xml;base64," + btoa(
   '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="80" viewBox="0 0 160 80">' +
   '<rect x="1" y="1" width="158" height="78" rx="4" fill="#eeeeee" stroke="#777777"/>' +
@@ -111,6 +114,13 @@ export function createAdaptiveCardResourceContext() {
   return { images: new Map(), totalBytes: 0 };
 }
 
+function imageSourcePath(state, path) {
+  const propertyPath = state.sourcePaths.get(`${path}.url`);
+  if (propertyPath) return propertyPath;
+  const sourcePath = state.sourcePaths.get(path) || path;
+  return `${sourcePath}.url`;
+}
+
 async function prepareCardImages(card, documentRef, state, resources) {
   const load = async (url, label) => {
     if (resources.images.has(url)) {
@@ -172,7 +182,7 @@ async function prepareCardImages(card, documentRef, state, resources) {
   const visit = (value, path) => {
     if (!value || typeof value !== "object") return;
     if (value.type === "Image") {
-      const label = `${state.sourcePaths.get(path) || path}.url`;
+      const label = imageSourcePath(state, path);
       try { images.push({ image: value, label, url: resolveCardImageUrl(value.url, documentRef.baseURI, label) }); }
       catch (error) { images.push({ image: value, label, error }); }
     }
@@ -255,7 +265,7 @@ export function createAdaptiveCardHostConfig(SDK, palette) {
 function typedObjects(card, SDK, sourcePaths = new Map()) {
   const objects = [];
   const visit = (object, path, parent) => {
-    objects.push({ object, sourcePath: sourcePaths.get(path) || path,
+    objects.push({ object, projectedPath: path, parentProjectedPath: parent, sourcePath: sourcePaths.get(path) || path,
       parentPath: parent === null ? null : sourcePaths.get(parent) || parent });
     if (object instanceof SDK.RichTextBlock) {
       for (let index = 0; index < object.getInlineCount(); index++) {
@@ -276,15 +286,11 @@ function typedObjects(card, SDK, sourcePaths = new Map()) {
   return objects;
 }
 
-function cardMarkdown(text, result, documentRef, diagnostics, paths) {
-  const { marked, DOMPurify } = documentRef.defaultView;
-  result.outputHtml = DOMPurify.sanitize(marked.parse(text), {
-    ALLOWED_TAGS: ["p", "br", "strong", "b", "em", "i", "u", "s", "code", "ol", "ul", "li", "a"],
-    ALLOWED_ATTR: [],
-  });
-  // DOMPurify records its synthetic BODY wrapper when a fragment allowlist
-  // omits BODY. That is not a degradation of authored card Markdown.
-  if (DOMPurify.removed.some(({ element, attribute }) => attribute || (element && element.tagName !== "BODY"))) {
+function cardMarkdown(text, result, documentRef, diagnostics, paths, markdown) {
+  const fragment = prepareAdaptiveCardMarkdown(text, documentRef);
+  markdown.set(text, fragment);
+  result.outputHtml = fragment.html;
+  if (fragment.sanitized) {
     for (const path of paths.get(text) || ["$"]) addCardDiagnostic(diagnostics, cardDiagnostic(
       "markdown-sanitized", path, "Unsafe markup, resource tags, and link attributes were removed; card Markdown is non-interactive.",
     ));
@@ -295,7 +301,9 @@ function cardMarkdown(text, result, documentRef, diagnostics, paths) {
 function shadowContent(host) {
   const shadow = host.shadowRoot || host.attachShadow({ mode: "open" });
   const style = host.ownerDocument.createElement("style");
-  style.textContent = "*{box-sizing:border-box}p{margin:0}strong,b{font-weight:600}code{font-family:Consolas,monospace;font-size:1em}a{color:inherit;text-decoration:underline;pointer-events:none}.card-diagnostics{font-size:14px;line-height:20px;margin-top:10px;padding:8px;border:1px solid currentColor;overflow-wrap:anywhere}";
+  style.textContent = "*{box-sizing:border-box}p{margin:0}strong,b{font-weight:600}code{font-family:Consolas,monospace;font-size:1em}a{color:inherit;text-decoration:underline;pointer-events:none}.card-diagnostics{font-size:14px;line-height:20px;margin-top:10px;padding:8px;border:1px solid currentColor;overflow-wrap:anywhere}" +
+    ":host([data-pptx-card-capture]) *{visibility:hidden!important}" +
+    ":host([data-pptx-card-capture]) [data-pptx-card-active],:host([data-pptx-card-capture]) [data-pptx-card-active] *{visibility:visible!important}";
   shadow.replaceChildren(style);
   return shadow;
 }
@@ -304,15 +312,15 @@ function sanitizeCardSubtree(rendered, documentRef, state) {
   const purifier = documentRef.defaultView.DOMPurify;
   purifier.sanitize(rendered, {
     IN_PLACE: true,
-    ALLOWED_TAGS: ["div", "span", "p", "br", "strong", "b", "em", "i", "u", "s", "strike", "code",
-      "ol", "ul", "li", "a", "img", "table", "thead", "tbody", "tr", "th", "td"],
+    ALLOWED_TAGS: CARD_TAGS,
     ALLOWED_ATTR: ["class", "style", "role", "src", "alt", "title", "width", "height", "lang", "dir", "colspan", "rowspan", "scope"],
     ALLOW_ARIA_ATTR: true, ALLOW_DATA_ATTR: false,
   });
   // Identity stays on typed objects, not DOM ids. Removing ids and the SDK's
   // root tab stop is intentional isolation, not lost presentation content.
-  let changed = purifier.removed.some(({ element, attribute }) =>
-    element || !["tabindex", "id"].includes(attribute?.name));
+  let changed = purifier.removed.some(({ element, attribute, from }) =>
+    element || (!["tabindex", "id"].includes(attribute?.name) &&
+      !(attribute?.name === "target" && from?.localName === "a" && !from.hasAttribute("href"))));
   for (const element of [rendered, ...rendered.querySelectorAll("*")]) {
     if (element.hasAttribute("src") && (element.localName !== "img" || !state.approvedImages.has(element.getAttribute("src")))) {
       fail("blocked-image", "$", "The SDK subtree contains an unapproved resource.");
@@ -345,7 +353,8 @@ function showCardDiagnostics(shadow, documentRef, diagnostics, fatal = false) {
 
 export async function renderAdaptiveCard(host, source, palette, resources = createAdaptiveCardResourceContext()) {
   const documentRef = host.ownerDocument;
-  const state = { status: "loading", diagnostics: [], card: null, SDK: null, approvedImages: new Set(), sourcePaths: new Map() };
+  const state = { status: "loading", diagnostics: [], card: null, semanticCard: null, SDK: null, approvedImages: new Set(),
+    sourcePaths: new Map(), markdown: new Map(), provenance: new Map() };
   states.set(host, state);
   host.dataset.adaptiveCardState = "loading";
   try {
@@ -359,23 +368,35 @@ export async function renderAdaptiveCard(host, source, palette, resources = crea
       const error = state.diagnostics.find((entry) => entry.severity === "error");
       fail(error.code, error.path, error.message);
     }
-    const json = validated.card;
-    state.approvedImages = await prepareCardImages(json, documentRef, state, resources);
     const SDK = await loadSdk(documentRef);
     state.SDK = SDK;
-    const card = new SDK.AdaptiveCard();
-    card.hostConfig = createAdaptiveCardHostConfig(SDK, palette);
-    const context = new SDK.SerializationContext(SDK.Versions.v1_5);
-    card.parse(json, context);
-    const events = [
-      ...Array.from({ length: context.eventCount }, (_, index) => context.getEventAt(index)),
-      ...card.validateProperties().validationEvents,
-    ];
-    for (const event of events) addCardDiagnostic(state.diagnostics, cardDiagnostic(
-      "sdk-parse-warning", "$", String(event.message || "The SDK reported a schema warning."),
-    ));
-    if (events.length) fail("invalid-schema", "$", "The pinned SDK rejected a property after static validation; the card is not silently changed.");
-    if (card.shouldFallback()) fail("unsupported-fallback", "$", "Unexpected SDK fallback is not allowed after static capability resolution.");
+    const parseModel = (json, renderable = true) => {
+      const model = new SDK.AdaptiveCard();
+      model.hostConfig = createAdaptiveCardHostConfig(SDK, palette);
+      const context = new SDK.SerializationContext(SDK.Versions.v1_5);
+      model.parse(json, context);
+      const events = [
+        ...Array.from({ length: context.eventCount }, (_, index) => context.getEventAt(index)),
+        ...(renderable ? model.validateProperties().validationEvents : []),
+      ];
+      for (const event of events) addCardDiagnostic(state.diagnostics, cardDiagnostic(
+        "sdk-parse-warning", "$", String(event.message || "The SDK reported a schema warning."),
+      ));
+      if (events.length) fail("invalid-schema", "$", "The pinned SDK rejected a property after static validation; the card is not silently changed.");
+      if (model.shouldFallback()) fail("unsupported-fallback", "$", "Unexpected SDK fallback is not allowed after static capability resolution.");
+      return model;
+    };
+    // SDK renderability validation intentionally rejects inputs under the
+    // non-interactive HostConfig. Only the projected tree is rendered: check
+    // parsing for both trees and full renderability for that final tree.
+    const original = parseModel(validated.card, false);
+    const { projectAdaptiveCardStatic } = await import("./adaptive-card-static.mjs");
+    const projected = projectAdaptiveCardStatic(original, SDK, state.sourcePaths);
+    state.semanticCard = original;
+    state.sourcePaths = projected.sourcePaths;
+    state.provenance = projected.provenance;
+    state.approvedImages = await prepareCardImages(projected.json, documentRef, state, resources);
+    const card = parseModel(projected.json);
     const shadow = shadowContent(host);
     const objects = typedObjects(card, SDK, state.sourcePaths);
     const markdownPaths = new Map();
@@ -387,7 +408,8 @@ export async function renderAdaptiveCard(host, source, palette, resources = crea
     const previousMarkdown = SDK.AdaptiveCard.onProcessMarkdown;
     let rendered;
     try {
-      SDK.AdaptiveCard.onProcessMarkdown = (text, result) => cardMarkdown(text, result, documentRef, state.diagnostics, markdownPaths);
+      SDK.AdaptiveCard.onProcessMarkdown = (text, result) =>
+        cardMarkdown(text, result, documentRef, state.diagnostics, markdownPaths, state.markdown);
       rendered = card.render();
     } finally {
       SDK.AdaptiveCard.onProcessMarkdown = previousMarkdown;
@@ -434,6 +456,10 @@ export function getAdaptiveCardModel(host) {
   return states.get(host)?.card ?? null;
 }
 
+export function getAdaptiveCardSemanticModel(host) {
+  return states.get(host)?.semanticCard ?? null;
+}
+
 export function getAdaptiveCardDiagnostics(host) {
   const state = states.get(host);
   if (!state) return null;
@@ -450,14 +476,84 @@ export function getAdaptiveCardDiagnostics(host) {
 export function assertAdaptiveCardCaptureSafe(host) {
   const state = states.get(host);
   if (!state || !["ready", "error"].includes(state.status)) fail("card-not-ready", "$", "Card rendering has not completed.");
+  const objects = state.card ? typedObjects(state.card, state.SDK, state.sourcePaths) : [];
+  const imagePaths = new Map(objects.filter(({ object }) => object instanceof state.SDK.Image)
+    .map(({ object, projectedPath }) => [object.renderedImageElement, imageSourcePath(state, projectedPath)]));
+  const roots = state.card ? [state.card.renderedElement]
+    : [...host.shadowRoot.children].filter((element) => element.localName !== "style");
+  for (const root of roots) for (const element of [root, ...root.querySelectorAll("*")]) {
+    const path = imagePaths.get(element) || "$";
+    if (!CARD_TAGS.includes(element.localName) || [...element.attributes].some((attribute) =>
+      /^on/i.test(attribute.name) || ["srcset", "href"].includes(attribute.localName))) {
+      fail("blocked-image", path, "Card markup changed after approval; capture is blocked.");
+    }
+    if (element.hasAttribute("src") && (element.localName !== "img" ||
+        !state.approvedImages.has(element.getAttribute("src")) ||
+        (element.currentSrc && element.currentSrc !== element.getAttribute("src")))) {
+      fail("blocked-image", path, "Card resource changed after approval; capture is blocked.");
+    }
+    for (const name of element.style) {
+      if (/animation|transition/i.test(name) || /\\|url\s*\(|@import/i.test(element.style.getPropertyValue(name))) {
+        fail("blocked-image", path, "Card resource or animation style changed after approval; capture is blocked.");
+      }
+    }
+  }
   if (!state.card) return;
-  for (const { object, sourcePath } of typedObjects(state.card, state.SDK, state.sourcePaths)) {
+  for (const { object, projectedPath } of objects) {
     if (object instanceof state.SDK.Image &&
         (!state.approvedImages.has(object.url) ||
          object.renderedImageElement?.getAttribute("src") !== object.url)) {
-      fail("blocked-image", sourcePath, "Card image changed after approval; capture is blocked.");
+      fail("blocked-image", imageSourcePath(state, projectedPath), "Card image changed after approval; capture is blocked.");
     }
+
   }
+}
+
+export async function collectAdaptiveCardPptx(host, deck) {
+  assertAdaptiveCardCaptureSafe(host);
+  const state = states.get(host);
+  if (!state.card) return null;
+  const { adaptiveCardToPptx } = await import("./adaptive-card-pptx.mjs");
+  const objects = typedObjects(state.card, state.SDK, state.sourcePaths);
+  const textOwners = objects.filter(({ object }) => object instanceof state.SDK.BaseTextBlock ||
+    object instanceof state.SDK.FactSet).map(({ object }) => object.renderedElement).filter(Boolean);
+  const walker = host.ownerDocument.createTreeWalker(state.card.renderedElement, 4);
+  let unowned = false;
+  for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+    if (!text.data.trim() || textOwners.some((element) => element.contains(text))) continue;
+    const range = host.ownerDocument.createRange();
+    range.selectNodeContents(text);
+    if ([...range.getClientRects()].some((rect) => rect.width > 0 && rect.height > 0)) { unowned = true; break; }
+  }
+  const images = new Set(objects.filter(({ object }) => object instanceof state.SDK.Image)
+    .map(({ object }) => object.renderedImageElement));
+  unowned ||= [...state.card.renderedElement.querySelectorAll("img")].some((image) => !images.has(image));
+  // The browser owns clipping, including the CSS rule that positioned content
+  // can escape a non-containing ancestor's overflow. Intersecting every DOM
+  // ancestor rectangle would incorrectly hide the positioned footer fixture.
+  const visibleBounds = await new Promise((resolve) => {
+    const observer = new host.ownerDocument.defaultView.IntersectionObserver(([entry]) => {
+      observer.disconnect();
+      resolve(entry.intersectionRect);
+    }, { root: deck });
+    observer.observe(host);
+  });
+  return adaptiveCardToPptx({ host, deck, card: state.card, SDK: state.SDK,
+    objects, markdown: state.markdown, provenance: state.provenance, visibleBounds,
+    ...(unowned ? { forceFallbackReason: "adaptive-card-unowned-visible-content" } : {}) });
+}
+
+export function setAdaptiveCardCapture(host, active) {
+  const owns = (element) => active && (element.getAttribute("data-pptx-fallback-ids") || "").split(/\s+/).includes(active);
+  const whole = owns(host);
+  let subtree = false;
+  for (const element of host.shadowRoot?.querySelectorAll("[data-pptx-fallback-ids]") || []) {
+    const match = owns(element);
+    element.toggleAttribute("data-pptx-card-active", Boolean(match));
+    if (match) subtree = true;
+  }
+  host.toggleAttribute("data-pptx-card-capture", !whole && subtree);
+  host.classList.toggle("pptx-card-capture-active", Boolean(whole || subtree));
 }
 
 function styleFacts(object, SDK) {

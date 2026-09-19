@@ -1,4 +1,4 @@
-# Adaptive Cards: static rendering and PowerPoint artwork
+# Adaptive Cards: static rendering and editable PowerPoint
 
 Use a block-level `adaptive-card` fence containing **fully resolved JSON**.
 The supported schema is pinned to **1.5**, the official vendored JavaScript SDK
@@ -61,12 +61,35 @@ Deck validation inspects at most 200 slides/blocks, 2,097,152 characters and
 200 card diagnostics before reporting incomplete validation.
 
 No templating package, `${...}`, `$data`, `$when`, date/time macros, or external
-data source is supported. Expand the payload before authoring.
-Actions (even empty action arrays), select/inline actions, refresh,
-authentication, background images and root `fallback`/`fallbackText` are errors.
-Inputs, media, unknown elements and other schema versions are not rendered as if
-they were supported. Non-interactivity is fixed; links in card Markdown become
-non-clickable text.
+data source is supported. Expand the payload before authoring. Refresh,
+authentication, background images and root `fallback`/`fallbackText` remain
+errors. Custom host protocols never execute or become PowerPoint links.
+Unknown elements and other schema
+versions are not rendered as if supported.
+
+### Explicitly static inputs, actions and media
+
+The browser remains non-interactive: `supportsInteractivity` is always false.
+The original official SDK model is retained, but is never rendered with live
+controls. An owned projection produces typed static text/containers/images,
+with the original authored source locations, for every surface:
+
+| Authored content | Static presentation |
+| --- | --- |
+| Input.Text, Number, Date, Time, Toggle, ChoiceSet | Initial value, selected choice titles or placeholder with an explicit non-interactive label; no editing, validation or submission |
+| Action.Submit / Execute | Static labeled chips, with `static-action` content diagnostics; no payload, verb or callback executes |
+| Action.OpenUrl / supported selectAction | Non-clickable browser label; a safe PowerPoint text-label hyperlink, not a whole-shape action |
+| Action.ShowCard | Collapsed labeled chip; embedded card structure is still validated, but its content is not rendered or fetched |
+| Media | Approved poster image and static media label; source URLs are never fetched or played |
+
+Input/action behavior is not portable to PowerPoint. `static-input`,
+`static-action`, `static-link` and `static-media` diagnostics make these
+limitations explicit. Generated labels are plain SDK TextRuns, not executable
+HTML or Markdown. Unsafe links retain a static label without a hyperlink.
+The PowerPoint link policy permits absolute HTTP(S), mailto and tel URLs without
+credentials or controls, then applies the pinned rendered-link sanitizer.
+This is a separate policy from image fetching: an allowed link never authorizes
+a remote image or media request.
 
 ### Requirements and explicit fallback
 
@@ -125,7 +148,9 @@ There is no remote-asset exception for screenshots or fallbacks.
 
 TextBlock/Fact Markdown uses the existing marked + DOMPurify pipeline with a
 formatting-only allowlist. Unsafe tags and resource/link attributes produce
-`markdown-sanitized`. The SDK subtree is sanitized **in place before attachment**;
+`markdown-sanitized`. Safe link semantics are retained separately for PowerPoint;
+all browser href attributes are removed before attachment.
+The SDK subtree is sanitized **in place before attachment**;
 typed SDK identity is retained, while DOM IDs and keyboard focus are removed.
 Additional unsafe output produces `sdk-subtree-sanitized`. Public SDK rendered
 references supply geometry; generated classes, hierarchy and computed CSS do not
@@ -169,16 +194,83 @@ the bounded full detail.
 Unexpected SDK parse/validation warnings are reported and produce an error
 panel, rather than accepting an unexplained SDK substitution.
 
-PowerPoint contains **one bounded transparent PNG per visible card**, including
-its placeholders or error panel. Card internals are not also collected as generic
-HTML/text. Positions, clipping and paint order follow the rendered slide.
-The export report uses `adaptive-card-rendered-as-artwork` with content impact
-and the card's diagnostic locations. Error panels use `adaptive-card-<error-code>`;
-fully off-slide cards have no zero-sized picture and report
-`adaptive-card-outside-slide`, still with content impact.
+PowerPoint reports include `adaptiveCards` with per-object `conversions` and an
+`adaptiveCardConversionSummary`: editable native object count, approximated
+elements and rasterized subtrees. Each conversion retains the authored
+`sourcePath`, original source type, reason, mode and content impact. Static
+input/action/media projection is classified as approximated even when its
+visible text, fill and image objects are editable. Browser diagnostics remain
+separate from native representability decisions.
 
-Cards are **not editable text, shapes or tables in PowerPoint**. This increment
-does not add an Adaptive Cards Scene Graph source or a native converter.
-Individual Fact geometry remains aggregate-only evidence; raster fidelity is not
-proof that editable conversion is feasible. Review the actual exported PPTX in
-PowerPoint as well as the browser preview.
+## Editable subset and bounded fallback
+
+| Object | Native output and current limits |
+| --- | --- |
+| TextBlock | Measured, unwrapped text fragments; paragraphs, bold, italic, underline, strike, inline code and safe links from sanitized Marked content |
+| RichTextBlock / TextRun | Individually positioned styled runs, highlight rectangles and permitted text-label links; no SDK-class inference |
+| Container / ColumnSet / Column | Measured rectangles and typed children; default/emphasis fills, measured auto/stretch/weight/pixel columns, owned spacing and padding |
+| Image / ImageSet | Individual native images from the same approved immutable bytes; normal rectangular image treatment |
+| FactSet | Native two-column LTR PowerPoint table, including supported Markdown; typed fact fields correlate to text measurements inside the public aggregate region |
+| Table | Native non-merged LTR table with measured columns/rows filling the grid, grid and fills; one supported nonempty TextBlock per cell, grid enabled, no cell highlight |
+| Separators | Native PowerPoint lines at the SDK's measured painted border, not the entire spacing box |
+
+FactSet does **not** pretend that Facts have individual SDK rendered elements.
+It matches typed title/value text to aggregate text Ranges before deriving table
+column starts and row spacing. Empty fields or failed/ambiguous correlation
+retain bounded FactSet artwork. Unsupported table cell content, non-grid cell
+spacing, RTL ordering, highlight or clipping retains bounded Table artwork rather than an
+invented table layout. The direct table model honors measured row heights and
+explicit cell text insets and measured per-line horizontal offsets. Measured
+row layout is opt-in; ordinary Markdown tables keep their established behavior.
+
+PowerPoint does not rewrap measured card text. A line may contain several
+editable text fragments, rather than one reflowing text box for the entire
+card. Segoe UI light/semibold faces preserve the owned weight intent; native
+font rendering is not claimed pixel-identical to the browser. English, Japanese
+and long text have deterministic fixtures. Bidirectional/RTL text currently
+uses explicit `adaptive-card-bidirectional-text` artwork while supported
+neighbors remain editable.
+
+Markdown lists, fragmented/ellipsized or clipped text, Person images, unsupported
+table layouts and other unrepresentable subtrees use bounded transparent PNGs.
+Typical reasons include `adaptive-card-markdown-list`,
+`adaptive-card-text-fragmentation`, `adaptive-card-clipped-text`,
+`adaptive-card-image-style`, `adaptive-card-clipped-image` and
+`adaptive-card-table-cell-content`. Diagnostic notes are separate
+`adaptive-card-diagnostic-note` artwork. These images are **not editable**
+internally; their neighboring native objects are.
+
+Fallback roots do not contain duplicate native descendants. Card roots are
+excluded from generic HTML collection, including when nested in generic HTML.
+Native collection does not change browser content, styling, geometry or pixels.
+Only temporary output capture activates shadow-scoped visibility masks.
+Browser-owned intersection geometry supplies native clipping, including nested
+overflow and positioned elements that escape a non-containing ancestor's clip.
+Text and images requiring unrepresentable clipping use local artwork.
+An unsupported shared opacity/filter paint context is owned and captured once,
+including all its cards, rather than independently blending duplicate fragments.
+Its report uses `adaptive-card-paint-context` and identifies shared card sources.
+Original paint order is retained,
+including positioned cards over footer artwork and explicit higher-z neighbors.
+
+Whole-card safety fallback is reserved for structural error panels, unavailable
+correlation or unowned visible SDK content, with an explicit reason such as
+`adaptive-card-unowned-visible-content`. Error panels retain
+`adaptive-card-<error-code>`. Fully off-slide content has no zero-size picture and
+reports `adaptive-card-outside-slide` with content impact. No fallback can bypass
+resource approval or fetch a second copy of an image.
+
+The common Scene Graph explicitly accepts `adaptive-card` sources and reuses
+shape/text/image/connector primitives. Tables and hyperlinks remain direct
+PowerPoint model features; no card action, input or table scene kind is added.
+Scene underline/strikethrough have equivalent SVG and PowerPoint mappings.
+This is not a round-trip card editor: PowerPoint edits do not change Markdown.
+
+Review the **actual exported file** in desktop PowerPoint. The reproducible
+fixture harness records browser/native-controller geometry, pre/post-collection
+pixels, package object counts, read-only PowerPoint renders and edits persisted
+in disposable copies. The review limits remain **2 px edges / 3 px text
+baselines**, at 1280x720; missing content, obscured content or wrong stacking fail
+regardless of a numeric tolerance. DOM text Ranges are **not baseline
+measurements**. The implementation evidence is not the coordinator's independent
+visual gate, a full WinUI/MSIX-shell test, PowerPoint Web or Impress validation.

@@ -21,7 +21,7 @@ const DRAWINGML_ANGLE_UNITS_PER_DEGREE = 60000;
 const DRAWINGML_HALF_TURN = 180 * DRAWINGML_ANGLE_UNITS_PER_DEGREE;
 const DRAWINGML_FULL_TURN = 360 * DRAWINGML_ANGLE_UNITS_PER_DEGREE;
 const NODE_KINDS = new Set(["group", "shape", "text", "image", "connector", "fallback"]);
-const SOURCE_KINDS = new Set(["architecture", "mermaid"]);
+const SOURCE_KINDS = new Set(["architecture", "mermaid", "adaptive-card"]);
 const SHAPE_PRESETS = new Set([
   "rect",
   "roundedRect",
@@ -360,7 +360,7 @@ function validateText(value, path) {
       requiredObject(run, runPath);
       exactKeys(
         run,
-        new Set(["text", "fontSize", "fontFace", "fontWeight", "bold", "italic", "color", "opacity"]),
+        new Set(["text", "fontSize", "fontFace", "fontWeight", "bold", "italic", "underline", "strikethrough", "color", "opacity"]),
         runPath,
       );
       stringValue(run.text, `${runPath}.text`);
@@ -370,8 +370,9 @@ function validateText(value, path) {
         fail(`${runPath}.fontFace must be a non-empty string`);
       }
       if (run.fontWeight !== undefined) nonNegativeNumber(run.fontWeight, `${runPath}.fontWeight`);
-      if (run.bold !== undefined && typeof run.bold !== "boolean") fail(`${runPath}.bold must be a boolean`);
-      if (run.italic !== undefined && typeof run.italic !== "boolean") fail(`${runPath}.italic must be a boolean`);
+      for (const key of ["bold", "italic", "underline", "strikethrough"]) {
+        if (run[key] !== undefined && typeof run[key] !== "boolean") fail(`${runPath}.${key} must be a boolean`);
+      }
       if (run.color !== undefined) validateColor(run.color, `${runPath}.color`);
       if (run.opacity !== undefined) {
         const opacity = finiteNumber(run.opacity, `${runPath}.opacity`);

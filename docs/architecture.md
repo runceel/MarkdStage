@@ -165,11 +165,14 @@ Card discovery and rendering share the Markdown token model and speaker-note
 exclusion rules; source association follows token identity rather than separate
 scanner ordinals.
 
-Card content is resolved, non-interactive JSON. A shared, closed schema envelope
+Card content is resolved JSON with non-interactive presentation semantics. A shared, closed schema envelope
 validates structure and resolves explicit static capability fallbacks without a
 browser; fatal structural validation precedes capability resolution, and SDK
 parsing adds a second check. All substitutions, omissions and
-unsupported properties are content diagnostics. Card Markdown and the SDK subtree
+unsupported properties are content diagnostics. The original SDK model retains semantic identity. An owned static projection
+represents input values, action labels, collapsed disclosure and media posters
+without enabling SDK interactivity. Original and projected objects retain
+authored provenance through substitutions and omissions. Card Markdown and the SDK subtree
 use the existing sanitization stack before attachment, without replacing typed
 object identity. Rendering waits for approved images and newly introduced fonts.
 
@@ -182,9 +185,18 @@ enabled by a fallback. Validation, browser inspection and output reports share
 diagnostic meanings and source locations; browser-only checks are not claimed by
 non-browser validation.
 
-Cards currently export as bounded whole-card raster artwork, with dedicated
-ownership that prevents duplicate generic HTML artwork. There is no Adaptive
-Cards Scene Graph source or editable card converter. Measured, aggregate-only,
-and rejected coverage are distinct; raster fidelity does not establish native
-conversion feasibility. [ADR 0005](adr/0005-adaptive-card-semantic-and-raster-boundary.md)
-records the rationale and conditions for later work.
+Supported card content exports as editable objects. The shared Scene Graph's
+`adaptive-card` source reuses common shapes, text, images and separators; existing
+direct PowerPoint tables and links remain outside that scene contract. FactSet
+aggregate text measurements must correlate with typed fields. Text placement is
+measured, not delegated to Office wrapping.
+
+Unrepresentable content uses bounded subtree artwork with dedicated ownership
+that prevents duplicate native descendants or generic HTML artwork. Whole-card
+fallback requires an explicit safety reason. Native collection leaves browser
+appearance unchanged. Export reports retain native/approximated/rasterized
+classification, authored location and content impact on every surface. Links
+use rendered-link approval, distinct from image-fetch policy, and do not become
+browser interactions. [ADR 0006](adr/0006-adaptive-card-editable-static-projection.md)
+records the native boundary; the semantic and resource rules of
+[ADR 0005](adr/0005-adaptive-card-semantic-and-raster-boundary.md) remain in force.

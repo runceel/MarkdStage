@@ -589,6 +589,7 @@ export async function runPptxOutputBrowser(browser, pageUrl, profileDir, job, to
               element.classList.toggle("pptx-fallback-hidden", !ids.includes(active));
               element.classList.toggle("pptx-card-capture-active", ids.includes(active) && element.classList.contains("adaptive-card-host"));
             }
+            window.__markdStageSetPptxCardCapture?.(active);
             return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
           })()`,
           awaitPromise: true,
@@ -642,7 +643,7 @@ export async function runPptxOutputBrowser(browser, pageUrl, profileDir, job, to
     }
     await cdp.send("Runtime.evaluate", {
       expression:
-        'document.querySelectorAll(".pptx-fallback-hidden").forEach(element => element.classList.remove("pptx-fallback-hidden"));',
+        'document.querySelectorAll(".pptx-fallback-hidden").forEach(element => element.classList.remove("pptx-fallback-hidden"));window.__markdStageSetPptxCardCapture?.("");',
     });
     return { model, layoutArtworks, slideFallbackImages };
   } finally {

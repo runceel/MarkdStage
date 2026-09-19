@@ -177,12 +177,14 @@ The themed slide is displayed and updates automatically
 - Add language names such as `csharp`, `json`, or `diff` to code fences for
   highlight.js syntax highlighting.
 - **Static Adaptive Cards:** an `adaptive-card` fence accepts fully resolved
-  schema-1.5 JSON and loads the official SDK 3.0.6 only when needed. Cards export
-  as one bounded PNG per visible card, not editable card objects. Invalid cards
+  schema-1.5 JSON and loads the official SDK 3.0.6 only when needed. Supported
+  text, fills, images, separators and tables export as editable objects;
+  unsupported subtrees use bounded PNGs without duplicating native neighbors. Invalid cards
   show error panels; blocked/missing images show deterministic placeholders while
   preserving the remaining content. Requirements, explicit static fallbacks,
   sanitization and content loss are diagnosed in validation, inspection and export.
-  Remote assets, interactivity and templating are not enabled by fallback.
+  Inputs, actions and media use explicit static labels/posters. Remote assets,
+  interactivity and templating are not enabled by projection or fallback.
   Read [the authoring and output contract](docs/adaptive-cards.md), also available
   as `markdstage_guide` / `markdstage guide` topic `adaptive-cards`.
 

@@ -166,9 +166,7 @@ for (const format of ["pdf", "pptx"]) {
     assert.equal(report.ok, true);
     assert.equal(report.format, format);
     assert.equal(report.bytes, readFileSync(join(workspace, output)).length);
-    const cards = format === "pdf"
-      ? report.adaptiveCards
-      : report.fallbacks.filter((entry) => entry.type === "adaptive-card");
+    const cards = report.adaptiveCards;
     assert.equal(cards.length, 1);
     assert.equal(cards[0].page, 1);
     assert.equal(cards[0].slideIndex, 0);
@@ -185,7 +183,7 @@ for (const format of ["pdf", "pptx"]) {
     assert.match(text, /^Exported \d+ slide\(s\) to card-warning\.(?:pdf|pptx)/);
     assert.match(text, /warning slide 1: adaptive-card\[0\]\$\.body\[0\]\.url .* \(blocked-image\)/);
     if (format === "pptx")
-      assert.match(text, /slide 1: adaptive-card\[0\] \(adaptive-card-rendered-as-artwork; content impact\)/);
+      assert.match(text, /rasterized slide 1: adaptive-card\[0\]\$\.diagnostics \(adaptive-card-diagnostic-note; content impact\)/);
   });
 }
 
@@ -202,13 +200,14 @@ test("native PNG and PowerPoint output render a static Adaptive Card with the pi
     assert.equal(png.readUInt32BE(16), 1280);
     assert.equal(png.readUInt32BE(20), 720);
     const report = run("export", "--output", "card.pptx");
-    const cards = report.fallbacks.filter((fallback) => fallback.type === "adaptive-card");
+    const cards = report.adaptiveCards;
     assert.equal(cards.length, 1);
-    assert.equal(cards[0].reason, "adaptive-card-rendered-as-artwork");
-    assert.equal(cards[0].path, "adaptive-card[0]");
+    assert.ok(cards[0].nativeObjectCount >= 20);
+    assert.equal(cards[0].rasterizedSubtreeCount, 0);
+    assert.equal(report.fallbacks.filter((fallback) => fallback.type === "adaptive-card").length, 0);
     const bytes = readFileSync(join(workspace, "card.pptx"));
     assert.equal(report.bytes, bytes.length);
-    assert.ok(bytes.includes(Buffer.from("adaptive-card artwork")));
+    assert.ok(bytes.includes(Buffer.from("Typed objects, measured geometry")));
     assert.ok(bytes.includes(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])));
   } finally {
     writeFileSync(file, original);
