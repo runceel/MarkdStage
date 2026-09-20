@@ -333,6 +333,9 @@ jobs:
       - name: Core tests
         run: dotnet test apps\MarkdStage.Desktop\tests\MarkdStage.Core.Tests\MarkdStage.Core.Tests.csproj -c Release
 
+      - name: Desktop package data tests
+        run: node --test apps\MarkdStage.Desktop\tests\package-data.test.mjs
+
       - name: WinUI build
         run: dotnet build apps\MarkdStage.Desktop\src\MarkdStage.App\MarkdStage.App.csproj -c Release -r win-x64 -p:Platform=x64
 
