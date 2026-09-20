@@ -27,7 +27,8 @@ import { validateCommand, formatValidateReport } from "./commands/validate.mjs";
 import { inspectCommand, formatInspectReport } from "./commands/inspect.mjs";
 import { captureCommand, formatCaptureReport } from "./commands/capture.mjs";
 import { exportCommand, formatExportReport } from "./commands/export.mjs";
-import { guideCommand, GUIDE_TOPICS } from "./commands/guide.mjs";
+import { guideCommand } from "./commands/guide.mjs";
+import { GUIDE_TOPICS } from "./guide-topics.mjs";
 import {
   skillCommand,
   formatSkillReport,

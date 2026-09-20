@@ -9,8 +9,8 @@ import { tmpdir } from "node:os";
 
 import { buildSkillFiles, SKILL_TARGETS } from "../src/skills.mjs";
 import { skillCommand } from "../src/commands/skill.mjs";
-import { GUIDE_TOPICS } from "../src/commands/guide.mjs";
-import { readGuide } from "../src/runtime.mjs";
+import { GUIDE_TOPICS } from "../src/guide-topics.mjs";
+import { readGuide } from "../../../.github/extensions/markdstage/markdstage-guide.mjs";
 
 test("skill files are generated for every target and topic", async () => {
   for (const target of Object.keys(SKILL_TARGETS)) {
@@ -141,6 +141,25 @@ test("generation is deterministic", async () => {
   const first = await buildSkillFiles("codex");
   const second = await buildSkillFiles("codex");
   assert.deepEqual([...first.entries()], [...second.entries()]);
+});
+
+test("injected canonical guide loading matches the npm runtime default", async () => {
+  const topics = [];
+  const injectedReadGuide = async (topic) => {
+    topics.push(topic);
+    return readGuide(topic);
+  };
+
+  for (const target of Object.keys(SKILL_TARGETS)) {
+    const defaults = await buildSkillFiles(target);
+    const injected = await buildSkillFiles(target, { readGuide: injectedReadGuide });
+    assert.deepEqual([...injected.entries()], [...defaults.entries()]);
+  }
+
+  assert.deepEqual(
+    topics,
+    Object.keys(SKILL_TARGETS).flatMap(() => GUIDE_TOPICS),
+  );
 });
 
 test("install does not overwrite user-modified files without --force", async () => {
