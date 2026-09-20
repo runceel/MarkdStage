@@ -229,11 +229,18 @@ function loadSdk(documentRef) {
 }
 
 export function createAdaptiveCardHostConfig(SDK, palette) {
-  const colors = Object.fromEntries(["default", "dark", "light", "accent", "good", "warning", "attention"]
-    .map((name) => [name, {
-      default: name === "accent" ? palette.accent : palette.fg, subtle: palette.muted,
-      highlightColors: { default: palette.border, subtle: palette.border },
-    }]));
+  const pick = (value, fallback) => (typeof value === "string" && value ? value : fallback);
+  const roleColor = {
+    default: palette.fg, dark: palette.fg, light: palette.fg,
+    accent: pick(palette.primary, palette.accent),
+    good: pick(palette.success, palette.accent),
+    warning: pick(palette.warning, palette.accent),
+    attention: pick(palette.danger, palette.accent),
+  };
+  const colors = Object.fromEntries(Object.entries(roleColor).map(([name, value]) => [name, {
+    default: value, subtle: palette.muted,
+    highlightColors: { default: palette.border, subtle: palette.border },
+  }]));
   const font = {
     fontFamily: palette.fontFamily,
     fontSizes: { small: 16, default: 20, medium: 24, large: 28, extraLarge: 32 },
@@ -248,6 +255,22 @@ export function createAdaptiveCardHostConfig(SDK, palette) {
     containerStyles: {
       default: { backgroundColor: "#00000000", foregroundColors: colors, borderColor: palette.border },
       emphasis: { backgroundColor: palette.surface, foregroundColors: colors, borderColor: palette.border },
+      good: {
+        backgroundColor: pick(palette.surfaceSuccess, palette.surface), foregroundColors: colors,
+        borderColor: pick(palette.borderSuccess, palette.border),
+      },
+      accent: {
+        backgroundColor: pick(palette.surfaceInfo, palette.surface), foregroundColors: colors,
+        borderColor: pick(palette.borderInfo, palette.border),
+      },
+      warning: {
+        backgroundColor: pick(palette.surfaceWarning, palette.surface), foregroundColors: colors,
+        borderColor: pick(palette.borderWarning, palette.border),
+      },
+      attention: {
+        backgroundColor: pick(palette.surfaceDanger, palette.surface), foregroundColors: colors,
+        borderColor: pick(palette.borderDanger, palette.border),
+      },
     },
     adaptiveCard: { allowCustomStyle: true },
     imageSizes: { small: 48, medium: 96, large: 144 },
@@ -260,6 +283,25 @@ export function createAdaptiveCardHostConfig(SDK, palette) {
     actions: { maxActions: 0 },
     media: { allowInlinePlayback: false },
   });
+}
+
+const SDK_CONTAINER_STYLE_BY_SEMANTIC_STYLE = Object.freeze({
+  success: "good",
+  info: "accent",
+  warning: "warning",
+  danger: "attention",
+});
+const STYLED_CONTAINER_TYPES = new Set(["Container", "ColumnSet", "Column", "Table", "TableRow"]);
+
+export function mapAdaptiveCardContainerStylesForSdk(value) {
+  if (Array.isArray(value)) return value.map(mapAdaptiveCardContainerStylesForSdk);
+  if (!value || typeof value !== "object") return value;
+  const mapped = Object.fromEntries(Object.entries(value).map(([key, child]) =>
+    [key, mapAdaptiveCardContainerStylesForSdk(child)]));
+  if (STYLED_CONTAINER_TYPES.has(value.type) && typeof value.style === "string") {
+    mapped.style = SDK_CONTAINER_STYLE_BY_SEMANTIC_STYLE[value.style] || value.style;
+  }
+  return mapped;
 }
 
 function typedObjects(card, SDK, sourcePaths = new Map()) {
@@ -374,7 +416,7 @@ export async function renderAdaptiveCard(host, source, palette, resources = crea
       const model = new SDK.AdaptiveCard();
       model.hostConfig = createAdaptiveCardHostConfig(SDK, palette);
       const context = new SDK.SerializationContext(SDK.Versions.v1_5);
-      model.parse(json, context);
+      model.parse(mapAdaptiveCardContainerStylesForSdk(json), context);
       const events = [
         ...Array.from({ length: context.eventCount }, (_, index) => context.getEventAt(index)),
         ...(renderable ? model.validateProperties().validationEvents : []),

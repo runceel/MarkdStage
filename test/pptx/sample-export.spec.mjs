@@ -53,6 +53,7 @@ test("root sample exports the full deck with Architecture foreground image sourc
     expect(cardSlides.map((slide) => slide.title)).toEqual([
       "Render Adaptive Cards from JSON",
       "Reuse card content in PowerPoint",
+      "Semantic containers and text roles",
     ]);
     for (const slide of cardSlides) {
       expect(slide.adaptiveCards).toHaveLength(1);
@@ -60,6 +61,8 @@ test("root sample exports the full deck with Architecture foreground image sourc
       expect(slide.adaptiveCards[0].diagnostics).toEqual([]);
       expect(slide.adaptiveCards[0].nativeObjectCount).toBeGreaterThan(0);
       expect(slide.fallbacks.filter((fallback) => fallback.type === "adaptive-card")).toEqual([]);
+    }
+    for (const slide of cardSlides.slice(0, 2)) {
       expect(slide.elements.filter((element) => element.type === "table" && element.adaptiveCard)).toHaveLength(1);
     }
     expect(cardSlides[1].elements.filter((element) => element.type === "image" && element.adaptiveCard)).toHaveLength(1);

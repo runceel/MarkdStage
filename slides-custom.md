@@ -1,7 +1,8 @@
 ---
-title: MarkdStage Sample - Dark
-theme: dark
-deck: MarkdStage Sample / Dark
+title: MarkdStage Sample - Custom
+theme: custom
+theme-file: docs/user-guide/examples/custom-theme-helioworks/themes/helioworks/theme.css
+deck: MarkdStage Sample / Custom
 layout: title
 ---
 

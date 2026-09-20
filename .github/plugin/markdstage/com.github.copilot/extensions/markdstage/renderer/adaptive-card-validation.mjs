@@ -58,7 +58,7 @@ const date = (value) => string(value) && /^\d{4}-\d{2}-\d{2}$/.test(value) &&
 const time = (value) => string(value) && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value);
 const horizontal = enumeration("left", "center", "right");
 const vertical = enumeration("top", "center", "bottom");
-const containerStyle = enumeration("default", "emphasis");
+const containerStyle = enumeration("default", "emphasis", "success", "info", "warning", "danger");
 const textProperties = {
   text: string, size: enumeration("small", "default", "medium", "large", "extralarge"),
   weight: enumeration("lighter", "default", "bolder"),

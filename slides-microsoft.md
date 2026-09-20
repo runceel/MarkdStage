@@ -1,7 +1,7 @@
 ---
-title: MarkdStage Sample - Dark
-theme: dark
-deck: MarkdStage Sample / Dark
+title: MarkdStage Sample - Microsoft
+theme: microsoft
+deck: MarkdStage Sample / Microsoft
 layout: title
 ---
 

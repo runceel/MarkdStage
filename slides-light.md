@@ -1,7 +1,7 @@
 ---
-title: MarkdStage Sample - Dark
-theme: dark
-deck: MarkdStage Sample / Dark
+title: MarkdStage Sample - Light
+theme: light
+deck: MarkdStage Sample / Light
 layout: title
 ---
 
