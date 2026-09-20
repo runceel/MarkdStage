@@ -51,10 +51,10 @@
       }
     },
     "resolvedSha256": {
-      "dark": "0a81c6c48ac9cacd757ee2fe95ab843dfb41609e0ba3643405aae9023b12690b",
-      "light": "0f712bda5131289584b146d0f38d5ae6aa73051d7defc264acf834c0a3ea0fd1",
-      "microsoft": "f15e7ac017dbc7a43332385001e56d0135f890f1dd69d863642aadd52d3b7f60",
-      "custom": "91dd13a1f439520ddaf8bc93377609fae9d87453d8c988b33bb866419ad382b9"
+      "dark": "ad05bbe70c301febaea3aa33cff013b4b01e465d4c67a1d6f5207eb1e4177fca",
+      "light": "92e47bf8d42821615b20ae85f7baac5acc163cb535d591078e8462503a04416b",
+      "microsoft": "dc21fbf952d9083d091fce0182a16115b2ac5bceeec1e968cd9bb75648eb7400",
+      "custom": "07124edfcb72f710a605c0108a421f893860a3678048132e7f489475da8019d8"
     }
   },
   "review": {
@@ -76,7 +76,7 @@
     ".github/extensions/markdstage/renderer/adaptive-card-pptx.mjs": "db8546553bd76d64f3a5b93a67ebb1cd9985764ee135747b3a5f5dda570243ed",
     ".github/extensions/markdstage/renderer/adaptive-card-static.mjs": "94deb28c9d1863d76293a369748d83fe648f21a3e85e122e1a7455b031609129",
     ".github/extensions/markdstage/renderer/adaptive-card-validation.mjs": "1bc1e0d6b0028a11cf14003477397a7fa728a0821578b006c6e05800bbc512fe",
-    ".github/extensions/markdstage/renderer/adaptive-card.mjs": "f4d45e7215c90de505b6e40d0324b93776d64ad8ac0b4df8ab72ae0169e091e0",
+    ".github/extensions/markdstage/renderer/adaptive-card.mjs": "201bd83386b0e7887b8d15d539cd9575b71c3ad1c0d017b78fb1d192669ceff6",
     ".github/extensions/markdstage/renderer/fenced-blocks.mjs": "2a4bc3fb02ebd92bf0b947227d2b3d456f38c763b5910465e2841be1bc8c1a41",
     ".github/extensions/markdstage/renderer/image-source.mjs": "161d0c1176f40e633c1f9962e74ca41b52f08b2d8b814b9c4d6d57f2994d8e05",
     ".github/extensions/markdstage/renderer/marked-lexer.mjs": "31c092d8b043200d322558784b65809fccc57ed15b29568d48816174f5d8c50f",

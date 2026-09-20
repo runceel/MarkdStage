@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import {
   parseAdaptiveCardSource, resolveCardImageUrl, MAX_CARD_JSON_BYTES, MAX_CARD_DEPTH, MAX_CARD_OBJECTS,
-  createAdaptiveCardHostConfig,
+  createAdaptiveCardHostConfig, mapAdaptiveCardContainerStylesForSdk,
 } from "../renderer/adaptive-card.mjs";
 import { validateAdaptiveCardSource, MAX_CARD_DIAGNOSTICS } from "../renderer/adaptive-card-validation.mjs";
 import { adaptiveCardValidationReport, validateLoadedDeck } from "../runtime/deck-validation.mjs";
@@ -38,7 +38,7 @@ test("semantic container styles and color roles resolve from the palette with ba
   // A theme that never learned about semantic tokens keeps its previous
   // container styles and color-role appearance (accent-only distinct color).
   const fallbackConfig = createAdaptiveCardHostConfig(SDK, basePalette);
-  for (const style of ["success", "info", "warning", "danger"]) {
+  for (const style of ["good", "accent", "warning", "attention"]) {
     const definition = fallbackConfig.containerStyles.getStyleByName(style);
     assert.equal(definition.backgroundColor, basePalette.surface);
     assert.equal(definition.borderColor, basePalette.border);
@@ -58,12 +58,12 @@ test("semantic container styles and color roles resolve from the palette with ba
     borderSuccess: "#1f9d55", borderInfo: "#0aa8c8", borderWarning: "#d9a300", borderDanger: "#d23f3f",
   };
   const semanticConfig = createAdaptiveCardHostConfig(SDK, semanticPalette);
-  const successStyle = semanticConfig.containerStyles.getStyleByName("success");
+  const successStyle = semanticConfig.containerStyles.getStyleByName("good");
   assert.equal(successStyle.backgroundColor, semanticPalette.surfaceSuccess);
   assert.equal(successStyle.borderColor, semanticPalette.borderSuccess);
-  assert.equal(semanticConfig.containerStyles.getStyleByName("info").backgroundColor, semanticPalette.surfaceInfo);
+  assert.equal(semanticConfig.containerStyles.getStyleByName("accent").backgroundColor, semanticPalette.surfaceInfo);
   assert.equal(semanticConfig.containerStyles.getStyleByName("warning").backgroundColor, semanticPalette.surfaceWarning);
-  assert.equal(semanticConfig.containerStyles.getStyleByName("danger").backgroundColor, semanticPalette.surfaceDanger);
+  assert.equal(semanticConfig.containerStyles.getStyleByName("attention").backgroundColor, semanticPalette.surfaceDanger);
   const semanticColors = semanticConfig.containerStyles.default.foregroundColors;
   assert.equal(semanticColors.accent.default, semanticPalette.primary);
   assert.equal(semanticColors.good.default, semanticPalette.success);
@@ -72,6 +72,21 @@ test("semantic container styles and color roles resolve from the palette with ba
   // default/emphasis remain unaffected non-regressions.
   assert.equal(semanticConfig.containerStyles.default.backgroundColor, "#00000000");
   assert.equal(semanticConfig.containerStyles.emphasis.backgroundColor, basePalette.surface);
+
+  const context = new SDK.SerializationContext(SDK.Versions.v1_5);
+  const model = new SDK.AdaptiveCard();
+  model.hostConfig = semanticConfig;
+  model.parse(mapAdaptiveCardContainerStylesForSdk(card([
+    { type: "Container", style: "success", items: [] },
+    { type: "Container", style: "info", items: [] },
+    { type: "Container", style: "warning", items: [] },
+    { type: "Container", style: "danger", items: [] },
+  ])), context);
+  assert.equal(context.eventCount, 0);
+  assert.deepEqual(
+    Array.from({ length: model.getItemCount() }, (_, index) => model.getItemAt(index).style),
+    ["good", "accent", "warning", "attention"],
+  );
 });
 
 test("accepts only resolved, bounded schema 1.5 JSON and diagnoses unsupported mechanisms", () => {
