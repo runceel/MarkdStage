@@ -72,7 +72,7 @@
   },
   "files": {
     ".github/extensions/markdstage/renderer/adaptive-card-capabilities.mjs": "3ae563170a82d50ae44e5871e1233122f4e6b406a160146b6b8e12823ef06241",
-    ".github/extensions/markdstage/renderer/adaptive-card-markdown.mjs": "7d5f055d851ceab0837c4f78e4413af45d61c789270be60be480a28eeea7988e",
+    ".github/extensions/markdstage/renderer/adaptive-card-markdown.mjs": "4312ef4660123eb2cf3299059f8947b9df6c73a516507ca420ca6c823a869253",
     ".github/extensions/markdstage/renderer/adaptive-card-pptx.mjs": "db8546553bd76d64f3a5b93a67ebb1cd9985764ee135747b3a5f5dda570243ed",
     ".github/extensions/markdstage/renderer/adaptive-card-static.mjs": "94deb28c9d1863d76293a369748d83fe648f21a3e85e122e1a7455b031609129",
     ".github/extensions/markdstage/renderer/adaptive-card-validation.mjs": "1bc1e0d6b0028a11cf14003477397a7fa728a0821578b006c6e05800bbc512fe",
