@@ -20,7 +20,7 @@ export function approvedCardHyperlink(value, documentRef) {
 // formatting semantics are retained before all browser link behavior is removed.
 export function prepareAdaptiveCardMarkdown(text, documentRef) {
   const { marked, DOMPurify } = documentRef.defaultView;
-  const html = DOMPurify.sanitize(marked.parse(text), { ALLOWED_TAGS: TAGS, ALLOWED_ATTR: ["href"] });
+  const html = DOMPurify.sanitize(marked.parse(text, { breaks: true }), { ALLOWED_TAGS: TAGS, ALLOWED_ATTR: ["href"] });
   let sanitized = DOMPurify.removed.some(({ element, attribute }) =>
     attribute || (element && element.tagName !== "BODY"));
   const template = documentRef.createElement("template");
