@@ -96,17 +96,17 @@ installation. The [Windows walkthrough](./docs/user-guide/windows-walkthrough.md
 fictional sample, screenshots, and example AI requests covering diagram editing through export.
 For portable ZIPs and signed sideloading packages, see
 [installation](./docs/user-guide/installation.md) and the
-[v4.2.7 release](https://github.com/runceel/markdstage/releases/tag/v4.2.7).
+[v4.2.8 release](https://github.com/runceel/markdstage/releases/tag/v4.2.8).
 
 ## Use the canvas Extension
 
 When you open this repository as a project, `.github/extensions/markdstage/` loads at project
-scope. To Install the current **[v4.2.7 release](https://github.com/runceel/markdstage/releases/tag/v4.2.7)**
+scope. To Install the current **[v4.2.8 release](https://github.com/runceel/markdstage/releases/tag/v4.2.8)**
 at user scope in another repository, ask GitHub Copilot:
 
 > Install MarkdStage at user scope from the following GitHub repository folder.
 >
-> `https://github.com/runceel/markdstage/tree/v4.2.7/.github/extensions/markdstage`
+> `https://github.com/runceel/markdstage/tree/v4.2.8/.github/extensions/markdstage`
 
 The Extension runs local code in the user's environment. Review its contents before installation,
 and use a trusted release tag or commit SHA for a reproducible install. The `main` branch tracks
