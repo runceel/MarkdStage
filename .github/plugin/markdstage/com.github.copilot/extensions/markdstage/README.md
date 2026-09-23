@@ -283,6 +283,15 @@ element limits. Reports distinguish API `ok`, content `valid`, validation `compl
 and `truncated` collection, with per-block stage status and stable-coded
 diagnostics. JSON Pointers identify fields; slide inputs add page/block positions.
 Repair suggestions are contextual and never applied automatically.
+For `format: "slides"`, the tool also runs the static Adaptive Card checks used by
+`markdstage validate` and returns them in a separate `adaptiveCards` report
+(`valid`, `complete`, `truncated`, `diagnostics`, `blocks`). The top-level
+`valid`, `complete`, and `truncated` values cover both Architecture and card
+results, while `stages`, `diagnostics`, and `blocks` remain Architecture-only.
+Card diagnostics are bounded separately by the same `maxDiagnostics` value. When
+that bound trims the returned list, errors are kept ahead of warnings,
+`adaptiveCards.omittedDiagnostics` reports the dropped count, and `truncated` is
+true; `valid` and `complete` still reflect every inspected card.
 
 Fix reported independent problems together, then validate again and pass
 **the same content** to saving and `open_canvas` or `load_deck`. Check

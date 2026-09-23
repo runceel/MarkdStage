@@ -4,9 +4,12 @@ import { readFile } from "node:fs/promises";
 import {
   ARCHITECTURE_VALIDATION_LIMITS,
   ArchitectureValidationInputError,
-  createArchitectureValidationTool,
   validateArchitectureInput,
 } from "../architecture-validation.mjs";
+import {
+  createMarkdStageValidationTool,
+  validateMarkdStageInput,
+} from "../runtime/preflight-validation.mjs";
 
 const EMPTY = '{"elements":[]}';
 const fence = (source) => `\`\`\`architecture\n${source}\n\`\`\``;
@@ -400,7 +403,7 @@ test("total inspected characters have a separate deck-wide budget", () => {
 });
 
 test("the registered pure tool separates invocation success from invalid content", async () => {
-  const tool = createArchitectureValidationTool();
+  const tool = createMarkdStageValidationTool();
   assert.equal(tool.name, "markdstage_validate");
   assert.equal(tool.parameters.oneOf.length, 2);
   const invalidContent = await tool.handler({ format: "dsl", source: fourErrors() });
@@ -416,8 +419,82 @@ test("the registered pure tool separates invocation success from invalid content
   }), (error) => error === unexpected);
 
   const extension = await readFile(new URL("../extension.mjs", import.meta.url), "utf8");
-  assert.match(extension, /import \{ createArchitectureValidationTool \} from "\.\/architecture-validation\.mjs"/);
-  assert.match(extension, /createArchitectureValidationTool\(\),/);
+  assert.match(extension, /import \{ createMarkdStageValidationTool \} from "\.\/runtime\/preflight-validation\.mjs"/);
+  assert.match(extension, /createMarkdStageValidationTool\(\),/);
+});
+
+const cardFence = (value) => `\`\`\`adaptive-card\n${typeof value === "string" ? value : JSON.stringify(value)}\n\`\`\``;
+const validCard = { type: "AdaptiveCard", version: "1.5", body: [{ type: "TextBlock", text: "Hello" }] };
+
+test("slide preflight reports Adaptive Card errors and combines validity", async () => {
+  const ok = validateMarkdStageInput({ format: "slides", slides: [cardFence(validCard)] });
+  assert.equal(ok.valid, true);
+  assert.equal(ok.complete, true);
+  assert.equal(ok.adaptiveCards.valid, true);
+  assert.equal(ok.adaptiveCards.blocks.length, 1);
+
+  const report = validateMarkdStageInput({ format: "slides", slides: [
+    "# Intro", `${fence(EMPTY)}\n\n${cardFence({ ...validCard, body: [{ type: "TextBlock", text: 42 }] })}`,
+  ] });
+  assert.equal(report.ok, true);
+  assert.equal(report.valid, false);
+  assert.equal(report.complete, true);
+  assert.equal(report.stages.json, "passed");
+  assert.equal(report.diagnostics.some((entry) => entry.category === "adaptive-card"), false);
+  assert.equal(report.adaptiveCards.valid, false);
+  const issue = report.adaptiveCards.diagnostics.find((entry) => entry.code === "invalid-property");
+  assert.equal(issue.page, 2);
+  assert.equal(issue.sourcePath, "adaptive-card[0]$.body[0].text");
+
+  const unclosed = validateMarkdStageInput({ format: "slides", slides: ["```adaptive-card\n" + JSON.stringify(validCard)] });
+  assert.equal(unclosed.valid, false);
+  assert.equal(unclosed.adaptiveCards.diagnostics.at(-1).code, "unclosed-adaptive-card-fence");
+
+  const tool = createMarkdStageValidationTool();
+  const result = JSON.parse((await tool.handler({ format: "slides", slides: [cardFence("{")] })).textResultForLlm);
+  assert.equal(result.valid, false);
+  assert.ok(result.adaptiveCards.diagnostics.length > 0);
+});
+
+test("DSL preflight is unchanged and card diagnostics honor maxDiagnostics", () => {
+  const dsl = validateMarkdStageInput({ format: "dsl", source: EMPTY });
+  assert.deepEqual(dsl, validateArchitectureInput({ format: "dsl", source: EMPTY }));
+  assert.equal(Object.hasOwn(dsl, "adaptiveCards"), false);
+
+  const slides = [1, 2, 3].map(() => cardFence("{"));
+  const bounded = validateMarkdStageInput({ format: "slides", slides, maxDiagnostics: 2 });
+  assert.equal(bounded.adaptiveCards.diagnostics.length, 2);
+  assert.equal(bounded.adaptiveCards.omittedDiagnostics, 1);
+  assert.deepEqual(bounded.adaptiveCards.diagnostics.map((entry) => entry.page), [1, 2]);
+  assert.equal(bounded.adaptiveCards.truncated, true);
+  assert.equal(bounded.truncated, true);
+  assert.equal(bounded.complete, true);
+  assert.equal(bounded.valid, false);
+});
+
+test("trimming card warnings keeps errors and does not fail a fully checked deck", () => {
+  const warning = cardFence({ ...validCard, body: [{ type: "Unknown", fallback: { type: "TextBlock", text: "x" } }] });
+  const warnings = validateMarkdStageInput({ format: "slides", slides: [warning, warning, warning], maxDiagnostics: 2 });
+  assert.ok(warnings.adaptiveCards.diagnostics.every((entry) => entry.severity === "warning"));
+  assert.ok(warnings.adaptiveCards.omittedDiagnostics > 0);
+  assert.equal(warnings.truncated, true);
+  assert.equal(warnings.complete, true);
+  assert.equal(warnings.valid, true);
+
+  const mixed = validateMarkdStageInput({ format: "slides", slides: [warning, warning, cardFence("{")], maxDiagnostics: 2 });
+  assert.ok(mixed.adaptiveCards.diagnostics.some((entry) => entry.code === "invalid-json" && entry.page === 3));
+  assert.equal(mixed.valid, false);
+  assert.equal(mixed.complete, true);
+});
+
+test("card preflight never reads slides past the inspection limit", () => {
+  const slides = [...Array(ARCHITECTURE_VALIDATION_LIMITS.maxSlides).fill("# ok"), null, 42];
+  const report = validateMarkdStageInput({ format: "slides", slides });
+  assert.equal(report.ok, true);
+  assert.equal(report.valid, false);
+  assert.equal(report.complete, false);
+  assert.equal(report.adaptiveCards.complete, false);
+  assert.equal(report.adaptiveCards.diagnostics.at(-1).code, "card-validation-incomplete");
 });
 
 test("Canvas renderer uses the generic route and shared static module-serving helper", async () => {

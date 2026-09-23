@@ -49,6 +49,7 @@ const [
   presenterWindow,
   markdownFiles,
   architectureValidation,
+  preflightValidation,
   outputReport,
 ] = await Promise.all([
   load("runtime/errors.mjs"),
@@ -61,6 +62,7 @@ const [
   load("presenter-window.mjs"),
   load("scripts/markdown-files.mjs"),
   load("architecture-validation.mjs"),
+  load("runtime/preflight-validation.mjs"),
   load("runtime/export-report.mjs"),
 ]);
 
@@ -84,7 +86,8 @@ export const {
   hasFrontMatter,
   readGuide,
 } = guide;
-export const { validateArchitectureInput, createArchitectureValidationTool } = architectureValidation;
+export const { validateArchitectureInput } = architectureValidation;
+export const { validateMarkdStageInput, createMarkdStageValidationTool } = preflightValidation;
 export const { buildPresenterBrowserArgs } = presenterWindow;
 export const { isMarkdownPath, MARKDOWN_MAX_BYTES } = markdownFiles;
 export const { formatExportReport } = outputReport;

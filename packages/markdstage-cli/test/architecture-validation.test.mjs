@@ -7,7 +7,7 @@ import { withDeckServer } from "../src/deck.mjs";
 import {
   architectureValidationErrors,
   architectureValidationReport,
-  createArchitectureValidationTool,
+  createMarkdStageValidationTool,
   sharedPath,
   validateArchitectureInput,
 } from "../src/runtime.mjs";
@@ -235,13 +235,19 @@ test("the exact registered pure handler leaves a live deck server and source fil
       });
       const beforeDeck = snapshot();
       const beforeFile = await stat(file);
-      const tool = createArchitectureValidationTool();
+      const tool = createMarkdStageValidationTool();
       const result = await tool.handler({
         format: "slides",
         slides: Object.freeze([fragment(sourceWithFourErrors)]),
       });
       assert.equal(result.resultType, "success");
       assert.equal(JSON.parse(result.textResultForLlm).diagnosticCount, 4);
+      assert.deepEqual(JSON.parse(result.textResultForLlm).adaptiveCards.blocks, []);
+      const cardResult = JSON.parse((await tool.handler({
+        format: "slides", slides: ["```adaptive-card\n{\n```"],
+      })).textResultForLlm);
+      assert.equal(cardResult.valid, false);
+      assert.ok(cardResult.adaptiveCards.diagnostics.some((entry) => entry.severity === "error"));
       assert.deepEqual(snapshot(), beforeDeck);
       assert.deepEqual(await (await fetch(stateUrl)).json(), beforeHttp);
       assert.equal(await readFile(file, "utf8"), original);

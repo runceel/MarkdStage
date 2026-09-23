@@ -197,7 +197,12 @@ an invented layout; inspect before exporting and split dense content.
 
 `markdstage validate slides.md --json` checks JSON, the static schema,
 requirements/fallbacks and URL syntax **without loading the SDK or fetching
-resources**. Browser-only Markdown sanitization, SDK parse warnings, image bytes,
+resources**. Before display, the `markdstage_validate` tool applies the same
+static card checks to `format: "slides"` fragments and reports them under
+`adaptiveCards`; its top-level `valid`, `complete` and `truncated` include those
+card results, and `maxDiagnostics` also bounds the returned card diagnostics
+(errors first, with `omittedDiagnostics`) without failing fully checked cards.
+Browser-only Markdown sanitization, SDK parse warnings, image bytes,
 missing assets and layout require `markdstage inspect slides.md --json` or Canvas
 `inspect_layout`. Static validation explicitly reports
 `resourceValidation: "deferred-to-browser"`; it is not proof that assets loaded.
