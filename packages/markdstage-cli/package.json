@@ -1,6 +1,6 @@
 {
   "name": "@markdstage/markdstage",
-  "version": "4.2.8",
+  "version": "4.2.9",
   "description": "Present, validate, inspect, capture, and export MarkdStage Markdown decks from the command line — no Copilot canvas required.",
   "license": "MIT",
   "author": "runceel",
