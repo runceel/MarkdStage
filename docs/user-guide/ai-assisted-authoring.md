@@ -63,7 +63,7 @@ For a complete recorded example, follow
 2. **Create the complete Markdown deck.** Copilot consults the authoring contract and writes all
    slide fragments.
 3. **Validate before display.** Use `markdstage_validate` to fix independent Architecture DSL
-   problems together. Do not treat an incomplete report as a successful check.
+   and Adaptive Card problems together. Do not treat an incomplete report as a successful check.
 4. **Open and review the same content.** Save and open the validated fragments without regenerating
    their DSL. Review flow, density, diagrams, speaker notes, and terminology.
 5. **Inspect fixed 16:9 output.** Layout diagnostics identify pages that clip in PDF-equivalent
@@ -142,6 +142,10 @@ reports truncation explicitly. Suggestions never overwrite, merge, or delete con
 Existing v1 acceptance is preserved; ignored parent-layout coordinates are authoring warnings.
 
 DSL validation does not verify local image existence, slide fit, or visual clarity.
+
+Slide inputs also run the static Adaptive Card checks and return them in a separate
+`adaptiveCards` report. The top-level `valid`, `complete`, and `truncated` values include those
+card results. Card image loading and layout are still checked only by browser inspection.
 
 ### Loaded Architecture validation (`get_architecture_errors`)
 

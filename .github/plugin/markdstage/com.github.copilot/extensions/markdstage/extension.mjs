@@ -61,7 +61,7 @@ import {
   deckValidationFeedback,
   readGuide,
 } from "./markdstage-guide.mjs";
-import { createArchitectureValidationTool } from "./architecture-validation.mjs";
+import { createMarkdStageValidationTool } from "./runtime/preflight-validation.mjs";
 import { buildPresenterBrowserArgs } from "./presenter-window.mjs";
 import {
   DEFAULT_THEME,
@@ -2134,7 +2134,7 @@ const session = await joinSession({
       },
       handler: async ({ topic } = {}) => readGuide(topic ?? "overview"),
     },
-    createArchitectureValidationTool(),
+    createMarkdStageValidationTool(),
   ],
   canvases: [
     createCanvas({
