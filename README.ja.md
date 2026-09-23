@@ -99,7 +99,7 @@ MarkdStage がこれらのランタイムをダウンロードすることはあ
 [Windows 操作チュートリアル](./docs/user-guide/ja/windows-walkthrough.md)を参照してください。
 ポータブル ZIP と署名済みサイドローディングパッケージについては、
 [インストールガイド](./docs/user-guide/ja/installation.md)と
-[v4.2.8 リリース](https://github.com/runceel/markdstage/releases/tag/v4.2.8)で説明しています。
+[v4.2.9 リリース](https://github.com/runceel/markdstage/releases/tag/v4.2.9)で説明しています。
 
 <a id="canvas-extension"></a>
 
@@ -107,12 +107,12 @@ MarkdStage がこれらのランタイムをダウンロードすることはあ
 
 このリポジトリをプロジェクトとして開くと、`.github/extensions/markdstage/` がプロジェクトスコープで
 読み込まれます。別のリポジトリへユーザースコープでインストールする場合は、現在の
-**[v4.2.8 リリース](https://github.com/runceel/markdstage/releases/tag/v4.2.8)** を指定して
+**[v4.2.9 リリース](https://github.com/runceel/markdstage/releases/tag/v4.2.9)** を指定して
 GitHub Copilot に依頼します。
 
 > 次の GitHub リポジトリフォルダーから MarkdStage をユーザースコープへインストールしてください。
 >
-> `https://github.com/runceel/markdstage/tree/v4.2.8/.github/extensions/markdstage`
+> `https://github.com/runceel/markdstage/tree/v4.2.9/.github/extensions/markdstage`
 
 Extension は利用者の環境でローカルのコードを実行します。インストールする前に中身を確認し、
 同じ状態を再現できるよう、信頼できるリリースタグかコミット SHA を指定してください。
