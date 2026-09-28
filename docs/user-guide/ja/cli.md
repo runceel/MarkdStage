@@ -96,6 +96,12 @@ markdstage skill install --target codex
 markdstage preview slides.md --no-open --watch --theme dark
 ```
 
+npm 版のブラウザー UI と `--no-open` で配信した URL では、スライド内の外部
+HTTP(S) リンクをクリックすると、スライド画面を保ったまま MarkdStage を実行している
+端末の既定ブラウザーで開きます。`--no-open` は UI 表示用ブラウザーを自動起動せず、
+この受け渡しはリンクをクリックしたときだけ行います。UI 上のリンクと同じローカル
+オリジンへのリンクは従来どおりです。
+
 `help`、`--help`、`--version`、`guide`、`skill`、`validate`、`inspect`、`capture`、
 `export` はコンソール処理のままで、ネイティブアプリを起動しません。
 

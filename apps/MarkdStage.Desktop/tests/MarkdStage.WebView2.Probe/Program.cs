@@ -131,14 +131,15 @@ internal static class Program
             {
                 using (browser)
                 {
-                    if (!browser.HasExited) browser.Kill(entireProcessTree: true);
+                    if (!browser.HasExited) browser.Kill();
                     await browser.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
                 }
             }
             for (var attempt = 0; ; attempt++)
             {
                 try { if (Directory.Exists(profile)) Directory.Delete(profile, recursive: true); break; }
-                catch (IOException) when (attempt < 50) { await Task.Delay(100); }
+                // WebView2 child processes may release the profile after the browser process exits.
+                catch (IOException) when (attempt < 300) { await Task.Delay(100); }
             }
         }
     }

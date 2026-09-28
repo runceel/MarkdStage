@@ -80,6 +80,92 @@ public sealed class PresentationServerTests
     }
 
     [WindowsFact]
+    public async Task HeadlessCliOpensOnlyExternalHttpLinksFromSameOrigin()
+    {
+        var opened = new List<Uri>();
+        await using var server = new PresentationServer(new PresentationSession(), () => false,
+            openExternal: uri =>
+            {
+                opened.Add(uri);
+                return Task.CompletedTask;
+            });
+        await server.StartAsync();
+        using var client = new HttpClient { BaseAddress = server.BaseUri };
+        using var state = JsonDocument.Parse(await client.GetStringAsync("state"));
+        Assert.True(state.RootElement.GetProperty("externalLinkAvailable").GetBoolean());
+
+        using var absentOrigin = await client.PostAsJsonAsync("open-external",
+            new { url = "https://example.com/" });
+        Assert.Equal(HttpStatusCode.Forbidden, absentOrigin.StatusCode);
+
+        using var foreignOrigin = new HttpRequestMessage(HttpMethod.Post, "open-external")
+        {
+            Content = JsonContent.Create(new { url = "https://example.com/" }),
+        };
+        foreignOrigin.Headers.TryAddWithoutValidation("Origin", "https://attacker.invalid");
+        using var forbidden = await client.SendAsync(foreignOrigin);
+        Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
+
+        using var wrongContentType = new HttpRequestMessage(HttpMethod.Post, "open-external")
+        {
+            Content = new StringContent("{\"url\":\"https://example.com/\"}"),
+        };
+        wrongContentType.Headers.TryAddWithoutValidation("Origin", server.BaseUri!.GetLeftPart(UriPartial.Authority));
+        using var rejectedType = await client.SendAsync(wrongContentType);
+        Assert.Equal(HttpStatusCode.Forbidden, rejectedType.StatusCode);
+
+        async Task<HttpResponseMessage> SendAsync(string url)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, "open-external")
+            {
+                Content = JsonContent.Create(new { url }),
+            };
+            request.Headers.TryAddWithoutValidation("Origin", server.BaseUri!.GetLeftPart(UriPartial.Authority));
+            return await client.SendAsync(request);
+        }
+
+        foreach (var url in new[]
+        {
+            server.BaseUri!.AbsoluteUri, "javascript:alert(1)", "file:///C:/test",
+            "https://user:password@example.com/", "https://example.com/" + new string('x', 2048),
+        })
+        {
+            using var rejected = await SendAsync(url);
+            Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+        }
+        using var accepted = await SendAsync("https://example.com/path?x=1");
+        Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
+        Assert.Equal("https://example.com/path?x=1", Assert.Single(opened).AbsoluteUri);
+    }
+
+    [WindowsFact]
+    public async Task HeadlessCliReportsBrowserLaunchFailure()
+    {
+        await using var server = new PresentationServer(new PresentationSession(), () => false,
+            openExternal: _ => throw new InvalidOperationException("Browser unavailable"));
+        await server.StartAsync();
+        using var client = new HttpClient { BaseAddress = server.BaseUri };
+        using var request = new HttpRequestMessage(HttpMethod.Post, "open-external")
+        {
+            Content = JsonContent.Create(new { url = "https://example.com/" }),
+        };
+        request.Headers.TryAddWithoutValidation("Origin", server.BaseUri!.GetLeftPart(UriPartial.Authority));
+        using var response = await client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        Assert.Equal("external_launch_failed",
+            (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
+
+        await using var desktopServer = new PresentationServer(new PresentationSession(), () => false);
+        await desktopServer.StartAsync();
+        using var desktopClient = new HttpClient { BaseAddress = desktopServer.BaseUri };
+        using var state = JsonDocument.Parse(await desktopClient.GetStringAsync("state"));
+        Assert.False(state.RootElement.GetProperty("externalLinkAvailable").GetBoolean());
+        using var unavailable = await desktopClient.PostAsJsonAsync("open-external",
+            new { url = "https://example.com/" });
+        Assert.Equal(HttpStatusCode.NotFound, unavailable.StatusCode);
+    }
+
+    [WindowsFact]
     public async Task PresenterRoutesReturnStructuredFailures()
     {
         var session = new PresentationSession();

@@ -95,6 +95,12 @@ For example:
 markdstage preview slides.md --no-open --watch --theme dark
 ```
 
+In the npm browser UI and at a URL served by `--no-open`, clicking an external HTTP(S)
+link in a slide opens it in the default browser on the computer running MarkdStage,
+leaving the slide on screen. `--no-open` does not launch a browser just to show the UI;
+this handoff happens only after a slide link is clicked. Links in the UI and links
+to the same local origin retain their usual behavior.
+
 `help`, `--help`, `--version`, `guide`, `skill`, `validate`, `inspect`, `capture`,
 and `export` remain console operations and never activate the native app.
 

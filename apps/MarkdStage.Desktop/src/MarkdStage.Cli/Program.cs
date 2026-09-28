@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using MarkdStage.Core;
@@ -56,7 +57,8 @@ internal static class Program
         var routes = new NativeCliRoutes();
         await using var browsers = new NativeBrowserHost();
         await using var io = new WorkspaceIoService(root, AppStorage.TransientRoot, browsers);
-        await using var server = new PresentationServer(session, () => false, routes.Configure);
+        await using var server = new PresentationServer(session, () => false, routes.Configure,
+            openExternal: args.IsPresentation ? OpenExternalAsync : null);
         if (args.Command != "validate") await server.StartAsync(cancellationToken);
         browsers.AllowedBaseUri = server.BaseUri;
         var profileResult = await io.ExecuteAsync("createTransientDirectory", JsonSerializer.SerializeToElement(new[] { "inspect" }), cancellationToken);
@@ -118,6 +120,15 @@ internal static class Program
         if (args.Has("json")) Console.WriteLine(JsonSerializer.Serialize(report, HostCommands.JsonOptions));
         else Console.WriteLine(result.GetProperty("text").GetString());
         return result.GetProperty("exitCode").GetInt32();
+    }
+
+    private static Task OpenExternalAsync(Uri uri)
+    {
+        using var browser = Process.Start(new ProcessStartInfo(uri.AbsoluteUri)
+        {
+            UseShellExecute = true,
+        }) ?? throw new InvalidOperationException("The default browser could not be started.");
+        return Task.CompletedTask;
     }
 
     private static string? NormalizePathOption(string root, string? path, string errorCode)

@@ -101,6 +101,7 @@ let presenterMode = false;
 let previewMode = false;
 let previewOffset = 0;
 let navigationEnabled = true;
+let externalLinkAvailable = false;
 let fixedPreviewMode = false;
 let surfaceMode = false;
 let outputViewport = null;
@@ -4007,6 +4008,7 @@ async function fetchState() {
   if (typeof data.markdownImportAvailable === "boolean") {
     markdownImportAvailable = data.markdownImportAvailable;
   }
+  externalLinkAvailable = data.externalLinkAvailable === true;
   if (typeof data.presenterRunning === "boolean") {
     updatePresenterButton(data.presenterRunning);
   }
@@ -4506,8 +4508,44 @@ function toggleFixedPreviewMode() {
 function slideViewportState(markdown, index, interactive) {
   return {
     markdown, index, total: navTotal, theme: deckTheme, themeLocked: deckThemeLocked,
-    customThemeCss, customThemeMeta, navigationEnabled: interactive,
+    customThemeCss, customThemeMeta, navigationEnabled: interactive, externalLinkAvailable,
   };
+}
+
+function wireExternalSlideLinks() {
+  document.addEventListener("click", async (event) => {
+    if (!externalLinkAvailable || event.defaultPrevented || event.button !== 0 ||
+        event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    const anchor = event.target instanceof Element ? event.target.closest(".deck a[href]") : null;
+    if (!anchor) return;
+    let target;
+    try {
+      target = new URL(anchor.href, window.location.href);
+    } catch {
+      return;
+    }
+    if (!["http:", "https:"].includes(target.protocol) ||
+        target.origin === window.location.origin) return;
+    event.preventDefault();
+    try {
+      const response = await fetch("./open-external", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: target.href }),
+      });
+      const result = await response.json();
+      if (!response.ok || result.ok !== true) {
+        throw new Error(result.message || `Could not open the link (${response.status}).`);
+      }
+    } catch (error) {
+      const message = error?.message || "Could not open the link.";
+      if (surfaceMode) {
+        window.frameElement?.dispatchEvent(new CustomEvent("slide-error", { detail: message }));
+      } else {
+        showExportNotification("error", message);
+      }
+    }
+  }, true);
 }
 
 function mountSlideViewport(host, id, title, interactive) {
@@ -4579,10 +4617,12 @@ function initSlideSurface() {
       navIndex = state.index;
       navTotal = state.total;
       navigationEnabled = state.navigationEnabled;
+      externalLinkAvailable = state.externalLinkAvailable === true;
       renderSlide(state.markdown);
     },
   };
   wirePointerNavigation();
+  wireExternalSlideLinks();
   document.addEventListener("pointerdown", () => {
     window.frameElement?.dispatchEvent(new CustomEvent("slide-pointer"));
   });
@@ -5206,6 +5246,7 @@ function init() {
     initPrint(params).catch(reportPrintBootstrapFailure);
     return;
   }
+  wireExternalSlideLinks();
   if (params.get("preview") === "1") {
     previewMode = true;
     presenterMode = true;
