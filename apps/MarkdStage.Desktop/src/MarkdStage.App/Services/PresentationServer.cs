@@ -23,7 +23,8 @@ internal sealed class PresentationServer(
     Func<Task>? reloadSource = null,
     Func<string, bool, CancellationToken, Task<JsonElement>>? exportDeck = null,
     Func<string, CancellationToken, Task<JsonElement>>? exportData = null,
-    Func<string, JsonElement, CancellationToken, Task>? exportStatus = null) : IAsyncDisposable
+    Func<string, JsonElement, CancellationToken, Task>? exportStatus = null,
+    Func<Uri, Task>? openExternal = null) : IAsyncDisposable
 {
     private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(2);
 
@@ -227,6 +228,7 @@ internal sealed class PresentationServer(
                 pptxExportAvailable = exportDeck is not null &&
                     !string.IsNullOrWhiteSpace(snapshot.SourcePath),
                 markdownImportAvailable = false,
+                externalLinkAvailable = openExternal is not null,
                 sourceModeAvailable = false,
                 architectureEditAvailable = !string.IsNullOrWhiteSpace(snapshot.SourcePath),
                 architectureEdit = false,
@@ -246,6 +248,43 @@ internal sealed class PresentationServer(
                 slides = snapshot.Slides,
             });
         });
+
+        if (openExternal is not null)
+        {
+            application.MapPost($"{prefix}/open-external", async (HttpContext context) =>
+            {
+                if (BaseUri is null ||
+                    !context.Request.Headers.Origin.ToString().Equals(
+                        BaseUri.GetLeftPart(UriPartial.Authority), StringComparison.Ordinal) ||
+                    !string.Equals(context.Request.ContentType?.Split(';', 2)[0].Trim(),
+                        "application/json", StringComparison.OrdinalIgnoreCase))
+                    return Results.Json(new { ok = false, error = "request_not_allowed" }, statusCode: 403);
+
+                var request = await ReadJsonAsync<ExternalLinkRequest>(context, 4096);
+                if (request?.Url is not { Length: <= 2048 } url ||
+                    !Uri.TryCreate(url, UriKind.Absolute, out var target) ||
+                    target.Scheme is not ("http" or "https") ||
+                    target.UserInfo.Length > 0 ||
+                    target.GetLeftPart(UriPartial.Authority).Equals(
+                        BaseUri.GetLeftPart(UriPartial.Authority), StringComparison.OrdinalIgnoreCase))
+                    return Results.Json(new { ok = false, error = "invalid_external_url" }, statusCode: 400);
+
+                try
+                {
+                    await openExternal(target);
+                    return Results.Json(new { ok = true });
+                }
+                catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException)
+                {
+                    return Results.Json(new
+                    {
+                        ok = false,
+                        error = "external_launch_failed",
+                        message = "The default browser could not open this link.",
+                    }, statusCode: 500);
+                }
+            });
+        }
 
         application.MapPost($"{prefix}/navigate", async (HttpContext context) =>
         {
@@ -810,6 +849,7 @@ internal sealed class PresentationServer(
         };
 
     private sealed record NavigationRequest(int? Index, int? Delta);
+    private sealed record ExternalLinkRequest(string? Url);
     private sealed record ArchitectureOpenRequest(int? Index, int? Block);
     private sealed record ArchitectureDraftRequest(string? Source, int Generation, int Revision);
     private sealed record ArchitectureSaveRequest(int Generation, int Revision);

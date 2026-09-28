@@ -35,6 +35,10 @@ flowchart LR
 Host-specific code may provide transport, file access, watching, transient
 storage, browser launch, native windows, and platform activation. Product logic
 above those boundaries must not be forked by surface.
+In interactive CLI browser views, slide links to external HTTP(S) origins are
+handed to the host machine's default browser through a token-scoped, same-origin
+request; the shared renderer enables this only when the host advertises support.
+Desktop handles the same links at its WebView2 boundary instead.
 
 ## Shared runtime and host boundary
 

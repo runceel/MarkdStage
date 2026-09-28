@@ -26,6 +26,7 @@ export async function withDeckServer(options, run) {
     initialSourceMode: options.initialSourceMode,
     token,
     onLog: options.log,
+    openExternal: options.openExternal,
     editable: options.watch === true,
     presenter: options.presenter,
     watcherFactory: options.watcherFactory,

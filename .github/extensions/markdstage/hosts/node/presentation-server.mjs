@@ -36,6 +36,7 @@ import {
 } from "../../runtime/output-paths.mjs";
 import { safeJoin, sendChunkedVendorAsset, sendFile } from "./static-files.mjs";
 import { openExportFile } from "./open-export.mjs";
+import { externalHttpUrl, openExternalUrl } from "./open-external.mjs";
 
 const HOST_DIR = dirname(fileURLToPath(import.meta.url));
 const EXT_DIR = resolve(HOST_DIR, "..", "..");
@@ -111,6 +112,7 @@ export async function startPresentationServer(
     exporters,
     initialSourceMode = "snapshot",
     onLog,
+    openExternal = openExternalUrl,
     presenter,
     token = createUrlToken(),
     watcherFactory = createMarkdownWatcher,
@@ -306,6 +308,7 @@ export async function startPresentationServer(
         pdfExportAvailable: applicationMode && Boolean(session.file),
         pptxExportAvailable: applicationMode && Boolean(session.file),
         markdownImportAvailable: applicationMode,
+        externalLinkAvailable: true,
         architectureEditAvailable: editingAvailable && Boolean(session.file),
         architectureEdit:
           editingAvailable && Boolean(session.file) && Boolean(session.architectureEdit),
@@ -362,6 +365,47 @@ export async function startPresentationServer(
           ok: false,
           error: error?.code || error?.message || "open_export_failed",
           message: error?.message || "The exported file could not be opened.",
+        });
+      }
+      return;
+    }
+
+    if (route === "/open-external") {
+      if (req.method !== "POST") {
+        res.setHeader("Allow", "POST");
+        json(res, 405, { ok: false, error: "method_not_allowed" });
+        return;
+      }
+      if (req.headers.origin !== `http://127.0.0.1:${port}` ||
+          req.headers["content-type"]?.split(";", 1)[0].trim().toLowerCase() !== "application/json") {
+        json(res, 403, { ok: false, error: "request_not_allowed" });
+        return;
+      }
+      let body;
+      try {
+        body = await readJsonBody(req);
+      } catch (error) {
+        res.setHeader("Connection", "close");
+        json(res, error?.message === "payload_too_large" ? 413 : 400, {
+          ok: false,
+          error: error?.message || "bad_request",
+        });
+        return;
+      }
+      const url = externalHttpUrl(body?.url, `http://127.0.0.1:${port}`);
+      if (!url) {
+        json(res, 400, { ok: false, error: "invalid_external_url" });
+        return;
+      }
+      try {
+        await openExternal(url);
+        json(res, 200, { ok: true });
+      } catch (error) {
+        onLog?.(`external link launch failed: ${error?.message || error}`, "error");
+        json(res, 500, {
+          ok: false,
+          error: "external_launch_failed",
+          message: "The default browser could not open this link.",
         });
       }
       return;
