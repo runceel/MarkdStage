@@ -131,7 +131,7 @@ internal static class Program
             {
                 using (browser)
                 {
-                    if (!browser.HasExited) browser.Kill(entireProcessTree: true);
+                    if (!browser.HasExited) browser.Kill();
                     await browser.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
                 }
             }
