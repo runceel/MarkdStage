@@ -4735,7 +4735,7 @@ function updateViewModeButton() {
   const hasError = scrollViewActive() && issueIndexes(scrollIssues).some(
     (index) => issueSeverity(scrollIssues.get(index)) === "error",
   );
-  button.dataset.state = hasError ? "error" : "";
+  button.dataset.state = hasError ? "error" : scroll ? "active" : "";
   syncMoreControls();
 }
 
