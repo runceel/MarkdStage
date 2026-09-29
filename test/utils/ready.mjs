@@ -18,6 +18,9 @@ export const DETERMINISTIC_CSS = `
   #nav, #overview { display: none !important; }
 `;
 
+const CURRENT_SLIDE_IFRAME_SELECTOR = "#outputFrame, #presenterCurrent, .scroll-item[data-current='true'] iframe";
+const SLIDE_READY_SELECTOR = `#stage .deck, ${CURRENT_SLIDE_IFRAME_SELECTOR}`;
+
 /** Wait for layout (rAF-based auto-sizing) and font loading to settle. */
 async function settleLayout(page) {
   await page.evaluate(async () => {
@@ -31,11 +34,63 @@ async function settleLayout(page) {
   });
 }
 
+class SlideSurface {
+  constructor(page, framed) {
+    this.page = page;
+    this.framed = framed;
+  }
+
+  locator(selector, options) {
+    return this.framed
+      ? this.page.frameLocator(CURRENT_SLIDE_IFRAME_SELECTOR).locator(selector, options)
+      : this.page.locator(selector, options);
+  }
+
+  async url() {
+    return (await this.#target()).url();
+  }
+
+  async evaluate(pageFunction, arg) {
+    return (await this.#target()).evaluate(pageFunction, arg);
+  }
+
+  async $eval(selector, pageFunction, arg) {
+    return (await this.#target()).$eval(selector, pageFunction, arg);
+  }
+
+  async $$eval(selector, pageFunction, arg) {
+    return (await this.#target()).$$eval(selector, pageFunction, arg);
+  }
+
+  async waitForSelector(selector, options) {
+    return (await this.#target(options?.timeout)).waitForSelector(selector, options);
+  }
+
+  async waitForFunction(pageFunction, arg, options) {
+    return (await this.#target(options?.timeout)).waitForFunction(pageFunction, arg, options);
+  }
+
+  async #target(timeout = 60_000) {
+    if (!this.framed) return this.page;
+    await this.page.waitForFunction(
+      (selector) => Boolean(document.querySelector(selector)?.contentDocument),
+      CURRENT_SLIDE_IFRAME_SELECTOR,
+      { timeout },
+    );
+    const handle = await this.page.$(CURRENT_SLIDE_IFRAME_SELECTOR);
+    const frame = await handle?.contentFrame();
+    if (!frame) throw new Error("Current slide frame is not available.");
+    return frame;
+  }
+}
+
 /** In normal mode, wait for one slide to finish rendering. */
 export async function waitForSlideReady(page, { timeout = 60_000 } = {}) {
-  await page.waitForFunction(() =>
-    document.querySelector("#stage .deck, #outputFrame, #presenterCurrent"),
-    undefined, { timeout });
+  await page.waitForFunction(
+    (selector) => document.querySelector(selector),
+    SLIDE_READY_SELECTOR,
+    { timeout },
+  );
   const frame = await getSlideFrame(page);
   await frame.waitForSelector("#stage .deck", { state: "attached", timeout });
   await frame.waitForFunction(
@@ -54,8 +109,8 @@ export async function waitForSlideReady(page, { timeout = 60_000 } = {}) {
 
 /** Resolve the slide document without confusing control UI with slide content. */
 export async function getSlideFrame(page) {
-  const element = await page.$("#outputFrame, #presenterCurrent");
-  return element ? await element.contentFrame() : page;
+  const element = await page.$(CURRENT_SLIDE_IFRAME_SELECTOR);
+  return new SlideSurface(page, Boolean(element));
 }
 
 /**

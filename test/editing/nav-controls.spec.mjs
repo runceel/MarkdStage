@@ -13,7 +13,7 @@ test("keeps frequent navigation visible and groups the remaining controls", asyn
     await waitForSlideReady(page);
 
     const directButtons = page.locator("#nav > .nav-main > button, #nav > .nav-tools > button");
-    await expect(directButtons).toHaveCount(4);
+    await expect(directButtons).toHaveCount(5);
     await expect(page.getByRole("button", { name: "Previous slide" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Next slide" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Slide list" })).toBeVisible();
@@ -32,6 +32,7 @@ test("keeps frequent navigation visible and groups the remaining controls", asyn
     await expect(page.getByText("Present", { exact: true })).toBeVisible();
     await expect(page.getByText("View & edit", { exact: true })).toBeVisible();
     await expect(page.getByText("File", { exact: true })).toBeVisible();
+    await expect(page.locator("#navViewMode")).toBeVisible();
     await expect(page.locator("#navPresent")).toBeFocused();
 
     await page.keyboard.press("Escape");

@@ -15,7 +15,7 @@ for (const theme of ["dark", "light", "microsoft", "custom"]) {
       slides: ["title", "default", "center", "section", "backcover"].map((layout) =>
         backgroundSlide(layout, "/assets/override.svg")),
     }, async ({ session }) => {
-      await page.goto(session.url);
+      await page.goto(`${session.url}?view=slide`);
       let slide = await waitForSlideReady(page);
       for (let index = 0; index < 5; index++) {
         if (index) {
@@ -59,7 +59,7 @@ for (const individual of [true, false]) {
       slides: ["title", "default", "center", "section", "backcover"].map((layout) =>
         backgroundSlide(layout)),
     }, async ({ session }) => {
-      await page.goto(session.url);
+      await page.goto(`${session.url}?view=slide`);
       const slide = await waitForSlideReady(page);
       for (const [index, name] of ["cover", individual ? "default" : "common", individual ? "center" : "common", null, null].entries()) {
         await page.request.post(`${session.url}navigate`, { data: { index } });
@@ -104,8 +104,14 @@ test("live background load failures produce a visible error", async ({ page }) =
       route.fulfill({ status: 404, body: "Not found" }));
     await page.goto(session.url);
     await waitForSlideReady(page);
-    await expect(page.locator("#exportNotification")).toBeVisible();
-    await expect(page.locator("#exportNotificationMessage")).toContainText("Could not load slide background");
+    await expect(page.locator("#exportNotification")).toBeHidden();
+    await expect(page.locator(".scroll-item[data-state='error'] .scroll-item-error")).toContainText(
+      "Could not load slide background",
+    );
+    await expect(page.locator("#navIssues")).toHaveAccessibleName("1 slide has issues");
+    await page.locator("#navIssues").click();
+    await expect(page.locator("#issuesPanel")).toBeVisible();
+    await expect(page.locator("#issuesList")).toContainText("Could not load slide background");
   });
 });
 
@@ -118,7 +124,7 @@ for (const [filename, color] of [
     await withBackgroundDeck({
       slides: [backgroundSlide("title", `/assets/${filename}`)],
     }, async ({ session, server }) => {
-      await page.goto(session.url);
+      await page.goto(`${session.url}?view=slide`);
       const slide = await waitForSlideReady(page);
       await expect(slide.locator("#stage .slide-background")).toHaveAttribute(
         "src", `/${server.token}/background-assets/${encodeURIComponent(filename)}`,
@@ -138,7 +144,7 @@ test("a first-slide background is not inherited by subsequent slides", async ({ 
       backgroundSlide("center"),
     ],
   }, async ({ session }) => {
-    await page.goto(session.url);
+    await page.goto(`${session.url}?view=slide`);
     const slide = await waitForSlideReady(page);
     await expect(slide.locator("#stage .slide-background")).toHaveAttribute("src", /override\.svg$/);
     for (const [index, name] of [[1, "default"], [2, "center"]]) {

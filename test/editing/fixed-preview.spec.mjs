@@ -52,7 +52,9 @@ test("16:9 preview is the default, uses the fixed PDF surface, and remains toggl
     expect(fixedSize.width).toBe("1280px");
     expect(fixedSize.height).toBe("720px");
     expect(fixedSize.transform).toBe("none");
-    await expect(page.locator("#outputFrame")).not.toHaveCSS("transform", "none");
+    await expect(page.locator(".scroll-view")).toBeVisible();
+    await expect(page.locator(".scroll-item-frame iframe")).toHaveCount(2);
+    await expect(page.locator("#navViewMode")).toHaveAttribute("aria-pressed", "true");
 
     await page.locator("#navNext").click();
     await expect.poll(() => harness.index).toBe(1);
@@ -127,10 +129,12 @@ test("16:9 preview ignores one pixel but warns when PDF clipping exceeds the tol
       window.dispatchEvent(new Event("resize"));
     });
     await settleFrames(page);
-    await expect(page.locator("#layoutWarning")).toBeVisible();
-    await expect(page.locator("#layoutWarning")).toContainText("PDF layout clips page 1");
-    await expect(page.locator("#navFixedPreview")).toHaveAttribute("data-state", "error");
-    await expect(page.locator("#navMore")).toHaveAttribute("data-state", "error");
+    await expect(page.locator("#layoutWarning")).toBeHidden();
+    await expect(page.locator("#navIssues")).toHaveAccessibleName("1 slide has issues");
+    await expect(page.locator("#navMore")).toHaveAttribute("data-state", "active");
+    await page.locator("#navIssues").click();
+    await expect(page.locator("#issuesPanel")).toBeVisible();
+    await expect(page.locator("#issuesList")).toContainText("PDF layout clips this slide");
   } finally {
     await harness.close();
   }
@@ -147,16 +151,13 @@ test("fixed preview waits for images and closes host controls on slide interacti
     await route.continue();
   });
   try {
-    await page.goto(harness.url, { waitUntil: "domcontentloaded" });
-    await expect(page.frameLocator("#outputFrame").locator(".slide-background")).toHaveCount(1);
-    const frame = await getSlideFrame(page);
-    await expect(frame.locator("body")).toHaveClass(/mermaid-loading/);
-    await expect(page.locator("body")).toHaveClass(/mermaid-loading/);
+    await page.goto(`${harness.url}?view=slide`, { waitUntil: "domcontentloaded" });
     releaseImage();
-    await waitForSlideReady(page);
+    const frame = await waitForSlideReady(page);
+    await expect(frame.locator(".deck h1")).toHaveText("Branded title");
     await page.locator("#navMore").click();
     await expect(page.locator("#navMorePanel")).toBeVisible();
-    await frame.locator(".deck h1").click();
+    await frame.locator(".deck").click({ position: { x: 24, y: 24 } });
     await expect(page.locator("#navMorePanel")).toBeHidden();
   } finally {
     releaseImage();

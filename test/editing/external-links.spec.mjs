@@ -16,7 +16,7 @@ const MARKDOWN = [
   "[Email](mailto:user@example.com)",
 ].join("\n");
 
-async function withBrowserDeck(page, run, { fail = false, query = "" } = {}) {
+async function withBrowserDeck(page, run, { fail = false, query = "?view=slide" } = {}) {
   const dir = await mkdtemp(join(tmpdir(), "markdstage-browser-links-"));
   const file = join(dir, "slides.md");
   await writeFile(file, MARKDOWN);
@@ -39,7 +39,7 @@ async function withBrowserDeck(page, run, { fail = false, query = "" } = {}) {
 }
 
 test("CLI slide links open externally without navigating away, including presenter view", async ({ page }) => {
-  for (const query of ["", "?presenter=1"]) {
+  for (const query of ["?view=slide", "?presenter=1"]) {
     await withBrowserDeck(page, async ({ frame, opened, server }) => {
       await frame.locator(".deck a", { hasText: "External" }).click();
       await expect.poll(() => opened).toEqual(["https://example.com/path?x=1"]);
@@ -58,7 +58,7 @@ test("modified clicks and local links are not handed to the default browser", as
     await local.click();
     await expect.poll(() => frame.url()).toContain("/state");
     expect(opened).toEqual([]);
-    expect(page.url()).toBe(server.url);
+    expect(page.url()).toBe(`${server.url}?view=slide`);
   });
 });
 
@@ -69,6 +69,6 @@ test("failed OS launch stays on the slide and shows an error", async ({ page }) 
       "The default browser could not open this link.",
     );
     expect(opened).toEqual([]);
-    expect(page.url()).toBe(server.url);
+    expect(page.url()).toBe(`${server.url}?view=slide`);
   }, { fail: true });
 });
