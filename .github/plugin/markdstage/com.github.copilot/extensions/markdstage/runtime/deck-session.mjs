@@ -13,7 +13,7 @@ import { createNodeIO, resolveNodeWorkspace } from "./io-node.mjs";
 import { unwrapIOResult } from "./io.mjs";
 import { readMarkdownDeck } from "./deck-reader.mjs";
 import { createSessionState, prepareSessionDeck, commitSessionDeck, navigateSession } from "./session-state.mjs";
-export { clampIndex, resolveDeckTheme } from "./session-state.mjs";
+export { clampIndex, resolveDeckTheme, resolveViewMode } from "./session-state.mjs";
 
 export async function resolveDeckFile(file, workspaceRoot, io) {
   if (typeof file !== "string" || !file.trim()) {
@@ -73,6 +73,7 @@ export async function createDeckSession({
   workspaceRoot,
   theme,
   themeFile,
+  viewMode,
   assetUrlPrefix = "/theme-assets/",
   log,
   io,
@@ -96,7 +97,7 @@ export async function createDeckSession({
   const initialFile = selected.file ?? sourceArgument(file);
   const resolved = initialFile ? await resolveDeckFile(initialFile, root, adapter) : null;
   const session = {
-    ...createSessionState({ theme, themeFile, assetUrlPrefix }),
+    ...createSessionState({ theme, themeFile, viewMode, assetUrlPrefix }),
     file: resolved?.path ?? "",
     workspaceRoot: resolved?.workspaceRoot ?? root,
     sourceName: resolved

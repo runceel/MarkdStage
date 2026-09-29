@@ -54,7 +54,8 @@ export function classifyOpenInput(input) {
       message: "MarkdStage open input must be an object when provided.",
     };
   }
-  if (Object.keys(input).length === 0) return { kind: "refocus" };
+  // viewMode only changes the on-screen layout, so it never selects a deck source.
+  if (Object.keys(input).every((key) => key === "viewMode")) return { kind: "refocus" };
   const hasSlides = Object.prototype.hasOwnProperty.call(input, "slides");
   const hasSourcePath = Object.prototype.hasOwnProperty.call(input, "sourcePath");
   if (hasSlides && hasSourcePath) {

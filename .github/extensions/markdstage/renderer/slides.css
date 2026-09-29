@@ -877,3 +877,44 @@ body.pptx-slide-artwork-mode .deck:not(.pptx-layout-template)>.theme-cover-logo{
   .deck a{color:LinkText;}
   .deck pre,.deck code,.deck table,.deck th,.deck td{border-color:CanvasText;}
 }
+
+/* ===== Scroll view (all slides in one column) ===== */
+#stage.scroll-stage{position:fixed;inset:32px 32px 96px;overflow:hidden;}
+.scroll-view{height:100%;overflow-y:auto;display:flex;flex-direction:column;gap:28px;
+     padding:8px 4px 40vh;scroll-behavior:auto;}
+.scroll-item{flex:0 0 auto;width:100%;max-width:1280px;margin:0 auto;border-radius:6px;}
+.scroll-item[data-current="true"] .scroll-item-frame{outline:2px solid var(--markdstage-ui-accent,#0f6cbd);outline-offset:3px;}
+.scroll-item[data-state="error"] .scroll-item-frame{outline:2px solid #d13438;outline-offset:3px;}
+.scroll-item[data-state="warning"] .scroll-item-frame{outline:2px solid #c19c00;outline-offset:3px;}
+.scroll-item-head{display:flex;align-items:center;gap:.6em;padding:0 2px .4em;
+     font:600 13px/1.3 system-ui,sans-serif;color:var(--markdstage-ui-muted,#666);}
+.scroll-item-number{font-variant-numeric:tabular-nums;color:var(--markdstage-ui-accent-strong,#0f6cbd);}
+.scroll-item-title{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.scroll-item-badge{flex:0 0 auto;padding:.1em .6em;border-radius:999px;font-size:12px;color:#fff;}
+.scroll-item-badge[hidden]{display:none;}
+.scroll-item-badge[data-severity="error"]{background:#a4262c;}
+.scroll-item-badge[data-severity="warning"]{background:#8a6d00;}
+.scroll-item-frame{position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;
+     background:var(--markdstage-ui-bg,#fff);box-shadow:0 4px 18px rgba(0,0,0,.22);}
+.scroll-item-error{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+     padding:1.5em;text-align:center;color:#fff;background:rgba(164,38,44,.9);
+     font:600 15px/1.5 system-ui,sans-serif;}
+.scroll-item-error[hidden]{display:none;}
+.scroll-scan{position:fixed;left:-10000px;top:0;width:1280px;height:720px;
+     visibility:hidden;pointer-events:none;}
+.nav-issues{color:#a4262c;font-weight:700;}
+.issues-panel{position:absolute;left:50%;bottom:calc(100% + .65em);transform:translateX(-50%);
+     width:min(24em,calc(100vw - 24px));max-height:min(60vh,26em);overflow:auto;padding:.6em;
+     border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--fg);
+     box-shadow:0 10px 30px rgba(0,0,0,.28);}
+.issues-panel[hidden]{display:none;}
+.issues-head{display:flex;align-items:center;justify-content:space-between;
+     font-weight:700;font-size:.9em;padding:.1em .3em .5em;}
+.issues-list{margin:0;padding:0;list-style:none;display:grid;gap:.2em;}
+.issues-item{display:block;width:100%;text-align:left;padding:.45em .6em;border:0;border-radius:8px;
+     background:transparent;color:inherit;font:inherit;font-size:.86em;cursor:pointer;}
+.issues-item:hover{background:var(--accent-soft);}
+.issues-item[data-severity="error"]{border-left:3px solid #d13438;}
+.issues-item[data-severity="warning"]{border-left:3px solid #c19c00;}
+.overview-item.has-issue .overview-num{border-color:#d13438;color:#d13438;}
+body.presenter-view-mode #issuesPanel,body.presenter-view-mode #navIssues{display:none;}

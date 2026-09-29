@@ -156,7 +156,7 @@ test("the help command prints global and per-command help", async () => {
 test("preview help explains the shared slide-view application", async () => {
   const io = capture();
   assert.equal(await run(["preview", "--help"], io), EXIT_OK);
-  assert.match(io.stdout(), /full MarkdStage UI in slide view/);
+  assert.match(io.stdout(), /full MarkdStage UI\./);
   assert.match(io.stdout(), /--watch\s+Start with automatic refresh enabled/);
   assert.match(io.stdout(), /Architecture editing and export remain available/);
 });
@@ -502,6 +502,33 @@ test("present starts at the presenter view URL", async () => {
       const report = JSON.parse(io.stdout());
       assert.equal(new URL(report.url).searchParams.has("presenter"), false);
       assert.equal(report.sourceMode, "snapshot");
+      assert.equal(report.viewMode, "scroll");
+      assert.equal(new URL(report.url).searchParams.has("view"), false);
+    });
+  });
+
+  await test("preview --view slide is reflected in the URL and JSON", async () => {
+    await withDeck(VALID_DECK, async ({ file }) => {
+      const io = capture();
+      io.until = Promise.resolve();
+      assert.equal(
+        await run(["preview", file, "--no-open", "--json", "--view", "slide"], io),
+        EXIT_OK,
+      );
+      const report = JSON.parse(io.stdout());
+      assert.equal(report.viewMode, "slide");
+      assert.equal(new URL(report.url).searchParams.get("view"), "slide");
+    });
+  });
+
+  await test("preview rejects an invalid --view value", async () => {
+    await withDeck(VALID_DECK, async ({ file }) => {
+      const io = capture();
+      io.until = Promise.resolve();
+      assert.notEqual(
+        await run(["preview", file, "--no-open", "--view", "grid"], io),
+        EXIT_OK,
+      );
     });
   });
 });

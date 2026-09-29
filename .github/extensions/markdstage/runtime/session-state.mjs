@@ -1,6 +1,7 @@
 import { ensureBackCover } from "../deck-state.mjs";
 import { DEFAULT_THEME, normalizeTheme, resolveFrontMatterTheme } from "../renderer/theme.mjs";
 import { deriveTitle } from "../renderer/slide-title.mjs";
+import { DEFAULT_VIEW_MODE, parseViewMode } from "../renderer/view-mode.mjs";
 import { extractSpeakerNotes } from "../renderer/speaker-notes.mjs";
 import { readMarkdownDeck } from "./deck-reader.mjs";
 import { readCustomTheme } from "./theme-reader.mjs";
@@ -25,8 +26,18 @@ export function resolveDeckTheme({ slides, explicitTheme, explicitThemeFile }) {
   };
 }
 
-export function createSessionState({ theme, themeFile, assetUrlPrefix = "/theme-assets/" } = {}) {
+export function resolveViewMode(value) {
+  if (value === undefined || value === null) return DEFAULT_VIEW_MODE;
+  const mode = parseViewMode(value);
+  if (!mode) {
+    throw new MarkdStageError("invalid_input", "viewMode must be \"scroll\" or \"slide\".");
+  }
+  return mode;
+}
+
+export function createSessionState({ theme, themeFile, viewMode, assetUrlPrefix = "/theme-assets/" } = {}) {
   return {
+    viewMode: resolveViewMode(viewMode),
     file: "", sourceName: "", url: "", version: 0, deckVersion: 0,
     sourceMarkdown: "", markdown: "", slides: [], index: 0, mode: "deck",
     theme: DEFAULT_THEME, themeLocked: false, customThemeFile: "",
@@ -87,7 +98,7 @@ export function snapshotSession(session, { offset = 0 } = {}) {
     slides: session.slides.slice(), titles: session.slides.map(deriveTitle),
     notes: session.slides.map(extractSpeakerNotes),
     index, total: session.slides.length, markdown: session.slides[index] ?? "",
-    mode: session.mode, theme: session.theme, themeLocked: session.themeLocked,
+    mode: session.mode, viewMode: session.viewMode, theme: session.theme, themeLocked: session.themeLocked,
     customThemeFile: session.customThemeFile, customThemeCss: session.customThemeCss,
     customThemeDir: session.customThemeDir,
     customThemeMeta: session.customThemeMeta ? JSON.parse(JSON.stringify(session.customThemeMeta)) : null,

@@ -21,7 +21,7 @@ import {
   exitCodeFor,
 } from "./exit.mjs";
 import { parsePageList } from "./deck.mjs";
-import { MarkdStageError } from "./runtime.mjs";
+import { MarkdStageError, VIEW_MODES, parseViewMode } from "./runtime.mjs";
 import { applicationCommand } from "./commands/present.mjs";
 import { validateCommand, formatValidateReport } from "./commands/validate.mjs";
 import { inspectCommand, formatInspectReport } from "./commands/inspect.mjs";
@@ -39,7 +39,7 @@ const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const COMMANDS = [
   ["present", "Open the MarkdStage UI in presenter view."],
-  ["preview", "Open the MarkdStage UI in slide view."],
+  ["preview", "Open the MarkdStage UI in scroll or slide view."],
   ["validate", "Check deck structure, Architecture DSL, static Adaptive Cards, and themes."],
   ["inspect", "Report clipping, Architecture layout, and Adaptive Card diagnostics at 1280x720."],
   ["capture", "Write 1280x720 PNG files for selected or clipped slides."],
@@ -58,6 +58,7 @@ const GLOBAL_OPTIONS = {
   workspace: { type: "string" },
   theme: { type: "string" },
   "theme-file": { type: "string" },
+  view: { type: "string" },
 };
 
 const COMMAND_OPTIONS = {
@@ -91,7 +92,7 @@ function usage(command) {
       "Application:",
       "  With no file or --workspace, use the current directory as the workspace.",
       "  With --workspace and no file, open an empty UI and choose Markdown.",
-      "  With a Markdown file, open it in live slide view and refresh it on save.",
+      "  With a Markdown file, open it in live scroll view and refresh it on save (--view slide for one slide at a time).",
       "",
       "Commands:",
     ];
@@ -104,6 +105,7 @@ function usage(command) {
       "  --workspace <dir>   Confine every read and write to this directory.",
       "  --theme <name>      Override the deck theme.",
       "  --theme-file <path> Use a custom theme metadata file.",
+      "  --view <mode>       Preview layout for preview/present: scroll (default) or slide.",
       "  --no-open           Serve the UI without launching a browser.",
       "  --json              Print machine-readable JSON.",
       "  -h, --help          Show help for a command.",
@@ -124,6 +126,7 @@ function usage(command) {
       "Open Markdown, automatic refresh, editing, export, and audience controls remain available.",
       "",
       "  --watch     Start with automatic refresh enabled.",
+      "  --view <mode>  Preview layout outside presenter view: scroll (default) or slide.",
       "  --no-open   Serve the presenter view without launching a browser.",
       "",
       "Presentation requires an installed Microsoft Edge, Google Chrome, or Chromium.",
@@ -131,11 +134,13 @@ function usage(command) {
     preview: [
       "Usage: markdstage preview <file.md> [options]",
       "",
-      "Opens the full MarkdStage UI in slide view.",
+      "Opens the full MarkdStage UI. All slides are stacked in one scrolling column by default.",
       "",
       "  --watch     Start with automatic refresh enabled.",
+      "  --view <mode>  Start in scroll (all slides in one column, default) or slide (one at a time).",
       "  --no-open   Serve the UI without launching a browser.",
       "",
+      "Switch between scroll and slide from More controls at any time.",
       "Preview starts on the fixed 16:9 output surface. Use Output preview to switch",
       "to the responsive layout. Architecture editing and export remain available.",
       "",
@@ -213,6 +218,18 @@ function requireFile(positionals, command) {
   return file;
 }
 
+function viewModeOption(value) {
+  if (value === undefined) return undefined;
+  const mode = parseViewMode(value);
+  if (!mode) {
+    throw new MarkdStageError(
+      "invalid_input",
+      `--view must be one of: ${VIEW_MODES.join(", ")}.`,
+    );
+  }
+  return mode;
+}
+
 function deckOptions(file, values, currentDirectory = process.cwd()) {
   if (values.workspace !== undefined && !values.workspace.trim()) {
     throw new MarkdStageError("invalid_input", "--workspace requires a nonempty directory path.");
@@ -226,6 +243,7 @@ function deckOptions(file, values, currentDirectory = process.cwd()) {
         : resolve(currentDirectory),
     theme: values.theme,
     themeFile: values["theme-file"],
+    viewMode: viewModeOption(values.view),
   };
 }
 
