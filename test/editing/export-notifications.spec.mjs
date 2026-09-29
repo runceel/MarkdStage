@@ -8,6 +8,7 @@ const FORMATS = [
   { format: "pdf", label: "PDF", endpoint: "**/export", button: "#navExport", title: "Save as PDF" },
   { format: "pptx", label: "PowerPoint", endpoint: "**/export-pptx", button: "#navExportPptx", title: "Save as editable PowerPoint" },
 ];
+const ACTIVE_MORE_CONTROLS_NAME = "More controls (an option is active)";
 
 const test = base.extend({
   harness: async ({ page }, use) => {
@@ -93,7 +94,7 @@ for (const spec of FORMATS) {
     await expect(page.locator("#exportErrorStatus")).toBeEmpty();
     await expect(page.locator("#navMore")).toBeFocused();
     await expectExportButtonsIdle(page);
-    await expect(page.locator("#navMore")).toHaveAccessibleName("More controls");
+    await expect(page.locator("#navMore")).toHaveAccessibleName(ACTIVE_MORE_CONTROLS_NAME);
     if (spec.format === "pptx") {
       await expect(notification).not.toContainText("not editable");
     } else {
@@ -127,14 +128,14 @@ for (const spec of FORMATS) {
       await expect(page.locator("#exportStatus")).toBeEmpty();
       await expect(page.locator("#exportNotificationPath")).toBeHidden();
       await expectExportButtonsIdle(page);
-      await expect(page.locator("#navMore")).toHaveAccessibleName("More controls");
+      await expect(page.locator("#navMore")).toHaveAccessibleName(ACTIVE_MORE_CONTROLS_NAME);
       await page.clock.runFor(30000);
       await expect(notification).toBeVisible();
 
       await succeed(page, spec);
       await expect(page.locator("#exportErrorStatus")).toBeEmpty();
       await expectExportButtonsIdle(page);
-      await expect(page.locator("#navMore")).toHaveAccessibleName("More controls");
+      await expect(page.locator("#navMore")).toHaveAccessibleName(ACTIVE_MORE_CONTROLS_NAME);
       expect(harness.index).toBe(0);
     });
   }
@@ -144,7 +145,7 @@ for (const spec of FORMATS) {
     await succeed(page, spec);
     await expectExportButtonsIdle(page);
     await expect(page.locator("#navFixedPreview")).toHaveAttribute("data-state", "active");
-    await expect(page.locator("#navMore")).toHaveAccessibleName("More controls (an option is active)");
+    await expect(page.locator("#navMore")).toHaveAccessibleName(ACTIVE_MORE_CONTROLS_NAME);
 
     await page.route(spec.endpoint, (route) =>
       route.fulfill({ status: 500, json: { ok: false, message: "Disk is full." } }),
@@ -153,10 +154,10 @@ for (const spec of FORMATS) {
     await expect(page.locator("#exportNotification")).toHaveAttribute("data-state", "error");
     await expectExportButtonsIdle(page);
     await expect(page.locator("#navFixedPreview")).toHaveAttribute("data-state", "active");
-    await expect(page.locator("#navMore")).toHaveAccessibleName("More controls (an option is active)");
+    await expect(page.locator("#navMore")).toHaveAccessibleName(ACTIVE_MORE_CONTROLS_NAME);
 
     await clickMoreControl(page, "#navFixedPreview");
-    await expect(page.locator("#navMore")).toHaveAccessibleName("More controls");
+    await expect(page.locator("#navMore")).toHaveAccessibleName(ACTIVE_MORE_CONTROLS_NAME);
     await expect(page.locator("#exportNotification")).toHaveAttribute("data-state", "error");
     expect(harness.index).toBe(0);
   });

@@ -55,7 +55,20 @@ test("surfaces nested active state on the More controls button", async ({ page }
     await waitForSlideReady(page);
 
     await openMoreControls(page);
+    await expect(page.locator("#navMore")).toHaveAttribute("data-state", "active");
+    await expect(page.locator("#navMore")).toHaveAccessibleName(
+      "More controls (an option is active)",
+    );
+
     await page.locator("#navFixedPreview").click();
+    await expect(page.locator("#navMorePanel")).toBeHidden();
+    await expect(page.locator("#navMore")).toHaveAttribute("data-state", "active");
+    await expect(page.locator("#navMore")).toHaveAccessibleName(
+      "More controls (an option is active)",
+    );
+
+    await openMoreControls(page);
+    await page.locator("#navViewMode").click();
     await expect(page.locator("#navMorePanel")).toBeHidden();
     await expect(page.locator("#navMore")).not.toHaveAttribute("data-state", "active");
     await expect(page.locator("#navMore")).toHaveAccessibleName("More controls");
