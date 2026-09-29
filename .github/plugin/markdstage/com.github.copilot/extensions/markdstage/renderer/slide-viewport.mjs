@@ -37,7 +37,9 @@ export function createSlideViewport(host, { id, title, onNavigate, onKey, onPoin
   return {
     setState(next) {
       state = next;
-      frame.tabIndex = next.navigationEnabled && next.pointerNavigation !== false ? 0 : -1;
+      if (next.navigationEnabled && next.pointerNavigation !== false) frame.tabIndex = 0;
+      else if (next.pointerNavigation === false) frame.removeAttribute("tabindex");
+      else frame.tabIndex = -1;
       render();
     },
     dispose() {

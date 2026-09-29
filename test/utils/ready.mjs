@@ -18,7 +18,8 @@ export const DETERMINISTIC_CSS = `
   #nav, #overview { display: none !important; }
 `;
 
-const CURRENT_SLIDE_IFRAME_SELECTOR = "#outputFrame, #presenterCurrent, .scroll-item[data-current='true'] iframe";
+export const CURRENT_SLIDE_IFRAME_SELECTOR =
+  "#outputFrame, #presenterCurrent, .scroll-item[data-current='true'] iframe";
 const SLIDE_READY_SELECTOR = `#stage .deck, ${CURRENT_SLIDE_IFRAME_SELECTOR}`;
 
 /** Wait for layout (rAF-based auto-sizing) and font loading to settle. */
@@ -60,6 +61,10 @@ class SlideSurface {
 
   async $$eval(selector, pageFunction, arg) {
     return (await this.#target()).$$eval(selector, pageFunction, arg);
+  }
+
+  async getAttribute(selector, name) {
+    return this.locator(selector).first().getAttribute(name);
   }
 
   async waitForSelector(selector, options) {
