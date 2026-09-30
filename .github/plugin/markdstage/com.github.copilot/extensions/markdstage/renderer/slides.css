@@ -281,6 +281,21 @@ pre code.hljs{display:block;overflow-x:auto;color:var(--code-fg);}
 .hljs-deletion{color:var(--syntax-deletion);background:var(--syntax-deletion-bg);}
 blockquote{margin:.3em 0;padding:.5em 1.1em;border-left:4px solid var(--accent);
            color:var(--muted);background:var(--accent-soft);border-radius:0 8px 8px 0;}
+blockquote.markdown-alert{
+  --alert-color:var(--accent);--alert-surface:var(--accent-soft);
+  border-left-color:var(--alert-color);background:var(--alert-surface);color:var(--body);}
+blockquote.markdown-alert-note{
+  --alert-color:var(--info,var(--accent));--alert-surface:var(--surface-info,var(--surface));}
+blockquote.markdown-alert-tip{
+  --alert-color:var(--success,var(--accent));--alert-surface:var(--surface-success,var(--surface));}
+blockquote.markdown-alert-warning{
+  --alert-color:var(--warning,var(--accent));--alert-surface:var(--surface-warning,var(--surface));}
+blockquote.markdown-alert-caution{
+  --alert-color:var(--danger,var(--accent));--alert-surface:var(--surface-danger,var(--surface));}
+.markdown-alert>:first-child{margin-top:0;}
+.markdown-alert>:last-child{margin-bottom:0;}
+.markdown-alert>.markdown-alert-title{margin-bottom:.3em;font-weight:700;color:var(--fg);}
+.markdown-alert>.markdown-alert-title+*{margin-top:0;}
 table{border-collapse:collapse;width:100%;font-size:var(--table-font-size,.9em);
       box-shadow:0 1px 6px rgba(0,0,0,.05);border-radius:8px;overflow:hidden;}
 th,td{border:var(--table-border-width,1px) solid var(--border);

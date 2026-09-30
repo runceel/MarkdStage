@@ -48,7 +48,7 @@ export async function adaptiveCardContractSnapshot() {
   const sources = [
     "adaptive-card.mjs", "adaptive-card-validation.mjs", "adaptive-card-capabilities.mjs",
     "adaptive-card-static.mjs", "adaptive-card-markdown.mjs", "adaptive-card-pptx.mjs",
-    "fenced-blocks.mjs", "marked-lexer.mjs", "image-source.mjs",
+    "fenced-blocks.mjs", "markdown-alerts.mjs", "marked-lexer.mjs", "image-source.mjs",
     "renderer.js", "slides.css", "scene-graph.mjs", "scene-pptx.mjs",
   ].map((file) => `${extension}renderer/${file}`);
   sources.push(...["pptx-package.mjs", "output-model.mjs", "output-cdp.mjs", "layout-report.mjs", "deck-validation.mjs", "export-report.mjs"]

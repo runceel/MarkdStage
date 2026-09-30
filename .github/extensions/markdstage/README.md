@@ -426,6 +426,32 @@ only. Without a per-slide override, `title` still uses `cover.background` and
 section/back-cover colors and logos are unchanged. Only absent settings trigger
 fallback: invalid paths, missing files, and oversized images fail explicitly.
 
+#### Alerts
+
+Use GitHub alert syntax to call out a block with a theme-colored tone. The first
+line of a top-level block quote must contain only one marker:
+
+```markdown
+> [!WARNING]
+> Rotate the signing keys before the release.
+```
+
+| Marker | Title | Theme tokens |
+| --- | --- | --- |
+| `[!NOTE]` | Note | `--info`, `--surface-info` |
+| `[!TIP]` | Tip | `--success`, `--surface-success` |
+| `[!IMPORTANT]` | Important | `--accent`, `--accent-soft` |
+| `[!WARNING]` | Warning | `--warning`, `--surface-warning` |
+| `[!CAUTION]` | Caution | `--danger`, `--surface-danger` |
+
+Markers are case-insensitive. The alert body can contain any block Markdown,
+including lists and code. Other markers such as `[!INFO]`, text after the marker
+on the same line, alerts without content, and block quotes nested in lists or
+other block quotes remain ordinary block quotes, as on GitHub. Alerts apply to
+the slide body; speaker notes keep plain block quotes. PDF output matches the
+slide, and PowerPoint export keeps the title and body as editable text over the
+colored box.
+
 #### Importing Archify diagrams
 
 Use an `archify` fence to import an SVG exported by

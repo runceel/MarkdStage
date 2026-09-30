@@ -104,6 +104,18 @@ MarkdStage supports:
 - Mermaid diagrams
 - Architecture DSL diagrams
 - Emoji
+- GitHub alerts (`> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`)
+
+Alerts color a block quote with the theme's info, success, accent, warning, or
+danger tone. Put the marker alone on the first line of a top-level block quote:
+
+```markdown
+> [!WARNING]
+> Rotate the signing keys before the release.
+```
+
+Unsupported markers, text after the marker, and nested quotes stay ordinary
+block quotes, as on GitHub.
 
 ## Choose a diagram format
 

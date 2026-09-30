@@ -1053,10 +1053,33 @@ function createSlide(
     card.token.text = `<div data-markdstage-card="${marker}"></div>\n`;
     card.token.block = true;
   }
+  const alertMarkers = new Map();
+  for (const alert of parsed.alerts) {
+    const marker = crypto.randomUUID();
+    alertMarkers.set(marker, alert);
+    alert.token.tokens.unshift({
+      type: "html",
+      block: true,
+      pre: false,
+      raw: "",
+      text: `<div data-markdstage-alert="${marker}"></div>\n`,
+    });
+  }
   bodyEl.innerHTML = window.DOMPurify.sanitize(window.marked.parser(parsed.tokens));
   bodyEl.querySelectorAll('img[src^="/assets/"]').forEach((image) => {
     image.setAttribute("src", localAssetUrl(image.getAttribute("src")));
   });
+  for (const [marker, alert] of alertMarkers) {
+    const placeholder = bodyEl.querySelector(`[data-markdstage-alert="${marker}"]`);
+    const quote = placeholder?.parentElement;
+    if (quote?.tagName !== "BLOCKQUOTE") throw new Error("The Markdown alert token placeholder is missing.");
+    quote.classList.add("markdown-alert", `markdown-alert-${alert.type}`);
+    quote.dataset.alert = alert.type;
+    const title = document.createElement("p");
+    title.className = "markdown-alert-title";
+    title.textContent = alert.label;
+    placeholder.replaceWith(title);
+  }
   applyEmojiShortcodes(bodyEl);
   const slideTitle = moveLeadingSlideTitle(
     header,
@@ -2918,7 +2941,12 @@ async function collectPptxSlide(slide, index, options = {}) {
       !element.closest(".archify-diagram") &&
       !element.closest("pre.mermaid, .mermaid") &&
       !element.closest("table") &&
-      !(element.matches("p") && element.closest("blockquote, li")),
+      !element.matches("blockquote.markdown-alert") &&
+      !(
+        element.matches("p") &&
+        element.closest("blockquote, li") &&
+        !element.parentElement.matches("blockquote.markdown-alert")
+      ),
   );
   const listItems = textCandidates.filter((element) => element.matches("li"));
   const eligibleListItems = new Set(listItems);
@@ -2984,6 +3012,15 @@ async function collectPptxSlide(slide, index, options = {}) {
       ),
     );
   }
+  deck.querySelectorAll(".body blockquote.markdown-alert").forEach((element) => {
+    if (insideFallback(element)) return;
+    // Alert text exports as native paragraphs; the tinted box and accent rule are artwork.
+    fallbacks.push(
+      pptxFallback("decoration", element, deck, "alert-decoration-rendered-as-artwork", {
+        behindNative: true,
+      }),
+    );
+  });
   deck.querySelectorAll(".kicker").forEach((element) => {
     if (insideFallback(element)) return;
     fallbacks.push(
