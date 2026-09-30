@@ -55,6 +55,10 @@ class SlideSurface {
     return (await this.#target()).evaluate(pageFunction, arg);
   }
 
+  async addStyleTag(options) {
+    return (await this.#target()).addStyleTag(options);
+  }
+
   async $eval(selector, pageFunction, arg) {
     return (await this.#target()).$eval(selector, pageFunction, arg);
   }
