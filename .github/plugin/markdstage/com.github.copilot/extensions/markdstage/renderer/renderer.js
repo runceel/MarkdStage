@@ -32,6 +32,14 @@ import {
 import { splitImportPath } from "./import-path.mjs";
 import { deriveTitle, splitFrontMatter } from "./slide-title.mjs";
 import { createSlideViewport, OUTPUT_WIDTH, OUTPUT_HEIGHT } from "./slide-viewport.mjs";
+import {
+  adjacentIssueIndex,
+  createScrollView,
+  describeIssue,
+  issueIndexes,
+  issueSeverity,
+} from "./scroll-view.mjs";
+import { DEFAULT_VIEW_MODE, parseViewMode } from "./view-mode.mjs";
 import { parseSlideMarkdown } from "./fenced-blocks.mjs";
 
 // Client-side slide renderer for the MarkdStage canvas.
@@ -95,6 +103,7 @@ const pptxFallbackCaptureElements = new Map();
 // Print mode returns early in init, so presenterMode is the effective branch here.
 let architectureEditMode = false;
 let architectureEditAvailable = false;
+let restoreFixedPreviewAfterEdit = false;
 let architectureDetailedEdit = false;
 let architectureDetailedEditTarget = "";
 let presenterMode = false;
@@ -108,6 +117,17 @@ let outputViewport = null;
 let currentViewport = null;
 let nextViewport = null;
 let surfaceDiagnostic = null;
+// Preview layout: "scroll" stacks every slide in one column, "slide" pages. The
+// server owns the value for hosts that support /view-mode; hosts without it
+// (Desktop) keep the choice for the lifetime of the page.
+let viewMode = DEFAULT_VIEW_MODE;
+let viewModeOverride = null;
+let lastServerViewMode = null;
+let scrollView = null;
+let scrollIssues = new Map();
+let issuesPanelOpen = false;
+// Scroll frames are read-only surfaces: clicking a slide must not page it.
+let pointerNavigationEnabled = true;
 let moreControlsOpen = false;
 // Markdown for the most recently rendered slide, retained for editing-mode rerenders.
 let lastMarkdown = "";
@@ -460,7 +480,7 @@ function updateFixedPreviewWarning() {
   const warning = document.getElementById("layoutWarning");
   const button = document.getElementById("navFixedPreview");
   const empty = document.body.classList.contains("markdstage-empty");
-  const diagnostic = fixedPreviewMode && !presenterMode &&
+  const diagnostic = fixedPreviewMode && !presenterMode && !scrollViewActive() &&
     (surfaceDiagnostic || (layoutTarget && collectSlideLayout(layoutTarget, navIndex)));
   if (!fixedPreviewMode || !diagnostic || empty || presenterMode) {
     document.body.classList.remove("fixed-preview-overflow");
@@ -693,6 +713,14 @@ async function renderArchifyBlock(host, deckEl) {
   host.__archifyScene = scene;
 }
 
+// Surfaces tell the hosting page about failed diagrams so the scroll preview can
+// flag the slide; the slide itself already shows its own inline error.
+function reportRenderError(message) {
+  if (!surfaceMode) return;
+  const text = String(message || "Render failed").slice(0, 200);
+  window.frameElement?.dispatchEvent(new CustomEvent("slide-render-error", { detail: text }));
+}
+
 function renderArchifyBlocks(scope, deckEl, token) {
   const hosts = [...scope.querySelectorAll(".archify-diagram[data-archify-src]")];
   return Promise.all(
@@ -700,6 +728,7 @@ function renderArchifyBlocks(scope, deckEl, token) {
       renderArchifyBlock(host, deckEl).catch((error) => {
         if (token !== renderToken) return;
         console.error("Archify import failed", error);
+        reportRenderError(`Imported diagram failed: ${error?.message || error}`);
         host.replaceWith(archifyErrorElement(error));
       }),
     ),
@@ -723,6 +752,9 @@ async function renderDeferredDiagrams(scope, deckEl, token, revealWhenDone = tru
     const palette = { ...archifyThemeTokens(deckEl), fontFamily: getComputedStyle(deckEl).fontFamily };
     for (const host of cards) {
       await adaptiveCardModule.renderAdaptiveCard(host, host.__adaptiveCardSource, palette, cardResources.context);
+    }
+    if (scope.querySelector('.adaptive-card-host[data-adaptive-card-state="error"]')) {
+      reportRenderError("Adaptive Card could not be rendered.");
     }
   }
   return runMermaid(scope, deckEl, token, revealWhenDone);
@@ -767,7 +799,10 @@ function runMermaid(scope, deckEl, token, revealWhenDone = true) {
       lastMermaidThemeVariables = serializedThemeVariables;
     }
     return Promise.resolve(window.mermaid.run({ nodes }))
-      .catch((e) => console.error("Mermaid render failed", e))
+      .catch((e) => {
+        console.error("Mermaid render failed", e);
+        reportRenderError(`Mermaid diagram failed: ${e?.message || e}`);
+      })
       .then(() => {
         for (const [index, host] of [...nodes].entries()) {
           const source = host.querySelector("svg");
@@ -777,6 +812,7 @@ function runMermaid(scope, deckEl, token, revealWhenDone = true) {
             renderMermaidScene(source, deckEl, index);
           } catch (e) {
             console.error("Mermaid scene render failed", e);
+            reportRenderError(`Mermaid diagram failed: ${e?.message || e}`);
           }
         }
 
@@ -831,6 +867,7 @@ function runMermaid(scope, deckEl, token, revealWhenDone = true) {
       .finally(reveal);
   } catch (e) {
     console.error("Mermaid init failed", e);
+    reportRenderError(`Mermaid diagram failed: ${e?.message || e}`);
     reveal();
     return Promise.resolve();
   }
@@ -1172,10 +1209,18 @@ function renderSlide(markdown) {
     surfaceDiagnostic = null;
     if (layoutFrame) cancelAnimationFrame(layoutFrame);
     layoutFrame = 0;
-    if (!presenterViewRequested || !presenterViewAvailable || navTotal <= 0) updateSlideViewports();
+    if (!presenterViewRequested || !presenterViewAvailable || navTotal <= 0) {
+      if (scrollViewActive()) {
+        updateScrollView();
+      } else {
+        disposeScrollView();
+        updateSlideViewports();
+      }
+    }
     updateFixedPreviewWarning();
     return;
   }
+  disposeScrollView();
   const slide = createSlide(markdown, deckTheme);
   document.title = slide.title;
   document.documentElement.setAttribute("data-theme", slide.theme);
@@ -3645,7 +3690,13 @@ async function fetchDeck() {
 function setArchitectureEditMode(enabled) {
   const next = Boolean(enabled) && architectureEditAvailable && !presenterMode;
   if (next === architectureEditMode) return false;
-  if (next && fixedPreviewMode) setFixedPreviewMode(false, { rerender: false });
+  if (next && fixedPreviewMode) {
+    restoreFixedPreviewAfterEdit = true;
+    setFixedPreviewMode(false, { rerender: false });
+  } else if (!next && restoreFixedPreviewAfterEdit) {
+    restoreFixedPreviewAfterEdit = false;
+    setFixedPreviewMode(true, { rerender: false });
+  }
   architectureEditMode = next;
   document.body.classList.toggle("architecture-edit-mode", next);
   updateArchitectureEditButton(next);
@@ -3757,7 +3808,21 @@ async function requestArchitectureEditMode(enabled) {
 }
 
 function architectureDiagramOptions() {
-  const slideDocument = document.getElementById("outputFrame")?.contentDocument || document;
+  if (scrollViewActive()) {
+    // Scroll frames render lazily, so count the fences in the source instead.
+    const count = (String(deckSlides[navIndex] ?? "").match(/^[ \t]*(`{3,}|~{3,})[ \t]*architecture\b/gim) || []).length;
+    const frameDocument = document.querySelector('.scroll-item[data-current="true"] iframe')?.contentDocument;
+    return Array.from({ length: count }, (_, block) => ({
+      block,
+      title:
+        frameDocument?.querySelector(`.architecture-diagram[data-architecture-block="${block}"]`)
+          ?.dataset.architectureTitle || `Diagram ${block + 1}`,
+    }));
+  }
+  const slideDocument =
+    document.querySelector('.scroll-item[data-current="true"] iframe')?.contentDocument ||
+    document.getElementById("outputFrame")?.contentDocument ||
+    document;
   return [...slideDocument.querySelectorAll(".architecture-diagram[data-architecture-block]")].map(
     (wrapper, index) => ({
       block: Number(wrapper.dataset.architectureBlock),
@@ -4024,6 +4089,13 @@ async function fetchState() {
       : "inactive";
   sourceWatchError = typeof data.sourceWatchError === "string" ? data.sourceWatchError : "";
   updateSourceModeButton();
+  const serverViewMode = parseViewMode(data.viewMode);
+  if (serverViewMode && serverViewMode !== lastServerViewMode) {
+    const first = lastServerViewMode === null;
+    lastServerViewMode = serverViewMode;
+    // An explicit ?view= on the first load wins over the server's initial value.
+    if (!(first && viewModeOverride)) setViewMode(serverViewMode, { persist: false });
+  }
   const editAvailabilityChanged =
     typeof data.architectureEditAvailable === "boolean" &&
     data.architectureEditAvailable !== architectureEditAvailable;
@@ -4491,6 +4563,7 @@ function setFixedPreviewMode(enabled, { rerender = true } = {}) {
   }
   syncMoreControls();
   if (!fixedPreviewMode) {
+    disposeScrollView();
     outputViewport?.dispose();
     outputViewport = null;
     document.getElementById("stage").classList.remove("slide-viewport");
@@ -4570,6 +4643,216 @@ function mountSlideViewport(host, id, title, interactive) {
   });
 }
 
+function scrollViewActive() {
+  return !surfaceMode && !presenterMode && !previewMode && viewMode === "scroll" &&
+    fixedPreviewMode && !presenterViewOpen && !presenterViewRequested &&
+    navMode === "deck" && deckSlides.length > 0 && deckSlides.length === navTotal;
+}
+
+function mountScrollViewport(host, index, hooks) {
+  return createSlideViewport(host, {
+    id: `${hooks.scan ? "scrollScan" : "scrollFrame"}${index}`,
+    title: `Slide ${index + 1}`,
+    onNavigate: () => {},
+    onPointer: () => setMoreControlsOpen(false),
+    onError: hooks.onError,
+    onRenderError: hooks.onError,
+    onKey: hooks.scan ? undefined : (detail) => {
+      const event = new KeyboardEvent("keydown", { ...detail, bubbles: true, cancelable: true });
+      document.dispatchEvent(event);
+      detail.handled = event.defaultPrevented;
+    },
+    onLayout: hooks.scan ? hooks.onLayout : (diagnostic) => {
+      hooks.onLayout?.(diagnostic);
+      updateArchitectureEditButton();
+    },
+  });
+}
+
+function scrollFrameState(index) {
+  return {
+    ...slideViewportState(deckSlides[index] ?? "", index, navigationEnabled),
+    pointerNavigation: false,
+  };
+}
+
+function updateScrollView() {
+  const stage = document.getElementById("stage");
+  document.body.classList.remove("mermaid-loading");
+  if (outputViewport) {
+    outputViewport.dispose();
+    outputViewport = null;
+  }
+  if (!scrollView) {
+    stage.replaceChildren();
+    stage.classList.remove("slide-viewport");
+    stage.classList.add("scroll-stage");
+    scrollView = createScrollView(stage, {
+      createViewport: mountScrollViewport,
+      onCurrentChange: (index) => {
+        navigate({ index });
+        updateArchitectureEditButton();
+      },
+      onIssuesChange: (issues) => {
+        scrollIssues = issues;
+        updateIssueChip();
+      },
+    });
+  }
+  surfaceDiagnostic = null;
+  scrollView.update({
+    slides: deckSlides,
+    titles: deckTitles,
+    index: navIndex,
+    state: scrollFrameState,
+  });
+  updateArchitectureEditButton();
+}
+
+function disposeScrollView() {
+  if (!scrollView) return;
+  scrollView.dispose();
+  scrollView = null;
+  scrollIssues = new Map();
+  const stage = document.getElementById("stage");
+  stage.classList.remove("scroll-stage");
+  closeIssuesPanel();
+  updateIssueChip();
+}
+
+function updateViewModeButton() {
+  const button = document.getElementById("navViewMode");
+  if (!button) return;
+  const scroll = viewMode === "scroll";
+  button.hidden = presenterMode || previewMode;
+  button.setAttribute("aria-pressed", scroll ? "true" : "false");
+  button.title = scroll
+    ? "All slides in one scrolling column. Switch to one slide at a time"
+    : "One slide at a time. Switch to a scrolling column of all slides";
+  button.setAttribute("aria-label", button.title);
+  const label = button.querySelector(".nav-more-label");
+  if (label) label.textContent = "Scroll view";
+  const hasError = scrollViewActive() && issueIndexes(scrollIssues).some(
+    (index) => issueSeverity(scrollIssues.get(index)) === "error",
+  );
+  button.dataset.state = hasError ? "error" : scroll ? "active" : "";
+  syncMoreControls();
+}
+
+async function requestViewMode(mode) {
+  try {
+    await fetch("./view-mode", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode }),
+    });
+  } catch (_) {
+    /* Hosts without /view-mode keep the choice locally. */
+  }
+}
+
+function setViewMode(mode, { persist = true } = {}) {
+  const next = parseViewMode(mode) ?? DEFAULT_VIEW_MODE;
+  const changed = next !== viewMode;
+  viewMode = next;
+  updateViewModeButton();
+  if (!changed) return;
+  if (!surfaceMode && !presenterMode && currentVersion >= 0) {
+    renderSlide(lastMarkdown);
+    updateNav();
+  }
+  if (persist) requestViewMode(next);
+}
+
+function toggleViewMode() {
+  setViewMode(viewMode === "scroll" ? "slide" : "scroll");
+}
+
+function currentIssueIndexes() {
+  return scrollViewActive() && scrollView ? issueIndexes(scrollIssues) : [];
+}
+
+function updateIssueChip() {
+  const chip = document.getElementById("navIssues");
+  if (!chip) return;
+  const indexes = currentIssueIndexes();
+  chip.hidden = indexes.length === 0;
+  const hasError = indexes.some((index) => issueSeverity(scrollIssues.get(index)) === "error");
+  chip.dataset.state = indexes.length ? (hasError ? "error" : "warning") : "";
+  const noun = indexes.length === 1 ? "slide has" : "slides have";
+  const text = `${indexes.length} ${noun} issues`;
+  chip.textContent = `\u26A0 ${indexes.length}`;
+  chip.title = `${text} (] next, [ previous)`;
+  chip.setAttribute("aria-label", text);
+  const status = document.getElementById("issuesStatus");
+  if (status && status.dataset.count !== String(indexes.length)) {
+    status.dataset.count = String(indexes.length);
+    status.textContent = indexes.length ? text : "";
+  }
+  if (!indexes.length) closeIssuesPanel();
+  else if (issuesPanelOpen) renderIssuesPanel();
+  highlightOverview();
+  updateViewModeButton();
+}
+
+function renderIssuesPanel() {
+  const list = document.getElementById("issuesList");
+  if (!list) return;
+  list.replaceChildren();
+  for (const index of currentIssueIndexes()) {
+    const record = scrollIssues.get(index);
+    const li = document.createElement("li");
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "issues-item";
+    button.dataset.severity = issueSeverity(record);
+    const heading = document.createElement("strong");
+    heading.textContent = `${index + 1}. ${deckTitles[index] || "Slide"}`;
+    const detail = document.createElement("span");
+    detail.textContent = describeIssue(record);
+    button.append(heading, detail);
+    button.addEventListener("click", () => {
+      navigate({ index });
+      scrollView?.scrollToIndex(index, { smooth: true });
+      closeIssuesPanel();
+    });
+    li.appendChild(button);
+    list.appendChild(li);
+  }
+}
+
+function openIssuesPanel() {
+  if (!currentIssueIndexes().length) return;
+  issuesPanelOpen = true;
+  renderIssuesPanel();
+  const panel = document.getElementById("issuesPanel");
+  if (panel) panel.hidden = false;
+  document.getElementById("navIssues")?.setAttribute("aria-expanded", "true");
+  document.querySelector("#issuesList .issues-item")?.focus();
+}
+
+function closeIssuesPanel({ restoreFocus = false } = {}) {
+  issuesPanelOpen = false;
+  const panel = document.getElementById("issuesPanel");
+  if (panel) panel.hidden = true;
+  const chip = document.getElementById("navIssues");
+  chip?.setAttribute("aria-expanded", "false");
+  if (restoreFocus) chip?.focus();
+}
+
+function toggleIssuesPanel() {
+  if (issuesPanelOpen) closeIssuesPanel({ restoreFocus: true });
+  else openIssuesPanel();
+}
+
+function goToAdjacentIssue(direction) {
+  const target = adjacentIssueIndex(currentIssueIndexes(), navIndex, direction);
+  if (target < 0) return false;
+  navigate({ index: target });
+  scrollView?.scrollToIndex(target, { smooth: true });
+  return true;
+}
+
 function updateSlideViewports() {
   const stage = document.getElementById("stage");
   document.body.classList.add("mermaid-loading");
@@ -4617,6 +4900,7 @@ function initSlideSurface() {
       navIndex = state.index;
       navTotal = state.total;
       navigationEnabled = state.navigationEnabled;
+      pointerNavigationEnabled = state.pointerNavigation !== false;
       externalLinkAvailable = state.externalLinkAvailable === true;
       renderSlide(state.markdown);
     },
@@ -4660,6 +4944,7 @@ function updateNav() {
   if (prev) prev.disabled = navMode === "deck" && navIndex <= 0;
   if (next) next.disabled = navMode === "deck" && navIndex >= navTotal - 1;
   highlightOverview();
+  updateViewModeButton();
   updatePresenterView();
   syncMoreControls();
 }
@@ -4784,9 +5069,11 @@ function buildOverview() {
 function highlightOverview() {
   const list = document.getElementById("overviewList");
   if (!list) return;
+  const issueIdx = new Set(currentIssueIndexes());
   list.querySelectorAll(".overview-item").forEach((li) => {
     const isCurrent = navMode === "deck" && Number(li.dataset.index) === navIndex;
     li.classList.toggle("current", isCurrent);
+    li.classList.toggle("has-issue", issueIdx.has(Number(li.dataset.index)));
   });
 }
 
@@ -4957,9 +5244,14 @@ function isSlideWhitespaceTarget(target) {
 }
 
 // --- input wiring ----------------------------------------------------------
+function pointerPagingAllowed() {
+  return surfaceMode ? pointerNavigationEnabled : !scrollViewActive();
+}
+
 function wirePointerNavigation() {
   document.addEventListener("click", (e) => {
     if (
+      !pointerPagingAllowed() ||
       e.defaultPrevented ||
       e.button !== 0 ||
       e.ctrlKey ||
@@ -4975,6 +5267,7 @@ function wirePointerNavigation() {
 
   document.addEventListener("contextmenu", (e) => {
     if (
+      !pointerPagingAllowed() ||
       e.defaultPrevented ||
       e.ctrlKey ||
       e.metaKey ||
@@ -5014,6 +5307,14 @@ function handleSlideNavigationKey(e) {
       break;
     case "ArrowLeft":
     case "PageUp":
+      goPrev();
+      break;
+    case "ArrowDown":
+      if (!scrollViewActive()) return false;
+      goNext();
+      break;
+    case "ArrowUp":
+      if (!scrollViewActive()) return false;
       goPrev();
       break;
     case "Home":
@@ -5056,6 +5357,9 @@ function wireControls() {
   bind("navPresent", openPresenterWindow, { closeMore: true });
   bind("navPresenterView", openPresenterView, { closeMore: true });
   bind("navFixedPreview", toggleFixedPreviewMode, { closeMore: true });
+  bind("navViewMode", toggleViewMode, { closeMore: true });
+  bind("navIssues", toggleIssuesPanel);
+  bind("issuesClose", () => closeIssuesPanel({ restoreFocus: true }));
   bind("navExport", () => exportFromCanvas("pdf"), { closeMore: true });
   bind("navExportPptx", requestPptxExport, { closeMore: true });
   bind("navImport", toggleImportPicker, { closeMore: true });
@@ -5165,6 +5469,11 @@ function wireControls() {
       handleArchitecturePickerKey(e);
       return;
     }
+    if (e.key === "Escape" && issuesPanelOpen) {
+      closeIssuesPanel({ restoreFocus: true });
+      e.preventDefault();
+      return;
+    }
     if (e.key === "Escape" && moreControlsOpen) {
       setMoreControlsOpen(false, { restoreFocus: true });
       e.preventDefault();
@@ -5184,6 +5493,10 @@ function wireControls() {
         setMoreControlsOpen(false);
         toggleImportPicker();
         e.preventDefault();
+        break;
+      case "]":
+      case "[":
+        if (goToAdjacentIssue(e.key === "]" ? 1 : -1)) e.preventDefault();
         break;
       case "Escape":
         if (importOpen) {
@@ -5247,6 +5560,9 @@ function init() {
     return;
   }
   wireExternalSlideLinks();
+  viewModeOverride = parseViewMode(params.get("view"));
+  if (viewModeOverride) viewMode = viewModeOverride;
+  updateViewModeButton();
   if (params.get("preview") === "1") {
     previewMode = true;
     presenterMode = true;

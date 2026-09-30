@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { spawn } from "node:child_process";
 import {
+  DEFAULT_VIEW_MODE,
   MarkdStageError,
   buildPresenterBrowserArgs,
   findChromiumBrowser,
@@ -102,6 +103,9 @@ export async function applicationCommand(options, io, dependencies = {}) {
         let profileDir = "";
         const browserUrl = new URL(server.url);
         if (options.presenterView) browserUrl.searchParams.set("presenter", "1");
+        // The server already holds the mode; carrying it in the URL keeps a
+        // served-only (--no-open) address self-describing for other browsers.
+        if (session.viewMode !== DEFAULT_VIEW_MODE) browserUrl.searchParams.set("view", session.viewMode);
         try {
           if (options.open) {
             const browser = findBrowser();
@@ -131,6 +135,7 @@ export async function applicationCommand(options, io, dependencies = {}) {
           io.print(`MarkdStage is ${operation} ${session.sourceName || "the workspace"}`);
           io.print(`  slides:    ${session.slides.length}`);
           io.print(`  theme:     ${session.theme}`);
+          io.print(`  view:      ${session.viewMode}`);
           io.print(`  workspace: ${resolve(session.workspaceRoot)}`);
           io.print(`  url:       ${browserUrl.href}`);
           if ((options.live || options.watch) && session.file) {
@@ -155,6 +160,7 @@ export async function applicationCommand(options, io, dependencies = {}) {
             url: browserUrl.href,
             total: session.slides.length,
             theme: session.theme,
+            viewMode: session.viewMode,
             sourceMode: server.sourceMode,
           };
         } finally {

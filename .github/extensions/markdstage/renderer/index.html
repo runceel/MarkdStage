@@ -22,6 +22,7 @@
     <div class="nav-main" role="group" aria-label="Slide navigation">
       <button id="navPrev" class="nav-btn" type="button" title="Previous (←)" aria-label="Previous slide">&#9664;</button>
       <span id="navCounter" class="nav-counter" aria-live="polite"></span>
+      <button id="navIssues" class="nav-btn nav-issues" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="issuesPanel" hidden></button>
       <button id="navNext" class="nav-btn" type="button" title="Next (→)" aria-label="Next slide">&#9654;</button>
       <button id="navList" class="nav-btn" type="button" title="Slide list (O)" aria-label="Slide list">&#9776;</button>
     </div>
@@ -45,6 +46,10 @@
         <button id="navEdit" class="nav-more-item" type="button" title="Shape editing mode" aria-label="Shape editing mode" hidden>
           <span class="nav-more-icon" aria-hidden="true">&#x270E;</span>
           <span class="nav-more-label">Shape editing</span>
+        </button>
+        <button id="navViewMode" class="nav-more-item" type="button" title="All slides in one scrolling column" aria-label="All slides in one scrolling column" aria-pressed="true">
+          <span class="nav-more-icon" aria-hidden="true">&#8597;</span>
+          <span class="nav-more-label">Scroll view</span>
         </button>
         <button id="navFixedPreview" class="nav-more-item" type="button" title="Preview PDF layout at 16:9" aria-label="Preview PDF layout at 16:9" aria-pressed="false">
           <span class="nav-more-icon nav-fixed-preview" aria-hidden="true">16:9</span>
@@ -73,6 +78,14 @@
     </div>
     <span id="presentStatus" class="sr-only" aria-live="polite"></span>
     <span id="sourceStatus" class="sr-only" aria-live="polite"></span>
+    <span id="issuesStatus" class="sr-only" aria-live="polite"></span>
+    <div id="issuesPanel" class="issues-panel" role="group" aria-label="Slides with issues" hidden>
+      <div class="issues-head">
+        <span>Slides with issues</span>
+        <button id="issuesClose" class="nav-btn" type="button" title="Close (Esc)" aria-label="Close">&#10005;</button>
+      </div>
+      <ul id="issuesList" class="issues-list"></ul>
+    </div>
   </nav>
   <span id="exportStatus" class="export-feedback sr-only" role="status" aria-live="polite" aria-atomic="true"></span>
   <span id="exportErrorStatus" class="export-feedback sr-only" role="alert" aria-atomic="true"></span>

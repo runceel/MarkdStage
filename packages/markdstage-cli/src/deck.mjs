@@ -17,6 +17,7 @@ export async function withDeckServer(options, run) {
     workspaceRoot: options.workspace,
     theme: options.theme,
     themeFile: options.themeFile,
+    viewMode: options.viewMode,
     assetUrlPrefix: `/${token}/theme-assets/`,
     log: options.log,
   });

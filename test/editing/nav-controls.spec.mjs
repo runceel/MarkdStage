@@ -13,7 +13,7 @@ test("keeps frequent navigation visible and groups the remaining controls", asyn
     await waitForSlideReady(page);
 
     const directButtons = page.locator("#nav > .nav-main > button, #nav > .nav-tools > button");
-    await expect(directButtons).toHaveCount(4);
+    await expect(directButtons).toHaveCount(5);
     await expect(page.getByRole("button", { name: "Previous slide" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Next slide" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Slide list" })).toBeVisible();
@@ -32,6 +32,7 @@ test("keeps frequent navigation visible and groups the remaining controls", asyn
     await expect(page.getByText("Present", { exact: true })).toBeVisible();
     await expect(page.getByText("View & edit", { exact: true })).toBeVisible();
     await expect(page.getByText("File", { exact: true })).toBeVisible();
+    await expect(page.locator("#navViewMode")).toBeVisible();
     await expect(page.locator("#navPresent")).toBeFocused();
 
     await page.keyboard.press("Escape");
@@ -54,7 +55,20 @@ test("surfaces nested active state on the More controls button", async ({ page }
     await waitForSlideReady(page);
 
     await openMoreControls(page);
+    await expect(page.locator("#navMore")).toHaveAttribute("data-state", "active");
+    await expect(page.locator("#navMore")).toHaveAccessibleName(
+      "More controls (an option is active)",
+    );
+
     await page.locator("#navFixedPreview").click();
+    await expect(page.locator("#navMorePanel")).toBeHidden();
+    await expect(page.locator("#navMore")).toHaveAttribute("data-state", "active");
+    await expect(page.locator("#navMore")).toHaveAccessibleName(
+      "More controls (an option is active)",
+    );
+
+    await openMoreControls(page);
+    await page.locator("#navViewMode").click();
     await expect(page.locator("#navMorePanel")).toBeHidden();
     await expect(page.locator("#navMore")).not.toHaveAttribute("data-state", "active");
     await expect(page.locator("#navMore")).toHaveAccessibleName("More controls");

@@ -17,7 +17,7 @@ import { expect, test } from "@playwright/test";
 
 import { REPO_ROOT, startHarness } from "../harness/server.mjs";
 import { splitFixtureDeck } from "../harness/deck.mjs";
-import { getSlideFrame, waitForSlideReady } from "../utils/ready.mjs";
+import { CURRENT_SLIDE_IFRAME_SELECTOR, getSlideFrame, waitForSlideReady } from "../utils/ready.mjs";
 import { accessibilityTree, findDiagram, flatten, readDiagramSemantics, domOrder } from "./ax.mjs";
 
 const FIXTURE = join(REPO_ROOT, "test", "fixtures", "architecture-editing.md");
@@ -36,9 +36,9 @@ async function openDeck(page, options = {}) {
 
 async function auditDiagram(page) {
   const slide = await getSlideFrame(page);
-  const selector = slide === page
-    ? ".architecture-diagram"
-    : ["#outputFrame", ".architecture-diagram"];
+  const selector = slide.framed
+    ? [CURRENT_SLIDE_IFRAME_SELECTOR, ".architecture-diagram"]
+    : ".architecture-diagram";
   return new AxeBuilder({ page }).include(selector).analyze();
 }
 
@@ -172,7 +172,7 @@ test.describe("keyboard reachability", () => {
       const slide = await getSlideFrame(page);
       await expect(slide.locator(".architecture-editor-toolbar")).toHaveCount(1);
       // A tabindex on the root adds an empty stop between "diagram" and the first element.
-      expect(await slide.getAttribute(SVG, "tabindex")).toBeNull();
+      expect(await slide.locator(SVG).getAttribute("tabindex")).toBeNull();
 
       const stops = await slide.$$eval(`${SVG} [tabindex="0"]`, (nodes) =>
         nodes.map((node) => node.getAttribute("data-architecture-id")),

@@ -96,6 +96,7 @@ import {
 import { loadCustomTheme as runtimeLoadCustomTheme } from "./runtime/custom-theme.mjs";
 import { loadSlideBackgrounds, resolveSlideBackgroundFile } from "./runtime/slide-backgrounds.mjs";
 import { clampIndex, resolveDeckTheme } from "./runtime/deck-session.mjs";
+import { DEFAULT_VIEW_MODE, parseViewMode } from "./renderer/view-mode.mjs";
 import { createNodeIO } from "./runtime/io-node.mjs";
 import { readMarkdownDeck } from "./runtime/deck-reader.mjs";
 import {
@@ -587,6 +588,7 @@ async function persistNow(inst) {
         markdown: inst.markdown,
         slides: inst.slides,
         index: inst.index,
+        viewMode: inst.viewMode,
         theme: inst.theme,
         themeLocked: inst.themeLocked,
         customThemeFile: inst.customThemeFile,
@@ -636,6 +638,16 @@ function schedulePersist(inst) {
 // current markdown, mark the deck as the active source, bump the monotonic
 // version, nudge connected clients, and persist so a reload can restore the
 // whole deck and position.
+// The view mode is layout-only: it does not bump the slide version, so slide
+// rerenders are not triggered. Clients pick it up from /state.
+function setViewMode(inst, mode) {
+  if (inst.viewMode === mode) return false;
+  inst.viewMode = mode;
+  broadcast(inst);
+  schedulePersist(inst);
+  return true;
+}
+
 async function applyDeckSlide(inst) {
   inst.markdown = inst.slides.length ? inst.slides[inst.index] : "";
   inst.mode = "deck";
@@ -1194,6 +1206,7 @@ async function startServer(inst) {
           customThemeCss: inst.customThemeCss,
           customThemeMeta: inst.customThemeMeta,
           mode: inst.mode,
+          viewMode: inst.viewMode,
           sourceBacked: inst.sourceWriteback,
           sourceModeAvailable: true,
           sourceMode: inst.sourceMode,
@@ -1478,6 +1491,45 @@ async function startServer(inst) {
     // The renderer also calls it when opened with `?architectureEdit=1`. Otherwise
     // the client could enable editing while the server remained disabled, causing
     // /state polling to turn editing off and /edit to reject with 409.
+    if (pathname === "/view-mode") {
+      if (req.method !== "POST") {
+        res.statusCode = 405;
+        res.setHeader("Allow", "POST");
+        res.setHeader("Content-Type", "application/json; charset=utf-8");
+        res.end(JSON.stringify({ ok: false, error: "method_not_allowed" }));
+        return;
+      }
+      const origin = req.headers.origin;
+      if (origin && origin !== new URL(inst.url).origin) {
+        res.statusCode = 403;
+        res.setHeader("Content-Type", "application/json; charset=utf-8");
+        res.end(JSON.stringify({ ok: false, error: "origin_not_allowed" }));
+        return;
+      }
+      let body;
+      try {
+        body = await readJsonBody(req);
+      } catch (e) {
+        res.statusCode = 400;
+        res.setHeader("Content-Type", "application/json; charset=utf-8");
+        res.setHeader("Connection", "close");
+        res.end(JSON.stringify({ ok: false, error: e?.message || "bad_request" }));
+        return;
+      }
+      const mode = parseViewMode(body.mode);
+      if (!mode) {
+        res.statusCode = 400;
+        res.setHeader("Content-Type", "application/json; charset=utf-8");
+        res.end(JSON.stringify({ ok: false, error: "invalid_view_mode" }));
+        return;
+      }
+      const changed = setViewMode(inst, mode);
+      res.statusCode = 200;
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      res.setHeader("Cache-Control", "no-store");
+      res.end(JSON.stringify({ ok: true, changed, viewMode: inst.viewMode }));
+      return;
+    }
     if (pathname === "/edit-mode") {
       if (req.method !== "POST") {
         res.statusCode = 405;
@@ -1989,6 +2041,7 @@ async function ensureInstance(ctx) {
       slides: [],
       index: 0,
       mode: "deck",
+      viewMode: DEFAULT_VIEW_MODE,
       sourceName: "",
       sourceWriteback: false,
       sourceWritebackPath: "",
@@ -2059,6 +2112,7 @@ async function ensureInstance(ctx) {
       }
       if (inst.sourceWriteback) inst.sourceMode = normalizeSourceMode(saved.sourceMode);
       if (saved.mode === "adhoc" || saved.mode === "deck") inst.mode = saved.mode;
+      inst.viewMode = parseViewMode(saved.viewMode) ?? DEFAULT_VIEW_MODE;
       if (isPresenterProfilePath(saved.presenterProfileDir)) {
         inst.presenterProfileDir = saved.presenterProfileDir;
       }
@@ -2179,6 +2233,12 @@ const session = await joinSession({
             type: "string",
             description:
               "Workspace-relative source path used only with slides as metadata for adjacent assets/, Markdown-relative theme-file resolution, PDF naming, and capture directories. It never reads or watches the named Markdown file by itself; pass sourcePath to read a Markdown file.",
+          },
+          viewMode: {
+            type: "string",
+            enum: ["scroll", "slide"],
+            description:
+              "Preview layout. scroll (default) stacks every slide in one vertically scrolling column; slide shows one slide at a time. The user can switch at any time from More controls. Presenter windows and PDF/PNG/PPTX output are always paged.",
           },
           sourceMode: {
             type: "string",
@@ -2680,6 +2740,32 @@ const session = await joinSession({
           },
         },
         {
+          name: "set_view_mode",
+          description:
+            "Switch the preview layout of the open canvas: scroll stacks every slide in one vertically scrolling column, slide shows one slide at a time. The user can also switch from More controls.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              mode: { type: "string", enum: ["scroll", "slide"], description: "Preview layout." },
+            },
+            required: ["mode"],
+            additionalProperties: false,
+          },
+          handler: async (ctx) => {
+            const mode = parseViewMode(ctx.input?.mode);
+            if (!mode) {
+              throw new CanvasError("invalid_input", "mode must be 'scroll' or 'slide'.");
+            }
+            const inst = instances.get(keyOf(ctx));
+            if (!inst) {
+              throw new CanvasError("canvas_not_open", "MarkdStage canvas is not open");
+            }
+            activateInstance(inst);
+            const changed = setViewMode(inst, mode);
+            return { ok: true, changed, viewMode: inst.viewMode };
+          },
+        },
+        {
           name: "reset",
           description: "Clear the slides and return to the waiting placeholder.",
           handler: async (ctx) => {
@@ -2735,7 +2821,15 @@ const session = await joinSession({
         ) {
           throw new CanvasError("invalid_input", "sourceMode must be 'live' or 'snapshot'.");
         }
+        let requestedViewMode;
+        if (input?.viewMode !== undefined) {
+          requestedViewMode = parseViewMode(input.viewMode);
+          if (!requestedViewMode) {
+            throw new CanvasError("invalid_input", "viewMode must be 'scroll' or 'slide'.");
+          }
+        }
         const inst = await ensureInstance(ctx);
+        if (requestedViewMode) setViewMode(inst, requestedViewMode);
         // Apply any deck passed to open *before* returning the url. The renderer
         // only starts after open resolves, so its first /state fetch already
         // sees the first slide and the "waiting" placeholder never flashes.

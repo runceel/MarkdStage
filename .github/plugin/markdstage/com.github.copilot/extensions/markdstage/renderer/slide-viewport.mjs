@@ -3,7 +3,7 @@ export const OUTPUT_HEIGHT = 720;
 
 // Scale the browsing context, not its contents: SVG text measurement and viewport
 // units must see the same untransformed geometry at every display size.
-export function createSlideViewport(host, { id, title, onNavigate, onKey, onPointer, onLayout, onError }) {
+export function createSlideViewport(host, { id, title, onNavigate, onKey, onPointer, onLayout, onError, onRenderError }) {
   const frame = document.createElement("iframe");
   frame.id = id;
   frame.title = title;
@@ -25,6 +25,7 @@ export function createSlideViewport(host, { id, title, onNavigate, onKey, onPoin
   frame.addEventListener("slide-pointer", () => onPointer?.());
   frame.addEventListener("slide-layout", (event) => onLayout?.(event.detail));
   frame.addEventListener("slide-error", (event) => onError?.(event.detail));
+  frame.addEventListener("slide-render-error", (event) => onRenderError?.(event.detail));
   const resize = () => {
     const scale = Math.min(host.clientWidth / OUTPUT_WIDTH, host.clientHeight / OUTPUT_HEIGHT);
     frame.style.transform = `translate(-50%, -50%) scale(${scale})`;
@@ -36,7 +37,9 @@ export function createSlideViewport(host, { id, title, onNavigate, onKey, onPoin
   return {
     setState(next) {
       state = next;
-      frame.tabIndex = next.navigationEnabled ? 0 : -1;
+      if (next.navigationEnabled && next.pointerNavigation !== false) frame.tabIndex = 0;
+      else if (next.pointerNavigation === false) frame.removeAttribute("tabindex");
+      else frame.tabIndex = -1;
       render();
     },
     dispose() {

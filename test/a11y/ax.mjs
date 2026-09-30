@@ -11,7 +11,7 @@
 // role="group" on a connector) is not evaluated here.
 
 import { expect } from "@playwright/test";
-import { getSlideFrame } from "../utils/ready.mjs";
+import { CURRENT_SLIDE_IFRAME_SELECTOR, getSlideFrame } from "../utils/ready.mjs";
 
 /**
  * Retrieve the active slide document's accessibility tree and rebuild it into a convenient structure.
@@ -29,7 +29,7 @@ export async function accessibilityTree(page) {
     if (slide !== page) {
       const { root } = await cdp.send("DOM.getDocument");
       const { nodeId } = await cdp.send("DOM.querySelector", {
-        nodeId: root.nodeId, selector: "#outputFrame, #presenterCurrent",
+        nodeId: root.nodeId, selector: CURRENT_SLIDE_IFRAME_SELECTOR,
       });
       const { node } = await cdp.send("DOM.describeNode", { nodeId });
       frameId = node.frameId;

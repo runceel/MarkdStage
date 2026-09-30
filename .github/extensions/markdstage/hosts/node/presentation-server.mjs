@@ -28,6 +28,7 @@ import { saveArchitectureSource } from "../../runtime/architecture-source.mjs";
 import { exportPdf, exportPptx } from "../../runtime/output.mjs";
 import { sanitizeLayoutReport } from "../../runtime/layout-report.mjs";
 import { snapshotSession } from "../../runtime/session-state.mjs";
+import { parseViewMode } from "../../renderer/view-mode.mjs";
 import {
   isPathInside,
   outputPathForSource,
@@ -297,6 +298,7 @@ export async function startPresentationServer(
         customThemeCss: state.customThemeCss,
         customThemeMeta: state.customThemeMeta,
         mode: state.mode,
+        viewMode: state.viewMode,
         sourceBacked: state.sourceBacked,
         sourceModeAvailable: applicationMode && Boolean(session.file),
         sourceMode,
@@ -609,8 +611,40 @@ export async function startPresentationServer(
       return;
     }
 
-    if (applicationMode && route === "/source-mode") {
+    if (route === "/view-mode") {
       if (req.method !== "POST") {
+        res.setHeader("Allow", "POST");
+        json(res, 405, { ok: false, error: "method_not_allowed" });
+        return;
+      }
+      if (!sameOrigin()) {
+        json(res, 403, { ok: false, error: "origin_not_allowed" });
+        return;
+      }
+      let body;
+      try {
+        body = await readJsonBody(req);
+      } catch (error) {
+        res.setHeader("Connection", "close");
+        json(res, error?.message === "payload_too_large" ? 413 : 400, {
+          ok: false,
+          error: error?.message || "bad_request",
+        });
+        return;
+      }
+      const mode = parseViewMode(body.mode);
+      if (!mode) {
+        json(res, 400, { ok: false, error: "invalid_view_mode" });
+        return;
+      }
+      const changed = session.viewMode !== mode;
+      session.viewMode = mode;
+      if (changed) broadcast(session);
+      json(res, 200, { ok: true, changed, viewMode: session.viewMode });
+      return;
+    }
+
+    if (applicationMode && route === "/source-mode") {      if (req.method !== "POST") {
         res.setHeader("Allow", "POST");
         json(res, 405, { ok: false, error: "method_not_allowed" });
         return;

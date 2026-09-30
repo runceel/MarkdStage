@@ -120,7 +120,7 @@ test("live 16:9 preview and headless layout inspection report the same clipping"
       printLayout.slides.filter((slide) => slide.pdfClipped).map((slide) => slide.index),
     ).toEqual([2, 3]);
 
-    await page.goto(`${harness.url}/`, { waitUntil: "load" });
+    await page.goto(`${harness.url}/?view=slide`, { waitUntil: "load" });
     await waitForSlideReady(page);
     await settleFrames(page);
 

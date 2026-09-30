@@ -83,6 +83,7 @@ Without a file it starts empty; use **Open Markdown** to choose a deck.
 | `--theme <name>`, `--theme-file <path>` | Usage error: choose the theme in the app or add `--no-open`. Overrides are never silently ignored. | Existing theme overrides are supported. |
 | `--no-open` | Bypasses app activation and runs the existing headless local server. | Serves the UI without opening a browser. |
 | `--json` | Reports app acceptance, then exits. | Retains existing server output. |
+| `--view <scroll\|slide>` | Not applicable: switch layout in the app. | Preview layout: `scroll` (default, all slides in one scrolling column) or `slide` (one slide at a time). Switch any time from More controls. The printed URL and `--json` output include the mode. |
 
 The packaged CLI returns after the app accepts the request; the native app keeps
 running independently. `--no-open` instead keeps the console server running until

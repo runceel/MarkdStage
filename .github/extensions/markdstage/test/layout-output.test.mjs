@@ -63,7 +63,7 @@ test("print, capture, and fixed preview share one 1280x720 output surface", asyn
     renderer,
     /params\.get\("responsive"\) !== "1"/,
   );
-  assert.match(renderer, /if \(next && fixedPreviewMode\) setFixedPreviewMode\(false,/);
+  assert.match(renderer, /if \(next && fixedPreviewMode\) \{[^}]*setFixedPreviewMode\(false,/);
   assert.match(css, /body\.fixed-output-mode \.deck/);
   assert.match(css, /width:1280px;height:720px/);
   assert.match(html, /id="navFixedPreview"/);

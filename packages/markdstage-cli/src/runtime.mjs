@@ -51,6 +51,7 @@ const [
   architectureValidation,
   preflightValidation,
   outputReport,
+  viewModes,
 ] = await Promise.all([
   load("runtime/errors.mjs"),
   load("runtime/deck-session.mjs"),
@@ -64,6 +65,7 @@ const [
   load("architecture-validation.mjs"),
   load("runtime/preflight-validation.mjs"),
   load("runtime/export-report.mjs"),
+  load("renderer/view-mode.mjs"),
 ]);
 
 export const { MarkdStageError } = errors;
@@ -91,3 +93,4 @@ export const { validateMarkdStageInput, createMarkdStageValidationTool } = prefl
 export const { buildPresenterBrowserArgs } = presenterWindow;
 export const { isMarkdownPath, MARKDOWN_MAX_BYTES } = markdownFiles;
 export const { formatExportReport } = outputReport;
+export const { DEFAULT_VIEW_MODE, VIEW_MODES, parseViewMode } = viewModes;
