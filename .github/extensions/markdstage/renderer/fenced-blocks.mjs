@@ -1,5 +1,6 @@
 import { splitFrontMatter } from "./slide-title.mjs";
 import { splitSpeakerNotes } from "./speaker-notes.mjs";
+import { extractAlerts } from "./markdown-alerts.mjs";
 
 const FENCE_OPEN = /^([ \t]{0,3})(`{3,}|~{3,})[ \t]*([^\s`~]*)[ \t]*$/;
 
@@ -52,5 +53,7 @@ export function parseSlideMarkdown(markdown, markedApi) {
     }
   };
   walk(tokens, "tokens", 0);
-  return { meta, body, notes: notes.notes, size: directive?.[1].toLowerCase() || "", tokens, cards };
+  // After the card walk so card diagnostics keep the original Marked token paths.
+  const alerts = extractAlerts(tokens);
+  return { meta, body, notes: notes.notes, size: directive?.[1].toLowerCase() || "", tokens, cards, alerts };
 }

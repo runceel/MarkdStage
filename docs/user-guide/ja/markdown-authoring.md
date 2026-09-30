@@ -103,6 +103,18 @@ MarkdStage は次の記法に対応しています。
 - Mermaid 図
 - Architecture DSL 図
 - 絵文字
+- GitHub のアラート（`> [!NOTE]`、`[!TIP]`、`[!IMPORTANT]`、`[!WARNING]`、`[!CAUTION]`）
+
+アラートを使うと、引用ブロックがテーマの info、success、accent、warning、danger の色で
+表示されます。トップレベルの引用ブロックの 1 行目に、マーカーだけを書きます。
+
+```markdown
+> [!WARNING]
+> リリース前に署名キーをローテーションしてください。
+```
+
+未対応のマーカー、マーカーと同じ行に続く文字、入れ子の引用は、GitHub と同じく
+通常の引用ブロックとして表示されます。
 
 ## 図の記法を使い分ける
 

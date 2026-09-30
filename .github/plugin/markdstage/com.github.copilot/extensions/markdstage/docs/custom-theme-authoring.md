@@ -126,6 +126,10 @@ These roles are used consistently everywhere a theme token is accepted:
   with Mermaid's own `style`/`classDef` directives are unaffected, and the
   categorical/series palette used for pie charts, git graphs, and similar
   diagrams is unchanged.
+- **Markdown alerts** (`> [!NOTE]`, `[!TIP]`, `[!WARNING]`, `[!CAUTION]`)
+  use `--info`, `--success`, `--warning`, and `--danger` for the left rule and
+  the matching `--surface-*` token for the background. `[!IMPORTANT]` uses
+  `--accent` and `--accent-soft`.
 
 ### Code syntax
 
