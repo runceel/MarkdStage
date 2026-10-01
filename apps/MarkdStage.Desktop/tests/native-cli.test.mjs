@@ -129,6 +129,10 @@ test("native preview and present stream one bounded ready event", async () => {
     assert.equal(result.event.version, expectedProductVersion);
     assert.equal(result.responseStatus, 200);
     assert.equal(result.state.architectureDetailedEditTarget, "same");
+    assert.equal(result.state.presenterWindowAvailable, true);
+    assert.equal(result.state.presenterRunning, false);
+    assert.equal(result.state.pdfExportAvailable, true);
+    assert.equal(result.state.pptxExportAvailable, true);
     assert.match(result.responseBody, /MarkdStage/);
     assert.equal(result.stdout().trim().split(/\r?\n/).length, 1);
     assert.equal(result.stderr(), "");
@@ -187,6 +191,47 @@ test("native preview streams a host-targeted Architecture Editor event", async (
     if (child.exitCode === null) {
       await new Promise(resolve => child.once("exit", resolve));
     }
+  }
+});
+
+test("native no-open server exports beside the source and owns one audience window", async () => {
+  const child = spawn(executable, ["present", "deck.md", "--workspace", workspace, "--no-open", "--json-lines"], {
+    cwd: workspace,
+    encoding: "utf8",
+    windowsHide: true,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  child.stdout.setEncoding("utf8");
+  const firstLine = new Promise((resolve, reject) => {
+    createInterface({ input: child.stdout }).once("line", resolve);
+    child.once("exit", code => reject(new Error(`CLI exited before ready (${code}).`)));
+  });
+  try {
+    const ready = JSON.parse(await firstLine);
+    const headers = { "content-type": "application/json", origin: new URL(ready.url).origin };
+    const post = async (route, body = {}, method = "POST") =>
+      (await fetch(new URL(route, ready.url), { method, headers, body: method === "POST" ? JSON.stringify(body) : undefined })).json();
+    const state = async () => (await fetch(new URL("state", ready.url))).json();
+
+    const pdf = await post("export");
+    assert.equal(pdf.ok, true);
+    assert.equal(pdf.path, "deck.pdf");
+    assert.equal(readFileSync(join(workspace, "deck.pdf")).subarray(0, 5).toString("latin1"), "%PDF-");
+    const pptx = await post("export-pptx", { mermaidImageFallback: false });
+    assert.equal(pptx.ok, true);
+    assert.equal(pptx.path, "deck.pptx");
+    assert.equal(readFileSync(join(workspace, "deck.pptx")).subarray(0, 2).toString("latin1"), "PK");
+
+    assert.deepEqual(await post("present"), { ok: true, alreadyRunning: false });
+    assert.equal((await state()).presenterRunning, true);
+    assert.deepEqual(await post("present"), { ok: true, alreadyRunning: true });
+    assert.deepEqual(await post("present", undefined, "DELETE"), { ok: true });
+    assert.equal((await state()).presenterRunning, false);
+  } finally {
+    child.kill();
+    if (child.exitCode === null) await new Promise(resolve => child.once("exit", resolve));
+    rmSync(join(workspace, "deck.pdf"), { force: true });
+    rmSync(join(workspace, "deck.pptx"), { force: true });
   }
 });
 

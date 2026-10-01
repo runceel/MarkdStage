@@ -61,7 +61,15 @@ internal static class Program
         await using var browsers = new NativeBrowserHost();
         await using var io = new WorkspaceIoService(root, AppStorage.TransientRoot, browsers);
         var architectureEditorTarget = args.Get("architecture-editor-target") ?? "window";
-        await using var server = new PresentationServer(session, () => false, routes.Configure,
+        PresentationServer? serverReference = null;
+        await using var audience = new AudienceWindow(io, () => serverReference?.BaseUri);
+        routes.PresenterRunning = () => audience.IsRunning;
+        await using var server = new PresentationServer(session, () => audience.IsRunning, routes.Configure,
+            openPresenter: args.IsPresentation ? audience.OpenAsync : null,
+            closePresenter: args.IsPresentation ? audience.CloseAsync : null,
+            exportDeck: args.IsPresentation
+                ? (format, mermaidImageFallback, _) => ExportDeckAsync(routes.Runtime, session, format, mermaidImageFallback)
+                : null,
             openExternal: args.IsPresentation ? OpenExternalAsync : null,
             architectureEditorTarget: architectureEditorTarget,
             openArchitectureEditor:
@@ -78,6 +86,7 @@ internal static class Program
                         await Console.Out.FlushAsync();
                     }
                     : null);
+        serverReference = server;
         if (args.Command != "validate") await server.StartAsync(cancellationToken);
         browsers.AllowedBaseUri = server.BaseUri;
         var profileResult = await io.ExecuteAsync("createTransientDirectory", JsonSerializer.SerializeToElement(new[] { "inspect" }), cancellationToken);
@@ -106,6 +115,8 @@ internal static class Program
             theme = args.Get("theme"),
             themeFile = NormalizePathOption(root, args.Get("theme-file"), "invalid_theme_file"),
             architectureEditorTarget,
+            presenterWindowAvailable = args.IsPresentation,
+            exportAvailable = args.IsPresentation,
         });
         if (file is not null)
             await scripts.InvokeAsync("load", new { path = Path.GetRelativePath(root, file).Replace('\\', '/') });
@@ -154,6 +165,29 @@ internal static class Program
         if (args.Has("json")) Console.WriteLine(JsonSerializer.Serialize(report, HostCommands.JsonOptions));
         else Console.WriteLine(result.GetProperty("text").GetString());
         return result.GetProperty("exitCode").GetInt32();
+    }
+
+    // UI exports save beside the source Markdown file, matching the npm CLI and Desktop.
+    internal static async Task<JsonElement> ExportDeckAsync(
+        ScriptHost? runtime, PresentationSession session, string format, bool mermaidImageFallback)
+    {
+        if (runtime is null) throw new DeckLoadException("The shared runtime is not ready.", "runtime_unavailable");
+        if (format is not ("pdf" or "pptx")) throw new ArgumentOutOfRangeException(nameof(format));
+        var snapshot = session.GetSnapshot();
+        if (string.IsNullOrWhiteSpace(snapshot.SourcePath) || string.IsNullOrWhiteSpace(snapshot.WorkspaceRoot))
+            throw new DeckLoadException("A source-backed deck is required.", "no_deck");
+        var output = Path.GetRelativePath(snapshot.WorkspaceRoot,
+            Path.ChangeExtension(snapshot.SourcePath, format == "pptx" ? ".pptx" : ".pdf")).Replace('\\', '/');
+        try
+        {
+            var result = await runtime.InvokeAsync("export", new
+            {
+                output,
+                mermaidImageFallback = format == "pptx" && mermaidImageFallback,
+            });
+            return result.GetProperty("report").Clone();
+        }
+        catch (CliException error) { throw new DeckLoadException(error.Message, error.Code); }
     }
 
     private static Task OpenExternalAsync(Uri uri)

@@ -40,7 +40,10 @@ to stop all owned servers; they are also stopped when the extension deactivates.
 
 Preview and presenter commands require a trusted workspace because they execute an installed
 program and read workspace content. The browser UI provides the same MarkdStage controls as the
-CLI, including slide navigation, presenter notes, Architecture editing, and output preview.
+CLI, including slide navigation, presenter notes, Architecture editing, output preview, the
+external audience window (**Start presentation**), and PDF/PowerPoint export beside the source
+file. These controls behave the same with the npm CLI and the packaged Windows CLI; the audience
+window and export require an installed Chromium browser.
 
 Run **MarkdStage: Edit Architecture Diagram** to open the same preview, then choose
 **More controls > Shape editing** on a slide containing an Architecture DSL diagram. The command

@@ -42,7 +42,10 @@ markdstage --version
 
 プレビューと発表者ビューは、インストール済みプログラムを実行してワークスペースを読み取るため、
 信頼済みワークスペースで使用します。ブラウザー UI では、スライド移動、発表者ノート、
-Architecture 編集、出力プレビューなど、CLI と同じ MarkdStage の操作を利用できます。
+Architecture 編集、出力プレビュー、外部の投影用ウィンドウ（**Start presentation**）、
+ソースと同じ場所への PDF・PowerPoint 出力など、CLI と同じ MarkdStage の操作を利用できます。
+これらは npm 版 CLI と Windows パッケージ版 CLI のどちらでも同じように動作し、投影用ウィンドウと
+出力にはインストール済みの Chromium 系ブラウザーが必要です。
 
 Architecture DSL を編集するには、**MarkdStage: Edit Architecture Diagram** を実行して同じプレビューを
 開き、Architecture DSL の図があるスライドで **More controls > Shape editing** を選択します。このコマンドは
