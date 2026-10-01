@@ -4,8 +4,8 @@ This extension is a thin workspace-host wrapper over the independently installed
 MarkdStage CLI. It does not bundle the CLI, parser, renderer, validator, or
 generated Agent Skill content.
 
-The extension and CLI share one product version. Version `4.3.1` of this
-extension recommends MarkdStage CLI `4.3.1` and accepts any CLI from the
+The extension and CLI share one product version. Version `4.4.0` of this
+extension recommends MarkdStage CLI `4.4.0` and accepts any CLI from the
 `markdstage.minimumCliVersion` declared in `package.json` up to the same major
 version. An older but compatible CLI shows an update recommendation; a CLI below
 the minimum or with a newer major version is rejected with installation guidance.
