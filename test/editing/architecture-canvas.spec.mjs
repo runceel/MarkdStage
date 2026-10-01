@@ -842,7 +842,9 @@ test("medium and narrow layouts expose Elements and Properties as responsive dra
     await expect(page.locator("#inspectorPanel")).toBeVisible();
     const headerHeight = await page.locator(".editor-header").evaluate((element) => element.offsetHeight);
     expect(headerHeight).toBeLessThan(120);
-    const primaryHeights = await page.locator(".editor-actions > button, .editor-actions > div > button")
+    const primaryHeights = await page.locator(
+      ".editor-actions > button:not([hidden]), .editor-actions > div > button:not([hidden])",
+    )
       .evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().height));
     expect(Math.min(...primaryHeights)).toBeGreaterThanOrEqual(40);
     await openMore(page);
