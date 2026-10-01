@@ -631,3 +631,104 @@ jobs:
           curl -fsSIL \
             "https://github.com/${GITHUB_REPOSITORY}/tree/${GITHUB_REF_NAME}/.github/extensions/markdstage" \
             >/dev/null
+
+  marketplace:
+    name: Publish VS Code Marketplace extension
+    needs: [validate, vscode, release]
+    runs-on: ubuntu-24.04
+    environment: vscode-marketplace
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24.x
+
+      - name: Install vsce
+        working-directory: packages/markdstage-vscode
+        run: npm ci
+
+      - name: Download verified VSIX
+        uses: actions/download-artifact@v5
+        with:
+          name: markdstage-vscode-release
+          path: release-assets
+
+      - name: Verify VSIX checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd release-assets
+          sed -i 's/\r$//' markdstage-vscode-*.vsix.sha256
+          sha256sum -c markdstage-vscode-*.vsix.sha256
+
+      - name: Require Marketplace identity configuration
+        shell: bash
+        env:
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$AZURE_CLIENT_ID" && test -n "$AZURE_TENANT_ID" || {
+            echo "Set AZURE_CLIENT_ID and AZURE_TENANT_ID variables on the vscode-marketplace environment."
+            exit 1
+          }
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      - name: Show Marketplace identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          az rest -u https://app.vssps.visualstudio.com/_apis/profile/profiles/me \
+            --resource 499b84ac-1321-427f-aa17-267ca6975798 \
+            --query '{id: id, displayName: displayName}' -o json
+
+      - name: Publish to Visual Studio Marketplace
+        shell: bash
+        working-directory: packages/markdstage-vscode
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./package.json').version")
+          id=$(node -p "const p = require('./package.json'); p.publisher + '.' + p.name")
+          vsix="$GITHUB_WORKSPACE/release-assets/markdstage-vscode-${version}.vsix"
+          published_versions() {
+            npx vsce show "$id" --json 2>/dev/null |
+              node -e "let d=''; process.stdin.on('data', c => d += c); process.stdin.on('end', () => { try { for (const v of JSON.parse(d).versions ?? []) console.log(v.version); } catch {} });" ||
+              true
+          }
+          if published_versions | grep -qx "$version"; then
+            echo "$id@$version is already published."
+          else
+            npx vsce publish --packagePath "$vsix" --azure-credential
+          fi
+
+      - name: Verify Marketplace version
+        shell: bash
+        working-directory: packages/markdstage-vscode
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./package.json').version")
+          id=$(node -p "const p = require('./package.json'); p.publisher + '.' + p.name")
+          for attempt in {1..30}; do
+            if npx vsce show "$id" --json 2>/dev/null |
+              node -e "let d=''; process.stdin.on('data', c => d += c); process.stdin.on('end', () => process.exit((JSON.parse(d).versions ?? []).some(v => v.version === process.argv[1]) ? 0 : 1));" "$version"; then
+              echo "Verified $id@$version on the Visual Studio Marketplace."
+              exit 0
+            fi
+            echo "Waiting for Marketplace propagation ($attempt/30)..."
+            sleep 20
+          done
+          echo "$id@$version was not visible on the Marketplace after 10 minutes."
+          exit 1

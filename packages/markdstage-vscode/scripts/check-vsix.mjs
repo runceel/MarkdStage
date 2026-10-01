@@ -8,6 +8,7 @@ const required = [
   "extension/readme.md",
   "extension/dist/extension.js",
   "extension/LICENSE.txt",
+  "extension/media/icon.png",
   "extension/media/preview-dark.svg",
   "extension/media/preview-light.svg",
 ];

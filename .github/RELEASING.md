@@ -8,7 +8,8 @@ ARM64 from the same repository.
 
 1. Use one product version for the Canvas Extension, Skill, npm CLI, Visual Studio Code extension,
    and Desktop.
-2. Update `packages/markdstage-cli/package.json` to that version before releasing.
+2. Update `packages/markdstage-cli/package.json`, `packages/markdstage-vscode/package.json`,
+   and `packages/markdstage-vscode/package-lock.json` to that version before releasing.
 3. Review the changes, compatibility, bundled open-source software, and test results.
 4. Create one tag in `vMAJOR.MINOR.PATCH` format. That tag identifies every release surface and
    triggers npm publication.
@@ -104,8 +105,33 @@ npm run package
 ```
 
 Publish `markdstage-vscode-<version>.vsix` and its SHA-256 checksum as GitHub Release assets.
-Marketplace publication, if introduced later, is a separate explicit operation and must use the
-same immutable release tag.
+The release workflow then publishes that same checksum-verified VSIX to the Visual Studio
+Marketplace as `okazuki.markdstage-vscode` (see "Visual Studio Marketplace publication" below).
+Do not run `vsce publish` locally for a release.
+
+### Visual Studio Marketplace publication
+
+The `marketplace` job in `.github/workflows/npm-publish.yml` runs after the GitHub Release is
+verified. It authenticates with Microsoft Entra ID through GitHub Actions OIDC and runs
+`vsce publish --packagePath <verified VSIX> --azure-credential`; do not add an Azure DevOps
+personal access token (global PATs are retired on 2026-12-01). If the version already exists
+on the Marketplace it is verified instead of republished, so the job is safe to rerun.
+
+One-time setup (a personal Microsoft account with an Azure subscription is sufficient):
+
+1. In Azure, create a user-assigned managed identity in the subscription's tenant. No Azure
+   role assignment is required.
+2. Add a federated credential to that identity: issuer `https://token.actions.githubusercontent.com`,
+   subject `repo:runceel/MarkdStage:environment:vscode-marketplace`, audience
+   `api://AzureADTokenExchange`.
+3. In GitHub, create the `vscode-marketplace` environment, restrict its deployment to tags
+   matching `v*`, and set the environment variables `AZURE_CLIENT_ID` (managed identity
+   client ID) and `AZURE_TENANT_ID`. These are identifiers, not secrets.
+4. Obtain the identity's Marketplace profile ID. The `Show Marketplace identity` step of the
+   `marketplace` job logs it as `id`; on the first release, that job fails at publication until
+   step 5 is complete and can then be rerun.
+5. On https://marketplace.visualstudio.com/manage/publishers/okazuki, add that `id` as a
+   member with the **Contributor** role.
 
 ## MarkdStage Desktop
 
@@ -199,6 +225,7 @@ unless that distribution change has been explicitly decided.
 ```powershell
 npm ci
 npm test
+npm run awesome:check
 cd packages\markdstage-cli
 npm pack --dry-run
 cd ..\..
@@ -230,9 +257,11 @@ Actions OIDC; do not add a long-lived npm token.
 
 Before tagging:
 
-1. Update `packages/markdstage-cli/package.json` and the hand-maintained
+1. Update `packages/markdstage-cli/package.json`, `packages/markdstage-vscode/package.json`
+   (and the root entries of its `package-lock.json`), and the hand-maintained
    `.github/plugin/markdstage/plugin.json` to the new shared product version.
-   `awesome:sync` regenerates the Extension tree, not this plugin manifest.
+   `awesome:sync` regenerates the Extension tree, not this plugin manifest. Review
+   `markdstage.minimumCliVersion` in the VS Code manifest as described above.
 2. Update every current-release Extension and Desktop URL in `README.md` and `README.ja.md` to use
    the new tag. Do not change historical migration references.
 3. Add `.github/release-notes/vMAJOR.MINOR.PATCH.md` with the overview, compatibility statement,
@@ -259,9 +288,11 @@ The tag starts `.github/workflows/npm-publish.yml`. The workflow:
 5. Packs and checksums the CLI tarball for offline installation.
 6. Generates release notes, creates the GitHub Release, uploads every asset, and verifies the
    published URLs.
+7. Publishes the verified VSIX to the Visual Studio Marketplace and waits until the version is
+   visible.
 
-The workflow is safe to rerun: existing npm versions are verified instead of republished, and
-existing GitHub Release assets are replaced with the newly verified artifacts.
+The workflow is safe to rerun: existing npm and Marketplace versions are verified instead of
+republished, and existing GitHub Release assets are replaced with the newly verified artifacts.
 The complete JavaScript, browser, CLI, Desktop, accessibility, performance, PDF, and PowerPoint
 test suites run once in `ci.yml`; the release workflow does not repeat them.
 
@@ -270,10 +301,10 @@ test suites run once in `ci.yml`; the release workflow does not repeat them.
 The workflow creates the GitHub Release and includes:
 
 - Change summary and verified commit SHA
-- Shared Canvas Extension, Skill, npm CLI, and Desktop version
+- Shared Canvas Extension, Skill, npm CLI, VS Code extension, and Desktop version
 - Breaking changes and migration table
 - Supported Windows architectures and the WebView2 Runtime prerequisite
-- SHA-256 for the Extension ZIP, CLI tarball, portable Windows packages, signed MSIX packages, and public certificate
+- SHA-256 for the Extension ZIP, CLI tarball, VS Code VSIX, portable Windows packages, signed MSIX packages, and public certificate
 - Updated third-party notices when bundled open-source software changes
 
 ## Post-release verification
@@ -281,20 +312,22 @@ The workflow creates the GitHub Release and includes:
 After the workflow succeeds:
 
 1. Confirm the GitHub Release is marked latest and contains the Extension/CLI
-   files, x64 and ARM64 portable Windows packages, signed x64 and ARM64 MSIX
+   files, the VS Code VSIX, x64 and ARM64 portable Windows packages, signed x64 and ARM64 MSIX
    packages, the public signing certificate, and their checksums.
 2. Confirm npm shows the matching `@markdstage/markdstage` version and provenance.
-3. Install the version-pinned Extension folder and verify the user-scoped Extension when applicable.
-4. As the final release step, create the local Partner Center upload package using
+3. Confirm https://marketplace.visualstudio.com/items?itemName=okazuki.markdstage-vscode shows the
+   matching version and that VS Code offers it as an update.
+4. Install the version-pinned Extension folder and verify the user-scoped Extension when applicable.
+5. As the final release step, create the local Partner Center upload package using
    the released version:
 
    ```powershell
    apps\MarkdStage.Desktop\scripts\CreateStorePackage.ps1 -Version <major.minor.patch.0>
    ```
 
-5. Confirm both files exist and report their full paths:
+6. Confirm both files exist and report their full paths:
    - `apps\MarkdStage.Desktop\artifacts\MarkdStage-Store-<version>.msixupload`
    - `apps\MarkdStage.Desktop\artifacts\MarkdStage-Store-<version>.msixupload.sha256`
 
-Do not consider a requested release complete until step 5 succeeds. Creating the
+Do not consider a requested release complete until step 6 succeeds. Creating the
 package does not submit it to Partner Center.
