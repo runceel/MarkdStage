@@ -1,6 +1,8 @@
 export interface CliInfo {
   executable: string;
   version: string;
+  /** Set when the CLI is older than the extension but still compatible. */
+  warning?: string;
 }
 
 export interface ReadyEvent {

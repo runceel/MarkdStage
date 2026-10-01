@@ -55,16 +55,28 @@ async function guideCliInstallation(message: string): Promise<void> {
   }
 }
 
+async function guideCliUpdate(message: string): Promise<void> {
+  const choice = await vscode.window.showWarningMessage(message, "Installation guide");
+  if (choice === "Installation guide") {
+    await vscode.env.openExternal(vscode.Uri.parse(INSTALL_URL));
+  }
+}
+
 async function detectCli(context: vscode.ExtensionContext, announce = false): Promise<CliInfo | undefined> {
   requireTrustedWorkspace("CLI detection");
   const configuredPath = vscode.workspace.getConfiguration("markdstage").get<string>("executablePath");
+  const manifest = context.extension.packageJSON as { version: string; markdstage?: { minimumCliVersion?: string } };
   try {
     cliInfo = await discoverCli({
       configuredPath,
-      expectedVersion: context.extension.packageJSON.version as string,
+      expectedVersion: manifest.version,
+      minimumVersion: manifest.markdstage?.minimumCliVersion,
       cwd: workspaceFolderFor()?.uri.fsPath,
     });
     cliError = undefined;
+    if (cliInfo.warning) {
+      void guideCliUpdate(cliInfo.warning);
+    }
     if (announce) {
       await vscode.window.showInformationMessage(`MarkdStage CLI ${cliInfo.version} found at ${cliInfo.executable}.`);
     }
