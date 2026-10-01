@@ -1,11 +1,13 @@
 # Release process
 
 MarkdStage distributes a canvas Extension installable from GitHub Copilot, an optional Skill, a
-standalone npm CLI, and MarkdStage Desktop for Windows x64 and ARM64 from the same repository.
+standalone npm CLI, a Visual Studio Code extension, and MarkdStage Desktop for Windows x64 and
+ARM64 from the same repository.
 
 ## Versioning and compatibility
 
-1. Use one product version for the Canvas Extension, Skill, npm CLI, and Desktop.
+1. Use one product version for the Canvas Extension, Skill, npm CLI, Visual Studio Code extension,
+   and Desktop.
 2. Update `packages/markdstage-cli/package.json` to that version before releasing.
 3. Review the changes, compatibility, bundled open-source software, and test results.
 4. Create one tag in `vMAJOR.MINOR.PATCH` format. That tag identifies every release surface and
@@ -81,6 +83,26 @@ assets from the distribution ZIP:
 Include `scripts/` because it handles Markdown persistence, and `schema/` because it contains
 user-facing JSON Schemas. Also include the split Mermaid assets and their manifest.
 
+## Visual Studio Code extension
+
+The VS Code extension under `packages/markdstage-vscode/` is a thin wrapper over an installed
+compatible MarkdStage CLI. It does not carry a second renderer, validator, or Agent Skill copy.
+Keep its manifest version aligned with `packages/markdstage-cli/package.json`.
+
+Build and test the extension before packaging its release VSIX:
+
+```powershell
+cd packages\markdstage-vscode
+npm ci
+npm test
+npm run build
+npm run package
+```
+
+Publish `markdstage-vscode-<version>.vsix` and its SHA-256 checksum as GitHub Release assets.
+Marketplace publication, if introduced later, is a separate explicit operation and must use the
+same immutable release tag.
+
 ## MarkdStage Desktop
 
 Starting with v4, Desktop is distributed through GitHub Releases as portable Windows
@@ -100,6 +122,8 @@ Attach the following files to the release:
 
 - `markdstage-markdstage-<version>.tgz`
 - `markdstage-markdstage-<version>.tgz.sha256`
+- `markdstage-vscode-<version>.vsix`
+- `markdstage-vscode-<version>.vsix.sha256`
 - `markdstage-v<version>.zip` (Canvas Extension, not Desktop)
 - `markdstage-v<version>.zip.sha256`
 - `MarkdStage-win-x64.zip`
@@ -173,6 +197,12 @@ npm ci
 npm test
 cd packages\markdstage-cli
 npm pack --dry-run
+cd ..\..
+cd packages\markdstage-vscode
+npm ci
+npm test
+npm run build
+npm run package
 cd ..\..
 dotnet test apps\MarkdStage.Desktop\tests\MarkdStage.Core.Tests\MarkdStage.Core.Tests.csproj -c Release
 dotnet build apps\MarkdStage.Desktop\src\MarkdStage.App\MarkdStage.App.csproj -c Release -r win-x64 -p:Platform=x64

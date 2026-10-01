@@ -15,6 +15,7 @@ for local implementation details and user-interface behavior.
 | --- | --- | --- |
 | Canvas Extension | Copilot-hosted authoring, presentation, editing, inspection, and export | Node.js host with an embedded browser surface |
 | npm CLI | Terminal and automation workflows, including browser-based interactive use | Node.js and an installed Chromium-based browser |
+| VS Code Extension | Workspace discovery, compatible CLI guidance, CLI process lifecycle, and projection of diagnostics and product UI | VS Code extension host with the CLI installed in the same environment |
 | Windows Desktop | Native workspace, presenter, audience-window, and file-activation experience | WinUI 3 and WebView2 |
 | Packaged Windows CLI | Console commands and activation of the installed Desktop app | Native host, WebView2, and external Chromium where layout is required |
 
@@ -26,6 +27,8 @@ and output construction lives under `.github/extensions/markdstage/`.
 flowchart LR
     canvas["Canvas Extension"] --> node["Node adapter"]
     cli["npm CLI"] --> node
+    vscode["VS Code Extension"] --> cli
+    vscode --> packaged
     desktop["Windows Desktop"] --> native["Native host adapter"]
     packaged["Packaged Windows CLI"] --> native
     node --> runtime["Shared JavaScript runtime"]
@@ -39,6 +42,33 @@ In interactive CLI browser views, slide links to external HTTP(S) origins are
 handed to the host machine's default browser through a token-scoped, same-origin
 request; the shared renderer enables this only when the host advertises support.
 Desktop handles the same links at its WebView2 boundary instead.
+
+## VS Code extension boundary
+
+The VS Code extension is a thin host integration over an independently installed,
+compatible MarkdStage CLI. The CLI owns deck parsing, rendering, validation,
+Agent Skill generation, workspace confinement, and the other security decisions
+for product operations. The extension owns workspace discovery, installation and
+compatibility guidance, CLI process lifecycle, and projection of diagnostics and
+product UI into VS Code.
+
+The extension and CLI use one MarkdStage product version. The extension does not
+bundle a second CLI implementation or a copy of the generated Agent Skill.
+Initial preview uses VS Code's built-in browser surface while preserving the
+CLI's ownership of product behavior and security. Architecture DSL editing is
+also exposed through the canonical controls of that same preview server; source
+mutation remains owned by the CLI/server. When the canonical editor is requested,
+the CLI creates the editor session and emits a versioned loopback event; the
+extension validates the event and projects the editor into a separate VS Code
+browser tab. Browser popup behavior is not part of this integration boundary.
+
+For remote workspaces, the compatible CLI must be installed in the environment
+that runs the VS Code extension host. A CLI installed only on the local UI
+machine does not satisfy that boundary. A Web extension is not a supported
+surface.
+
+[ADR 0007](adr/0007-vscode-extension-thin-wrapper-over-cli.md) records the
+decision and trade-offs behind this boundary.
 
 ## Shared runtime and host boundary
 
@@ -152,6 +182,14 @@ files. Generated mirrors must not be edited by hand.
   shared implementation.
 - A surface difference is intentional only when an accepted ADR records it.
 - Error meanings and security decisions remain equivalent across adapters.
+- VS Code integration delegates product behavior and security enforcement to a
+  compatible CLI in the extension-host environment.
+- VS Code Architecture editing uses the canonical Architecture Editor and
+  source-backed save path; the extension does not implement a second shape
+  parser, renderer, or persistence protocol. Editor-session creation remains in
+  the CLI, while VS Code owns only validated tab projection.
+- MarkdStage surfaces share one product version; integrations do not create an
+  independently versioned parser, renderer, validator, or Agent Skill.
 - Final output is verified on every runtime path that uses a different browser
   engine; equivalent implementation does not imply identical engine versions.
 - The product never downloads or installs Node.js, WebView2, or Chromium at run

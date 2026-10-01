@@ -24,7 +24,9 @@ internal sealed class PresentationServer(
     Func<string, bool, CancellationToken, Task<JsonElement>>? exportDeck = null,
     Func<string, CancellationToken, Task<JsonElement>>? exportData = null,
     Func<string, JsonElement, CancellationToken, Task>? exportStatus = null,
-    Func<Uri, Task>? openExternal = null) : IAsyncDisposable
+    Func<Uri, Task>? openExternal = null,
+    string architectureEditorTarget = "window",
+    Func<Uri, Uri, Task>? openArchitectureEditor = null) : IAsyncDisposable
 {
     private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(2);
 
@@ -234,7 +236,9 @@ internal sealed class PresentationServer(
                 architectureEdit = false,
                 architectureDetailedEdit = !string.IsNullOrWhiteSpace(snapshot.SourcePath),
                 architectureDetailedEditTarget = !string.IsNullOrWhiteSpace(snapshot.SourcePath)
-                    ? "window"
+                    ? architectureEditorTarget is "same" or "host"
+                        ? architectureEditorTarget
+                        : "window"
                     : "",
             });
         });
@@ -464,10 +468,16 @@ internal sealed class PresentationServer(
                             return Results.Json(reloaded.Body, statusCode: reloaded.StatusCode);
                     }
                 }
+                var editorUrl = new Uri(BaseUri!, $"architecture-editor/{editor.Id}/");
+                if (architectureEditorTarget == "host" && openArchitectureEditor is not null)
+                {
+                    await openArchitectureEditor(BaseUri!, editorUrl);
+                    return Results.Json(new { ok = true, openedByHost = true });
+                }
                 return Results.Json(new
                 {
                     ok = true,
-                    url = new Uri(BaseUri!, $"architecture-editor/{editor.Id}/").AbsoluteUri,
+                    url = editorUrl.AbsoluteUri,
                 });
             }
             catch (ArchitectureEditorException error)

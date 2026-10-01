@@ -38,6 +38,11 @@ jobs:
         run: |
           set -euo pipefail
           version=$(node -p "require('./packages/markdstage-cli/package.json').version")
+          vscode_version=$(node -p "require('./packages/markdstage-vscode/package.json').version")
+          if [ "$vscode_version" != "$version" ]; then
+            echo "VS Code extension version $vscode_version does not match product version $version."
+            exit 1
+          fi
           stable_semver='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
           if [[ ! "$version" =~ $stable_semver ]]; then
             echo "Package version $version is not a stable MAJOR.MINOR.PATCH version."
@@ -309,9 +314,64 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
+  vscode:
+    name: Package VS Code extension
+    needs: validate
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24.x
+
+      - name: Install dependencies
+        working-directory: packages/markdstage-vscode
+        run: npm ci
+
+      - name: Test and package extension
+        working-directory: packages/markdstage-vscode
+        run: |
+          set -euo pipefail
+          npm test
+          npm run build
+          npm run package
+
+      - name: Prepare release asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./packages/markdstage-vscode/package.json').version")
+          source=$(find packages/markdstage-vscode -maxdepth 2 -type f -name '*.vsix' -print -quit)
+          test -n "$source" || {
+            echo "The VS Code extension package was not produced."
+            exit 1
+          }
+          mkdir -p release-assets
+          target="release-assets/markdstage-vscode-${version}.vsix"
+          cp "$source" "$target"
+          (
+            cd release-assets
+            sha256sum "markdstage-vscode-${version}.vsix" \
+              > "markdstage-vscode-${version}.vsix.sha256"
+          )
+
+      - name: Upload VS Code extension artifacts
+        uses: actions/upload-artifact@v5
+        with:
+          name: markdstage-vscode-release
+          path: release-assets/*
+          retention-days: 7
+          if-no-files-found: error
+
   npm:
     name: Publish npm package
-    needs: [validate, desktop]
+    needs: [validate, desktop, vscode]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -391,6 +451,7 @@ jobs:
       - validate
       - extension
       - desktop
+      - vscode
       - npm
     runs-on: ubuntu-24.04
     permissions:
@@ -415,8 +476,10 @@ jobs:
           sed -i 's/\r$//' MarkdStage-win-x64.msix.sha256 MarkdStage-win-arm64.msix.sha256
           sed -i 's/\r$//' MarkdStage.cer.sha256
           sed -i 's/\r$//' markdstage-markdstage-*.tgz.sha256
+          sed -i 's/\r$//' markdstage-vscode-*.vsix.sha256
           sha256sum -c "markdstage-${GITHUB_REF_NAME}.zip.sha256"
           sha256sum -c markdstage-markdstage-*.tgz.sha256
+          sha256sum -c markdstage-vscode-*.vsix.sha256
           sha256sum -c MarkdStage-win-x64.zip.sha256
           sha256sum -c MarkdStage-win-arm64.zip.sha256
           sha256sum -c MarkdStage-win-x64.msix.sha256
@@ -432,6 +495,7 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           extension_sha=$(awk '{print $1}' "release-assets/markdstage-${GITHUB_REF_NAME}.zip.sha256")
           cli_sha=$(awk '{print $1}' release-assets/markdstage-markdstage-*.tgz.sha256)
+          vscode_sha=$(awk '{print $1}' release-assets/markdstage-vscode-*.vsix.sha256)
           x64_zip_sha=$(awk '{print $1}' release-assets/MarkdStage-win-x64.zip.sha256)
           arm64_zip_sha=$(awk '{print $1}' release-assets/MarkdStage-win-arm64.zip.sha256)
           x64_sha=$(awk '{print $1}' release-assets/MarkdStage-win-x64.msix.sha256)
@@ -448,6 +512,7 @@ jobs:
           - MarkdStage Canvas Extension: ${GITHUB_REF_NAME}
           - MarkdStage Skill: ${GITHUB_REF_NAME}
           - MarkdStage Desktop: ${GITHUB_REF_NAME}
+          - MarkdStage VS Code extension: ${GITHUB_REF_NAME}
           - npm CLI: \`@markdstage/markdstage@${version}\`
 
           ## Requirements
@@ -477,6 +542,7 @@ jobs:
           | --- | --- |
           | \`markdstage-${GITHUB_REF_NAME}.zip\` | \`${extension_sha}\` |
           | \`markdstage-markdstage-${version}.tgz\` | \`${cli_sha}\` |
+          | \`markdstage-vscode-${version}.vsix\` | \`${vscode_sha}\` |
           | \`MarkdStage-win-x64.zip\` | \`${x64_zip_sha}\` |
           | \`MarkdStage-win-arm64.zip\` | \`${arm64_zip_sha}\` |
           | \`MarkdStage-win-x64.msix\` | \`${x64_sha}\` |
@@ -501,6 +567,8 @@ jobs:
             "release-assets/markdstage-${GITHUB_REF_NAME}.zip.sha256"
             release-assets/markdstage-markdstage-*.tgz
             release-assets/markdstage-markdstage-*.tgz.sha256
+            release-assets/markdstage-vscode-*.vsix
+            release-assets/markdstage-vscode-*.vsix.sha256
             "release-assets/MarkdStage-win-x64.zip"
             "release-assets/MarkdStage-win-x64.zip.sha256"
             "release-assets/MarkdStage-win-arm64.zip"
@@ -543,6 +611,8 @@ jobs:
             "markdstage-${GITHUB_REF_NAME}.zip.sha256" \
             "markdstage-markdstage-${version}.tgz" \
             "markdstage-markdstage-${version}.tgz.sha256" \
+            "markdstage-vscode-${version}.vsix" \
+            "markdstage-vscode-${version}.vsix.sha256" \
             "MarkdStage-win-x64.zip" \
             "MarkdStage-win-x64.zip.sha256" \
             "MarkdStage-win-arm64.zip" \

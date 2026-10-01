@@ -55,6 +55,20 @@ const VALID_DECK = [
   "",
 ].join("\n");
 
+const ARCHITECTURE_DECK = [
+  "# Architecture",
+  "",
+  "```architecture",
+  JSON.stringify({
+    version: 1,
+    elements: [
+      { type: "node", id: "n1", x: 80, y: 80, width: 240, height: 120, text: "Host" },
+    ],
+  }),
+  "```",
+  "",
+].join("\n");
+
 test("bare invocation uses the current directory as its workspace", async () => {
   const dir = await mkdtemp(join(tmpdir(), "markdstage-current-cli-"));
   const io = capture();
@@ -159,6 +173,7 @@ test("preview help explains the shared slide-view application", async () => {
   assert.match(io.stdout(), /full MarkdStage UI\./);
   assert.match(io.stdout(), /--watch\s+Start with automatic refresh enabled/);
   assert.match(io.stdout(), /Architecture editing and export remain available/);
+  assert.match(io.stdout(), /--json-lines\s+Stream wrapper events/);
 });
 
 test("present help explains the shared presenter-view application", async () => {
@@ -166,6 +181,7 @@ test("present help explains the shared presenter-view application", async () => 
   assert.equal(await run(["present", "--help"], io), EXIT_OK);
   assert.match(io.stdout(), /full MarkdStage UI in presenter view/);
   assert.match(io.stdout(), /editing, export, and audience controls remain available/);
+  assert.match(io.stdout(), /--json-lines\s+Stream wrapper events/);
 });
 
 test("presentation is not retained as a compatibility alias", async () => {
@@ -463,6 +479,119 @@ test("preview --json writes only one machine-readable document", async () => {
       stop();
       assert.equal((await running).sourceMode, "snapshot");
     });
+  });
+});
+
+test("preview and present stream one bounded ready event with a stable schema", async () => {
+  await withDeck(VALID_DECK, async ({ dir, file }) => {
+    for (const [operation, sourceMode] of [["preview", "snapshot"], ["present", "live"]]) {
+      const io = capture();
+      io.until = Promise.resolve();
+      assert.equal(
+        await run([
+          operation,
+          file,
+          "--workspace",
+          dir,
+          "--no-open",
+          "--json-lines",
+          ...(operation === "present" ? ["--watch"] : []),
+        ], io),
+        EXIT_OK,
+      );
+      const lines = io.stdout().split("\n");
+      assert.equal(lines.length, 1);
+      const event = JSON.parse(lines[0]);
+      assert.deepEqual(Object.keys(event), [
+        "type",
+        "url",
+        "operation",
+        "workspace",
+        "sourceMode",
+        "version",
+      ]);
+      assert.equal(event.type, "ready");
+      assert.equal(event.operation, operation);
+      assert.equal(event.workspace, dir);
+      assert.equal(event.sourceMode, sourceMode);
+      assert.match(event.version, /^\d+\.\d+\.\d+/);
+      assert.equal(new URL(event.url).searchParams.has("presenter"), operation === "present");
+      assert.equal(io.stderr(), "");
+    }
+  });
+});
+
+test("host-targeted preview streams an Architecture Editor event", async () => {
+  await withDeck(ARCHITECTURE_DECK, async ({ dir, file }) => {
+    const lines = [];
+    const waiters = [];
+    const nextLine = () => lines.length
+      ? Promise.resolve(lines.shift())
+      : new Promise((resolve) => waiters.push(resolve));
+    let stop;
+    const io = {
+      out: (text) => {
+        const waiter = waiters.shift();
+        if (waiter) waiter(text);
+        else lines.push(text);
+      },
+      err: () => {},
+      until: new Promise((resolve) => {
+        stop = resolve;
+      }),
+    };
+    const running = run([
+      "preview",
+      file,
+      "--workspace",
+      dir,
+      "--watch",
+      "--no-open",
+      "--json-lines",
+      "--architecture-editor-target",
+      "host",
+    ], io);
+    try {
+      const ready = JSON.parse(await nextLine());
+      const response = await fetch(new URL("architecture-editor/open", ready.url), {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: new URL(ready.url).origin,
+        },
+        body: JSON.stringify({ index: 0, block: 0 }),
+      });
+      assert.deepEqual(await response.json(), { ok: true, openedByHost: true });
+      const event = JSON.parse(await nextLine());
+      assert.equal(event.type, "architecture-editor");
+      assert.equal(event.version, ready.version);
+      assert.equal(event.previewUrl, ready.url);
+      assert.match(event.url, /^http:\/\/127\.0\.0\.1:\d+\/[A-Za-z0-9_-]{16,}\/$/);
+    } finally {
+      stop();
+      assert.equal(await running, EXIT_OK);
+    }
+  });
+});
+
+test("--json-lines is preview/present-only and cannot be combined with --json", async () => {
+  const invalidCommand = capture();
+  assert.equal(
+    await run(["validate", "slides.md", "--json-lines"], invalidCommand),
+    EXIT_USAGE,
+  );
+  assert.match(invalidCommand.stdout(), /"ok":false/);
+  assert.match(invalidCommand.stdout(), /only valid for preview and present/);
+  assert.equal(invalidCommand.stderr(), "");
+
+  await withDeck(VALID_DECK, async ({ file }) => {
+    const incompatible = capture();
+    assert.equal(
+      await run(["preview", file, "--no-open", "--json", "--json-lines"], incompatible),
+      EXIT_USAGE,
+    );
+    assert.match(incompatible.stdout(), /cannot be combined/);
+    assert.equal(incompatible.stderr(), "");
   });
 });
 

@@ -107,17 +107,49 @@ test("preview without watch is read-only", async () => {
 
 test("watch mode advertises editing but starts in viewing mode", async () => {
   await withWorkspace(async ({ dir, file }) => {
-    await withDeckServer({ file, workspace: dir, watch: true }, async (_session, server) => {
+    await withDeckServer({
+      file,
+      workspace: dir,
+      watch: true,
+      architectureEditorTarget: "same",
+    }, async (_session, server) => {
       const state = await (await fetch(new URL("state", server.url))).json();
       assert.equal(state.sourceBacked, true);
       assert.equal(state.sourceModeAvailable, false);
       assert.equal(state.architectureEditAvailable, true);
       assert.equal(state.architectureEdit, false);
       assert.equal(state.architectureDetailedEdit, true);
+      assert.equal(state.architectureDetailedEditTarget, "same");
 
       const mode = await post(server.url, "edit-mode", { enabled: true });
       assert.equal(mode.status, 200);
       assert.equal((await mode.json()).architectureEdit, true);
+    });
+  });
+});
+
+test("host-targeted detailed editing delegates tab opening to the wrapper", async () => {
+  await withWorkspace(async ({ dir, file }) => {
+    const opened = [];
+    await withDeckServer({
+      file,
+      workspace: dir,
+      watch: true,
+      architectureEditorTarget: "host",
+      onArchitectureEditor: (event) => opened.push(event),
+    }, async (_session, server) => {
+      const state = await (await fetch(new URL("state", server.url))).json();
+      assert.equal(state.architectureDetailedEditTarget, "host");
+
+      const response = await post(server.url, "architecture-editor/open", {
+        index: 0,
+        block: 0,
+      });
+      assert.equal(response.status, 200);
+      assert.deepEqual(await response.json(), { ok: true, openedByHost: true });
+      assert.equal(opened.length, 1);
+      assert.match(opened[0].url, /^http:\/\/127\.0\.0\.1:\d+\/[A-Za-z0-9_-]{16,}\/$/);
+      assert.equal((await fetch(opened[0].url)).status, 200);
     });
   });
 });

@@ -3,7 +3,7 @@ import { pathToFileURL } from "node:url";
 
 import { isSampleDeckPath } from "./ci-sample-path.mjs";
 
-export const CI_AREAS = Object.freeze(["docs", "test", "cli", "desktop", "samples", "awesome"]);
+export const CI_AREAS = Object.freeze(["docs", "test", "cli", "desktop", "vscode", "samples", "awesome"]);
 
 function emptySelection() {
   return Object.fromEntries(CI_AREAS.map((area) => [area, false]));
@@ -86,6 +86,14 @@ const desktopSkillGeneratorInputs = new Set([
   "packages/markdstage-cli/src/exit.mjs",
   "packages/markdstage-cli/src/runtime.mjs",
   "packages/markdstage-cli/src/skills.mjs",
+]);
+
+const vscodeCliProtocolInputs = new Set([
+  "packages/markdstage-cli/package.json",
+  "packages/markdstage-cli/src/cli.mjs",
+  "packages/markdstage-cli/src/commands/present.mjs",
+  "apps/MarkdStage.Desktop/src/MarkdStage.Cli/CliArguments.cs",
+  "apps/MarkdStage.Desktop/src/MarkdStage.Cli/Program.cs",
 ]);
 
 function classifyExtensionPath(path, selection) {
@@ -185,12 +193,25 @@ export function classifyCiPaths(paths, { forceAll = false } = {}) {
         if (desktopSkillGeneratorInputs.has(path)) {
           selection.desktop = true;
         }
+        if (vscodeCliProtocolInputs.has(path)) {
+          selection.vscode = true;
+        }
       }
       continue;
     }
 
     if (path.startsWith("apps/MarkdStage.Desktop/")) {
-      if (path !== "apps/MarkdStage.Desktop/README.md") selection.desktop = true;
+      if (path !== "apps/MarkdStage.Desktop/README.md") {
+        selection.desktop = true;
+        if (vscodeCliProtocolInputs.has(path)) {
+          selection.vscode = true;
+        }
+      }
+      continue;
+    }
+
+    if (path.startsWith("packages/markdstage-vscode/")) {
+      selection.vscode = true;
       continue;
     }
 

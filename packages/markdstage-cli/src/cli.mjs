@@ -55,6 +55,7 @@ const GLOBAL_OPTIONS = {
   help: { type: "boolean", short: "h" },
   version: { type: "boolean", short: "v" },
   json: { type: "boolean" },
+  "json-lines": { type: "boolean" },
   workspace: { type: "string" },
   theme: { type: "string" },
   "theme-file": { type: "string" },
@@ -62,8 +63,16 @@ const GLOBAL_OPTIONS = {
 };
 
 const COMMAND_OPTIONS = {
-  present: { watch: { type: "boolean" }, "no-open": { type: "boolean" } },
-  preview: { watch: { type: "boolean" }, "no-open": { type: "boolean" } },
+  present: {
+    watch: { type: "boolean" },
+    "no-open": { type: "boolean" },
+    "architecture-editor-target": { type: "string" },
+  },
+  preview: {
+    watch: { type: "boolean" },
+    "no-open": { type: "boolean" },
+    "architecture-editor-target": { type: "string" },
+  },
   validate: {},
   inspect: { slide: { type: "string" }, all: { type: "boolean" }, "fail-on-issues": { type: "boolean" } },
   capture: { pages: { type: "string" }, output: { type: "string" } },
@@ -108,6 +117,7 @@ function usage(command) {
       "  --view <mode>       Preview layout for preview/present: scroll (default) or slide.",
       "  --no-open           Serve the UI without launching a browser.",
       "  --json              Print machine-readable JSON.",
+      "  --json-lines        Stream preview/present startup events as one JSON object per line.",
       "  -h, --help          Show help for a command.",
       "  -v, --version       Print the CLI version.",
       "",
@@ -128,6 +138,7 @@ function usage(command) {
       "  --watch     Start with automatic refresh enabled.",
       "  --view <mode>  Preview layout outside presenter view: scroll (default) or slide.",
       "  --no-open   Serve the presenter view without launching a browser.",
+      "  --json-lines  Stream wrapper events after the loopback server starts.",
       "",
       "Presentation requires an installed Microsoft Edge, Google Chrome, or Chromium.",
     ],
@@ -139,6 +150,7 @@ function usage(command) {
       "  --watch     Start with automatic refresh enabled.",
       "  --view <mode>  Start in scroll (all slides in one column, default) or slide (one at a time).",
       "  --no-open   Serve the UI without launching a browser.",
+      "  --json-lines  Stream wrapper events after the loopback server starts.",
       "",
       "Switch between scroll and slide from More controls at any time.",
       "Preview starts on the fixed 16:9 output surface. Use Output preview to switch",
@@ -230,6 +242,27 @@ function viewModeOption(value) {
   return mode;
 }
 
+function architectureEditorTargetOption(value) {
+  if (value === undefined) return undefined;
+  if (value !== "window" && value !== "same" && value !== "host") {
+    throw new MarkdStageError(
+      "invalid_input",
+      "--architecture-editor-target must be one of: window, same, host.",
+    );
+  }
+  return value;
+}
+
+function validateJsonLines(command, values) {
+  if (!values["json-lines"]) return;
+  if (values.json) {
+    throw new UsageError("--json-lines cannot be combined with --json.");
+  }
+  if (command !== "preview" && command !== "present") {
+    throw new UsageError("--json-lines is only valid for preview and present.");
+  }
+}
+
 function deckOptions(file, values, currentDirectory = process.cwd()) {
   if (values.workspace !== undefined && !values.workspace.trim()) {
     throw new MarkdStageError("invalid_input", "--workspace requires a nonempty directory path.");
@@ -244,6 +277,7 @@ function deckOptions(file, values, currentDirectory = process.cwd()) {
     theme: values.theme,
     themeFile: values["theme-file"],
     viewMode: viewModeOption(values.view),
+    architectureEditorTarget: architectureEditorTargetOption(values["architecture-editor-target"]),
   };
 }
 
@@ -314,18 +348,39 @@ export async function run(argv, io = {}) {
       return EXIT_USAGE;
     }
     try {
+      validateJsonLines("preview", values);
+      const version = values["json-lines"] ? await packageVersion() : undefined;
       const report = await applicationCommand(
         {
           ...deckOptions(file, values, currentDirectory),
           live: Boolean(file),
           open: io.open ?? !values["no-open"],
           until: io.until,
+          onReady: values["json-lines"]
+            ? ({ url, workspace, sourceMode }) => out(JSON.stringify({
+                type: "ready",
+                url,
+                operation: "preview",
+                workspace,
+                sourceMode,
+                version,
+              }))
+            : undefined,
+          onArchitectureEditor:
+            values["json-lines"] && values["architecture-editor-target"] === "host"
+              ? ({ previewUrl, url }) => out(JSON.stringify({
+                  type: "architecture-editor",
+                  previewUrl,
+                  url,
+                  version,
+                }))
+              : undefined,
         },
         {
-          print: values.json ? () => {} : (message) => out(message),
+          print: values.json || values["json-lines"] ? () => {} : (message) => out(message),
           status: (message, isError) => {
             if (isError) err(message);
-            else if (!values.json) out(message);
+            else if (!values.json && !values["json-lines"]) out(message);
           },
         },
       );
@@ -334,6 +389,7 @@ export async function run(argv, io = {}) {
     } catch (error) {
       const code = exitCodeFor(error);
       if (values.json) json(errorPayload(error));
+      else if (values["json-lines"]) out(JSON.stringify(errorPayload(error)));
       else err(error?.message || String(error));
       return code || EXIT_FAILURE;
     }
@@ -366,21 +422,42 @@ export async function run(argv, io = {}) {
   }
 
   try {
+    validateJsonLines(command, values);
     switch (command) {
       case "preview": {
         const file = requireFile(positionals, "preview");
+        const version = values["json-lines"] ? await packageVersion() : undefined;
         const report = await applicationCommand(
           {
             ...deckOptions(file, values, currentDirectory),
             watch: values.watch,
             open: io.open ?? !values["no-open"],
             until: io.until,
+            onReady: values["json-lines"]
+              ? ({ url, workspace, sourceMode }) => out(JSON.stringify({
+                  type: "ready",
+                  url,
+                  operation: "preview",
+                  workspace,
+                  sourceMode,
+                  version,
+                }))
+              : undefined,
+            onArchitectureEditor:
+              values["json-lines"] && values["architecture-editor-target"] === "host"
+                ? ({ previewUrl, url }) => out(JSON.stringify({
+                    type: "architecture-editor",
+                    previewUrl,
+                    url,
+                    version,
+                  }))
+                : undefined,
           },
           {
-            print: values.json ? () => {} : (message) => out(message),
+            print: values.json || values["json-lines"] ? () => {} : (message) => out(message),
             status: (message, isError) => {
               if (isError) err(message);
-              else if (!values.json) out(message);
+              else if (!values.json && !values["json-lines"]) out(message);
             },
           },
         );
@@ -389,6 +466,7 @@ export async function run(argv, io = {}) {
       }
       case "present": {
         const file = requireFile(positionals, "present");
+        const version = values["json-lines"] ? await packageVersion() : undefined;
         const report = await applicationCommand(
           {
             ...deckOptions(file, values, currentDirectory),
@@ -396,12 +474,31 @@ export async function run(argv, io = {}) {
             open: io.open ?? !values["no-open"],
             presenterView: true,
             until: io.until,
+            onReady: values["json-lines"]
+              ? ({ url, workspace, sourceMode }) => out(JSON.stringify({
+                  type: "ready",
+                  url,
+                  operation: "present",
+                  workspace,
+                  sourceMode,
+                  version,
+                }))
+              : undefined,
+            onArchitectureEditor:
+              values["json-lines"] && values["architecture-editor-target"] === "host"
+                ? ({ previewUrl, url }) => out(JSON.stringify({
+                    type: "architecture-editor",
+                    previewUrl,
+                    url,
+                    version,
+                  }))
+                : undefined,
           },
           {
-            print: values.json ? () => {} : (message) => out(message),
+            print: values.json || values["json-lines"] ? () => {} : (message) => out(message),
             status: (message, isError) => {
               if (isError) err(message);
-              else if (!values.json) out(message);
+              else if (!values.json && !values["json-lines"]) out(message);
             },
           },
         );
@@ -491,6 +588,7 @@ export async function run(argv, io = {}) {
   } catch (error) {
     const code = exitCodeFor(error);
     if (values.json) json(errorPayload(error));
+    else if (values["json-lines"]) out(JSON.stringify(errorPayload(error)));
     else err(error?.message || String(error));
     return code || EXIT_FAILURE;
   }

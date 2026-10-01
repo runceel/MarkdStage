@@ -11,9 +11,10 @@ internal sealed record CliArguments(string Command, IReadOnlyList<string> Positi
 {
     private static readonly HashSet<string> Commands =
         ["present", "preview", "validate", "inspect", "capture", "export", "guide", "skill", "help"];
-    private static readonly HashSet<string> Values = ["workspace", "theme", "theme-file", "slide", "pages", "output", "target", "root"];
+    private static readonly HashSet<string> Values =
+        ["workspace", "theme", "theme-file", "slide", "pages", "output", "target", "root", "architecture-editor-target"];
     private static readonly HashSet<string> Flags =
-        ["help", "version", "json", "watch", "no-open", "all", "fail-on-issues", "mermaid-image-fallback", "force"];
+        ["help", "version", "json", "json-lines", "watch", "no-open", "all", "fail-on-issues", "mermaid-image-fallback", "force"];
 
     public bool Has(string option) => Options.ContainsKey(option);
     public string? Get(string option) => Options.GetValueOrDefault(option);
@@ -94,7 +95,7 @@ internal sealed record CliArguments(string Command, IReadOnlyList<string> Positi
             throw new CliException("invalid_markdown_path", "Use a .md or .markdown file.", 2);
         var allowed = command switch
         {
-            "present" or "preview" => new[] { "watch", "no-open" },
+            "present" or "preview" => new[] { "watch", "no-open", "architecture-editor-target" },
             "inspect" => ["slide", "all", "fail-on-issues"],
             "capture" => ["pages", "output"],
             "export" => ["output", "mermaid-image-fallback"],
@@ -102,10 +103,23 @@ internal sealed record CliArguments(string Command, IReadOnlyList<string> Positi
             _ => []
         };
         foreach (var name in options.Keys)
-            if (name is not ("workspace" or "theme" or "theme-file" or "help" or "version" or "json") && !allowed.Contains(name))
+            if (name is not ("workspace" or "theme" or "theme-file" or "help" or "version" or "json" or "json-lines") && !allowed.Contains(name))
                 throw new CliException("usage_error", $"--{name} is not valid for {command}.");
+        if (result.Has("json-lines"))
+        {
+            if (!result.IsPresentation)
+                throw new CliException("usage_error", "--json-lines is only valid for preview and present.");
+            if (result.Has("json"))
+                throw new CliException("usage_error", "--json-lines cannot be combined with --json.");
+            if (!result.Has("no-open"))
+                throw new CliException("usage_error", "--json-lines requires --no-open in the packaged Windows CLI.");
+        }
         if (result.Get("slide") is string slide && (!int.TryParse(slide, out var page) || page < 1))
             throw new CliException("usage_error", "--slide expects a 1-based page number.");
+        if (result.Get("architecture-editor-target") is string editorTarget &&
+            editorTarget is not ("window" or "same" or "host"))
+            throw new CliException("usage_error",
+                "--architecture-editor-target must be one of: window, same, host.");
         return result;
     }
 

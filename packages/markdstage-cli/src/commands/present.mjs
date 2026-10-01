@@ -106,6 +106,11 @@ export async function applicationCommand(options, io, dependencies = {}) {
         // The server already holds the mode; carrying it in the URL keeps a
         // served-only (--no-open) address self-describing for other browsers.
         if (session.viewMode !== DEFAULT_VIEW_MODE) browserUrl.searchParams.set("view", session.viewMode);
+        options.onReady?.({
+          url: browserUrl.href,
+          workspace: resolve(session.workspaceRoot),
+          sourceMode: server.sourceMode,
+        });
         try {
           if (options.open) {
             const browser = findBrowser();

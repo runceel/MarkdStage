@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { copyFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { createInterface } from "node:readline";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { readGuide } from "../../../.github/extensions/markdstage/markdstage-guide.mjs";
@@ -11,10 +12,24 @@ import { CARD_FIXTURE_DIRECTORY } from "../../../test/harness/adaptive-cards.mjs
 const executable = process.env.MARKDSTAGE_NATIVE_CLI;
 assert.ok(executable, "Set MARKDSTAGE_NATIVE_CLI to the built CLI executable or installed execution alias.");
 assert.equal(process.platform, "win32", "Native CLI tests require Windows, WebView2, and an installed Chromium browser.");
+const expectedProductVersion = JSON.parse(readFileSync(new URL("../../../packages/markdstage-cli/package.json", import.meta.url), "utf8")).version;
 const resultsRoot = fileURLToPath(new URL("../test-results/", import.meta.url));
 mkdirSync(resultsRoot, { recursive: true });
 const workspace = mkdtempSync(join(resultsRoot, "native-cli-"));
 writeFileSync(join(workspace, "deck.md"), "# Native CLI regression\n\nFirst page.\n\n---\n\n# Second page\n\n- Native output\n- Browser round trip\n");
+writeFileSync(join(workspace, "architecture.md"), [
+  "# Architecture",
+  "",
+  "```architecture",
+  JSON.stringify({
+    version: 1,
+    elements: [
+      { type: "node", id: "n1", x: 80, y: 80, width: 240, height: 120, text: "Host" },
+    ],
+  }),
+  "```",
+  "",
+].join("\n"));
 for (const name of [
   "valid.md", "invalid-property.md", "unsupported-version.md", "blocked-image.md",
   "quoted-invalid-property.md", "list-unsupported-version.md", "unclosed.md",
@@ -40,6 +55,163 @@ function run(...args) {
   assert.equal(report.ok, true);
   return report;
 }
+
+async function readyEvent(operation, extraArgs = []) {
+  const child = spawn(executable, [
+    operation,
+    "deck.md",
+    "--workspace",
+    workspace,
+    "--no-open",
+    "--json-lines",
+    ...extraArgs,
+  ], {
+    cwd: workspace,
+    encoding: "utf8",
+    windowsHide: true,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  child.stdout.setEncoding("utf8");
+  child.stderr.setEncoding("utf8");
+  let stdout = "";
+  let stderr = "";
+  child.stdout.on("data", chunk => { stdout += chunk; });
+  child.stderr.on("data", chunk => { stderr += chunk; });
+  let timeout;
+  try {
+    const line = await Promise.race([
+      new Promise((resolve, reject) => {
+        child.stdout.on("data", () => {
+          const end = stdout.indexOf("\n");
+          if (end >= 0) resolve(stdout.slice(0, end).trimEnd());
+        });
+        child.once("error", reject);
+        child.once("exit", code => reject(new Error(`CLI exited before ready (${code}): ${stdout}\n${stderr}`)));
+      }),
+      new Promise((_, reject) => {
+        timeout = setTimeout(() => reject(new Error("Timed out waiting for ready event.")), 120_000);
+      }),
+    ]);
+    const event = JSON.parse(line);
+    const response = await fetch(event.url);
+    const state = await (await fetch(new URL("state", event.url))).json();
+    return { event, state, responseStatus: response.status, responseBody: await response.text(), stdout: () => stdout, stderr: () => stderr };
+  } finally {
+    clearTimeout(timeout);
+    child.kill();
+    await new Promise(resolve => child.once("exit", resolve));
+  }
+}
+
+test("native preview and present stream one bounded ready event", async () => {
+  for (const [operation, sourceMode, extraArgs] of [
+    ["preview", "snapshot", []],
+    ["present", "live", ["--watch"]],
+  ]) {
+    const result = await readyEvent(operation, [
+      ...extraArgs,
+      "--architecture-editor-target",
+      "same",
+    ]);
+    assert.deepEqual(Object.keys(result.event), [
+      "type",
+      "url",
+      "operation",
+      "workspace",
+      "sourceMode",
+      "version",
+    ]);
+    assert.equal(result.event.type, "ready");
+    assert.equal(result.event.operation, operation);
+    assert.equal(result.event.workspace, workspace);
+    assert.equal(result.event.sourceMode, sourceMode);
+    assert.equal(new URL(result.event.url).searchParams.has("presenter"), operation === "present");
+    assert.equal(result.event.version, expectedProductVersion);
+    assert.equal(result.responseStatus, 200);
+    assert.equal(result.state.architectureDetailedEditTarget, "same");
+    assert.match(result.responseBody, /MarkdStage/);
+    assert.equal(result.stdout().trim().split(/\r?\n/).length, 1);
+    assert.equal(result.stderr(), "");
+  }
+});
+
+test("native preview streams a host-targeted Architecture Editor event", async () => {
+  const child = spawn(executable, [
+    "preview",
+    "architecture.md",
+    "--workspace",
+    workspace,
+    "--watch",
+    "--no-open",
+    "--json-lines",
+    "--architecture-editor-target",
+    "host",
+  ], {
+    cwd: workspace,
+    encoding: "utf8",
+    windowsHide: true,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  child.stdout.setEncoding("utf8");
+  child.stderr.setEncoding("utf8");
+  const lines = [];
+  const waiters = [];
+  createInterface({ input: child.stdout }).on("line", line => {
+    const waiter = waiters.shift();
+    if (waiter) waiter(line);
+    else lines.push(line);
+  });
+  const nextLine = () => lines.length
+    ? Promise.resolve(lines.shift())
+    : new Promise(resolve => waiters.push(resolve));
+  try {
+    const ready = JSON.parse(await nextLine());
+    const state = await (await fetch(new URL("state", ready.url))).json();
+    assert.equal(state.architectureDetailedEditTarget, "host");
+    const response = await fetch(new URL("architecture-editor/open", ready.url), {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: new URL(ready.url).origin,
+      },
+      body: JSON.stringify({ index: 0, block: 0 }),
+    });
+    assert.deepEqual(await response.json(), { ok: true, openedByHost: true });
+    const event = JSON.parse(await nextLine());
+    assert.equal(event.type, "architecture-editor");
+    assert.equal(event.version, expectedProductVersion);
+    assert.equal(event.previewUrl, ready.url);
+    assert.match(event.url, /^http:\/\/127\.0\.0\.1:\d+\/[a-f0-9]{32}\/architecture-editor\/[a-f0-9]{32}\/$/);
+  } finally {
+    child.kill();
+    if (child.exitCode === null) {
+      await new Promise(resolve => child.once("exit", resolve));
+    }
+  }
+});
+
+test("native json-lines rejects unsupported and ambiguous invocations", () => {
+  for (const args of [
+    ["validate", "deck.md", "--workspace", workspace, "--json-lines"],
+    ["guide", "--json-lines"],
+    ["skill", "check", "--json-lines"],
+    ["preview", "deck.md", "--workspace", workspace, "--json-lines"],
+    ["preview", "deck.md", "--workspace", workspace, "--no-open", "--json", "--json-lines"],
+  ]) {
+    const result = spawnSync(executable, args, {
+      cwd: workspace,
+      encoding: "utf8",
+      windowsHide: true,
+      timeout: 120_000,
+    });
+    assert.ifError(result.error);
+    assert.equal(result.status, 1);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.ok, false);
+    assert.equal(report.error, "usage_error");
+    assert.equal(result.stderr, "");
+  }
+});
 
 test("native guide includes the canonical Adaptive Cards topic without a browser", async () => {
   const report = invoke(["guide", "adaptive-cards"]);

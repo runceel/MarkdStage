@@ -40,6 +40,9 @@ file layouts, local UI behaviour — does not belong here.
 | [0004](0004-agent-skills-as-installation-artifacts.md) | Agent Skills are installation artifacts | Accepted | Generate Skills from canonical guides into user workspaces and keep them out of the development repository's agent discovery directories. |
 | [0005](0005-adaptive-card-semantic-and-raster-boundary.md) | Adaptive Cards use SDK semantics and policy-checked raster output | Accepted (partially superseded) | Keep typed SDK semantics separate from measured DOM geometry and share pre-render asset policy; the raster-only export restriction is superseded by 0006. |
 | [0006](0006-adaptive-card-editable-static-projection.md) | Adaptive Cards use a typed static projection and bounded native export | Accepted | Share non-interactive typed projection and authored provenance; emit common scene primitives and direct tables/links, with one owner per bounded fallback subtree. |
+| [0007](0007-vscode-extension-thin-wrapper-over-cli.md) | VS Code extension is a thin wrapper over the CLI | Accepted | Keep product behavior and security in a compatible external CLI while the extension owns VS Code discovery, lifecycle, guidance, and UI projection. |
+| [0008](0008-vscode-architecture-editing-through-canonical-editor.md) | Expose Architecture DSL editing through the canonical editor | Accepted | Use the existing CLI-backed Architecture Editor and source-save path instead of duplicating shape editing in a VS Code webview. |
+| [0009](0009-vscode-host-mediated-architecture-editor-tabs.md) | VS Code mediates Architecture Editor tabs | Accepted | Let the CLI own editor sessions and notify the extension through the versioned loopback event stream; let VS Code project each editor in a separate tab. |
 
 ## Writing a new record
 

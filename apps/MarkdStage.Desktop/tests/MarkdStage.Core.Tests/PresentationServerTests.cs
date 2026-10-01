@@ -385,6 +385,53 @@ public sealed class PresentationServerTests
         return session;
     }
 
+    [Fact]
+    public async Task HostTargetDelegatesArchitectureEditorOpening()
+    {
+        var root = CreateTestWorkspace();
+        try
+        {
+            var source = """
+                {
+                  "version": 1,
+                  "elements": [
+                    { "type": "node", "id": "n1", "x": 80, "y": 80, "width": 240, "height": 120, "text": "Host" }
+                  ]
+                }
+                """;
+            var markdown = $"# Diagram\n\n```architecture\n{source}\n```\n";
+            var sourcePath = Path.Combine(root, "slides.md");
+            await File.WriteAllTextAsync(sourcePath, markdown);
+            Uri? opened = null;
+            await using var server = new PresentationServer(
+                SourceBackedSession(sourcePath, root, markdown),
+                () => false,
+                architectureEditorTarget: "host",
+                openArchitectureEditor: (_, uri) =>
+                {
+                    opened = uri;
+                    return Task.CompletedTask;
+                });
+            await server.StartAsync();
+            using var client = new HttpClient { BaseAddress = server.BaseUri };
+
+            using var response = await client.PostAsJsonAsync("architecture-editor/open", new
+            {
+                index = 0,
+                block = 0,
+            });
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.True(body.GetProperty("openedByHost").GetBoolean());
+            Assert.NotNull(opened);
+            Assert.Equal(server.BaseUri!.Host, opened!.Host);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     private static async Task<string> OpenEditorAsync(HttpClient client)
     {
         using var response = await client.PostAsJsonAsync("architecture-editor/open", new

@@ -133,7 +133,7 @@ internal static class HostCommands
                 """,
             "guide" => "markdstage guide [overview|slide-format|themes|custom-themes|theme-schema|architecture-dsl|architecture-schema|adaptive-cards] [--json]",
             "skill" => "markdstage skill <install|check> [--root <folder>] [--target codex,claude,copilot|all] [--force] [--json]",
-            "present" or "preview" => $"markdstage {command} <file.md> [--watch] [--no-open]",
+            "present" or "preview" => $"markdstage {command} <file.md> [--watch] [--no-open] [--json-lines]",
             "validate" => "markdstage validate <file.md> [--json]",
             "inspect" => "markdstage inspect <file.md> [--slide <n>] [--all] [--fail-on-issues] [--json]",
             "capture" => "markdstage capture <file.md> [--pages 2,4-6] [--output <folder>] [--json]",
@@ -148,6 +148,7 @@ internal static class HostCommands
             --theme <name>        Console/server only: dark, light, microsoft, or custom
             --theme-file <path>   Console/server only: custom theme CSS
             --json               Machine-readable output
+            --json-lines         Preview/present only: stream a ready event after server startup (requires --no-open)
             -h, --help           Help
             -v, --version        Version
 
@@ -157,6 +158,7 @@ internal static class HostCommands
             The app watches Markdown saves automatically (--watch is supported).
             Choose themes in the app; --theme and --theme-file require --no-open for present/preview.
             --no-open runs the local server until Ctrl+C without activating the app.
+            --json-lines emits one compact ready event and otherwise preserves the server lifetime.
             Activation --json reports accepted, resolved workspace/file, mode, processId, and windowId.
             Skill commands also use the current directory when --root and --workspace are omitted.
             help, guide, and skill need no browser or JavaScript engine.
