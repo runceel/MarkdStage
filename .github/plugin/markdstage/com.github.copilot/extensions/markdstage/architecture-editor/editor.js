@@ -52,6 +52,7 @@ const SHARED_LAYOUT_KEYS = ["gap", "rowGap", "columnGap", "padding"];
 
 const sourceLabel = document.getElementById("sourceLabel");
 const dirtyBadge = document.getElementById("dirtyBadge");
+const returnToPreviewButton = document.getElementById("returnToPreviewButton");
 const tree = document.getElementById("elementTree");
 const inspector = document.getElementById("inspector");
 const viewport = document.getElementById("viewport");
@@ -113,6 +114,13 @@ let responsivePanel = null;
 let desktopElementsOpen = true;
 let desktopInspectorOpen = false;
 let suppressCanvasClick = false;
+
+function previewReturnUrl() {
+  const value = new URLSearchParams(window.location.search).get("returnTo");
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return "";
+  const target = new URL(value, window.location.origin);
+  return target.origin === window.location.origin ? target.href : "";
+}
 
 function announce(message, kind = "info") {
   status.textContent = message;
@@ -2320,6 +2328,11 @@ function invokeAction(action, context = {}) {
 function wireControls() {
   renderShapePalette();
   syncResponsivePanels();
+  const returnUrl = previewReturnUrl();
+  if (returnUrl) {
+    returnToPreviewButton.hidden = false;
+    returnToPreviewButton.addEventListener("click", () => window.location.assign(returnUrl));
+  }
   document.querySelectorAll("[data-action]").forEach((button) => {
     button.addEventListener("click", () => {
       const insideMore = toolbarMoreMenu.contains(button);
