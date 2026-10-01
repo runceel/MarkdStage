@@ -80,9 +80,17 @@ const methods = {
   async load({ path }) { return runtime.loadDeck(path); },
   async state({ offset = 0 }) {
     const snapshot = await runtime.snapshot({ offset });
+    const sourceBacked = snapshot.sourceBacked === true && Boolean(snapshot.sourceName);
     return { ...snapshot, sourceModeAvailable: snapshot.sourceBacked, markdownImportAvailable: true,
       presenterViewAvailable: true, presenterWindowAvailable: false, presenterRunning: false,
-      pdfExportAvailable: false, pptxExportAvailable: false, architectureEditAvailable: false };
+      pdfExportAvailable: false, pptxExportAvailable: false,
+      architectureEditAvailable: sourceBacked,
+      architectureEdit: false,
+      architectureDetailedEdit: sourceBacked,
+      architectureDetailedEditTarget: sourceBacked &&
+        (settings.architectureEditorTarget === "same" || settings.architectureEditorTarget === "host")
+        ? settings.architectureEditorTarget
+        : sourceBacked ? "window" : "" };
   },
   async deck() {
     const snapshot = await runtime.snapshot();

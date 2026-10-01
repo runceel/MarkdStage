@@ -299,6 +299,8 @@ test("legacy errors stay one per invalid block while feedback includes all canon
   const slides = [`---\nlayout: center\n---\n\`\`\`architecture\n${source}\n\`\`\``];
   const validation = architectureValidationReport(slides);
   assert.equal(validation.diagnostics.length, 4);
+  assert.equal(validation.diagnostics[0].lineBasis, "slide-fragment");
+  assert.equal(validation.diagnostics[0].bodyStartLine, 4);
   const errors = architectureValidationErrors(slides, { validation });
   assert.equal(errors.length, 1);
   assert.equal(errors[0].code, "invalid_architecture");

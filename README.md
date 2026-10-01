@@ -21,6 +21,7 @@
   <a href="https://runceel.github.io/MarkdStage/en/">Website</a> |
   <a href="#use-the-canvas-extension">Canvas Extension</a> |
   <a href="#use-markdstage-desktop">Desktop</a> |
+  <a href="#use-the-visual-studio-code-extension">VS Code</a> |
   <a href="#use-the-cli">CLI</a> |
   <a href="#community-macos-app">macOS app</a> |
   <a href="#see-markdown-on-stage">Examples</a> |
@@ -63,6 +64,7 @@ for supported elements and fallback details.
 | --- | --- |
 | **[Windows Desktop and included CLI](#use-markdstage-desktop)** | Browse a workspace, install Agent Skills, edit Architecture diagrams, review slides, present, and export from the GUI; use the included CLI for diagnostics and automation. |
 | **[Canvas with GitHub Copilot](#use-the-canvas-extension)** | Draft and revise in the GitHub Copilot App, refine Architecture diagrams visually, and present or export from Canvas. |
+| **[Visual Studio Code extension](#use-the-visual-studio-code-extension)** | Preview, present, validate, and install the Copilot Skill while editing Markdown, using an installed MarkdStage CLI. |
 | **[npm CLI + Agent Skill](#use-the-cli)** | Use a terminal, CI, Claude Code, or Codex with the browser-based UI. No Canvas host is required. |
 | **[Editing without AI](#present-without-ai)** | Write Markdown yourself or start from an example, then open it in Desktop, Canvas, or the CLI. |
 | **MarkStageForMac** (third-party) | Present on macOS with the community-built native app. Developed and supported outside this repository |
@@ -162,6 +164,20 @@ exports. It does not download a browser or require a remote service or API key. 
 manifest version must match the CLI product version; publish updates only from a new immutable
 release tag or commit SHA. Do not edit awesome-copilot's `plugins/external.json` from this
 repository; listing and approval are maintained by awesome-copilot.
+
+## Use the Visual Studio Code extension
+
+Install `markdstage-vscode-<version>.vsix` from a trusted GitHub Release, then install a compatible
+MarkdStage CLI in the environment where the VS Code extension host runs. On local Windows, prefer
+the Microsoft Store package; on macOS, Linux, Remote SSH, WSL, or Dev Containers, use the npm CLI
+where the workspace is located.
+
+The extension is a thin CLI wrapper. It detects the command, guides installation when necessary,
+opens `preview` and `present --no-open` in VS Code's built-in browser, maps `validate --json` results
+to Problems, and invokes the installed CLI to install or check the GitHub Copilot Skill. It does
+not ship a second renderer, validator, or Skill copy.
+
+See the [Visual Studio Code extension guide](./docs/user-guide/vscode.md).
 
 ## Use the CLI
 

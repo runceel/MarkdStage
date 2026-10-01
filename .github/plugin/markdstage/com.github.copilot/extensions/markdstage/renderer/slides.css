@@ -896,7 +896,7 @@ body.pptx-slide-artwork-mode .deck:not(.pptx-layout-template)>.theme-cover-logo{
 /* ===== Scroll view (all slides in one column) ===== */
 #stage.scroll-stage{position:fixed;inset:32px 32px 96px;overflow:hidden;}
 .scroll-view{height:100%;overflow-y:auto;display:flex;flex-direction:column;gap:28px;
-     padding:8px 4px 40vh;scroll-behavior:auto;}
+     padding:8px 12px 40vh;scrollbar-gutter:stable;scroll-behavior:auto;}
 .scroll-item{flex:0 0 auto;width:100%;max-width:1280px;margin:0 auto;border-radius:6px;}
 .scroll-item[data-current="true"] .scroll-item-frame{outline:2px solid var(--markdstage-ui-accent,#0f6cbd);outline-offset:3px;}
 .scroll-item[data-state="error"] .scroll-item-frame{outline:2px solid #d13438;outline-offset:3px;}

@@ -55,6 +55,11 @@ test("16:9 preview is the default, uses the fixed PDF surface, and remains toggl
     await expect(page.locator(".scroll-view")).toBeVisible();
     await expect(page.locator(".scroll-item-frame iframe")).toHaveCount(2);
     await expect(page.locator("#navViewMode")).toHaveAttribute("aria-pressed", "true");
+    const scrollbarGap = await page.locator(".scroll-view").evaluate((view) => {
+      const slide = view.querySelector(".scroll-item");
+      return view.getBoundingClientRect().right - slide.getBoundingClientRect().right;
+    });
+    expect(scrollbarGap).toBeGreaterThanOrEqual(12);
 
     await page.locator("#navNext").click();
     await expect.poll(() => harness.index).toBe(1);

@@ -106,6 +106,7 @@ let architectureEditAvailable = false;
 let restoreFixedPreviewAfterEdit = false;
 let architectureDetailedEdit = false;
 let architectureDetailedEditTarget = "";
+let architectureDetailedEditTargetOverride = "";
 let presenterMode = false;
 let previewMode = false;
 let previewOffset = 0;
@@ -3879,8 +3880,12 @@ async function openArchitectureDesigner(block) {
   const status = document.getElementById("sourceStatus");
   if (status) status.textContent = "Opening the Architecture Designer.";
   const result = await openDetailedArchitectureEditor(navIndex, block);
-  if (!result?.ok && status) {
-    status.textContent = result?.message || "Could not open the Architecture Designer.";
+  if (status) {
+    if (result?.openedByHost === true) {
+      status.textContent = "Opened the Architecture Designer in a separate tab.";
+    } else if (!result?.ok) {
+      status.textContent = result?.message || "Could not open the Architecture Designer.";
+    }
   }
   return result;
 }
@@ -4059,8 +4064,16 @@ async function openDetailedArchitectureEditor(index, block) {
   }
   const result = await response.json().catch(() => ({}));
   if (response.ok && result.ok === true) {
+    if (result.openedByHost === true) return result;
     if (typeof result.url === "string" && result.url) {
-      if (pendingWindow) pendingWindow.location.replace(result.url);
+      if (architectureDetailedEditTarget === "same") {
+        const editorUrl = new URL(result.url, window.location.href);
+        editorUrl.searchParams.set(
+          "returnTo",
+          `${window.location.pathname}${window.location.search}${window.location.hash}`,
+        );
+        window.location.assign(editorUrl.href);
+      } else if (pendingWindow) pendingWindow.location.replace(result.url);
       else if (!window.open(result.url, "_blank", "noopener")) {
         return { ok: false, message: "Allow pop-ups to open the Architecture Editor." };
       }
@@ -4140,7 +4153,13 @@ async function fetchState() {
     architectureEditAvailable = data.architectureEditAvailable;
   }
   architectureDetailedEditTarget =
-    data.architectureDetailedEditTarget === "window" ? "window" : "canvas";
+    architectureDetailedEditTargetOverride ||
+    (data.architectureDetailedEditTarget === "same" ||
+    data.architectureDetailedEditTarget === "host"
+      ? data.architectureDetailedEditTarget
+      : data.architectureDetailedEditTarget === "window"
+        ? "window"
+        : "canvas");
   const detailedEditChanged =
     typeof data.architectureDetailedEdit === "boolean" &&
     data.architectureDetailedEdit !== architectureDetailedEdit;
@@ -5597,6 +5616,8 @@ function init() {
     return;
   }
   wireExternalSlideLinks();
+  architectureDetailedEditTargetOverride =
+    params.get("architectureEditorTarget") === "same" ? "same" : "";
   viewModeOverride = parseViewMode(params.get("view"));
   if (viewModeOverride) viewMode = viewModeOverride;
   updateViewModeButton();

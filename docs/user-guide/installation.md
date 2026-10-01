@@ -4,7 +4,7 @@
 
 On Windows, the Microsoft Store package installs the GUI and CLI together. Use the npm distribution
 for a browser-based CLI, or install the Canvas Extension to work inside GitHub Copilot App.
-These are alternatives; you do not need all of them.
+The Visual Studio Code extension adds editor integration on top of either CLI distribution.
 
 ## Windows: Microsoft Store
 
@@ -87,6 +87,22 @@ Copilot:
 
 Review local extension code before installing it. A release tag or commit SHA provides a
 reproducible installation.
+
+## Visual Studio Code extension
+
+Install `markdstage-vscode-<version>.vsix` from a trusted GitHub Release through
+**Extensions: Install from VSIX...**. The extension does not include the MarkdStage CLI or a
+separate Agent Skill copy.
+
+Install a compatible CLI before using preview, presenter, validation, or Skill commands:
+
+- On local Windows, prefer the Microsoft Store package described above.
+- On macOS or Linux, install the npm CLI described below.
+- In Remote SSH, WSL, or a Dev Container, install the npm CLI inside that environment.
+
+The extension checks `markdstage --version` and guides installation if the command is unavailable.
+It never installs software automatically. See the [Visual Studio Code guide](vscode.md) for command
+usage, explicit executable selection, and remote-workspace behavior.
 
 ## MarkdStage CLI (npm)
 

@@ -57,16 +57,32 @@ export function hasFrontMatter(markdown) {
   return normalized.split("\n").slice(1).some((line) => line.trim() === "---");
 }
 
+function fragmentBodyStartLine(slide) {
+  const lines = String(slide).replace(/\r\n?/g, "\n").split("\n");
+  if (lines[0]?.trim() !== "---") return 1;
+  const end = lines.slice(1).findIndex((line) => line.trim() === "---");
+  return end < 0 ? 1 : end + 3;
+}
+
 export function architectureValidationReport(slides, { index, maxDiagnostics } = {}) {
   if (index !== undefined &&
       (!Number.isInteger(index) || index < 0 || index >= slides.length)) {
     throw new RangeError("index must identify a slide in the provided array.");
   }
+  const selectedSlides = index === undefined ? slides : [slides[index]];
+  const bodyStarts = selectedSlides.map(fragmentBodyStartLine);
   const report = validateArchitectureInput({
     format: "slides",
-    slides: index === undefined ? slides : [slides[index]],
+    slides: selectedSlides,
     ...(maxDiagnostics === undefined ? {} : { maxDiagnostics }),
   });
+  const locate = (item) => typeof item.slideIndex === "number" ? {
+    ...item,
+    lineBasis: "slide-fragment",
+    bodyStartLine: bodyStarts[item.slideIndex] ?? 1,
+  } : item;
+  report.diagnostics = report.diagnostics.map(locate);
+  report.blocks = report.blocks.map(locate);
   if (index === undefined) return report;
   const rebase = (item) => typeof item.slideIndex === "number"
     ? { ...item, slideIndex: item.slideIndex + index, page: item.page + index }

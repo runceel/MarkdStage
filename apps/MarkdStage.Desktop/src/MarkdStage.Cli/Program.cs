@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using MarkdStage.Core;
@@ -17,6 +18,7 @@ internal static class Program
         ConsoleCancelEventHandler cancel = (_, args) => { args.Cancel = true; interrupted.Cancel(); };
         Console.CancelKeyPress += cancel;
         var json = argv.Contains("--json", StringComparer.Ordinal);
+        var jsonLines = argv.Contains("--json-lines", StringComparer.Ordinal);
         try
         {
             var arguments = CliArguments.Parse(argv);
@@ -31,6 +33,7 @@ internal static class Program
         {
             var failure = error as CliException ?? new CliException("unexpected_error", error.Message, 4);
             if (json) Console.Out.WriteLine(JsonSerializer.Serialize(new { ok = false, error = failure.Code, message = failure.Message }, HostCommands.JsonOptions));
+            else if (jsonLines) Console.Out.WriteLine(JsonSerializer.Serialize(new { ok = false, error = failure.Code, message = failure.Message }));
             else Console.Error.WriteLine(failure.Message);
             return failure.ExitCode;
         }
@@ -57,8 +60,24 @@ internal static class Program
         var routes = new NativeCliRoutes();
         await using var browsers = new NativeBrowserHost();
         await using var io = new WorkspaceIoService(root, AppStorage.TransientRoot, browsers);
+        var architectureEditorTarget = args.Get("architecture-editor-target") ?? "window";
         await using var server = new PresentationServer(session, () => false, routes.Configure,
-            openExternal: args.IsPresentation ? OpenExternalAsync : null);
+            openExternal: args.IsPresentation ? OpenExternalAsync : null,
+            architectureEditorTarget: architectureEditorTarget,
+            openArchitectureEditor:
+                architectureEditorTarget == "host" && args.Has("json-lines")
+                    ? async (previewUri, editorUri) =>
+                    {
+                        await Console.Out.WriteLineAsync(JsonSerializer.Serialize(new
+                        {
+                            type = "architecture-editor",
+                            previewUrl = previewUri.AbsoluteUri,
+                            url = editorUri.AbsoluteUri,
+                            version = ProductVersion(),
+                        }));
+                        await Console.Out.FlushAsync();
+                    }
+                    : null);
         if (args.Command != "validate") await server.StartAsync(cancellationToken);
         browsers.AllowedBaseUri = server.BaseUri;
         var profileResult = await io.ExecuteAsync("createTransientDirectory", JsonSerializer.SerializeToElement(new[] { "inspect" }), cancellationToken);
@@ -84,7 +103,9 @@ internal static class Program
         await scripts.InvokeAsync("initialize", new
         {
             workspace = root, baseUrl = server.BaseUri?.AbsoluteUri,
-            theme = args.Get("theme"), themeFile = NormalizePathOption(root, args.Get("theme-file"), "invalid_theme_file")
+            theme = args.Get("theme"),
+            themeFile = NormalizePathOption(root, args.Get("theme-file"), "invalid_theme_file"),
+            architectureEditorTarget,
         });
         if (file is not null)
             await scripts.InvokeAsync("load", new { path = Path.GetRelativePath(root, file).Replace('\\', '/') });
@@ -96,9 +117,22 @@ internal static class Program
         };
         if (args.IsPresentation)
         {
-            if (file is not null && args.Has("watch")) await scripts.InvokeAsync("sourceMode", new { body = new { mode = "live" } });
+            var sourceMode = file is not null && args.Has("watch") ? "live" : "snapshot";
+            if (sourceMode == "live") await scripts.InvokeAsync("sourceMode", new { body = new { mode = sourceMode } });
             var url = server.BaseUri!.AbsoluteUri + (args.Command == "present" ? "?presenter=1" : "");
-            if (args.Has("json")) Console.WriteLine(JsonSerializer.Serialize(new { ok = true, url, workspace = root }, HostCommands.JsonOptions));
+            if (args.Has("json-lines"))
+            {
+                Console.WriteLine(JsonSerializer.Serialize(new
+                {
+                    type = "ready",
+                    url,
+                    operation = args.Command,
+                    workspace = root,
+                    sourceMode,
+                    version = ProductVersion()
+                }));
+            }
+            else if (args.Has("json")) Console.WriteLine(JsonSerializer.Serialize(new { ok = true, url, workspace = root }, HostCommands.JsonOptions));
             else Console.WriteLine($"MarkdStage: {url}\nPress Ctrl+C to stop.");
             await Task.Delay(Timeout.Infinite, cancellationToken);
             return 0;
@@ -129,6 +163,27 @@ internal static class Program
             UseShellExecute = true,
         }) ?? throw new InvalidOperationException("The default browser could not be started.");
         return Task.CompletedTask;
+    }
+
+    private static string ProductVersion()
+    {
+        var commandsPath = Path.Combine(AppContext.BaseDirectory, "CliData", "commands.json");
+        if (File.Exists(commandsPath))
+        {
+            try
+            {
+                using var commands = JsonDocument.Parse(File.ReadAllText(commandsPath));
+                var version = commands.RootElement.GetProperty("version").GetString();
+                if (!string.IsNullOrWhiteSpace(version)) return version;
+            }
+            catch (JsonException) { }
+        }
+        var informational = Assembly.GetEntryAssembly()?
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion;
+        return string.IsNullOrWhiteSpace(informational)
+            ? Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "unknown"
+            : informational.Split('+', 2)[0];
     }
 
     private static string? NormalizePathOption(string root, string? path, string errorCode)

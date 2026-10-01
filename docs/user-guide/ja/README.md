@@ -9,6 +9,8 @@
 MarkdStage は Markdown スライドの作成、図の編集、プレビュー、発表、出力を行うアプリです。
 Windows では Microsoft Store から GUI と CLI を同時に導入できます。同じ Markdown デッキを
 GitHub Copilot Canvas Extension や npm 版 CLI のブラウザー UI でも開けます。
+Visual Studio Code では、インストール済み MarkdStage CLI を呼び出す VS Code 拡張機能から
+エディター内のコマンドを利用できます。
 
 ![サンプルの Architecture 図を開いた MarkdStage Desktop](../images/windows-slide.png)
 
@@ -19,8 +21,9 @@ GitHub Copilot Canvas Extension や npm 版 CLI のブラウザー UI でも開�
 | [**Windows Desktop と同梱 CLI**](desktop.md) | Windows でデッキを扱う。外部 AI ツールの利用は任意 | ワークスペース、スキル導入、Architecture 編集、出力プレビュー、発表者ビュー、ネイティブ投影用ウィンドウ、GUI／CLI からの PDF・PowerPoint 出力 |
 | [**Canvas Extension**](canvas-extension.md) | GitHub Copilot と一緒にデッキを作り込む | Markdown 読み込み、自動更新、発表者ビュー、Architecture 編集、16:9 の確認、PDF と編集可能な PowerPoint のエクスポート |
 | [**npm 版 CLI**](cli.md) | Windows パッケージを使わず、ターミナル、CI、Codex、Claude Code で作業する | ブラウザー版スライド UI、検証、クリッピング診断、PNG 取得、PDF・PowerPoint 出力、Agent Skills |
+| [**Visual Studio Code 拡張機能**](vscode.md) | Markdown の編集中にプレビュー、発表、検証、Copilot Skill 導入を行う | CLI 検出と導入案内、内蔵ブラウザーのプレビュー、Problems 診断、CLI が生成する Skill の導入 |
 
-3 つのいずれでも、Markdown、シンタックスハイライト付きコード、Mermaid、Architecture DSL、
+どの表示環境でも、Markdown、シンタックスハイライト付きコード、Mermaid、Architecture DSL、
 ローカル画像、スピーカーノート、組み込みの dark／light／microsoft テーマを利用できます。
 
 ## はじめに
@@ -49,6 +52,7 @@ GitHub Copilot Canvas Extension や npm 版 CLI のブラウザー UI でも開�
 | Mermaid、Architecture DSL、画像、画面上での Architecture 編集 | [図とメディア](diagrams-and-media.md) |
 | 投影用ウィンドウ、操作の同期、クリッピングの確認、PDF と PowerPoint のエクスポート | [プレゼンテーションとエクスポート](presenting-and-export.md) |
 | ターミナルのコマンド、終了コード、JSON 出力、Agent Skills | [MarkdStage CLI](cli.md) |
+| Visual Studio Code から使う CLI ベースのプレビュー、検証、Copilot Skill | [Visual Studio Code 拡張機能](vscode.md) |
 | セットアップ、読み込み、表示、編集でよくある問題 | [トラブルシューティング](troubleshooting.md) |
 
 ## 動作要件
@@ -60,6 +64,8 @@ GitHub Copilot Canvas Extension や npm 版 CLI のブラウザー UI でも開�
   サイドローディング版を選びます。GUI の出力と CLI の診断・キャプチャー・出力には、
   インストール済みの Edge、Chrome、Chromium のいずれかも必要です。Node.js は不要です。
 - **npm 版 CLI:** Node.js 24 以降と、インストール済みの Microsoft Edge、Google Chrome、または Chromium。
+- **Visual Studio Code 拡張機能:** ローカルまたはリモートの Extension Host 環境に
+  インストールされた互換性のある MarkdStage CLI。
 - **AI 支援（任意）:** 外部 AI ツールと対応するワークスペースのスキル、または
   Canvas Extension を導入した GitHub Copilot App。Desktop 自体に AI チャットはありません。
 - **デッキのソース:** 現在のワークスペース内にある `.md` または `.markdown` ファイル。

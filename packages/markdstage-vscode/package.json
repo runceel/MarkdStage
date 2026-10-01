@@ -1,0 +1,145 @@
+{
+  "name": "markdstage-vscode",
+  "displayName": "MarkdStage",
+  "description": "Thin VS Code integration for the independently installed MarkdStage CLI.",
+  "version": "4.3.1",
+  "publisher": "runceel",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/runceel/MarkdStage.git",
+    "directory": "packages/markdstage-vscode"
+  },
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "markdown",
+    "slides",
+    "presentation",
+    "markdstage"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:markdstage.refreshCli",
+    "onCommand:markdstage.preview",
+    "onCommand:markdstage.editArchitecture",
+    "onCommand:markdstage.present",
+    "onCommand:markdstage.validate",
+    "onCommand:markdstage.installCopilotSkill",
+    "onCommand:markdstage.checkCopilotSkill",
+    "onCommand:markdstage.stopPreviewSessions"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "Commands that detect or run the CLI, and commands that write workspace files, require Workspace Trust."
+    },
+    "virtualWorkspaces": {
+      "supported": false,
+      "description": "MarkdStage requires a filesystem-backed workspace and an external CLI process."
+    }
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "markdstage.refreshCli",
+        "title": "MarkdStage: Refresh / Detect CLI"
+      },
+      {
+        "command": "markdstage.preview",
+        "title": "MarkdStage: Preview Current Markdown",
+        "icon": {
+          "light": "media/preview-light.svg",
+          "dark": "media/preview-dark.svg"
+        }
+      },
+      {
+        "command": "markdstage.editArchitecture",
+        "title": "MarkdStage: Edit Architecture Diagram"
+      },
+      {
+        "command": "markdstage.present",
+        "title": "MarkdStage: Present Current Markdown"
+      },
+      {
+        "command": "markdstage.validate",
+        "title": "MarkdStage: Validate Current Markdown"
+      },
+      {
+        "command": "markdstage.installCopilotSkill",
+        "title": "MarkdStage: Install GitHub Copilot Skill"
+      },
+      {
+        "command": "markdstage.checkCopilotSkill",
+        "title": "MarkdStage: Check GitHub Copilot Skill"
+      },
+      {
+        "command": "markdstage.stopPreviewSessions",
+        "title": "MarkdStage: Stop Preview Sessions"
+      }
+    ],
+    "configuration": {
+      "title": "MarkdStage",
+      "properties": {
+        "markdstage.executablePath": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "markdownDescription": "Preferred path to the `markdstage` executable in the extension-host environment. If it is unavailable, the extension searches `PATH`."
+        }
+      }
+    },
+    "menus": {
+      "editor/title": [
+        {
+          "command": "markdstage.preview",
+          "when": "resourceExtname == .md || resourceExtname == .markdown",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "markdstage.preview",
+          "when": "editorLangId == markdown"
+        },
+        {
+          "command": "markdstage.editArchitecture",
+          "when": "editorLangId == markdown"
+        },
+        {
+          "command": "markdstage.present",
+          "when": "editorLangId == markdown"
+        },
+        {
+          "command": "markdstage.validate",
+          "when": "editorLangId == markdown"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "clean": "node scripts/clean.mjs",
+    "check:version": "node scripts/check-version.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/*.test.ts",
+    "build": "npm run check:version && npm run typecheck && node esbuild.mjs",
+    "package": "npm run clean && npm run test && npm run build && vsce package --no-dependencies --out markdstage-vscode.vsix && node scripts/check-vsix.mjs markdstage-vscode.vsix"
+  },
+  "devDependencies": {
+    "@types/node": "^24.7.0",
+    "@types/vscode": "^1.96.0",
+    "@vscode/vsce": "^3.6.2",
+    "adm-zip": "^0.5.16",
+    "esbuild": "^0.25.10",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}

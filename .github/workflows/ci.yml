@@ -22,6 +22,7 @@ jobs:
       test: ${{ steps.classify.outputs.test }}
       cli: ${{ steps.classify.outputs.cli }}
       desktop: ${{ steps.classify.outputs.desktop }}
+      vscode: ${{ steps.classify.outputs.vscode }}
       samples: ${{ steps.classify.outputs.samples }}
       awesome: ${{ steps.classify.outputs.awesome }}
 
@@ -255,6 +256,37 @@ jobs:
           ./node_modules/.bin/markdstage validate "$GITHUB_WORKSPACE/slides.md" --json > /dev/null
           echo "OK: the packed CLI runs from a clean install."
 
+  vscode:
+    name: VS Code extension
+    needs: changes
+    if: needs.changes.outputs.vscode == 'true'
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24.x
+
+      - name: Install extension dependencies
+        working-directory: packages/markdstage-vscode
+        run: npm ci
+
+      - name: Unit tests
+        working-directory: packages/markdstage-vscode
+        run: npm test
+
+      - name: Build extension
+        working-directory: packages/markdstage-vscode
+        run: npm run build
+
+      - name: Package VSIX
+        working-directory: packages/markdstage-vscode
+        run: npm run package
+
   samples:
     name: Sample decks
     needs: changes
@@ -410,6 +442,7 @@ jobs:
       - cli
       - desktop
       - native-cli
+      - vscode
       - samples
       - awesome
     runs-on: ubuntu-24.04
@@ -428,6 +461,8 @@ jobs:
           DESKTOP_SELECTED: ${{ needs.changes.outputs.desktop }}
           DESKTOP_RESULT: ${{ needs.desktop.result }}
           NATIVE_CLI_RESULT: ${{ needs.native-cli.result }}
+          VSCODE_SELECTED: ${{ needs.changes.outputs.vscode }}
+          VSCODE_RESULT: ${{ needs.vscode.result }}
           SAMPLES_SELECTED: ${{ needs.changes.outputs.samples }}
           SAMPLES_RESULT: ${{ needs.samples.result }}
           AWESOME_SELECTED: ${{ needs.changes.outputs.awesome }}
@@ -459,6 +494,7 @@ jobs:
           check_job "MarkdStage CLI" "$CLI_SELECTED" "$CLI_RESULT"
           check_job "MarkdStage Desktop" "$DESKTOP_SELECTED" "$DESKTOP_RESULT"
           check_job "Native CLI" "$DESKTOP_SELECTED" "$NATIVE_CLI_RESULT"
+          check_job "VS Code extension" "$VSCODE_SELECTED" "$VSCODE_RESULT"
           check_job "Sample decks" "$SAMPLES_SELECTED" "$SAMPLES_RESULT"
           check_job "Awesome Copilot plugin" "$AWESOME_SELECTED" "$AWESOME_RESULT"
           echo "All selected CI jobs passed."

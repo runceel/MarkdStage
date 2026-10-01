@@ -4,7 +4,7 @@
 
 Windows の Microsoft Store パッケージは GUI と CLI を同時にインストールします。
 ブラウザー版 CLI には npm 版、GitHub Copilot App 内で作業する場合は Canvas Extension を使います。
-これらは選択肢であり、すべてを導入する必要はありません。
+Visual Studio Code 拡張機能は、いずれかの CLI 配布版にエディター連携を追加します。
 
 ## Windows: Microsoft Store
 
@@ -89,6 +89,23 @@ GitHub Copilot に次のように依頼します。
 
 インストールする前にローカルの Extension コードを確認してください。リリースタグかコミット SHA を
 指定すれば、毎回同じ内容をインストールできます。
+
+## Visual Studio Code 拡張機能
+
+信頼できる GitHub Release から `markdstage-vscode-<version>.vsix` を取得し、
+**Extensions: Install from VSIX...** でインストールします。拡張機能に MarkdStage CLI や
+別の Agent Skill コピーは含まれません。
+
+プレビュー、発表者ビュー、検証、Skill コマンドを使う前に互換性のある CLI を導入します。
+
+- ローカル Windows では、前述の Microsoft Store パッケージを推奨します。
+- macOS／Linux では、後述の npm CLI をインストールします。
+- Remote SSH、WSL、Dev Container では、その環境内へ npm CLI をインストールします。
+
+拡張機能は `markdstage --version` を確認し、コマンドがない場合は導入方法を案内します。
+ソフトウェアを自動インストールすることはありません。コマンドの使い方、実行ファイルの明示、
+リモートワークスペースでの動作は
+[Visual Studio Code ガイド](vscode.md)を参照してください。
 
 ## MarkdStage CLI（npm 版）
 

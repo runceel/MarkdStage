@@ -5,8 +5,24 @@ import test from "node:test";
 import { isSampleDeckPath } from "../../scripts/ci-sample-path.mjs";
 import { CI_AREAS, classifyCiPaths } from "../../scripts/ci-paths.mjs";
 
-const none = { docs: false, test: false, cli: false, desktop: false, samples: false, awesome: false };
-const all = { docs: true, test: true, cli: true, desktop: true, samples: true, awesome: true };
+const none = {
+  docs: false,
+  test: false,
+  cli: false,
+  desktop: false,
+  vscode: false,
+  samples: false,
+  awesome: false,
+};
+const all = {
+  docs: true,
+  test: true,
+  cli: true,
+  desktop: true,
+  vscode: true,
+  samples: true,
+  awesome: true,
+};
 
 function expected(overrides) {
   return { ...none, ...overrides };
@@ -34,11 +50,15 @@ test("published documentation runs only documentation validation", () => {
 test("component-only changes stay within their component", () => {
   assert.deepEqual(
     classifyCiPaths(["packages/markdstage-cli/src/cli.mjs"]),
-    expected({ cli: true }),
+    expected({ cli: true, vscode: true }),
   );
   assert.deepEqual(
     classifyCiPaths(["apps/MarkdStage.Desktop/src/MarkdStage.App/MainPage.xaml"]),
     expected({ desktop: true }),
+  );
+  assert.deepEqual(
+    classifyCiPaths(["packages/markdstage-vscode/src/extension.ts"]),
+    expected({ vscode: true }),
   );
   assert.deepEqual(
     classifyCiPaths([".github/extensions/markdstage/extension.mjs"]),
@@ -59,6 +79,25 @@ test("the Agent Skill generator selects every packaging consumer", () => {
       path,
     );
   }
+});
+
+test("CLI wrapper protocol changes also verify the VS Code extension", () => {
+  assert.deepEqual(
+    classifyCiPaths(["packages/markdstage-cli/src/cli.mjs"]),
+    expected({ cli: true, vscode: true }),
+  );
+  assert.deepEqual(
+    classifyCiPaths(["packages/markdstage-cli/src/commands/present.mjs"]),
+    expected({ cli: true, vscode: true }),
+  );
+  assert.deepEqual(
+    classifyCiPaths(["apps/MarkdStage.Desktop/src/MarkdStage.Cli/CliArguments.cs"]),
+    expected({ desktop: true, vscode: true }),
+  );
+  assert.deepEqual(
+    classifyCiPaths(["apps/MarkdStage.Desktop/src/MarkdStage.Cli/Program.cs"]),
+    expected({ desktop: true, vscode: true }),
+  );
 });
 
 test("canonical shared files select their real consumers", () => {
@@ -173,7 +212,7 @@ test("the published plugin tree selects only its own verification", () => {
   // The manifest version must stay aligned with the CLI product version.
   assert.deepEqual(
     classifyCiPaths(["packages/markdstage-cli/package.json"]),
-    expected({ cli: true, desktop: true, awesome: true }),
+    expected({ cli: true, desktop: true, vscode: true, awesome: true }),
   );
 });
 

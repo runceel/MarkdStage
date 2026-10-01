@@ -33,6 +33,12 @@ test("renderer wires the scroll view controls", () => {
   assert.match(js, /\/view-mode/);
 });
 
+test("scroll view reserves space between slides and the scrollbar", () => {
+  const css = readFileSync(new URL("../renderer/slides.css", import.meta.url), "utf8");
+  assert.match(css, /\.scroll-view\{[^}]*padding:8px 12px 40vh/);
+  assert.match(css, /\.scroll-view\{[^}]*scrollbar-gutter:stable/);
+});
+
 test("shape editing works from scroll view", () => {
   const js = readFileSync(new URL("../renderer/renderer.js", import.meta.url), "utf8");
   assert.match(js, /Scroll frames render lazily/);

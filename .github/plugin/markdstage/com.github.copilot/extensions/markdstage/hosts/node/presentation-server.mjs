@@ -109,10 +109,12 @@ export async function startPresentationServer(
   session,
   {
     application = false,
+    architectureEditorTarget = "window",
     editable = false,
     exporters,
     initialSourceMode = "snapshot",
     onLog,
+    onArchitectureEditorOpen,
     openExternal = openExternalUrl,
     presenter,
     token = createUrlToken(),
@@ -316,7 +318,12 @@ export async function startPresentationServer(
           editingAvailable && Boolean(session.file) && Boolean(session.architectureEdit),
         architectureDetailedEdit: editingAvailable && Boolean(session.file),
         architectureDetailedEditTarget:
-          editingAvailable && session.file ? "window" : "",
+          editingAvailable && session.file &&
+          (architectureEditorTarget === "same" || architectureEditorTarget === "host")
+            ? architectureEditorTarget
+            : editingAvailable && session.file
+              ? "window"
+              : "",
       });
       return;
     }
@@ -905,7 +912,18 @@ export async function startPresentationServer(
         } else {
           editor.setTheme(session.theme);
         }
-        json(res, 200, { ok: true, url: editor.url });
+        if (
+          architectureEditorTarget === "host" &&
+          typeof onArchitectureEditorOpen === "function"
+        ) {
+          await onArchitectureEditorOpen({
+            previewUrl: session.url,
+            url: editor.url,
+          });
+          json(res, 200, { ok: true, openedByHost: true });
+        } else {
+          json(res, 200, { ok: true, url: editor.url });
+        }
       } catch (error) {
         if (!entry.editor && architectureEditors.get(key) === entry) {
           architectureEditors.delete(key);

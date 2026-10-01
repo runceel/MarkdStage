@@ -64,6 +64,42 @@ public sealed class CliArgumentsTests
         Assert.Throws<CliException>(() => CliArguments.Parse(["validate", "deck.md", "--pages", "1"]));
 
     [Theory]
+    [InlineData("preview")]
+    [InlineData("present")]
+    public void JsonLinesIsAcceptedForServedPresentationCommands(string command)
+    {
+        var args = CliArguments.Parse([
+            command,
+            "deck.md",
+            "--no-open",
+            "--json-lines",
+            "--architecture-editor-target",
+            "host",
+        ]);
+        Assert.True(args.Has("json-lines"));
+        Assert.Equal("host", args.Get("architecture-editor-target"));
+        Assert.False(args.IsAppActivation);
+    }
+
+    [Fact]
+    public void RejectsInvalidArchitectureEditorTarget() =>
+        Assert.Throws<CliException>(() => CliArguments.Parse([
+            "preview",
+            "deck.md",
+            "--architecture-editor-target",
+            "popup",
+        ]));
+
+    [Theory]
+    [InlineData("validate", "deck.md", "--json-lines")]
+    [InlineData("guide", "--json-lines")]
+    [InlineData("skill", "check", "--json-lines")]
+    [InlineData("preview", "deck.md", "--json-lines")]
+    [InlineData("preview", "deck.md", "--no-open", "--json", "--json-lines")]
+    public void RejectsInvalidJsonLinesUsage(params string[] arguments) =>
+        Assert.Equal(1, Assert.Throws<CliException>(() => CliArguments.Parse(arguments)).ExitCode);
+
+    [Theory]
     [InlineData("0")]
     [InlineData("1abc")]
     [InlineData("-2")]

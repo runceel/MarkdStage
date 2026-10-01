@@ -9,6 +9,8 @@
 MarkdStage provides Markdown slide authoring, diagram editing, preview, presentation, and export.
 On Windows, Microsoft Store installs the desktop GUI and CLI together. The same Markdown deck
 can also be opened in the GitHub Copilot Canvas Extension or the npm CLI's browser UI.
+Visual Studio Code users can add editor commands through the VS Code extension, which delegates to
+an installed MarkdStage CLI.
 
 ![A sample Architecture diagram open in MarkdStage Desktop](images/windows-slide.png)
 
@@ -19,8 +21,9 @@ can also be opened in the GitHub Copilot Canvas Extension or the npm CLI's brows
 | [**Windows Desktop and included CLI**](desktop.md) | Working with decks on Windows, with or without an external AI tool | Workspace browsing, Skill installation, Architecture editing, output preview, presenter view, native audience window, and GUI/CLI PDF and PowerPoint export |
 | [**Canvas Extension**](canvas-extension.md) | Creating and revising a deck with GitHub Copilot | Markdown import, live refresh, presenter view, Architecture editing, 16:9 validation, and PDF and editable PowerPoint export |
 | [**npm CLI**](cli.md) | Working in a terminal, CI, Codex, or Claude Code without the Windows package | Browser-based slide UI, deck validation, clipping diagnostics, PNG capture, PDF and PowerPoint export, and Agent Skills |
+| [**Visual Studio Code extension**](vscode.md) | Previewing, presenting, validating, and installing the Copilot Skill while editing Markdown | CLI detection and installation guidance, built-in-browser preview, Problems diagnostics, and CLI-owned Skill installation |
 
-All three surfaces support Markdown, syntax-highlighted code, Mermaid, Architecture DSL, local
+All rendering surfaces support Markdown, syntax-highlighted code, Mermaid, Architecture DSL, local
 images, speaker notes, and the built-in dark, light, and Microsoft themes.
 
 ## Start here
@@ -49,6 +52,7 @@ images, speaker notes, and the built-in dark, light, and Microsoft themes.
 | Mermaid, Architecture DSL, images, and visual Architecture editing | [Diagrams and media](diagrams-and-media.md) |
 | Audience windows, synchronized navigation, clipping checks, and PDF and PowerPoint export | [Presenting and export](presenting-and-export.md) |
 | Terminal commands, exit codes, JSON output, and Agent Skills | [MarkdStage CLI](cli.md) |
+| CLI-backed preview, validation, and Copilot Skill commands in Visual Studio Code | [Visual Studio Code extension](vscode.md) |
 | Common setup, loading, rendering, and editing problems | [Troubleshooting](troubleshooting.md) |
 
 ## Requirements
@@ -60,6 +64,8 @@ images, speaker notes, and the built-in dark, light, and Microsoft themes.
   alternative. GUI exports and CLI inspection/capture/export also require an installed
   Edge, Chrome, or Chromium browser. No Node.js is needed.
 - **npm CLI:** Node.js 24 or later and an installed Microsoft Edge, Google Chrome, or Chromium.
+- **Visual Studio Code extension:** A compatible MarkdStage CLI installed in the local or remote
+  extension-host environment.
 - **AI assistance (optional):** an external AI tool and the matching workspace Skill, or
   GitHub Copilot App with the Canvas Extension. Desktop itself has no AI chat.
 - **Deck source:** A `.md` or `.markdown` file inside the current workspace.

@@ -32,7 +32,7 @@ test("v4 release publishes portable and signed desktop packages independently of
   assert.match(workflow, /secrets\.MARKDSTAGE_SIGNING_CERTIFICATE_PASSWORD/);
   assert.match(workflow, /winget install --id Microsoft\.WinAppCli --version 0\.6\.1/);
   assert.match(workflow, /Verify release package signatures/);
-  assert.match(workflow, /needs: \[validate, desktop\]/);
+  assert.match(workflow, /needs: \[validate, desktop, vscode\]/);
   assert.doesNotMatch(publishScript, /Archive format is only supported for pre-v4 releases/);
   const publication = workflow.split("- name: Create or update GitHub Release")[1].split("- name: Verify published release")[0];
   assert.match(publication, /MarkdStage-win-x64\.zip/);
@@ -58,4 +58,15 @@ test("release requirements describe native viewing, GUI export, and separate Sto
   assert.match(workflow, /this GitHub Release does not publish a Store update/);
   assert.doesNotMatch(workflow, /export remains CLI-only|Store availability and the Store URL will be announced/);
   assert.doesNotMatch(releaseProcess, /exports are\s+CLI-only/);
+});
+
+test("packaged CLI includes the canonical Architecture Editor assets", async () => {
+  const project = await readFile(new URL("src/MarkdStage.Cli/MarkdStage.Cli.csproj", desktop), "utf8");
+
+  assert.match(project, /extensions\\markdstage\\architecture-editor\\\*\*\\\*/);
+  assert.match(project, /<Link>Web\\architecture-editor\\%\(RecursiveDir\)%\(Filename\)%\(Extension\)<\/Link>/);
+  assert.match(
+    project,
+    /architecture-editor[\s\S]*?<CopyToPublishDirectory>PreserveNewest<\/CopyToPublishDirectory>/,
+  );
 });

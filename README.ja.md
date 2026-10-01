@@ -21,6 +21,7 @@
   <a href="https://runceel.github.io/MarkdStage/">Web サイト</a> |
   <a href="#canvas-extension">Canvas Extension</a> |
   <a href="#desktop">Desktop</a> |
+  <a href="#visual-studio-code-拡張機能">VS Code</a> |
   <a href="#cli">CLI</a> |
   <a href="#community-macos-app">macOS アプリ</a> |
   <a href="#examples">表示例</a> |
@@ -64,6 +65,7 @@ PowerPoint 側の変更は Markdown には逆反映されません。対応範�
 | --- | --- |
 | **[Windows Desktop と同梱 CLI](#desktop)** | GUI でワークスペース、スキル導入、Architecture 編集、表示確認、発表、出力を扱います。同梱 CLI は診断と自動化に使えます。 |
 | **[GitHub Copilot と Canvas](#canvas-extension)** | GitHub Copilot App で作成・修正を依頼し、Architecture 図を画面上で調整して、Canvas から発表・出力できます。 |
+| **[Visual Studio Code 拡張機能](#visual-studio-code-拡張機能)** | インストール済み MarkdStage CLI を使い、Markdown の編集中にプレビュー、発表、検証、Copilot Skill 導入を行います。 |
 | **[npm 版 CLI と Agent Skill](#cli)** | ターミナル、CI、Claude Code、Codex とブラウザー UI を使います。Canvas は不要です。 |
 | **[AI を使わない編集](#present-without-ai)** | Markdown を自分で書くか作例から始め、Desktop、Canvas、CLI で開きます。 |
 | **MarkStageForMac**（第三者製） | コミュニティ製の macOS ネイティブアプリで発表します。本リポジトリの開発・サポート対象外です |
@@ -146,6 +148,22 @@ Git リポジトリではリポジトリルート、それ以外では現在の�
 ```text
 canvasId: MarkdStage
 ```
+
+<a id="visual-studio-code-拡張機能"></a>
+
+## Visual Studio Code 拡張機能を使う
+
+信頼できる GitHub Release から `markdstage-vscode-<version>.vsix` をインストールし、
+VS Code の Extension Host が動く環境へ互換性のある MarkdStage CLI を導入します。
+ローカル Windows では Microsoft Store 版、macOS、Linux、Remote SSH、WSL、Dev Container
+ではワークスペースがある環境内の npm CLI を使用します。
+
+拡張機能は薄い CLI ラッパーです。コマンドの検出と導入案内、VS Code 内蔵ブラウザーでの
+`preview`／`present --no-open`、`validate --json` の Problems 表示、インストール済み CLI
+による GitHub Copilot Skill の導入・確認を提供します。別のレンダラー、検証処理、Skill コピーは
+同梱しません。
+
+詳細は [Visual Studio Code 拡張機能ガイド](./docs/user-guide/ja/vscode.md)を参照してください。
 
 <a id="cli"></a>
 
