@@ -30,7 +30,9 @@ equivalent to presentation or export output.
 The **packaged Windows CLI** opens the native Desktop app for interactive
 commands, so its interactive features follow the Desktop column. `present` also
 opens the native audience window and repeated requests reuse it. The npm CLI is
-unchanged and browser-based; packaged `--no-open` retains the local server UI.
+unchanged and browser-based. Packaged `--no-open` retains the local server UI with the
+same **External window** / **Start presentation** and UI PDF/PowerPoint export controls as
+the npm CLI; these require an installed Chromium browser.
 `inspect`, `capture`, and `export` remain console commands in both distributions
 and require an external Chromium browser. Native interaction uses WebView2 only.
 Desktop's GUI exports also use an installed Chromium browser; WebView2 alone is sufficient for

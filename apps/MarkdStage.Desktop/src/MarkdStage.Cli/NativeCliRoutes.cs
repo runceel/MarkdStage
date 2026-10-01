@@ -8,6 +8,7 @@ namespace MarkdStage.Cli;
 internal sealed class NativeCliRoutes
 {
     public ScriptHost? Runtime { get; set; }
+    public Func<bool>? PresenterRunning { get; set; }
 
     public void Configure(WebApplication application, string prefix)
     {
@@ -41,7 +42,8 @@ internal sealed class NativeCliRoutes
                 {
                     body,
                     token = context.Request.Query["token"].ToString(),
-                    offset = int.TryParse(context.Request.Query["offset"], out var offset) ? offset : 0
+                    offset = int.TryParse(context.Request.Query["offset"], out var offset) ? offset : 0,
+                    presenterRunning = PresenterRunning?.Invoke() ?? false
                 });
                 if (method == "exportStatus") context.Response.StatusCode = 204;
                 else await context.Response.WriteAsJsonAsync(result, context.RequestAborted);

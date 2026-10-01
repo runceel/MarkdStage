@@ -29,8 +29,10 @@ Canvas、Desktop、CLI はレンダラーと出力モデルを共有し、いず
 
 **Windows パッケージ版 CLI** の対話コマンドはネイティブの Desktop アプリを開くため、
 表示機能は Desktop 列に従います。`present` はネイティブの投影用ウィンドウも開き、
-繰り返しても再利用します。npm 版は従来どおりブラウザーで動き、パッケージ版の
-`--no-open` はローカルサーバーの UI を維持します。`inspect`、`capture`、`export` は
+繰り返しても再利用します。npm 版は従来どおりブラウザーで動きます。パッケージ版の
+`--no-open` はローカルサーバーの UI を維持し、npm 版と同じ **External window** /
+**Start presentation** と UI からの PDF・PowerPoint 出力を利用できます（インストール済みの
+Chromium 系ブラウザーが必要です）。`inspect`、`capture`、`export` は
 両方ともコンソールコマンドのままで、外部 Chromium が必要です。ネイティブ表示は
 WebView2 のみを使います。Desktop の GUI からの出力にもインストール済みの Chromium 系ブラウザーが
 必要です。ネイティブ表示は WebView2 だけで行えますが、出力は別です。

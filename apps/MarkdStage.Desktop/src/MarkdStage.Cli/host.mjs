@@ -78,12 +78,14 @@ const methods = {
     return { ok: true };
   },
   async load({ path }) { return runtime.loadDeck(path); },
-  async state({ offset = 0 }) {
+  async state({ offset = 0, presenterRunning = false }) {
     const snapshot = await runtime.snapshot({ offset });
     const sourceBacked = snapshot.sourceBacked === true && Boolean(snapshot.sourceName);
+    const exportAvailable = settings.exportAvailable === true && sourceBacked;
     return { ...snapshot, sourceModeAvailable: snapshot.sourceBacked, markdownImportAvailable: true,
-      presenterViewAvailable: true, presenterWindowAvailable: false, presenterRunning: false,
-      pdfExportAvailable: false, pptxExportAvailable: false,
+      presenterViewAvailable: true, presenterWindowAvailable: settings.presenterWindowAvailable === true,
+      presenterRunning: settings.presenterWindowAvailable === true && presenterRunning === true,
+      pdfExportAvailable: exportAvailable, pptxExportAvailable: exportAvailable,
       architectureEditAvailable: sourceBacked,
       architectureEdit: false,
       architectureDetailedEdit: sourceBacked,
