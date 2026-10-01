@@ -122,8 +122,10 @@ One-time setup (a personal Microsoft account with an Azure subscription is suffi
 1. In Azure, create a user-assigned managed identity in the subscription's tenant. No Azure
    role assignment is required.
 2. Add a federated credential to that identity: issuer `https://token.actions.githubusercontent.com`,
-   subject `repo:runceel/MarkdStage:environment:vscode-marketplace`, audience
-   `api://AzureADTokenExchange`.
+   subject `repo:runceel@79868/MarkdStage@1262428757:environment:vscode-marketplace`, audience
+   `api://AzureADTokenExchange`. This repository's OIDC tokens use the immutable
+   `owner@id/repo@id` subject format; if `azure/login` reports `AADSTS700213`, register the
+   subject shown in that error.
 3. In GitHub, create the `vscode-marketplace` environment, restrict its deployment to tags
    matching `v*`, and set the environment variables `AZURE_CLIENT_ID` (managed identity
    client ID) and `AZURE_TENANT_ID`. These are identifiers, not secrets.
@@ -199,7 +201,7 @@ apps\MarkdStage.Desktop\scripts\CreateStorePackage.ps1 -Version <major.minor.pat
 ```
 
 This builds x64 and ARM64 packages with the checked-in Store identity and writes
-`apps\MarkdStage.Desktop\artifacts\MarkdStage-Store-<version>.msixupload` and its SHA-256
+`apps\MarkdStage.Desktop\artifacts\MarkdStage-Store-<major.minor.patch>.msixupload` and its SHA-256
 checksum. A requested release is not complete until these local files have been
 generated and verified. Report their full paths when handing off the completed
 release.
@@ -325,9 +327,10 @@ After the workflow succeeds:
    apps\MarkdStage.Desktop\scripts\CreateStorePackage.ps1 -Version <major.minor.patch.0>
    ```
 
-6. Confirm both files exist and report their full paths:
-   - `apps\MarkdStage.Desktop\artifacts\MarkdStage-Store-<version>.msixupload`
-   - `apps\MarkdStage.Desktop\artifacts\MarkdStage-Store-<version>.msixupload.sha256`
+6. Confirm both files exist and report their full paths. The file names use the
+   three-part release version (for example, `4.4.0` for `-Version 4.4.0.0`):
+   - `apps\MarkdStage.Desktop\artifacts\MarkdStage-Store-<major.minor.patch>.msixupload`
+   - `apps\MarkdStage.Desktop\artifacts\MarkdStage-Store-<major.minor.patch>.msixupload.sha256`
 
 Do not consider a requested release complete until step 6 succeeds. Creating the
 package does not submit it to Partner Center.
