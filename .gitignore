@@ -10,6 +10,9 @@ playwright-report/
 blob-report/
 playwright/.cache/
 
+# Local VS Code extension dev instance (scripts/dev-vscode.mjs)
+.dev/
+
 # Generated MarkdStage CLI package mirror
 packages/markdstage-cli/shared/
 

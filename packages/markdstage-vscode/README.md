@@ -66,3 +66,13 @@ npm run package
 then verifies that the VSIX contains the manifest, README, license, and bundled
 extension entry point while excluding source, tests, scripts, lockfile, and
 `node_modules`.
+
+To try the extension against the in-repo CLI, run `node scripts\dev-vscode.mjs
+[--cli node|native] [workspace-folder]` from the repository root. It builds the
+extension and the selected CLI (`node`: `packages/markdstage-cli`, the default;
+`native`: the Windows `MarkdStageCli.exe` from `apps/MarkdStage.Desktop`), puts a
+`markdstage` launcher for it first on `PATH`, and opens an isolated VS Code
+instance (`.dev/vscode/<cli>/`) with this extension loaded and Workspace Trust
+disabled, so an installed release CLI is never picked up. Set
+`MARKDSTAGE_VSCODE` to use a different VS Code launcher. To exercise Restricted
+Mode, launch VS Code manually without `--disable-workspace-trust`.

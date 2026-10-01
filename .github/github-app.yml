@@ -5,6 +5,10 @@ scripts:
     command: 'dotnet run --project apps\MarkdStage.Desktop\src\MarkdStage.App\MarkdStage.App.csproj -p:EnableWinAppRunSupport=true'
   - name: MarkdStage CLI
     command: 'node packages\markdstage-cli\bin\markdstage.mjs'
+  - name: VS Code extension (in-repo CLI)
+    command: 'node scripts\dev-vscode.mjs'
+  - name: VS Code extension (in-repo Windows CLI)
+    command: 'node scripts\dev-vscode.mjs --cli native'
 
 server_ready_pattern: 'MarkdStage site preview:\s+(https?://\S+)'
 auto_open_in_browser: true
