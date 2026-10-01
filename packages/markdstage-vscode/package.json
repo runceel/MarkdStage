@@ -6,7 +6,8 @@
   "markdstage": {
     "minimumCliVersion": "4.3.1"
   },
-  "publisher": "runceel",
+  "publisher": "okazuki",
+  "icon": "media/icon.png",
   "license": "MIT",
   "repository": {
     "type": "git",
