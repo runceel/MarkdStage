@@ -4,8 +4,11 @@ This extension is a thin workspace-host wrapper over the independently installed
 MarkdStage CLI. It does not bundle the CLI, parser, renderer, validator, or
 generated Agent Skill content.
 
-The extension and CLI must have the same product version. Version `4.3.1` of
-this extension requires MarkdStage CLI `4.3.1`.
+The extension and CLI share one product version. Version `4.3.1` of this
+extension recommends MarkdStage CLI `4.3.1` and accepts any CLI from the
+`markdstage.minimumCliVersion` declared in `package.json` up to the same major
+version. An older but compatible CLI shows an update recommendation; a CLI below
+the minimum or with a newer major version is rejected with installation guidance.
 
 ## Commands
 
@@ -39,8 +42,8 @@ confirms a force overwrite.
 
 Set `markdstage.executablePath` to a preferred executable in the extension-host
 environment. Discovery tries that path first and then `markdstage` from `PATH`.
-Candidates must successfully return an exact semantic product version from
-`--version`.
+Candidates must successfully return a semantic product version from `--version`
+that is within the compatible range.
 
 The extension never installs the CLI automatically. On local Windows it links
 to the Microsoft Store first. On other platforms and remote extension hosts it
@@ -62,7 +65,8 @@ npm run package
 ```
 
 `npm run check:version` compares this package version with
-`../markdstage-cli/package.json`. Packaging creates `markdstage-vscode.vsix` and
+`../markdstage-cli/package.json` and verifies that `markdstage.minimumCliVersion`
+is a stable version no newer than the extension. Packaging creates `markdstage-vscode.vsix` and
 then verifies that the VSIX contains the manifest, README, license, and bundled
 extension entry point while excluding source, tests, scripts, lockfile, and
 `node_modules`.

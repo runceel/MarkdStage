@@ -52,7 +52,12 @@ for product operations. The extension owns workspace discovery, installation and
 compatibility guidance, CLI process lifecycle, and projection of diagnostics and
 product UI into VS Code.
 
-The extension and CLI use one MarkdStage product version. The extension does not
+The extension and CLI use one MarkdStage product version. The extension manifest
+also declares the minimum CLI version whose arguments and JSON Lines protocol it
+supports (`markdstage.minimumCliVersion`). A CLI from that minimum up to the
+extension version is accepted, with an update recommendation when it is older;
+a CLI below the minimum or with a newer major version is rejected. Versioned CLI
+events must match the detected CLI version. The extension does not
 bundle a second CLI implementation or a copy of the generated Agent Skill.
 Initial preview uses VS Code's built-in browser surface while preserving the
 CLI's ownership of product behavior and security. Architecture DSL editing is

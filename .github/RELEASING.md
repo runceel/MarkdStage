@@ -88,6 +88,10 @@ user-facing JSON Schemas. Also include the split Mermaid assets and their manife
 The VS Code extension under `packages/markdstage-vscode/` is a thin wrapper over an installed
 compatible MarkdStage CLI. It does not carry a second renderer, validator, or Agent Skill copy.
 Keep its manifest version aligned with `packages/markdstage-cli/package.json`.
+When a release changes CLI arguments or the JSON Lines protocol used by the extension (for example
+the `ready` or `architecture-editor` events) incompatibly, set `markdstage.minimumCliVersion` in
+`packages/markdstage-vscode/package.json` to that release version. Otherwise leave it unchanged so
+older compatible CLIs keep working with an update recommendation.
 
 Build and test the extension before packaging its release VSIX:
 
