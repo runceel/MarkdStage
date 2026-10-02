@@ -221,6 +221,11 @@ test("native no-open server exports beside the source and owns one audience wind
     assert.equal(pptx.ok, true);
     assert.equal(pptx.path, "deck.pptx");
     assert.equal(readFileSync(join(workspace, "deck.pptx")).subarray(0, 2).toString("latin1"), "PK");
+    for (const path of ["../outside.pdf", "missing.pdf", "deck.md"]) {
+      const rejected = await post("open-export", { path });
+      assert.equal(rejected.ok, false);
+      assert.match(rejected.error, /^(invalid_export_path|export_not_found)$/);
+    }
 
     assert.deepEqual(await post("present"), { ok: true, alreadyRunning: false });
     assert.equal((await state()).presenterRunning, true);

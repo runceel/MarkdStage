@@ -166,6 +166,77 @@ public sealed class PresentationServerTests
     }
 
     [WindowsFact]
+    public async Task HeadlessCliOpensOnlyExistingWorkspaceExportsFromSameOrigin()
+    {
+        var root = Directory.CreateTempSubdirectory("markdstage-open-export").FullName;
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "slides.pdf"), "%PDF-");
+            await File.WriteAllTextAsync(Path.Combine(root, "notes.txt"), "text");
+            var session = new PresentationSession();
+            session.ApplySnapshot(new PresentationSnapshot(
+                ["# Slide"], 0, 1, 1, Path.Combine(root, "slides.md"), root, new ThemeState("dark")));
+            var opened = new List<string>();
+            await using var server = new PresentationServer(session, () => false,
+                openExportFile: file =>
+                {
+                    opened.Add(file);
+                    return Task.CompletedTask;
+                });
+            await server.StartAsync();
+            using var client = new HttpClient { BaseAddress = server.BaseUri };
+
+            async Task<HttpResponseMessage> SendAsync(string path, string? origin)
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Post, "open-export")
+                {
+                    Content = JsonContent.Create(new { path }),
+                };
+                if (origin is not null) request.Headers.TryAddWithoutValidation("Origin", origin);
+                return await client.SendAsync(request);
+            }
+
+            var origin = server.BaseUri!.GetLeftPart(UriPartial.Authority);
+            using (var absent = await SendAsync("slides.pdf", null))
+                Assert.Equal(HttpStatusCode.Forbidden, absent.StatusCode);
+            using (var foreign = await SendAsync("slides.pdf", "https://attacker.invalid"))
+                Assert.Equal(HttpStatusCode.Forbidden, foreign.StatusCode);
+            foreach (var invalid in new[] { "", "notes.txt", "../outside.pdf", "missing.pdf" })
+            {
+                using var rejected = await SendAsync(invalid, origin);
+                Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+            }
+            Assert.Empty(opened);
+
+            using var accepted = await SendAsync("slides.pdf", origin);
+            Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
+            Assert.Equal(
+                Path.GetFullPath(Path.Combine(root, "slides.pdf")),
+                Path.GetFullPath(Assert.Single(opened)),
+                ignoreCase: true);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [WindowsFact]
+    public async Task OpenExportIsUnavailableWithoutAHostLauncher()
+    {
+        await using var server = new PresentationServer(new PresentationSession(), () => false);
+        await server.StartAsync();
+        using var client = new HttpClient { BaseAddress = server.BaseUri };
+        using var request = new HttpRequestMessage(HttpMethod.Post, "open-export")
+        {
+            Content = JsonContent.Create(new { path = "slides.pdf" }),
+        };
+        request.Headers.TryAddWithoutValidation("Origin", server.BaseUri!.GetLeftPart(UriPartial.Authority));
+        using var response = await client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [WindowsFact]
     public async Task PresenterRoutesReturnStructuredFailures()
     {
         var session = new PresentationSession();

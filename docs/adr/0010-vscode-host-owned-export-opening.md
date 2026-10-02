@@ -34,9 +34,10 @@ older compatible CLIs keep their existing behavior.
 
 ## Alternatives considered
 
-- Add the open-export route to the packaged Windows CLI. Rejected as the VS Code
-  solution because opening still happens on the CLI host, which is wrong for
-  remote workspaces and bypasses VS Code's notification surface.
+- Add the open-export route to the packaged Windows CLI as the VS Code
+  solution. Rejected because opening still happens on the CLI host, which is
+  wrong for remote workspaces and bypasses VS Code's notification surface. The
+  route is still provided for browser use outside VS Code.
 - Keep the in-page link. Rejected because it fails on the packaged CLI and gives
   no VS Code-native feedback.
 
@@ -58,4 +59,5 @@ older compatible CLIs keep their existing behavior.
 
 - Keep protocol tests on both CLI implementations and the VS Code session
   manager.
-- The packaged CLI's in-page link outside VS Code is a separate gap.
+- Outside VS Code, both CLI implementations serve the in-page open-export route
+  with the same workspace, extension, and same-origin checks.

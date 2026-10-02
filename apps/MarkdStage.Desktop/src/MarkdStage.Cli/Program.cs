@@ -78,6 +78,7 @@ internal static class Program
                 }
                 : null,
             openExternal: args.IsPresentation ? OpenExternalAsync : null,
+            openExportFile: args.IsPresentation ? OpenExportFileAsync : null,
             architectureEditorTarget: architectureEditorTarget,
             openArchitectureEditor:
                 architectureEditorTarget == "host" && args.Has("json-lines")
@@ -205,6 +206,12 @@ internal static class Program
         }) ?? throw new InvalidOperationException("The default browser could not be started.");
         return Task.CompletedTask;
     }
+
+    // ShellExecute blocks while the shell resolves the file association and starts the app.
+    private static Task OpenExportFileAsync(string file) => Task.Run(() =>
+    {
+        using var opened = Process.Start(new ProcessStartInfo(file) { UseShellExecute = true });
+    });
 
     private static string ProductVersion()
     {
