@@ -73,7 +73,7 @@ internal static class Program
                 {
                     var report = await ExportDeckAsync(routes.Runtime, session, format, mermaidImageFallback);
                     return notifyHostOfExport && serverReference?.BaseUri is { } previewUri
-                        ? await ExportHostNotifier.NotifyAsync(report, format, root, previewUri, Console.Out, ProductVersion())
+                        ? await ExportHostNotifier.NotifyAsync(report, format, root, previewUri, Console.Out, ProductVersion(), Console.Error)
                         : report;
                 }
                 : null,

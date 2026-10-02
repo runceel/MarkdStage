@@ -41,4 +41,49 @@ public sealed class ExportHostNotifierTests
         Assert.Equal(report.GetRawText(), result.GetRawText());
         Assert.Equal("", output.ToString());
     }
+
+    [Fact]
+    public async Task ReturnsTheOriginalReportWhenTheHostPipeFails()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "markdstage-notifier");
+        var output = new StringWriter();
+        output.Dispose();
+        using var diagnostics = new StringWriter();
+        var report = JsonSerializer.SerializeToElement(new { ok = true, path = "deck.pdf" });
+
+        var result = await ExportHostNotifier.NotifyAsync(report, "pdf", root, Preview, output, "4.5.0", diagnostics);
+
+        Assert.Equal(report.GetRawText(), result.GetRawText());
+        Assert.Contains("Failed to notify the host", diagnostics.ToString());
+    }
+
+    [Fact]
+    public async Task ReturnsTheOriginalReportWhenTheHostPipeStalls()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "markdstage-notifier");
+        using var release = new ManualResetEventSlim();
+        using var output = new BlockingWriter(release);
+        var report = JsonSerializer.SerializeToElement(new { ok = true, path = "deck.pdf" });
+
+        var result = await ExportHostNotifier.NotifyAsync(
+            report, "pdf", root, Preview, output, "4.5.0", writeTimeout: TimeSpan.FromMilliseconds(50));
+        release.Set();
+
+        Assert.False(result.TryGetProperty("openedByHost", out _));
+    }
+
+    private sealed class BlockingWriter(ManualResetEventSlim release) : StringWriter
+    {
+        public override void WriteLine(string? value)
+        {
+            release.Wait();
+            base.WriteLine(value);
+        }
+
+        public override Task WriteLineAsync(string? value)
+        {
+            WriteLine(value);
+            return Task.CompletedTask;
+        }
+    }
 }
