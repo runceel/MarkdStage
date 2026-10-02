@@ -1,4 +1,5 @@
-import type { ArchitectureEditorEvent, ReadyEvent } from "./types.js";
+import * as path from "node:path";
+import type { ArchitectureEditorEvent, ExportEvent, ReadyEvent } from "./types.js";
 
 export const MAX_READY_LINE_BYTES = 64 * 1024;
 
@@ -103,4 +104,52 @@ export function parseArchitectureEditorEvent(
     throw new Error("MarkdStage CLI returned an Architecture Editor event for another preview session.");
   }
   return event as unknown as ArchitectureEditorEvent;
+}
+
+function isSamePreview(actual: string, expected: string): boolean {
+  const actualUrl = new URL(actual);
+  const expectedUrl = new URL(expected);
+  return actualUrl.origin === expectedUrl.origin && actualUrl.pathname === expectedUrl.pathname;
+}
+
+export function parseExportEvent(
+  line: string,
+  expectedVersion: string,
+  expectedPreviewUrl: string,
+  workspace: string,
+  pathApi: Pick<typeof path, "isAbsolute" | "relative" | "extname"> = path,
+): ExportEvent | undefined {
+  let value: unknown;
+  try {
+    value = JSON.parse(line);
+  } catch {
+    return undefined;
+  }
+  if (!value || typeof value !== "object") return undefined;
+  const event = value as Record<string, unknown>;
+  if (
+    event.type !== "export" ||
+    (event.format !== "pdf" && event.format !== "pptx") ||
+    typeof event.previewUrl !== "string" ||
+    typeof event.path !== "string" ||
+    event.version !== expectedVersion
+  ) {
+    return undefined;
+  }
+  if (!isSamePreview(event.previewUrl, expectedPreviewUrl)) {
+    throw new Error("MarkdStage CLI returned an export event for another preview session.");
+  }
+  const relative = pathApi.relative(workspace, event.path);
+  if (
+    !pathApi.isAbsolute(event.path) ||
+    !relative ||
+    relative === ".." ||
+    relative.startsWith("../") ||
+    relative.startsWith("..\\") ||
+    pathApi.isAbsolute(relative) ||
+    pathApi.extname(event.path).toLowerCase() !== `.${event.format}`
+  ) {
+    throw new Error("MarkdStage CLI returned an export path outside the workspace.");
+  }
+  return event as unknown as ExportEvent;
 }

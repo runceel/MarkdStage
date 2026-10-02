@@ -67,11 +67,13 @@ const COMMAND_OPTIONS = {
     watch: { type: "boolean" },
     "no-open": { type: "boolean" },
     "architecture-editor-target": { type: "string" },
+    "export-open-target": { type: "string" },
   },
   preview: {
     watch: { type: "boolean" },
     "no-open": { type: "boolean" },
     "architecture-editor-target": { type: "string" },
+    "export-open-target": { type: "string" },
   },
   validate: {},
   inspect: { slide: { type: "string" }, all: { type: "boolean" }, "fail-on-issues": { type: "boolean" } },
@@ -253,6 +255,41 @@ function architectureEditorTargetOption(value) {
   return value;
 }
 
+function exportOpenTargetOption(value) {
+  if (value === undefined) return undefined;
+  if (value !== "page" && value !== "host") {
+    throw new MarkdStageError("invalid_input", "--export-open-target must be one of: page, host.");
+  }
+  return value;
+}
+
+// Wrapper hosts (such as the VS Code extension) receive post-startup events on
+// the JSON-lines stream when they take ownership of a UI action.
+function hostEventHandlers(values, version, out) {
+  const jsonLines = Boolean(values["json-lines"]);
+  return {
+    onArchitectureEditor:
+      jsonLines && values["architecture-editor-target"] === "host"
+        ? ({ previewUrl, url }) => out(JSON.stringify({
+            type: "architecture-editor",
+            previewUrl,
+            url,
+            version,
+          }))
+        : undefined,
+    onExportComplete:
+      jsonLines && values["export-open-target"] === "host"
+        ? ({ previewUrl, format, path }) => out(JSON.stringify({
+            type: "export",
+            previewUrl,
+            format,
+            path,
+            version,
+          }))
+        : undefined,
+  };
+}
+
 function validateJsonLines(command, values) {
   if (!values["json-lines"]) return;
   if (values.json) {
@@ -278,6 +315,7 @@ function deckOptions(file, values, currentDirectory = process.cwd()) {
     themeFile: values["theme-file"],
     viewMode: viewModeOption(values.view),
     architectureEditorTarget: architectureEditorTargetOption(values["architecture-editor-target"]),
+    exportOpenTarget: exportOpenTargetOption(values["export-open-target"]),
   };
 }
 
@@ -366,15 +404,7 @@ export async function run(argv, io = {}) {
                 version,
               }))
             : undefined,
-          onArchitectureEditor:
-            values["json-lines"] && values["architecture-editor-target"] === "host"
-              ? ({ previewUrl, url }) => out(JSON.stringify({
-                  type: "architecture-editor",
-                  previewUrl,
-                  url,
-                  version,
-                }))
-              : undefined,
+          ...hostEventHandlers(values, version, out),
         },
         {
           print: values.json || values["json-lines"] ? () => {} : (message) => out(message),
@@ -443,15 +473,7 @@ export async function run(argv, io = {}) {
                   version,
                 }))
               : undefined,
-            onArchitectureEditor:
-              values["json-lines"] && values["architecture-editor-target"] === "host"
-                ? ({ previewUrl, url }) => out(JSON.stringify({
-                    type: "architecture-editor",
-                    previewUrl,
-                    url,
-                    version,
-                  }))
-                : undefined,
+            ...hostEventHandlers(values, version, out),
           },
           {
             print: values.json || values["json-lines"] ? () => {} : (message) => out(message),
@@ -484,15 +506,7 @@ export async function run(argv, io = {}) {
                   version,
                 }))
               : undefined,
-            onArchitectureEditor:
-              values["json-lines"] && values["architecture-editor-target"] === "host"
-                ? ({ previewUrl, url }) => out(JSON.stringify({
-                    type: "architecture-editor",
-                    previewUrl,
-                    url,
-                    version,
-                  }))
-                : undefined,
+            ...hostEventHandlers(values, version, out),
           },
           {
             print: values.json || values["json-lines"] ? () => {} : (message) => out(message),

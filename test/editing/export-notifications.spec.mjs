@@ -251,6 +251,30 @@ test("a new export replaces the previous timeout and success location", async ({
   expect(harness.index).toBe(0);
 });
 
+test("host-opened exports show the location as text instead of a link", async ({ page, harness }) => {
+  const path = "D:\\Exports\\slides.pdf";
+  let openedByHost = true;
+  let openRequests = 0;
+  await page.route("**/export", (route) => route.fulfill({ json: { ok: true, path, openedByHost } }));
+  await page.route("**/open-export", (route) => {
+    openRequests += 1;
+    return route.fulfill({ json: { ok: true } });
+  });
+  await clickMoreControl(page, "#navExport");
+  const location = page.locator("#exportNotificationPath");
+  await expect(location).toHaveText(`Saved to: ${path}`);
+  await expect(page.locator("#exportNotificationLink")).toHaveCount(0);
+  await location.click();
+  expect(openRequests).toBe(0);
+
+  openedByHost = false;
+  await clickMoreControl(page, "#navExport");
+  await expect(page.locator("#exportNotificationLink")).toHaveText(path);
+  await page.locator("#exportNotificationLink").click();
+  await expect.poll(() => openRequests).toBe(1);
+  expect(harness.index).toBe(0);
+});
+
 test("long paths remain selectable, bounded, and literal on narrow screens", async ({ page, harness }) => {
   await page.setViewportSize({ width: 360, height: 640 });
   const path = `D:\\${"long-folder\\".repeat(40)}<b>slides</b>.pdf`;

@@ -61,6 +61,7 @@ internal static class Program
         await using var browsers = new NativeBrowserHost();
         await using var io = new WorkspaceIoService(root, AppStorage.TransientRoot, browsers);
         var architectureEditorTarget = args.Get("architecture-editor-target") ?? "window";
+        var notifyHostOfExport = args.Get("export-open-target") == "host" && args.Has("json-lines");
         PresentationServer? serverReference = null;
         await using var audience = new AudienceWindow(io, () => serverReference?.BaseUri);
         routes.PresenterRunning = () => audience.IsRunning;
@@ -68,9 +69,16 @@ internal static class Program
             openPresenter: args.IsPresentation ? audience.OpenAsync : null,
             closePresenter: args.IsPresentation ? audience.CloseAsync : null,
             exportDeck: args.IsPresentation
-                ? (format, mermaidImageFallback, _) => ExportDeckAsync(routes.Runtime, session, format, mermaidImageFallback)
+                ? async (format, mermaidImageFallback, _) =>
+                {
+                    var report = await ExportDeckAsync(routes.Runtime, session, format, mermaidImageFallback);
+                    return notifyHostOfExport && serverReference?.BaseUri is { } previewUri
+                        ? await ExportHostNotifier.NotifyAsync(report, format, root, previewUri, Console.Out, ProductVersion(), Console.Error)
+                        : report;
+                }
                 : null,
             openExternal: args.IsPresentation ? OpenExternalAsync : null,
+            openExportFile: args.IsPresentation ? OpenExportFileAsync : null,
             architectureEditorTarget: architectureEditorTarget,
             openArchitectureEditor:
                 architectureEditorTarget == "host" && args.Has("json-lines")
@@ -198,6 +206,12 @@ internal static class Program
         }) ?? throw new InvalidOperationException("The default browser could not be started.");
         return Task.CompletedTask;
     }
+
+    // ShellExecute blocks while the shell resolves the file association and starts the app.
+    private static Task OpenExportFileAsync(string file) => Task.Run(() =>
+    {
+        using var opened = Process.Start(new ProcessStartInfo(file) { UseShellExecute = true });
+    });
 
     private static string ProductVersion()
     {

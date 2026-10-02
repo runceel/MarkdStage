@@ -43,6 +43,7 @@ file layouts, local UI behaviour — does not belong here.
 | [0007](0007-vscode-extension-thin-wrapper-over-cli.md) | VS Code extension is a thin wrapper over the CLI | Accepted | Keep product behavior and security in a compatible external CLI while the extension owns VS Code discovery, lifecycle, guidance, and UI projection. |
 | [0008](0008-vscode-architecture-editing-through-canonical-editor.md) | Expose Architecture DSL editing through the canonical editor | Accepted | Use the existing CLI-backed Architecture Editor and source-save path instead of duplicating shape editing in a VS Code webview. |
 | [0009](0009-vscode-host-mediated-architecture-editor-tabs.md) | VS Code mediates Architecture Editor tabs | Accepted | Let the CLI own editor sessions and notify the extension through the versioned loopback event stream; let VS Code project each editor in a separate tab. |
+| [0010](0010-vscode-host-owned-export-opening.md) | VS Code owns opening completed exports | Accepted | Report completed exports as versioned JSON-lines events and let the extension validate them and offer open/reveal through a VS Code notification. |
 
 ## Writing a new record
 

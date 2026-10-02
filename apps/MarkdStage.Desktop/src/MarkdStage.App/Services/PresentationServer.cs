@@ -26,7 +26,8 @@ internal sealed class PresentationServer(
     Func<string, JsonElement, CancellationToken, Task>? exportStatus = null,
     Func<Uri, Task>? openExternal = null,
     string architectureEditorTarget = "window",
-    Func<Uri, Uri, Task>? openArchitectureEditor = null) : IAsyncDisposable
+    Func<Uri, Uri, Task>? openArchitectureEditor = null,
+    Func<string, Task>? openExportFile = null) : IAsyncDisposable
 {
     private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(2);
 
@@ -285,6 +286,68 @@ internal sealed class PresentationServer(
                         ok = false,
                         error = "external_launch_failed",
                         message = "The default browser could not open this link.",
+                    }, statusCode: 500);
+                }
+            });
+        }
+
+        if (openExportFile is not null)
+        {
+            application.MapPost($"{prefix}/open-export", async (HttpContext context) =>
+            {
+                if (BaseUri is null ||
+                    !context.Request.Headers.Origin.ToString().Equals(
+                        BaseUri.GetLeftPart(UriPartial.Authority), StringComparison.Ordinal))
+                    return Results.Json(new { ok = false, error = "origin_not_allowed" }, statusCode: 403);
+
+                var request = await ReadJsonAsync<OpenExportRequest>(context, 4096);
+                var root = session.GetSnapshot().WorkspaceRoot;
+                if (request?.Path is not { Length: > 0 } requested || string.IsNullOrWhiteSpace(requested) ||
+                    string.IsNullOrWhiteSpace(root))
+                    return Results.Json(new
+                    {
+                        ok = false,
+                        error = "invalid_export_path",
+                        message = "An export path is required.",
+                    }, statusCode: 400);
+
+                string file;
+                try
+                {
+                    // The renderer is web content, so its path is untrusted.
+                    file = PathSecurity.ResolveExport(root, requested);
+                }
+                catch (FileNotFoundException)
+                {
+                    return Results.Json(new
+                    {
+                        ok = false,
+                        error = "export_not_found",
+                        message = "The exported file was not found.",
+                    }, statusCode: 400);
+                }
+                catch (Exception error) when (error is UnauthorizedAccessException or ArgumentException or IOException)
+                {
+                    return Results.Json(new
+                    {
+                        ok = false,
+                        error = "invalid_export_path",
+                        message = "The export path is invalid.",
+                    }, statusCode: 400);
+                }
+
+                try
+                {
+                    await openExportFile(file);
+                    return Results.Json(new { ok = true });
+                }
+                catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException)
+                {
+                    return Results.Json(new
+                    {
+                        ok = false,
+                        error = "open_export_failed",
+                        message = "The exported file could not be opened.",
                     }, statusCode: 500);
                 }
             });
@@ -860,6 +923,7 @@ internal sealed class PresentationServer(
 
     private sealed record NavigationRequest(int? Index, int? Delta);
     private sealed record ExternalLinkRequest(string? Url);
+    private sealed record OpenExportRequest(string? Path);
     private sealed record ArchitectureOpenRequest(int? Index, int? Block);
     private sealed record ArchitectureDraftRequest(string? Source, int Generation, int Revision);
     private sealed record ArchitectureSaveRequest(int Generation, int Revision);

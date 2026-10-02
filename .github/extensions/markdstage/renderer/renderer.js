@@ -4425,7 +4425,7 @@ function resumeExportNotification() {
   exportNotificationTimer = setTimeout(dismissExportNotification, exportNotificationRemaining);
 }
 
-function showExportNotification(state, message, path = "") {
+function showExportNotification(state, message, path = "", { openable = true } = {}) {
   pauseExportNotification();
   const notification = document.getElementById("exportNotification");
   const location = document.getElementById("exportNotificationPath");
@@ -4440,7 +4440,8 @@ function showExportNotification(state, message, path = "") {
   document.getElementById("exportNotificationMessage").textContent = message;
   link.textContent = path;
   link.dataset.path = path;
-  location.replaceChildren(link);
+  // When the wrapping host offers to open the file, show the location as text.
+  location.replaceChildren(openable ? link : path);
   if (path) {
     location.prepend("Saved to: ");
   }
@@ -4454,9 +4455,13 @@ function showExportNotification(state, message, path = "") {
   resumeExportNotification();
 }
 
-document.getElementById("exportNotificationLink")?.addEventListener("click", async (event) => {
+// Delegate from the location container because the link is detached while the
+// host owns opening the export.
+document.getElementById("exportNotificationPath")?.addEventListener("click", async (event) => {
+  const link = event.target instanceof Element ? event.target.closest("#exportNotificationLink") : null;
+  if (!link) return;
   event.preventDefault();
-  const path = event.currentTarget.dataset.path;
+  const path = link.dataset.path;
   if (!path) return;
   if (
     window.__markdstageNativeShell === true &&
@@ -4588,7 +4593,7 @@ async function exportFromCanvas(format, { mermaidImageFallback = false } = {}) {
     const message = fallback
       ? `${label} saved: ${filename} — ${fallback}`
       : `${label} saved: ${filename}.`;
-    showExportNotification("success", message, data.path);
+    showExportNotification("success", message, data.path, { openable: data.openedByHost !== true });
   } catch (error) {
     const message = `Could not save ${label}. ${error?.message || "Export failed."}`;
     console.error(`${label} export failed`, error);

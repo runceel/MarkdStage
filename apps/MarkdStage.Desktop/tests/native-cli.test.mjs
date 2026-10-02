@@ -221,6 +221,11 @@ test("native no-open server exports beside the source and owns one audience wind
     assert.equal(pptx.ok, true);
     assert.equal(pptx.path, "deck.pptx");
     assert.equal(readFileSync(join(workspace, "deck.pptx")).subarray(0, 2).toString("latin1"), "PK");
+    for (const path of ["../outside.pdf", "missing.pdf", "deck.md"]) {
+      const rejected = await post("open-export", { path });
+      assert.equal(rejected.ok, false);
+      assert.match(rejected.error, /^(invalid_export_path|export_not_found)$/);
+    }
 
     assert.deepEqual(await post("present"), { ok: true, alreadyRunning: false });
     assert.equal((await state()).presenterRunning, true);
@@ -232,6 +237,59 @@ test("native no-open server exports beside the source and owns one audience wind
     if (child.exitCode === null) await new Promise(resolve => child.once("exit", resolve));
     rmSync(join(workspace, "deck.pdf"), { force: true });
     rmSync(join(workspace, "deck.pptx"), { force: true });
+  }
+});
+
+test("native host-targeted exports stream an export event", async () => {
+  const child = spawn(executable, [
+    "preview",
+    "deck.md",
+    "--workspace",
+    workspace,
+    "--no-open",
+    "--json-lines",
+    "--export-open-target",
+    "host",
+  ], {
+    cwd: workspace,
+    encoding: "utf8",
+    windowsHide: true,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  child.stdout.setEncoding("utf8");
+  const lines = [];
+  const waiters = [];
+  createInterface({ input: child.stdout }).on("line", line => {
+    const waiter = waiters.shift();
+    if (waiter) waiter(line);
+    else lines.push(line);
+  });
+  const nextLine = () => lines.length
+    ? Promise.resolve(lines.shift())
+    : new Promise(resolve => waiters.push(resolve));
+  try {
+    const ready = JSON.parse(await nextLine());
+    const response = await fetch(new URL("export", ready.url), {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: new URL(ready.url).origin },
+      body: "{}",
+    });
+    const report = await response.json();
+    assert.equal(report.ok, true);
+    assert.equal(report.path, "deck.pdf");
+    assert.equal(report.openedByHost, true);
+    const event = JSON.parse(await nextLine());
+    assert.deepEqual(event, {
+      type: "export",
+      previewUrl: ready.url.replace(/\?.*$/, ""),
+      format: "pdf",
+      path: join(workspace, "deck.pdf"),
+      version: expectedProductVersion,
+    });
+  } finally {
+    child.kill();
+    if (child.exitCode === null) await new Promise(resolve => child.once("exit", resolve));
+    rmSync(join(workspace, "deck.pdf"), { force: true });
   }
 });
 

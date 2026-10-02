@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import test from "node:test";
 import type { SpawnProcess, SpawnedProcess } from "../src/process.js";
 import { PreviewSessions } from "../src/sessions.js";
+import type { ExportEvent } from "../src/types.js";
 
 type MutableSpawnedProcess = Omit<SpawnedProcess, "exitCode"> & {
   exitCode: number | null;
@@ -161,4 +164,40 @@ test("preview session rejects non-loopback ready URLs and stops the process", as
   }));
   await assert.rejects(starting, /loopback/);
   assert.equal(child.exitCode, 0);
+});
+
+test("preview session hands owned export events to the host", async () => {
+  const child = controllableProcess();
+  const workspace = join(tmpdir(), "markdstage-repo");
+  let args: readonly string[] = [];
+  const exports: ExportEvent[] = [];
+  const sessions = new PreviewSessions();
+  const starting = sessions.start({
+    executable: "markdstage",
+    operation: "present",
+    file: join(workspace, "slides.md"),
+    workspace,
+    version: "4.4.1",
+    spawn: (_executable, passedArgs) => {
+      args = passedArgs;
+      return child;
+    },
+    onExport: (event) => exports.push(event),
+  });
+  child.emitReady(JSON.stringify({
+    type: "ready", url: "http://127.0.0.1:4321/token/?presenter=1", operation: "present",
+    workspace, sourceMode: "live", version: "4.4.1",
+  }));
+  await starting;
+  assert.deepEqual(args.slice(-2), ["--export-open-target", "host"]);
+  child.emitReady(JSON.stringify({
+    type: "export", previewUrl: "http://127.0.0.1:4321/token/", format: "pdf",
+    path: join(workspace, "..", "outside.pdf"), version: "4.4.1",
+  }));
+  child.emitReady(JSON.stringify({
+    type: "export", previewUrl: "http://127.0.0.1:4321/token/", format: "pptx",
+    path: join(workspace, "slides.pptx"), version: "4.4.1",
+  }));
+  assert.deepEqual(exports.map((event) => event.path), [join(workspace, "slides.pptx")]);
+  await sessions.stopAll();
 });
