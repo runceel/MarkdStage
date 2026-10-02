@@ -4,8 +4,8 @@ This extension is a thin workspace-host wrapper over the independently installed
 MarkdStage CLI. It does not bundle the CLI, parser, renderer, validator, or
 generated Agent Skill content.
 
-The extension and CLI share one product version. Version `4.4.0` of this
-extension recommends MarkdStage CLI `4.4.0` and accepts any CLI from the
+The extension and CLI share one product version. Version `4.5.0` of this
+extension recommends MarkdStage CLI `4.5.0` and accepts any CLI from the
 `markdstage.minimumCliVersion` declared in `package.json` up to the same major
 version. An older but compatible CLI shows an update recommendation; a CLI below
 the minimum or with a newer major version is rejected with installation guidance.
@@ -25,6 +25,9 @@ Preview and presentation run the CLI with live watching, wait for its bounded
 open it in VS Code Simple Browser. If Simple Browser is unavailable, the URL is
 opened in the external browser. Sessions are owned by the extension and stopped
 when requested or when the extension deactivates.
+
+When a PDF or PowerPoint export finishes in a preview, the extension offers
+actions to open the saved file or reveal it in the Explorer view.
 
 Validation runs `markdstage validate --json` and publishes the best available
 CLI ranges to a `DiagnosticCollection`.
