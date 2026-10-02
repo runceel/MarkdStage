@@ -66,6 +66,10 @@ mutation remains owned by the CLI/server. When the canonical editor is requested
 the CLI creates the editor session and emits a versioned loopback event; the
 extension validates the event and projects the editor into a separate VS Code
 browser tab. Browser popup behavior is not part of this integration boundary.
+When a PDF or PowerPoint export completes, a compatible CLI reports the saved
+workspace path as a versioned event; the preview shows the location only, and
+the extension validates the event and offers to open or reveal the file through
+a VS Code notification.
 
 For remote workspaces, the compatible CLI must be installed in the environment
 that runs the VS Code extension host. A CLI installed only on the local UI
@@ -193,6 +197,8 @@ files. Generated mirrors must not be edited by hand.
   source-backed save path; the extension does not implement a second shape
   parser, renderer, or persistence protocol. Editor-session creation remains in
   the CLI, while VS Code owns only validated tab projection.
+- VS Code export completion is a CLI event; opening or revealing the saved file
+  is owned by the extension, not by the preview page or the CLI host.
 - MarkdStage surfaces share one product version; integrations do not create an
   independently versioned parser, renderer, validator, or Agent Skill.
 - Final output is verified on every runtime path that uses a different browser

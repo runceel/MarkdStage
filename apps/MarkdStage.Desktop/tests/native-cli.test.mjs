@@ -235,6 +235,59 @@ test("native no-open server exports beside the source and owns one audience wind
   }
 });
 
+test("native host-targeted exports stream an export event", async () => {
+  const child = spawn(executable, [
+    "preview",
+    "deck.md",
+    "--workspace",
+    workspace,
+    "--no-open",
+    "--json-lines",
+    "--export-open-target",
+    "host",
+  ], {
+    cwd: workspace,
+    encoding: "utf8",
+    windowsHide: true,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  child.stdout.setEncoding("utf8");
+  const lines = [];
+  const waiters = [];
+  createInterface({ input: child.stdout }).on("line", line => {
+    const waiter = waiters.shift();
+    if (waiter) waiter(line);
+    else lines.push(line);
+  });
+  const nextLine = () => lines.length
+    ? Promise.resolve(lines.shift())
+    : new Promise(resolve => waiters.push(resolve));
+  try {
+    const ready = JSON.parse(await nextLine());
+    const response = await fetch(new URL("export", ready.url), {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: new URL(ready.url).origin },
+      body: "{}",
+    });
+    const report = await response.json();
+    assert.equal(report.ok, true);
+    assert.equal(report.path, "deck.pdf");
+    assert.equal(report.openedByHost, true);
+    const event = JSON.parse(await nextLine());
+    assert.deepEqual(event, {
+      type: "export",
+      previewUrl: ready.url.replace(/\?.*$/, ""),
+      format: "pdf",
+      path: join(workspace, "deck.pdf"),
+      version: expectedProductVersion,
+    });
+  } finally {
+    child.kill();
+    if (child.exitCode === null) await new Promise(resolve => child.once("exit", resolve));
+    rmSync(join(workspace, "deck.pdf"), { force: true });
+  }
+});
+
 test("native json-lines rejects unsupported and ambiguous invocations", () => {
   for (const args of [
     ["validate", "deck.md", "--workspace", workspace, "--json-lines"],

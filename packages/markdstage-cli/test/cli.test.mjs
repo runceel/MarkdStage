@@ -660,6 +660,18 @@ test("present starts at the presenter view URL", async () => {
       );
     });
   });
+
+  await test("preview rejects an invalid --export-open-target value", async () => {
+    await withDeck(VALID_DECK, async ({ file }) => {
+      const io = capture();
+      io.until = Promise.resolve();
+      assert.notEqual(
+        await run(["preview", file, "--no-open", "--export-open-target", "window"], io),
+        EXIT_OK,
+      );
+      assert.match(io.stdout() + io.stderr(), /--export-open-target must be one of: page, host/);
+    });
+  });
 });
 
 test("presentation server exposes audience-view controls", async () => {

@@ -12,7 +12,7 @@ internal sealed record CliArguments(string Command, IReadOnlyList<string> Positi
     private static readonly HashSet<string> Commands =
         ["present", "preview", "validate", "inspect", "capture", "export", "guide", "skill", "help"];
     private static readonly HashSet<string> Values =
-        ["workspace", "theme", "theme-file", "slide", "pages", "output", "target", "root", "architecture-editor-target"];
+        ["workspace", "theme", "theme-file", "slide", "pages", "output", "target", "root", "architecture-editor-target", "export-open-target"];
     private static readonly HashSet<string> Flags =
         ["help", "version", "json", "json-lines", "watch", "no-open", "all", "fail-on-issues", "mermaid-image-fallback", "force"];
 
@@ -95,7 +95,7 @@ internal sealed record CliArguments(string Command, IReadOnlyList<string> Positi
             throw new CliException("invalid_markdown_path", "Use a .md or .markdown file.", 2);
         var allowed = command switch
         {
-            "present" or "preview" => new[] { "watch", "no-open", "architecture-editor-target" },
+            "present" or "preview" => new[] { "watch", "no-open", "architecture-editor-target", "export-open-target" },
             "inspect" => ["slide", "all", "fail-on-issues"],
             "capture" => ["pages", "output"],
             "export" => ["output", "mermaid-image-fallback"],
@@ -120,6 +120,8 @@ internal sealed record CliArguments(string Command, IReadOnlyList<string> Positi
             editorTarget is not ("window" or "same" or "host"))
             throw new CliException("usage_error",
                 "--architecture-editor-target must be one of: window, same, host.");
+        if (result.Get("export-open-target") is string exportTarget && exportTarget is not ("page" or "host"))
+            throw new CliException("usage_error", "--export-open-target must be one of: page, host.");
         return result;
     }
 

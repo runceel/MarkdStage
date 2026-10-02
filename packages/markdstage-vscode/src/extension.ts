@@ -1,9 +1,9 @@
 import * as path from "node:path";
 import * as vscode from "vscode";
-import { discoverCli, runCliJson } from "./cli.js";
+import { discoverCli, runCliJson, supportsExportEvents } from "./cli.js";
 import { projectDiagnostics } from "./diagnostics.js";
 import { PreviewSessions } from "./sessions.js";
-import type { CliInfo, SkillReport, ValidationReport } from "./types.js";
+import type { CliInfo, ExportEvent, SkillReport, ValidationReport } from "./types.js";
 
 const STORE_URL = "https://apps.microsoft.com/detail/9N9DG772RM03";
 const NPM_URL = "https://www.npmjs.com/package/@markdstage/markdstage";
@@ -99,6 +99,24 @@ async function requireCli(context: vscode.ExtensionContext): Promise<CliInfo> {
   return discovered;
 }
 
+async function showExportNotification(exported: ExportEvent): Promise<void> {
+  const label = exported.format === "pdf" ? "PDF" : "PowerPoint";
+  const uri = vscode.Uri.file(exported.path);
+  // The OS default app is only reachable when the extension host is local.
+  const canOpen = !vscode.env.remoteName;
+  const open = "Open";
+  const reveal = "Reveal in Explorer View";
+  const choice = await vscode.window.showInformationMessage(
+    `MarkdStage ${label} saved: ${path.basename(exported.path)}`,
+    ...(canOpen ? [open, reveal] : [reveal]),
+  );
+  if (choice === open) {
+    if (!await vscode.env.openExternal(uri)) throw new Error(`${exported.path} could not be opened.`);
+  } else if (choice === reveal) {
+    await vscode.commands.executeCommand("revealInExplorer", uri);
+  }
+}
+
 async function openPreview(
   context: vscode.ExtensionContext,
   output: vscode.OutputChannel,
@@ -130,6 +148,14 @@ async function openPreview(
         });
       },
       onStderr: (text) => output.append(text),
+      onExport: supportsExportEvents(cli.version)
+        ? (exported) => {
+            void showExportNotification(exported).catch((error) => {
+              output.appendLine(`Could not open the exported file: ${error instanceof Error ? error.message : String(error)}`);
+              output.show(true);
+            });
+          }
+        : undefined,
       onExit: (code, signal) => {
         output.appendLine(`MarkdStage ${operation} stopped (${code ?? signal ?? "unknown"}).`);
         if (typeof code === "number" && code !== 0) output.show(true);

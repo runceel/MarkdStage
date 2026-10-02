@@ -2,10 +2,11 @@ import type { SpawnOptionsWithoutStdio } from "node:child_process";
 import {
   BoundedLineParser,
   parseArchitectureEditorEvent,
+  parseExportEvent,
   parseReadyEvent,
 } from "./jsonLines.js";
 import { spawnProcess, terminateProcess, type SpawnProcess, type SpawnedProcess } from "./process.js";
-import type { ReadyEvent } from "./types.js";
+import type { ExportEvent, ReadyEvent } from "./types.js";
 
 export interface StartSessionOptions {
   executable: string;
@@ -18,6 +19,8 @@ export interface StartSessionOptions {
   onStderr?: (text: string) => void;
   onExit?: (code: number | null, signal: NodeJS.Signals | null) => void;
   onArchitectureEditor?: (url: string) => void;
+  /** Requires a CLI that accepts `--export-open-target`; omit for older CLIs. */
+  onExport?: (event: ExportEvent) => void;
 }
 
 export class PreviewSessions {
@@ -41,6 +44,7 @@ export class PreviewSessions {
         "--json-lines",
         "--architecture-editor-target",
         "host",
+        ...(options.onExport ? ["--export-open-target", "host"] : []),
       ],
       { cwd: options.workspace, env: globalThis.process.env } as SpawnOptionsWithoutStdio,
     );
@@ -61,6 +65,7 @@ export class PreviewSessions {
       return await new Promise<ReadyEvent>((resolve, reject) => {
         let settled = false;
         let readyUrl = "";
+        let readyWorkspace = "";
         const finish = (action: () => void) => {
           if (settled) return;
           settled = true;
@@ -72,12 +77,20 @@ export class PreviewSessions {
             const event = parseReadyEvent(line, options.version, options.operation);
             if (event) {
               readyUrl = event.url;
+              readyWorkspace = event.workspace;
               finish(() => resolve(event));
               return;
             }
             if (!readyUrl) return;
             const editor = parseArchitectureEditorEvent(line, options.version, readyUrl);
-            if (editor) options.onArchitectureEditor?.(editor.url);
+            if (editor) {
+              options.onArchitectureEditor?.(editor.url);
+              return;
+            }
+            if (options.onExport) {
+              const exported = parseExportEvent(line, options.version, readyUrl, readyWorkspace);
+              if (exported) options.onExport(exported);
+            }
           } catch (error) {
             finish(() => reject(error));
           }

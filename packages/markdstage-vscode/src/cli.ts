@@ -65,6 +65,14 @@ export function compareVersions(a: string, b: string): number {
   return compareParsed(parsedA, parsedB);
 }
 
+/** The last CLI release that rejects `--export-open-target`. */
+const LAST_CLI_WITHOUT_EXPORT_EVENTS = "4.4.0";
+
+/** Whether the CLI can hand exported-file opening to the extension. */
+export function supportsExportEvents(version: string): boolean {
+  return compareVersions(version, LAST_CLI_WITHOUT_EXPORT_EVENTS) > 0;
+}
+
 /**
  * Checks a CLI version against the extension's compatibility range.
  * Returns a warning for an older but compatible CLI and throws for an incompatible one.

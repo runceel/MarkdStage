@@ -21,6 +21,15 @@ export interface ArchitectureEditorEvent {
   version: string;
 }
 
+export interface ExportEvent {
+  type: "export";
+  previewUrl: string;
+  format: "pdf" | "pptx";
+  /** Absolute path of the saved file inside the session workspace. */
+  path: string;
+  version: string;
+}
+
 export interface JsonProcessResult<T> {
   exitCode: number;
   stdout: string;

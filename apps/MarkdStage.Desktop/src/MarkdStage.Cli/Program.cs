@@ -61,6 +61,7 @@ internal static class Program
         await using var browsers = new NativeBrowserHost();
         await using var io = new WorkspaceIoService(root, AppStorage.TransientRoot, browsers);
         var architectureEditorTarget = args.Get("architecture-editor-target") ?? "window";
+        var notifyHostOfExport = args.Get("export-open-target") == "host" && args.Has("json-lines");
         PresentationServer? serverReference = null;
         await using var audience = new AudienceWindow(io, () => serverReference?.BaseUri);
         routes.PresenterRunning = () => audience.IsRunning;
@@ -68,7 +69,13 @@ internal static class Program
             openPresenter: args.IsPresentation ? audience.OpenAsync : null,
             closePresenter: args.IsPresentation ? audience.CloseAsync : null,
             exportDeck: args.IsPresentation
-                ? (format, mermaidImageFallback, _) => ExportDeckAsync(routes.Runtime, session, format, mermaidImageFallback)
+                ? async (format, mermaidImageFallback, _) =>
+                {
+                    var report = await ExportDeckAsync(routes.Runtime, session, format, mermaidImageFallback);
+                    return notifyHostOfExport && serverReference?.BaseUri is { } previewUri
+                        ? await ExportHostNotifier.NotifyAsync(report, format, root, previewUri, Console.Out, ProductVersion())
+                        : report;
+                }
                 : null,
             openExternal: args.IsPresentation ? OpenExternalAsync : null,
             architectureEditorTarget: architectureEditorTarget,

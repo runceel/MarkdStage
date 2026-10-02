@@ -111,10 +111,12 @@ export async function startPresentationServer(
     application = false,
     architectureEditorTarget = "window",
     editable = false,
+    exportOpenTarget = "page",
     exporters,
     initialSourceMode = "snapshot",
     onLog,
     onArchitectureEditorOpen,
+    onExportComplete,
     openExternal = openExternalUrl,
     presenter,
     token = createUrlToken(),
@@ -1010,6 +1012,26 @@ export async function startPresentationServer(
               outputPathForSource(session.sourceName, pdfNameForSource(session.sourceName)),
               session.theme,
             );
+        if (
+          exportOpenTarget === "host" &&
+          typeof onExportComplete === "function" &&
+          result?.ok === true &&
+          typeof result.path === "string"
+        ) {
+          // The host owns opening the file; a failed notification still leaves
+          // the saved export and the in-page status intact.
+          try {
+            await onExportComplete({
+              previewUrl: session.url,
+              format: pptx ? "pptx" : "pdf",
+              path: resolve(session.workspaceRoot, result.path),
+            });
+            json(res, 200, { ...result, openedByHost: true });
+            return;
+          } catch (error) {
+            onLog?.(`export notification failed: ${error?.message || error}`, "error");
+          }
+        }
         json(res, 200, result);
       } catch (error) {
         json(

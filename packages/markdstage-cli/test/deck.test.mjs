@@ -353,6 +353,71 @@ test("createDeckSession confines the deck to the workspace", async () => {
     });
   });
 
+  test("host-targeted exports notify the host with an absolute workspace path", async () => {
+    await withWorkspace(async ({ dir, file }) => {
+      const events = [];
+      const logs = [];
+      let failNotification = false;
+      await withDeckServer(
+        {
+          file,
+          workspace: dir,
+          application: true,
+          exportOpenTarget: "host",
+          onExportComplete: async (event) => {
+            if (failNotification) throw new Error("host unavailable");
+            events.push(event);
+          },
+          log: (message) => logs.push(message),
+          exporters: {
+            pdf: async (_session, output) => ({ ok: true, path: output }),
+            pptx: async (_session, output) => ({ ok: true, path: output }),
+          },
+        },
+        async (session, server) => {
+          const pdf = await post(server.url, "export");
+          assert.equal(pdf.status, 200);
+          assert.deepEqual(await pdf.json(), {
+            ok: true,
+            path: "slides.pdf",
+            openedByHost: true,
+          });
+          const pptx = await post(server.url, "export-pptx");
+          assert.equal((await pptx.json()).openedByHost, true);
+          assert.deepEqual(events, [
+            { previewUrl: server.url, format: "pdf", path: join(session.workspaceRoot, "slides.pdf") },
+            { previewUrl: server.url, format: "pptx", path: join(session.workspaceRoot, "slides.pptx") },
+          ]);
+
+          failNotification = true;
+          const fallback = await post(server.url, "export");
+          assert.deepEqual(await fallback.json(), { ok: true, path: "slides.pdf" });
+          assert.ok(logs.some((message) => /export notification failed/.test(message)));
+        },
+      );
+    });
+  });
+
+  test("page-targeted exports do not notify the host", async () => {
+    await withWorkspace(async ({ dir, file }) => {
+      const events = [];
+      await withDeckServer(
+        {
+          file,
+          workspace: dir,
+          application: true,
+          onExportComplete: (event) => events.push(event),
+          exporters: { pdf: async (_session, output) => ({ ok: true, path: output }) },
+        },
+        async (_session, server) => {
+          const response = await post(server.url, "export");
+          assert.deepEqual(await response.json(), { ok: true, path: "slides.pdf" });
+        },
+      );
+      assert.deepEqual(events, []);
+    });
+  });
+
 test("the presentation server serves the deck only below its token", async () => {
   await withWorkspace(async ({ dir, file }) => {
     await withDeckServer({ file, workspace: dir }, async (session, server) => {

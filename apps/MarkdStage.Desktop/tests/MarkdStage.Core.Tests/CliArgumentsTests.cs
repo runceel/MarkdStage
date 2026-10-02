@@ -91,6 +91,33 @@ public sealed class CliArgumentsTests
         ]));
 
     [Theory]
+    [InlineData("preview")]
+    [InlineData("present")]
+    public void AcceptsHostExportOpenTarget(string command)
+    {
+        var args = CliArguments.Parse([command, "deck.md", "--no-open", "--json-lines", "--export-open-target", "host"]);
+        Assert.Equal("host", args.Get("export-open-target"));
+    }
+
+    [Fact]
+    public void RejectsInvalidExportOpenTarget() =>
+        Assert.Throws<CliException>(() => CliArguments.Parse([
+            "preview",
+            "deck.md",
+            "--export-open-target",
+            "window",
+        ]));
+
+    [Fact]
+    public void ExportOpenTargetIsPreviewOnly() =>
+        Assert.Throws<CliException>(() => CliArguments.Parse([
+            "validate",
+            "deck.md",
+            "--export-open-target",
+            "host",
+        ]));
+
+    [Theory]
     [InlineData("validate", "deck.md", "--json-lines")]
     [InlineData("guide", "--json-lines")]
     [InlineData("skill", "check", "--json-lines")]
