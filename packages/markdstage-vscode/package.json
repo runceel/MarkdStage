@@ -2,7 +2,7 @@
   "name": "markdstage-vscode",
   "displayName": "MarkdStage",
   "description": "Thin VS Code integration for the independently installed MarkdStage CLI.",
-  "version": "4.5.0",
+  "version": "4.5.1",
   "markdstage": {
     "minimumCliVersion": "4.4.0"
   },
