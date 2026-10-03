@@ -756,7 +756,8 @@ test("collects native text, nested lists, links, tables, and raster images", asy
     expect(rotatedVisibility.nestedColor).not.toBe("rgba(0, 0, 0, 0)");
     expect(rotatedVisibility.codeNative).toBe("code");
     expect(rotatedVisibility.codeVisibility).toBe("hidden");
-    expect(rotatedVisibility.decorationCount).toBe(2);
+    // Code, generic element, and both shadowed native images use detached decorations.
+    expect(rotatedVisibility.decorationCount).toBe(4);
   } finally {
     await harness.close();
   }

@@ -3250,6 +3250,7 @@ async function collectPptxSlide(slide, index, options = {}) {
     });
     image.setAttribute("data-pptx-native", "image");
     if (effects.length) {
+      const decoration = effects.includes("box-shadow") ? preserveBoxShadow(image, deck) : null;
       fallbacks.push(
         pptxFallback(
           "effect",
@@ -3259,6 +3260,7 @@ async function collectPptxSlide(slide, index, options = {}) {
           {
             padding: effectPaintPadding(image, effects),
             behindNative: true,
+            captureElement: decoration || image,
           },
         ),
       );
