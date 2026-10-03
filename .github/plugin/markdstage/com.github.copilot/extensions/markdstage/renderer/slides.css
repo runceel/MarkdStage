@@ -847,6 +847,10 @@ body.pptx-artwork-mode .pptx-fallback-hidden,
 body.pptx-artwork-mode .pptx-fallback-hidden *{visibility:hidden!important;}
 body.pptx-slide-artwork-mode .adaptive-card-host{visibility:hidden!important;}
 body.pptx-artwork-mode .adaptive-card-host.pptx-card-capture-active{visibility:visible!important;}
+/* A detached box-shadow paints nothing that depends on its surroundings, so its
+   padded capture must not pick up neighboring paint such as inline-code chips. */
+body.pptx-slide-artwork-mode .deck:has(>.pptx-effect-fallback[data-pptx-fallback-ids]:not(.pptx-fallback-hidden))
+  *:not(.pptx-effect-fallback){visibility:hidden!important;}
 body.pptx-slide-artwork-mode .deck:not(.pptx-layout-template){
   background:transparent!important;
 }
