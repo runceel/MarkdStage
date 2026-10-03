@@ -131,6 +131,40 @@ async function openPptx(page, harness) {
   return page.evaluate(() => window.__presentationPptxModel);
 }
 
+test("preserves CSS corner radii for tall code blocks, accents, and images", async ({ page }) => {
+  const harness = await startHarness({
+    slides: [
+      ["## Code", "", "```js", ...Array.from({ length: 16 }, (_, index) =>
+        `const line${index} = ${index};`), "```"].join("\n"),
+      '## Image\n\n<img src="/assets/readme/simple-slide.png" alt="Rounded image" style="border-radius: 7px; width: 240px;">',
+      '## Square\n\n<pre style="border-radius: 0"><code>const square = true;</code></pre>',
+    ],
+    theme: "microsoft",
+  });
+  try {
+    const model = await openPptx(page, harness);
+    const radii = await page.evaluate(() => ({
+      code: Number.parseFloat(getComputedStyle(document.querySelector("pre")).borderRadius),
+      image: Number.parseFloat(getComputedStyle(document.querySelector(".body img")).borderRadius),
+    }));
+    const code = model.slides[0].elements.find((element) =>
+      element.type === "shape" && element.paragraphs);
+    const accent = model.slides[0].elements.find((element) => element.path?.endsWith(".accent"));
+    expect(radii.code).toBeGreaterThan(0);
+    expect(code.height).toBeGreaterThan(radii.code * 20);
+    expect(code).toMatchObject({ shape: "roundedRect", cornerRadius: radii.code });
+    expect(accent).toMatchObject({ shape: "roundedRect", cornerRadius: radii.code });
+    expect(model.slides[1].elements.find((element) => element.type === "image"))
+      .toMatchObject({ shape: "roundedRect", cornerRadius: radii.image });
+    const square = model.slides[2].elements.find((element) =>
+      element.type === "shape" && element.paragraphs);
+    expect(square.shape).toBe("rect");
+    expect(square.cornerRadius).toBeUndefined();
+  } finally {
+    await harness.close();
+  }
+});
+
 test("collapses Markdown source newlines around links like the browser preview", async ({ page }) => {
   const harness = await startHarness({
     slides: [

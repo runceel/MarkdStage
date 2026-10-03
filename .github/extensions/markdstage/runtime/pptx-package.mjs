@@ -688,6 +688,16 @@ function shapeTextOf(element, path) {
   return null;
 }
 
+function roundedRectGeometryXml(bounds, cornerRadius, path) {
+  if (cornerRadius === undefined) {
+    return '<a:prstGeom prst="roundRect"><a:avLst/></a:prstGeom>';
+  }
+  const radius = nonNegativeNumber(cornerRadius, `${path}.cornerRadius`);
+  const adjustment = Math.round(Math.min(50000,
+    radius / Math.min(bounds.width, bounds.height) * 100000));
+  return `<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val ${adjustment}"/></a:avLst></a:prstGeom>`;
+}
+
 function nativeShapeXml(element, path, id, relationships) {
   const bounds = boundsOf(element, path);
   const rotationUnits = optionalOwnRotationUnits(element, path);
@@ -718,11 +728,7 @@ function nativeShapeXml(element, path, id, relationships) {
     customGeometries.topRoundedRect = `<a:custGeom><a:avLst/><a:gdLst><a:gd name="r" fmla="val ${r}"/><a:gd name="rx" fmla="+- w 0 r"/></a:gdLst><a:ahLst/><a:cxnLst/><a:rect l="l" t="t" r="r" b="b"/><a:pathLst><a:path><a:moveTo><a:pt x="0" y="h"/></a:moveTo><a:lnTo><a:pt x="0" y="r"/></a:lnTo><a:quadBezTo><a:pt x="0" y="0"/><a:pt x="r" y="0"/></a:quadBezTo><a:lnTo><a:pt x="rx" y="0"/></a:lnTo><a:quadBezTo><a:pt x="w" y="0"/><a:pt x="w" y="r"/></a:quadBezTo><a:lnTo><a:pt x="w" y="h"/></a:lnTo><a:close/></a:path></a:pathLst></a:custGeom>`;
   }
   if (element.shape === "roundedRect" && element.cornerRadius !== undefined) {
-    const radius = nonNegativeNumber(element.cornerRadius, `${path}.cornerRadius`);
-    const adjustment = Math.round(Math.min(50000,
-      radius / Math.min(bounds.width, bounds.height) * 100000));
-    adjustedGeometries.roundedRect =
-      `<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val ${adjustment}"/></a:avLst></a:prstGeom>`;
+    adjustedGeometries.roundedRect = roundedRectGeometryXml(bounds, element.cornerRadius, path);
   }
   const shape = Object.hasOwn(element, "shape") ? element.shape : undefined;
   const preset = typeof shape === "string" && Object.hasOwn(presets, shape) ? presets[shape] : "";
@@ -769,9 +775,13 @@ function pictureXml(
   name = `Image ${id}`,
   userDrawn = false,
   shape = "rect",
+  cornerRadius,
+  path,
 ) {
-  const preset = shape === "roundedRect" ? "roundRect" : "rect";
-  return `<p:pic><p:nvPicPr><p:cNvPr id="${id}" name="${xmlEscape(name)}"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr${userDrawn ? ' userDrawn="1"' : ""}/></p:nvPicPr><p:blipFill><a:blip r:embed="${relationshipId}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>${xfrmXml(bounds)}<a:prstGeom prst="${preset}"><a:avLst/></a:prstGeom></p:spPr></p:pic>`;
+  const geometry = shape === "roundedRect"
+    ? roundedRectGeometryXml(bounds, cornerRadius, path)
+    : '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>';
+  return `<p:pic><p:nvPicPr><p:cNvPr id="${id}" name="${xmlEscape(name)}"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr${userDrawn ? ' userDrawn="1"' : ""}/></p:nvPicPr><p:blipFill><a:blip r:embed="${relationshipId}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>${xfrmXml(bounds)}${geometry}</p:spPr></p:pic>`;
 }
 
 function scaledTableExtents(values, totalEmu, path) {
@@ -1100,6 +1110,8 @@ function buildSlide(
           element.name || element.alt || undefined,
           false,
           element.shape,
+          element.cornerRadius,
+          elementPath,
         ),
       );
     } else if (element.type === "shape") {
