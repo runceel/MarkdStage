@@ -1350,25 +1350,37 @@ test("emits the fixed editable geometry for Mermaid sequence frame tabs", () => 
   assert.match(slide, /<a:pt x="41600" y="20000"\/>/);
 });
 
-test("preserves explicit rounded rectangle radii instead of PowerPoint's default corners", () => {
+for (const type of ["shape", "image"]) {
+test(`preserves explicit rounded rectangle radii for ${type}s instead of PowerPoint's default corners`, () => {
   const shape = {
-    type: "shape", shape: "roundedRect", x: 10, y: 20, width: 200, height: 50,
+    type, shape: "roundedRect", assetId: "photo", x: 10, y: 20, width: 200, height: 50,
     fill: "#ffffff", stroke: "#000000",
   };
+  const model = {
+    assets: [{ id: "photo", contentType: "image/png", data: PNG }],
+  };
   for (const [cornerRadius, adjustment] of [[0, 0], [5, 10000], [25, 50000], [100, 50000]]) {
-    const bytes = buildPptxPackage({ slides: [{ elements: [{ ...shape, cornerRadius }] }] });
+    const bytes = buildPptxPackage({ ...model, slides: [{ elements: [{ ...shape, cornerRadius }] }] });
     assert.match(xml(readStoredZip(bytes), "ppt/slides/slide1.xml"),
       new RegExp(`<a:gd name="adj" fmla="val ${adjustment}"/>`));
   }
-  const defaultBytes = buildPptxPackage({ slides: [{ elements: [shape] }] });
+  for (const [width, height] of [[800, 400], [400, 800]]) {
+    const bytes = buildPptxPackage({
+      ...model, slides: [{ elements: [{ ...shape, width, height, cornerRadius: 5 }] }],
+    });
+    assert.match(xml(readStoredZip(bytes), "ppt/slides/slide1.xml"),
+      /<a:gd name="adj" fmla="val 1250"\/>/);
+  }
+  const defaultBytes = buildPptxPackage({ ...model, slides: [{ elements: [shape] }] });
   assert.match(xml(readStoredZip(defaultBytes), "ppt/slides/slide1.xml"),
     /<a:prstGeom prst="roundRect"><a:avLst\/><\/a:prstGeom>/);
   for (const cornerRadius of [-1, Infinity, NaN, "5", null]) {
     assert.throws(() => buildPptxPackage({
-      slides: [{ elements: [{ ...shape, cornerRadius }] }],
+      ...model, slides: [{ elements: [{ ...shape, cornerRadius }] }],
     }), /cornerRadius/);
   }
 });
+}
 
 test("emits exact editable height-based geometry for Mermaid quadrilaterals", () => {
   const shapes = ["trapezoid", "invertedTrapezoid", "reverseParallelogram"];

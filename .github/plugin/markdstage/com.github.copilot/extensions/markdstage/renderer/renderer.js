@@ -3068,6 +3068,7 @@ async function collectPptxSlide(slide, index, options = {}) {
       type: "shape",
       path: elementPath(pre, deck),
       shape: borderRadius > 0 ? "roundedRect" : "rect",
+      ...(borderRadius > 0 ? { cornerRadius: borderRadius } : {}),
       ...bounds,
       zOrder: Number(pre.dataset.pptxZOrder),
       fill: normalizeCssColor(style.backgroundColor),
@@ -3087,6 +3088,7 @@ async function collectPptxSlide(slide, index, options = {}) {
         type: "shape",
         path: `${elementPath(pre, deck)}.accent`,
         shape: borderRadius > 0 ? "roundedRect" : "rect",
+        ...(borderRadius > 0 ? { cornerRadius: borderRadius } : {}),
         x: bounds.x,
         y: bounds.y + accentInset,
         width: accentWidth,
@@ -3245,6 +3247,7 @@ async function collectPptxSlide(slide, index, options = {}) {
       fit: style.objectFit || "contain",
       opacity: Number(style.opacity) || 1,
       shape: borderRadius > 0 ? "roundedRect" : "rect",
+      ...(borderRadius > 0 ? { cornerRadius: borderRadius } : {}),
       naturalWidth: image.naturalWidth,
       naturalHeight: image.naturalHeight,
     });
