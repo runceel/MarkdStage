@@ -136,6 +136,36 @@ test("does not add timing to static slides and rejects reveal schedules with unm
   );
 });
 
+test("groups mixed paragraph and whole-shape targets by step without building static paragraphs", () => {
+  const textElement = (paragraphRevealSteps) => ({
+    type: "text", x: 10, y: 10, width: 100, height: 80,
+    paragraphs: paragraphRevealSteps.map((_, index) => ({
+      runs: [{ text: `Paragraph ${index}` }],
+    })),
+    paragraphRevealSteps,
+  });
+  const slide = xml(readStoredZip(buildPptxPackage({
+    slides: [{
+      revealStepCount: 2,
+      elements: [
+        textElement([0, 2, 1, 2]),
+        textElement([2, 0, 1]),
+        { type: "shape", shape: "rect", x: 0, y: 0, width: 10, height: 10, revealStep: 2 },
+        textElement([0, 0]),
+      ],
+    }],
+  })), "ppt/slides/slide1.xml");
+  const timing = slide.match(/<p:timing>[\s\S]*?<\/p:timing>/)[0];
+  const targets = [...timing.matchAll(/<p:spTgt spid="(\d+)"(?:\/>|><p:txEl><p:pRg st="(\d+)")/g)]
+    .map((match) => [Number(match[1]), match[2] === undefined ? null : Number(match[2])]);
+  assert.deepEqual(targets, [[2, 2], [3, 2], [2, 1], [2, 3], [3, 0], [4, null]]);
+  assert.deepEqual(
+    [...timing.matchAll(/nodeType="(clickEffect|withEffect)"/g)].map((match) => match[1]),
+    ["clickEffect", "withEffect", "clickEffect", "withEffect", "withEffect", "withEffect"],
+  );
+  assert.match(timing, /<p:bldLst><p:bldP spid="2" grpId="0" build="p"\/><p:bldP spid="3" grpId="0" build="p"\/><\/p:bldLst>/);
+});
+
 test("rejects inherited names and non-string line caps for connectors and shapes", () => {
   const elements = [
     { type: "connector", points: [{ x: 10, y: 10 }, { x: 20, y: 20 }], stroke: "#123456" },

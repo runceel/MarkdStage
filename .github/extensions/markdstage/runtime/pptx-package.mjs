@@ -1045,30 +1045,59 @@ function baseShapeTree() {
   return '<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>';
 }
 
+const REVEAL_START_NOW_XML = '<p:stCondLst><p:cond delay="0"/></p:stCondLst>';
+
+function revealTargetXml({ shapeId, paragraphIndex }) {
+  return paragraphIndex === null
+    ? `<p:spTgt spid="${shapeId}"/>`
+    : `<p:spTgt spid="${shapeId}"><p:txEl><p:pRg st="${paragraphIndex}" end="${paragraphIndex}"/></p:txEl></p:spTgt>`;
+}
+
+function revealAppearEffectXml(target, targetIndex, nextTimingId) {
+  const effectId = nextTimingId();
+  const visibilityId = nextTimingId();
+  const nodeType = targetIndex === 0 ? "clickEffect" : "withEffect";
+  const visibility = `<p:set><p:cBhvr><p:cTn id="${visibilityId}" dur="1" fill="hold">${REVEAL_START_NOW_XML}</p:cTn><p:tgtEl>${revealTargetXml(target)}</p:tgtEl><p:attrNameLst><p:attrName>style.visibility</p:attrName></p:attrNameLst></p:cBhvr><p:to><p:strVal val="visible"/></p:to></p:set>`;
+  return `<p:par><p:cTn id="${effectId}" presetID="1" presetClass="entr" presetSubtype="0" fill="hold" grpId="0" nodeType="${nodeType}">${REVEAL_START_NOW_XML}<p:childTnLst>${visibility}</p:childTnLst></p:cTn></p:par>`;
+}
+
+function revealClickGroupXml(targets, nextTimingId) {
+  const clickGateId = nextTimingId();
+  const parallelGroupId = nextTimingId();
+  const effects = targets.map((target, index) =>
+    revealAppearEffectXml(target, index, nextTimingId)
+  ).join("");
+  // PowerPoint requires an indefinite outer click gate, then a zero-delay
+  // parallel group containing a distinct entrance effect for each target.
+  return `<p:par><p:cTn id="${clickGateId}" fill="hold"><p:stCondLst><p:cond delay="indefinite"/></p:stCondLst><p:childTnLst><p:par><p:cTn id="${parallelGroupId}" fill="hold">${REVEAL_START_NOW_XML}<p:childTnLst>${effects}</p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn></p:par>`;
+}
+
+function revealNavigationXml(direction) {
+  return `<p:${direction}CondLst><p:cond evt="on${direction === "prev" ? "Prev" : "Next"}" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:${direction}CondLst>`;
+}
+
+function revealParagraphBuildsXml(targets) {
+  const paragraphShapes = [...new Set(targets
+    .filter((target) => target.paragraphIndex !== null)
+    .map((target) => target.shapeId))];
+  return paragraphShapes.length
+    ? `<p:bldLst>${paragraphShapes.map((shapeId) => `<p:bldP spid="${shapeId}" grpId="0" build="p"/>`).join("")}</p:bldLst>`
+    : "";
+}
+
 function revealTimingXml(targets, stepCount) {
   if (!stepCount) return "";
   let timingId = 1;
   const nextTimingId = () => timingId++;
   const rootId = nextTimingId();
   const sequenceId = nextTimingId();
-  const startNow = '<p:stCondLst><p:cond delay="0"/></p:stCondLst>';
-  const targetXml = ({ shapeId, paragraphIndex }) =>
-    `<p:set><p:cBhvr><p:cTn id="${nextTimingId()}" dur="1" fill="hold">${startNow}</p:cTn><p:tgtEl>${paragraphIndex === null ? `<p:spTgt spid="${shapeId}"/>` : `<p:spTgt spid="${shapeId}"><p:txEl><p:pRg st="${paragraphIndex}" end="${paragraphIndex}"/></p:txEl></p:spTgt>`}</p:tgtEl><p:attrNameLst><p:attrName>style.visibility</p:attrName></p:attrNameLst></p:cBhvr><p:to><p:strVal val="visible"/></p:to></p:set>`;
   const steps = Array.from({ length: stepCount }, (_, index) => {
     const step = index + 1;
     const stepTargets = targets.filter((target) => target.step === step);
     if (!stepTargets.length) fail(`reveal step ${step} has no emitted PowerPoint objects`);
-    // Match PowerPoint's click-gated main sequence: each click owns a parallel
-    // group, and each object/paragraph has its own entrance effect.
-    return `<p:par><p:cTn id="${nextTimingId()}" fill="hold"><p:stCondLst><p:cond delay="indefinite"/></p:stCondLst><p:childTnLst><p:par><p:cTn id="${nextTimingId()}" fill="hold">${startNow}<p:childTnLst>${stepTargets.map((target, targetIndex) =>
-      `<p:par><p:cTn id="${nextTimingId()}" presetID="1" presetClass="entr" presetSubtype="0" fill="hold" grpId="0" nodeType="${targetIndex === 0 ? "clickEffect" : "withEffect"}">${startNow}<p:childTnLst>${targetXml(target)}</p:childTnLst></p:cTn></p:par>`
-    ).join("")}</p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn></p:par>`;
+    return revealClickGroupXml(stepTargets, nextTimingId);
   }).join("");
-  const paragraphShapes = [...new Set(targets
-    .filter((target) => target.paragraphIndex !== null)
-    .map((target) => target.shapeId))];
-  const navigation = (direction) => `<p:${direction}CondLst><p:cond evt="on${direction === "prev" ? "Prev" : "Next"}" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:${direction}CondLst>`;
-  return `<p:timing><p:tnLst><p:par><p:cTn id="${rootId}" dur="indefinite" restart="never" nodeType="tmRoot"><p:childTnLst><p:seq concurrent="1" nextAc="seek"><p:cTn id="${sequenceId}" dur="indefinite" nodeType="mainSeq"><p:childTnLst>${steps}</p:childTnLst></p:cTn>${navigation("prev")}${navigation("next")}</p:seq></p:childTnLst></p:cTn></p:par></p:tnLst>${paragraphShapes.length ? `<p:bldLst>${paragraphShapes.map((shapeId) => `<p:bldP spid="${shapeId}" grpId="0" build="p"/>`).join("")}</p:bldLst>` : ""}</p:timing>`;
+  return `<p:timing><p:tnLst><p:par><p:cTn id="${rootId}" dur="indefinite" restart="never" nodeType="tmRoot"><p:childTnLst><p:seq concurrent="1" nextAc="seek"><p:cTn id="${sequenceId}" dur="indefinite" nodeType="mainSeq"><p:childTnLst>${steps}</p:childTnLst></p:cTn>${revealNavigationXml("prev")}${revealNavigationXml("next")}</p:seq></p:childTnLst></p:cTn></p:par></p:tnLst>${revealParagraphBuildsXml(targets)}</p:timing>`;
 }
 
 function buildSlide(

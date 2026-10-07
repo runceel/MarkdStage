@@ -182,11 +182,15 @@ test("static views keep entire reveal blocks and their diagrams visible", async 
     await page.goto(harness.url, { waitUntil: "load" });
     await waitForSlideReady(page);
     for (let index = 0; index < BLOCK_REVEAL_SLIDES.length; index += 1) {
-      await page.request.post(new URL("navigate", harness.url).href, {
+      const response = await page.request.post(new URL("navigate", harness.url).href, {
         data: { index }, headers: { origin: new URL(harness.url).origin },
       });
+      expect(response.ok()).toBe(true);
 
-      const slide = await getSlideFrame(page);
+      const current = page.locator(`.scroll-item[data-index="${index}"]`);
+      await expect(current).toHaveAttribute("data-current", "true");
+      await expect(current.locator("iframe")).toBeAttached();
+      const slide = await waitForSlideReady(page);
       await expect(slide.locator(".slide-title")).toHaveText([
         "Explain, then illustrate", "Image", "Table", "Code", "Mermaid", "Entire list",
       ][index]);
