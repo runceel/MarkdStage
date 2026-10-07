@@ -244,6 +244,7 @@ h3{font-size:var(--slide-h3-size);margin:.25em 0 .3em;font-weight:600;color:var(
 .body ul,.body ol{margin:.2em 0;padding-left:1.35em;}
 .body li{margin:.4em 0;}
 .body li::marker{color:var(--accent);}
+.markdstage-reveal-hidden{visibility:hidden!important;}
 strong{color:var(--fg);font-weight:700;}
 em{color:var(--accent-strong);font-style:normal;font-weight:600;}
 a{color:var(--accent);text-underline-offset:3px;}
@@ -529,6 +530,7 @@ footer .page{color:var(--accent-strong);font-weight:600;background:var(--accent-
 .nav-counter{min-width:4.2em;text-align:center;font-variant-numeric:tabular-nums;
      font-weight:600;color:var(--accent-strong);font-size:clamp(12px,1.7vh,16px);
      padding:0 .3em;user-select:none;}
+.nav-step-counter,.presenter-step-counter{min-width:auto;color:var(--muted);font-size:.8em;font-weight:500;}
 .nav-more-panel[hidden],.nav-more-group[hidden]{display:none;}
 .nav-more-panel{position:absolute;left:50%;bottom:calc(100% + .65em);transform:translateX(-50%);
      width:min(20em,calc(100vw - 24px));max-height:min(70vh,32em);overflow:auto;

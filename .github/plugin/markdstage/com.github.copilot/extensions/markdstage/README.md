@@ -324,6 +324,60 @@ To have MarkdStage read and split a workspace Markdown file from chat, pass
 `sourcePath` to `open_canvas`. Users can also use **More controls > Open
 Markdown** in the canvas.
 
+#### Click-driven incremental reveals
+
+An HTML comment opts in only the immediately following list or Architecture
+fence; without one, content is unchanged. The Markdown content remains complete
+and readable when the comment is ignored.
+
+```md
+<!-- markdstage: reveal=list-items nested=separate -->
+
+- Plan
+  - Requirements
+    - Interviews
+- Deliver
+```
+
+`nested` accepts `together` (the default) or `separate`. Together reveals each
+top-level item with its entire descendant subtree. Separate reveals logical
+items depth-first, parent before child, including at three or more nesting
+levels. Ordered, unordered, and mixed lists retain their authored numbering and
+formatting. A list may contain multiple paragraphs per item; empty items and
+items containing images are rejected with an actionable error.
+
+Architecture fences use block-local authored IDs:
+
+```md
+<!-- markdstage:
+{
+  "steps": [
+    ["frontend"],
+    ["backend", "request"]
+  ]
+}
+-->
+```architecture
+{"version":1,"elements":[{"type":"node","id":"frontend","x":40,"y":80,"width":200,"height":100,"text":"Frontend"},{"type":"node","id":"backend","x":480,"y":80,"width":200,"height":100,"text":"Backend"},{"type":"connector","id":"request","from":"frontend","to":"backend"}]}
+```
+
+Each inner array is one click step. A group target includes its frame and
+descendants. An untargeted connector appears with its last endpoint; an
+explicitly targeted connector cannot precede its endpoints. Unknown or
+conflicting targets and unsupported merged artwork are errors, not silently
+discarded steps. Reserved directives are not speaker notes; fenced examples
+remain literal.
+
+In presentation mode, advance reveals the next step and rewind hides the most
+recent step. After the final step, advance enters the next slide; rewinding from
+the first step of a slide returns to the previous slide completed. Direct slide
+jumps begin at the initial reveal state. Static reading, editing, inspection,
+PDF, and PNG output always show the complete slide. Editable PowerPoint export
+uses native click-triggered Appear builds for supported editable paragraphs and
+diagram objects; if a requested target cannot be kept separate, export reports
+an error instead of flattening it. PowerPoint playback should be checked in the
+intended PowerPoint application; LibreOffice behavior is not guaranteed.
+
 ### Canvas API file and `slides` inputs
 
 For canvas `open`, prefer `{ sourcePath: "slides.md" }` so MarkdStage reads a

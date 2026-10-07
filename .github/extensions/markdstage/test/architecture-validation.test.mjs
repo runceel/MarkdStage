@@ -20,7 +20,7 @@ const fourErrors = () => JSON.stringify({
       text: "API", label: "not node text", subtitle: "unsupported",
     },
     { type: "node", id: "b", x: 400, y: 40, width: 200, height: 120, text: "Database" },
-    { type: "connector", from: "a", to: "b", id: "unsupported", text: "not a label" },
+    { type: "connector", from: "a", to: "b", direction: "unsupported", text: "not a label" },
   ],
 });
 
@@ -129,7 +129,7 @@ test("explicit slides collect four independent errors in one block", () => {
   assert.deepEqual(report.diagnostics.map(({ code, pointer }) => ({ code, pointer })), [
     { code: "unknown_field", pointer: "/elements/0/label" },
     { code: "unknown_field", pointer: "/elements/0/subtitle" },
-    { code: "unknown_field", pointer: "/elements/2/id" },
+    { code: "unknown_field", pointer: "/elements/2/direction" },
     { code: "unknown_field", pointer: "/elements/2/text" },
   ]);
   for (const diagnostic of report.diagnostics) {

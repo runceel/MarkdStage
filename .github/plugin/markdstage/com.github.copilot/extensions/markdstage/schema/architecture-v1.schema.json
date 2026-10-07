@@ -326,6 +326,10 @@
       "required": ["type", "from", "to"],
       "properties": {
         "type": { "const": "connector" },
+        "id": {
+          "$ref": "#/$defs/identifier",
+          "description": "Optional stable identifier for referencing this connector in reveal schedules."
+        },
         "from": {
           "anyOf": [{ "$ref": "#/$defs/identifier" }, { "$ref": "#/$defs/point" }],
           "description": "Referenced node/group/image ID or a free coordinate point relative to the containing group."

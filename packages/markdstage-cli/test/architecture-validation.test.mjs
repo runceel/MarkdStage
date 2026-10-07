@@ -20,7 +20,7 @@ const sourceWithFourErrors = JSON.stringify({
       label: "unsupported", subtitle: "unsupported",
     },
     { type: "node", id: "b", x: 400, y: 40, width: 200, height: 120 },
-    { type: "connector", from: "a", to: "b", id: "unsupported", text: "unsupported" },
+    { type: "connector", from: "a", to: "b", direction: "unsupported", text: "unsupported" },
   ],
 });
 const fragment = (source) => `\`\`\`architecture\n${source}\n\`\`\``;
@@ -61,7 +61,7 @@ test("CLI validation preserves one legacy error and exposes all four canonical d
     assert.equal(report.errors[0].message, report.diagnostics[0].message);
     assert.equal(report.diagnosticCount, 4);
     assert.deepEqual(report.diagnostics.map((item) => item.pointer), [
-      "/elements/0/label", "/elements/0/subtitle", "/elements/2/id", "/elements/2/text",
+      "/elements/0/label", "/elements/0/subtitle", "/elements/2/direction", "/elements/2/text",
     ]);
     for (const diagnostic of report.diagnostics) {
       assert.equal(diagnostic.code, "unknown_field");

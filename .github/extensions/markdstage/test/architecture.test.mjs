@@ -2004,6 +2004,7 @@ test("connectors retain optional stable ids for reveal target provenance", () =>
   const connector = model.elements.find((element) => element.type === "connector");
   const snapshot = architectureSemanticSnapshot(model);
   const rendered = descendants(renderArchitectureDiagram(model, new FakeDocument()));
+  const powerPoint = architecturePowerPointSnapshot(model, new FakeDocument());
 
   assert.equal(connector.id, "request");
   assert.equal(
@@ -2014,6 +2015,12 @@ test("connectors retain optional stable ids for reveal target provenance", () =>
     rendered.find((element) => element.attributes.get("data-architecture-type") === "connector")
       .attributes.get("data-architecture-id"),
     "request",
+  );
+  assert.deepEqual(
+    powerPoint.objects
+      .filter((object) => object.architecture?.id === "request")
+      .map((object) => object.architecture.kind),
+    ["connector", "connector-label"],
   );
 
   assert.throws(

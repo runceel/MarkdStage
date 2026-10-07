@@ -971,6 +971,8 @@ function flattenElements(
     const z = contractNumber(element.z, `${elementPath}.z`, fields.z, defaultZ);
 
     if (type === "connector") {
+      const id = element.id === undefined ? undefined : idValue(element.id, `${elementPath}.id`);
+      if (id) claimArchitectureId(ids, id, `${elementPath}.id`);
       const routing = enumValue(
         element.routing,
         `${elementPath}.routing`,
@@ -1004,6 +1006,7 @@ function flattenElements(
       }
       output.push({
         type,
+        ...(id ? { id } : {}),
         from: normalizeEndpoint(element.from, `${elementPath}.from`, origin),
         to: normalizeEndpoint(element.to, `${elementPath}.to`, origin),
         fromPort: enumValue(element.fromPort, `${elementPath}.fromPort`, PORTS, "auto"),
@@ -4101,6 +4104,7 @@ function renderConnector(
 ) {
   const label = element.ariaLabel || describeConnector(element, endpointNames);
   const group = svgElement(documentRef, "g", {
+    "data-architecture-id": element.id,
     opacity: element.style.opacity,
     "data-architecture-connector": `${endpointName(element.from)}-${endpointName(element.to)}`,
     "data-architecture-type": "connector",
@@ -4128,6 +4132,7 @@ function renderConnector(
     const position = connectorLabelAnchor(element, points, fittedLabel, canvas);
     const { width, height } = fittedLabel;
     const labelGroup = svgElement(documentRef, "g", {
+      "data-architecture-id": element.id,
       "data-architecture-connector-label": `${endpointName(element.from)}-${endpointName(element.to)}`,
       "data-architecture-label-layer": element.labelLayer,
       "pointer-events": "none",
@@ -4190,6 +4195,7 @@ export function architectureSemanticSnapshot(model) {
       if (element.type === "connector") {
         return {
           type: "connector",
+          ...(element.id ? { id: element.id } : {}),
           from: element.from,
           to: element.to,
           fromPort: element.fromPort,

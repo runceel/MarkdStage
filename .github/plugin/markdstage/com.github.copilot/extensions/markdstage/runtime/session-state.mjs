@@ -7,6 +7,8 @@ import { readMarkdownDeck } from "./deck-reader.mjs";
 import { readCustomTheme } from "./theme-reader.mjs";
 import { validateBackgrounds } from "./workspace-assets.mjs";
 import { MarkdStageError } from "./errors.mjs";
+import { markedLexer } from "../renderer/marked-lexer.mjs";
+import { parseRevealSchedule } from "../renderer/reveal-schedule.mjs";
 
 export function clampIndex(value, total) {
   const index = Number(value);
@@ -39,7 +41,8 @@ export function createSessionState({ theme, themeFile, viewMode, assetUrlPrefix 
   return {
     viewMode: resolveViewMode(viewMode),
     file: "", sourceName: "", url: "", version: 0, deckVersion: 0,
-    sourceMarkdown: "", markdown: "", slides: [], index: 0, mode: "deck",
+    sourceMarkdown: "", markdown: "", slides: [], index: 0, revealStep: 0,
+    revealSchedules: [], mode: "deck",
     theme: DEFAULT_THEME, themeLocked: false, customThemeFile: "",
     customThemeCss: "", customThemeDir: "", customThemeMeta: null,
     customThemeAssets: new Set(), customThemeWarnings: [],
@@ -60,8 +63,12 @@ export async function prepareSessionDeck(session, io, sourceName, options = {}, 
   const custom = selection.theme === "custom"
     ? await readCustomTheme(io, sourceName, selection.themeFile, { assetUrlPrefix: session.assetUrlPrefix })
     : { file: "", css: "", dir: "", metadata: null, assets: [], warnings: [] };
+  const completeSlides = ensureBackCover(slides.slice());
+  const revealSchedules = completeSlides.map((slide) =>
+    parseRevealSchedule(slide, markedLexer).schedule,
+  );
   return {
-    sourceName, sourceMarkdown: markdown, slides: ensureBackCover(slides.slice()),
+    sourceName, sourceMarkdown: markdown, slides: completeSlides, revealSchedules,
     theme: selection.theme, themeLocked: selection.themeLocked,
     customThemeFile: custom.file, customThemeCss: custom.css, customThemeDir: custom.dir,
     customThemeMeta: custom.metadata, customThemeAssets: new Set(custom.assets),
@@ -71,7 +78,12 @@ export async function prepareSessionDeck(session, io, sourceName, options = {}, 
 
 export function commitSessionDeck(session, prepared, { preserveIndex = false, file = prepared.sourceName } = {}) {
   const index = clampIndex(preserveIndex ? session.index : 0, prepared.slides.length);
-  Object.assign(session, prepared, { file, index, markdown: prepared.slides[index] ?? "" });
+  const unchangedCurrentSlide = preserveIndex && session.slides[index] === prepared.slides[index] &&
+    JSON.stringify(session.revealSchedules[index] || []) === JSON.stringify(prepared.revealSchedules[index] || []);
+  const revealStep = unchangedCurrentSlide
+    ? Math.min(session.revealStep || 0, prepared.revealSchedules[index]?.length || 0)
+    : 0;
+  Object.assign(session, prepared, { file, index, revealStep, markdown: prepared.slides[index] ?? "" });
   session.deckVersion += 1;
   session.version += 1;
   return session.slides.length;
@@ -79,9 +91,36 @@ export function commitSessionDeck(session, prepared, { preserveIndex = false, fi
 
 export function navigateSession(session, target) {
   const next = clampIndex(target, session.slides.length);
-  if (next === session.index) return false;
+  if (next === session.index) {
+    if (!session.revealStep) return false;
+    session.revealStep = 0;
+    session.version += 1;
+    return true;
+  }
   session.index = next;
+  session.revealStep = 0;
   session.markdown = session.slides[next] ?? "";
+  session.version += 1;
+  return true;
+}
+
+export function advanceSession(session, direction) {
+  if (direction !== 1 && direction !== -1) {
+    throw new MarkdStageError("invalid_input", "Reveal navigation direction must be 1 or -1.");
+  }
+  const total = session.revealSchedules[session.index]?.length || 0;
+  if (direction > 0) {
+    if (session.revealStep < total) session.revealStep += 1;
+    else if (session.index < session.slides.length - 1) {
+      session.index += 1;
+      session.revealStep = 0;
+    } else return false;
+  } else if (session.revealStep > 0) session.revealStep -= 1;
+  else if (session.index > 0) {
+    session.index -= 1;
+    session.revealStep = session.revealSchedules[session.index]?.length || 0;
+  } else return false;
+  session.markdown = session.slides[session.index] ?? "";
   session.version += 1;
   return true;
 }
@@ -97,7 +136,12 @@ export function snapshotSession(session, { offset = 0 } = {}) {
     sourceName: session.sourceName, sourceMarkdown: session.sourceMarkdown,
     slides: session.slides.slice(), titles: session.slides.map(deriveTitle),
     notes: session.slides.map(extractSpeakerNotes),
+    revealTotals: session.slides.map((_, slideIndex) =>
+      session.revealSchedules[slideIndex]?.length || 0,
+    ),
     index, total: session.slides.length, markdown: session.slides[index] ?? "",
+    revealStep: index === session.index ? session.revealStep || 0 : 0,
+    revealTotal: session.revealSchedules[index]?.length || 0,
     mode: session.mode, viewMode: session.viewMode, theme: session.theme, themeLocked: session.themeLocked,
     customThemeFile: session.customThemeFile, customThemeCss: session.customThemeCss,
     customThemeDir: session.customThemeDir,
