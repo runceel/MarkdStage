@@ -959,6 +959,63 @@ function moveLeadingSlideTitle(header, bodyEl, specialLayout) {
   return title;
 }
 
+function presentationRevealActive() {
+  return presenterMode || surfaceMode;
+}
+
+function setRevealVisibility(element, step) {
+  element.dataset.revealStep = String(step);
+  const hidden = presentationRevealActive() && step > navRevealStep;
+  element.classList.toggle("markdstage-reveal-hidden", hidden);
+  if (hidden) {
+    element.setAttribute("aria-hidden", "true");
+    element.setAttribute("inert", "");
+  } else {
+    element.removeAttribute("aria-hidden");
+    element.removeAttribute("inert");
+  }
+}
+
+function applyListRevealSchedule(body, revealSchedule) {
+  const lists = [...body.querySelectorAll("ul, ol")];
+  const stepsByList = new Map();
+  revealSchedule.schedule.forEach((step, index) => {
+    if (step.kind !== "list") return;
+    let itemSteps = stepsByList.get(step.listIndex);
+    if (!itemSteps) {
+      itemSteps = new Map();
+      stepsByList.set(step.listIndex, itemSteps);
+    }
+    for (const itemIndex of step.targets) itemSteps.set(itemIndex, index + 1);
+  });
+  for (const [listIndex, itemSteps] of stepsByList) {
+    const list = lists[listIndex];
+    if (!list) throw new Error(`The Markdown list bound to reveal directive ${listIndex + 1} could not be rendered.`);
+    const items = [...list.querySelectorAll("li")];
+    for (const [itemIndex, step] of itemSteps) {
+      const item = items[itemIndex];
+      if (!item) throw new Error(`A list reveal target in list ${listIndex + 1} could not be rendered.`);
+      setRevealVisibility(item, step);
+    }
+  }
+}
+
+function applyArchitectureReveal(wrapper, blockIndex, revealSchedule) {
+  const stepsByTarget = new Map();
+  revealSchedule.schedule.forEach((step, index) => {
+    if (step.kind !== "architecture" || step.blockIndex !== blockIndex) return;
+    for (const id of step.targets) stepsByTarget.set(id, index + 1);
+  });
+  for (const [id, step] of stepsByTarget) {
+    const target = [...wrapper.querySelectorAll("[data-architecture-id]")]
+      .find((element) => element.getAttribute("data-architecture-id") === id);
+    if (!target) {
+      throw new Error(`Architecture reveal target "${id}" in diagram ${blockIndex + 1} could not be rendered.`);
+    }
+    setRevealVisibility(target, step);
+  }
+}
+
 function createSlide(
   markdown,
   fallbackTheme,
@@ -1067,6 +1124,7 @@ function createSlide(
     });
   }
   bodyEl.innerHTML = window.DOMPurify.sanitize(window.marked.parser(parsed.tokens));
+  applyListRevealSchedule(bodyEl, parsed.revealSchedule);
   bodyEl.querySelectorAll('img[src^="/assets/"]').forEach((image) => {
     image.setAttribute("src", localAssetUrl(image.getAttribute("src")));
   });
@@ -1118,6 +1176,7 @@ function createSlide(
     if (!architectureEditMode) {
       const wrapper = renderArchitectureBlock(source, document);
       wrapper.dataset.architectureBlock = String(blockIndex);
+      applyArchitectureReveal(wrapper, blockIndex, parsed.revealSchedule);
       const title = wrapper.__presentationPptxSnapshot?.title;
       if (title) wrapper.dataset.architectureTitle = title;
       target.replaceWith(wrapper);
@@ -3677,6 +3736,8 @@ let deckTitles = [];
 let deckLayouts = [];
 let navIndex = 0;
 let navTotal = 0;
+let navRevealStep = 0;
+let navRevealTotal = 0;
 let navMode = "deck";
 let overviewOpen = false;
 let importOpen = false;
@@ -4201,6 +4262,8 @@ async function fetchState() {
   currentVersion = typeof data.version === "number" ? data.version : currentVersion;
   if (typeof data.index === "number") navIndex = data.index;
   if (typeof data.total === "number") navTotal = data.total;
+  if (typeof data.revealStep === "number") navRevealStep = data.revealStep;
+  if (typeof data.revealTotal === "number") navRevealTotal = data.revealTotal;
   navMode = data.mode === "adhoc" ? "adhoc" : "deck";
   renderSlide(typeof data.markdown === "string" ? data.markdown : "");
   updateNav();
@@ -4232,10 +4295,10 @@ async function navigate(payload) {
 }
 
 function goNext() {
-  navigate({ delta: 1 });
+  navigate({ action: "advance" });
 }
 function goPrev() {
-  navigate({ delta: -1 });
+  navigate({ action: "rewind" });
 }
 function goToIndex(i) {
   navigate({ index: i });
@@ -4965,6 +5028,8 @@ function initSlideSurface() {
       customThemeMeta = state.customThemeMeta;
       navIndex = state.index;
       navTotal = state.total;
+      navRevealStep = Number(state.revealStep) || 0;
+      navRevealTotal = Number(state.revealTotal) || 0;
       navigationEnabled = state.navigationEnabled;
       pointerNavigationEnabled = state.pointerNavigation !== false;
       externalLinkAvailable = state.externalLinkAvailable === true;

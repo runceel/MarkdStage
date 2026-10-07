@@ -1,5 +1,6 @@
 const FENCE_OPEN = /^([ \t]{0,3})(`{3,}|~{3,})[ \t]*([^\s`~]*)[ \t]*$/;
 const SLIDE_SIZE_DIRECTIVE = /^slide-size[ \t]*:/i;
+const MARKDSTAGE_DIRECTIVE = /^markdstage\b/i;
 
 function normalizeText(text) {
   return String(text ?? "").replace(/\r\n?/g, "\n");
@@ -324,7 +325,7 @@ function parseSpeakerNotes(markdown) {
 
       comment.push(line.slice(cursor, end));
       const note = normalizeNote(comment.join(""));
-      if (note && !SLIDE_SIZE_DIRECTIVE.test(note)) notes.push(note);
+      if (note && !SLIDE_SIZE_DIRECTIVE.test(note) && !MARKDSTAGE_DIRECTIVE.test(note)) notes.push(note);
       comment = null;
       cursor = end + 3;
     }

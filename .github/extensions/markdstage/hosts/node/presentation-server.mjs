@@ -296,6 +296,8 @@ export async function startPresentationServer(
         markdown: state.markdown,
         index: state.index,
         total: state.total,
+        revealStep: state.revealStep,
+        revealTotal: state.revealTotal,
         theme: state.theme,
         themeLocked: state.themeLocked,
         customThemeFile: state.customThemeFile,
@@ -445,10 +447,11 @@ export async function startPresentationServer(
       }
       const hasIndex = typeof body.index === "number" && Number.isFinite(body.index);
       const hasDelta = typeof body.delta === "number" && Number.isFinite(body.delta);
-      if (hasIndex === hasDelta) {
+      const hasAction = body.action === "advance" || body.action === "rewind";
+      if ([hasIndex, hasDelta, hasAction].filter(Boolean).length !== 1) {
         json(res, 400, {
           ok: false,
-          error: "exactly one of index or delta is required",
+          error: "exactly one of index, delta, or a reveal action is required",
         });
         return;
       }
@@ -456,7 +459,9 @@ export async function startPresentationServer(
         json(res, 409, { ok: false, error: "no_deck" });
         return;
       }
-      const changed = session.navigate(hasIndex ? body.index : session.index + body.delta);
+      const changed = hasAction
+        ? session.advance(body.action === "advance" ? 1 : -1)
+        : session.navigate(hasIndex ? body.index : session.index + body.delta);
       if (changed) broadcast(session);
       json(res, 200, {
         ok: true,
@@ -464,6 +469,8 @@ export async function startPresentationServer(
         version: session.version,
         index: session.index,
         total: session.slides.length,
+        revealStep: session.revealStep,
+        revealTotal: session.revealSchedules[session.index]?.length || 0,
         mode: session.mode,
       });
       return;

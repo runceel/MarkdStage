@@ -102,6 +102,64 @@ test("portable session parses once, owns navigation, detaches snapshots and seri
   await assert.rejects(runtime.navigate("2"), { code: "invalid_input" });
 });
 
+test("incremental navigation advances and rewinds build steps before crossing slide boundaries", async () => {
+  const source = [
+    "# Plan",
+    "",
+    "<!-- markdstage: reveal=list-items nested=together -->",
+    "",
+    "- Plan",
+    "  - Research",
+    "- Deliver",
+    "",
+    "---",
+    "",
+    "# Next",
+  ].join("\n");
+  const { io } = memoryIO({ "slides.md": source });
+  const runtime = await createPortableRuntime({ io });
+  const loaded = await runtime.loadDeck("slides.md");
+  assert.equal(loaded.revealTotal, 2);
+
+  assert.deepEqual(
+    (({ index, revealStep }) => ({ index, revealStep }))(await runtime.navigate({ action: "advance" })),
+    { index: 0, revealStep: 1 },
+  );
+  assert.equal((await runtime.navigate({ action: "advance" })).revealStep, 2);
+  assert.deepEqual(
+    (({ index, revealStep }) => ({ index, revealStep }))(await runtime.navigate({ action: "advance" })),
+    { index: 1, revealStep: 0 },
+  );
+  assert.deepEqual(
+    (({ index, revealStep }) => ({ index, revealStep }))(await runtime.navigate({ action: "rewind" })),
+    { index: 0, revealStep: 2 },
+  );
+  assert.equal((await runtime.navigate({ index: 1 })).revealStep, 0);
+});
+
+test("source reload preserves an unchanged schedule and resets when its policy changes", async () => {
+  const deck = (nested) => [
+    "# Plan",
+    "",
+    `<!-- markdstage: reveal=list-items nested=${nested} -->`,
+    "",
+    "- Plan",
+    "  - Research",
+    "    - Interview",
+    "- Deliver",
+  ].join("\n");
+  const memory = memoryIO({ "slides.md": deck("together") });
+  const runtime = await createPortableRuntime({ io: memory.io });
+  await runtime.loadDeck("slides.md");
+  await runtime.navigate({ action: "advance" });
+  assert.equal((await runtime.reload()).revealStep, 1);
+
+  memory.set("slides.md", deck("separate"));
+  const reloaded = await runtime.reload();
+  assert.equal(reloaded.revealStep, 0);
+  assert.equal(reloaded.revealTotal, 4);
+});
+
 test("portable session validates loaded decks for native hosts", async () => {
   const { io } = memoryIO({
     "slides.md": "---\ndeck: Demo\nlayout: title\npage: 1\ntotal: 1\nsize: 16:9\n---\n# Demo",

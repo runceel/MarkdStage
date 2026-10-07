@@ -44,6 +44,21 @@ test("ignores comments in fenced examples and presentation directives", () => {
   assert.equal(notes, "Actual note.");
 });
 
+test("reserved reveal directives are removed from source comments without becoming notes", () => {
+  const markdown = [
+    "<!-- markdstage: reveal=list-items nested=separate -->",
+    "",
+    "- One",
+    "",
+    "<!-- Presenter reminder. -->",
+  ].join("\n");
+  assert.equal(extractSpeakerNotes(markdown), "Presenter reminder.");
+  assert.equal(
+    stripSpeakerNotes(markdown),
+    ["", "", "- One", "", ""].join("\n"),
+  );
+});
+
 test("keeps fenced code written inside a speaker note", () => {
   const notes = extractSpeakerNotes(
     [

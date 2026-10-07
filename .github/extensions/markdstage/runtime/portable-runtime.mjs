@@ -4,7 +4,7 @@ import { IO_LIMITS, getIO, isWorkspacePath, unwrapIOResult } from "./io.mjs";
 import { MarkdStageError } from "./errors.mjs";
 import {
   createSessionState, prepareSessionDeck, commitSessionDeck,
-  navigateSession, requireDeck, snapshotSession,
+  navigateSession, advanceSession, requireDeck, snapshotSession,
 } from "./session-state.mjs";
 import { joinPath, readWorkspaceBytes, resolveWorkspaceAsset } from "./workspace-assets.mjs";
 import { readArchitectureBlock, writeArchitectureSource } from "./architecture-writes.mjs";
@@ -96,6 +96,12 @@ export async function createPortableRuntime({ io = getIO(), ...options } = {}) {
     snapshot: (options) => run(() => snapshot(options)),
     navigate: (target) => run(() => {
       requireDeck(session);
+      if (target && typeof target === "object" &&
+          (target.action === "advance" || target.action === "rewind") &&
+          Object.keys(target).length === 1) {
+        if (advanceSession(session, target.action === "advance" ? 1 : -1)) publish();
+        return snapshot();
+      }
       const named = {
         next: session.index + 1, previous: session.index - 1,
         first: 0, last: session.slides.length - 1,
