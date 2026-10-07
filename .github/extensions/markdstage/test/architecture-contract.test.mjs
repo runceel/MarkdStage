@@ -76,7 +76,12 @@ test("root, all element types including image, fields, and definition names come
   }
   assert.equal(architectureContract.elements.image.properties.src.pattern, schema.$defs.assetPath.pattern);
   assert.deepEqual(architectureContract.elements.image.properties.fit.enum, ["contain", "cover", "stretch"]);
-  assert.equal(Object.hasOwn(architectureContract.elements.connector.properties, "id"), false);
+  assert.equal(
+    architectureContract.elements.connector.properties.id.pattern,
+    schema.$defs.identifier.pattern,
+  );
+  assert.equal(architectureContract.elements.connector.properties.id.type, "string");
+  assert.equal(architectureContract.elements.connector.required.fixed.includes("id"), false);
 });
 
 test("requirements depend on the parent layout, not a group's own layout", () => {
