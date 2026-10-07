@@ -4101,6 +4101,7 @@ function renderConnector(
 ) {
   const label = element.ariaLabel || describeConnector(element, endpointNames);
   const group = svgElement(documentRef, "g", {
+    "data-architecture-id": element.id,
     opacity: element.style.opacity,
     "data-architecture-connector": `${endpointName(element.from)}-${endpointName(element.to)}`,
     "data-architecture-type": "connector",
@@ -4128,6 +4129,7 @@ function renderConnector(
     const position = connectorLabelAnchor(element, points, fittedLabel, canvas);
     const { width, height } = fittedLabel;
     const labelGroup = svgElement(documentRef, "g", {
+      "data-architecture-id": element.id,
       "data-architecture-connector-label": `${endpointName(element.from)}-${endpointName(element.to)}`,
       "data-architecture-label-layer": element.labelLayer,
       "pointer-events": "none",

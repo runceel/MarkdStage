@@ -40,6 +40,14 @@ function listRecords(list, listIndex) {
   const records = [];
   const visitList = (current, parentTopLevelIndex = null) => {
     current.items.forEach((item, itemIndex) => {
+      const containsImage = (tokens) => (tokens || []).some((token) =>
+        token.type === "image" ||
+        containsImage(token.tokens) ||
+        token.type === "list" && token.items.some((nested) => containsImage(nested.tokens)),
+      );
+      if (containsImage(item.tokens)) {
+        throw new Error("MarkdStage list reveals do not support list items containing images; move the image outside the revealed list.");
+      }
       const topLevelIndex = parentTopLevelIndex ?? itemIndex;
       const record = { index: records.length, topLevelIndex, item };
       records.push(record);
@@ -133,11 +141,12 @@ export function parseRevealSchedule(markdown, markedApi) {
   const tokens = markedApi.lexer(source, { gfm: true, breaks: false });
   const lists = [];
   const listOrder = [];
+  const listParents = [];
   const architectures = [];
   const schedule = [];
   let cursor = 0;
 
-  const walk = (entries) => {
+  const walk = (entries, parentListIndex = null) => {
     let pending = null;
     for (const token of entries) {
       const bindsList = pending?.kind === "list" && token.type === "list";
@@ -159,6 +168,11 @@ export function parseRevealSchedule(markdown, markedApi) {
       if (pending) {
         if (pending.kind === "list" && token.type === "list") {
           const listIndex = listOrder.length;
+          for (let parent = parentListIndex; parent !== null; parent = listParents[parent] ?? null) {
+            if (lists.some((entry) => entry.listIndex === parent)) {
+              throw new Error(`Nested list reveal at line ${pending.line} overlaps a previously scheduled ancestor list.`);
+            }
+          }
           const records = listRecords(token, listIndex);
           const groups = pending.nested === "together"
             ? [...new Set(records.map((record) => record.topLevelIndex))]
@@ -167,6 +181,7 @@ export function parseRevealSchedule(markdown, markedApi) {
           const reveal = { kind: "list", listIndex, nested: pending.nested, steps: groups };
           lists.push(reveal);
           listOrder[listIndex] = reveal;
+          listParents[listIndex] = parentListIndex;
           groups.forEach((targets) => schedule.push({ kind: "list", listIndex, targets }));
         } else if (pending.kind === "architecture" && token.type === "code" &&
             token.lang?.trim().split(/\s+/)[0].toLowerCase() === "architecture") {
@@ -183,8 +198,12 @@ export function parseRevealSchedule(markdown, markedApi) {
       }
       if (token.type === "list") {
         // Nested lists are visited in source order for stable DOM list indexes.
-        if (!bindsList) listOrder.push(null);
-        for (const item of token.items || []) walk(item.tokens || []);
+        const listIndex = bindsList ? listOrder.length - 1 : listOrder.length;
+        if (!bindsList) {
+          listOrder.push(null);
+          listParents[listIndex] = parentListIndex;
+        }
+        for (const item of token.items || []) walk(item.tokens || [], listIndex);
       } else if (Array.isArray(token.tokens)) {
         walk(token.tokens);
       }

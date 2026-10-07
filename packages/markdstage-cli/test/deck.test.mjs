@@ -467,6 +467,57 @@ test("mutating routes require a same-origin request", async () => {
   });
 });
 
+test("presentation actions advance and rewind reveal steps without changing slide count", async () => {
+  await withWorkspace(async ({ dir, file }) => {
+    const markdown = [
+      "# Build",
+      "<!-- markdstage: reveal=list-items -->",
+      "",
+      "- First",
+      "- Second",
+      "",
+      "---",
+      "",
+      "# Next",
+    ].join("\n");
+    await writeFile(file, markdown, "utf8");
+    const session = await createDeckSession({ file, workspaceRoot: dir });
+    await withDeckServer({ file, workspace: dir }, async (_session, server) => {
+      const initial = await fetch(new URL("state", server.url)).then((response) => response.json());
+      assert.equal(initial.total, session.slides.length);
+      assert.equal(initial.index, 0);
+      assert.equal(initial.revealStep, 0);
+      assert.equal(initial.revealTotal, 2);
+
+      const preview = await fetch(new URL("state?build=next", server.url)).then((response) => response.json());
+      assert.equal(preview.index, 0);
+      assert.equal(preview.revealStep, 1);
+      assert.equal(session.revealStep, 0);
+
+      for (const expectedStep of [1, 2]) {
+        const response = await post(server.url, "navigate", { action: "advance" });
+        assert.equal(response.status, 200);
+        const state = await response.json();
+        assert.equal(state.index, 0);
+        assert.equal(state.revealStep, expectedStep);
+      }
+
+      const next = await post(server.url, "navigate", { action: "advance" }).then((response) => response.json());
+      assert.equal(next.index, 1);
+      assert.equal(next.revealStep, 0);
+
+      const previous = await post(server.url, "navigate", { action: "rewind" }).then((response) => response.json());
+      assert.equal(previous.index, 0);
+      assert.equal(previous.revealStep, 2);
+
+      const jump = await post(server.url, "navigate", { index: 1 }).then((response) => response.json());
+      assert.equal(jump.index, 1);
+      assert.equal(jump.revealStep, 0);
+      assert.equal(jump.total, initial.total);
+    });
+  });
+});
+
 test("the Node host serves bundled modules and shared session previews after extraction", async () => {
   await withWorkspace(async ({ dir, file }) => {
     await withDeckServer({ file, workspace: dir }, async (session, server) => {

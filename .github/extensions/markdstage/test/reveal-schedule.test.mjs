@@ -106,3 +106,24 @@ test("invalid nested policies, malformed JSON, and unknown Architecture ids are 
     /Unknown Architecture reveal target "missing"/,
   );
 });
+
+test("unsupported empty and image list items are rejected explicitly", () => {
+  assert.throws(
+    () => parseRevealSchedule(`${listDirective()}\n\n-`, markedLexer),
+    /do not support empty list items/,
+  );
+  assert.throws(
+    () => parseRevealSchedule(`${listDirective()}\n\n- ![diagram](diagram.png)`, markedLexer),
+    /do not support list items containing images/,
+  );
+});
+
+test("nested list directives cannot overlap a scheduled ancestor list", () => {
+  assert.throws(
+    () => parseRevealSchedule(
+      `${listDirective()}\n\n- Parent\n  ${listDirective("separate")}\n  - Child`,
+      markedLexer,
+    ),
+    /overlaps a previously scheduled ancestor list/,
+  );
+});

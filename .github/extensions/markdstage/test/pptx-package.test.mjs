@@ -66,6 +66,59 @@ test("writes explicit flat, round and square caps for native strokes and rejects
   }
 });
 
+test("writes click-driven appear timing for text paragraphs and every connector segment", () => {
+  const slide = xml(readStoredZip(buildPptxPackage({
+    slides: [{
+      revealStepCount: 2,
+      elements: [
+        {
+          type: "text",
+          x: 10,
+          y: 10,
+          width: 100,
+          height: 40,
+          paragraphs: [
+            { runs: [{ text: "First" }] },
+            { runs: [{ text: "Second" }] },
+          ],
+          paragraphRevealSteps: [1, 2],
+        },
+        {
+          type: "polyline",
+          points: [{ x: 0, y: 0 }, { x: 20, y: 20 }, { x: 40, y: 20 }],
+          stroke: "#123456",
+          revealStep: 2,
+        },
+      ],
+    }],
+  })), "ppt/slides/slide1.xml");
+  assert.equal((slide.match(/nodeType="clickEffect"/g) || []).length, 2);
+  assert.match(slide, /<p:spTgt spid="2"><p:txEl><p:pRg st="0" end="0"\/><\/p:txEl><\/p:spTgt>/);
+  assert.match(slide, /<p:spTgt spid="2"><p:txEl><p:pRg st="1" end="1"\/><\/p:txEl><\/p:spTgt>/);
+  assert.match(slide, /<p:spTgt spid="3"\/>/);
+  assert.match(slide, /<p:spTgt spid="4"\/>/);
+  assert.match(slide, /<p:bldP spid="2" grpId="0" build="p"\/>/);
+  const timingIds = [...slide.matchAll(/<p:cTn id="(\d+)"/g)].map((match) => match[1]);
+  assert.equal(new Set(timingIds).size, timingIds.length);
+  assert.match(slide, /<p:timing><p:tnLst>/);
+});
+
+test("does not add timing to static slides and rejects reveal schedules with unmapped steps", () => {
+  const staticSlide = xml(readStoredZip(buildPptxPackage({
+    slides: [{ elements: [] }],
+  })), "ppt/slides/slide1.xml");
+  assert.doesNotMatch(staticSlide, /<p:timing>/);
+  assert.throws(
+    () => buildPptxPackage({
+      slides: [{
+        revealStepCount: 1,
+        elements: [{ type: "shape", shape: "rect", x: 0, y: 0, width: 10, height: 10 }],
+      }],
+    }),
+    /reveal step 1 has no emitted PowerPoint objects/,
+  );
+});
+
 test("rejects inherited names and non-string line caps for connectors and shapes", () => {
   const elements = [
     { type: "connector", points: [{ x: 10, y: 10 }, { x: 20, y: 20 }], stroke: "#123456" },

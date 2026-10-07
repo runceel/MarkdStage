@@ -110,6 +110,7 @@ let architectureDetailedEditTargetOverride = "";
 let presenterMode = false;
 let previewMode = false;
 let previewOffset = 0;
+let previewBuildNext = false;
 let navigationEnabled = true;
 let externalLinkAvailable = false;
 let fixedPreviewMode = false;
@@ -1007,12 +1008,12 @@ function applyArchitectureReveal(wrapper, blockIndex, revealSchedule) {
     for (const id of step.targets) stepsByTarget.set(id, index + 1);
   });
   for (const [id, step] of stepsByTarget) {
-    const target = [...wrapper.querySelectorAll("[data-architecture-id]")]
-      .find((element) => element.getAttribute("data-architecture-id") === id);
-    if (!target) {
+    const targets = [...wrapper.querySelectorAll("[data-architecture-id]")]
+      .filter((element) => element.getAttribute("data-architecture-id") === id);
+    if (!targets.length) {
       throw new Error(`Architecture reveal target "${id}" in diagram ${blockIndex + 1} could not be rendered.`);
     }
-    setRevealVisibility(target, step);
+    targets.forEach((target) => setRevealVisibility(target, step));
   }
 }
 
@@ -1270,6 +1271,7 @@ function createSlide(
     centerSlide,
     backcoverSlide,
     speakerNotes: parsed.notes,
+    revealSchedule: parsed.revealSchedule,
     title: meta.title || meta.deck || "Slide",
   };
 }
@@ -1820,8 +1822,9 @@ function trimListItemRuns(runs) {
   return trimmed.filter((run) => run.text);
 }
 
-function nativeListTextElement(list, deck, eligibleItems) {
-  const items = [...list.querySelectorAll("li")].filter((item) =>
+function nativeListTextElement(list, deck, eligibleItems, allLists, revealStepsByList) {
+  const allItems = [...list.querySelectorAll("li")];
+  const items = allItems.filter((item) =>
     eligibleItems.has(item),
   );
   if (items.length === 0) return null;
@@ -1864,6 +1867,15 @@ function nativeListTextElement(list, deck, eligibleItems) {
     const spaceAfter = roundedMetric(
       Math.max(0, nextBounds ? nextBounds.y - (bounds.y + bounds.height) : 0),
     );
+    const paragraphRevealSteps = entries.map(({ item }) => {
+      for (const candidate of allLists) {
+        if (!candidate.contains(item)) continue;
+        const step = revealStepsByList.get(allLists.indexOf(candidate))
+          ?.get([...candidate.querySelectorAll("li")].indexOf(item));
+        if (step) return step;
+      }
+      return 0;
+    });
     return {
       ...paragraph,
       ...(lineSpacing > 0 ? { lineSpacing } : {}),
@@ -1886,6 +1898,7 @@ function nativeListTextElement(list, deck, eligibleItems) {
       ...items.map((item) => Number(item.dataset.pptxZOrder) || 0),
     ),
     paragraphs,
+    ...(paragraphRevealSteps.some((step) => step > 0) ? { paragraphRevealSteps } : {}),
     opacity: Number(getComputedStyle(list).opacity) || 1,
   };
 }
@@ -2460,6 +2473,7 @@ async function collectArchitectureObjects(wrapper, deck, blockIndex) {
       fallbacks.push({
         type: "architecture-image",
         path: `architecture[${blockIndex}].${sourceObject.architecture.sourcePath}`,
+        architecture: sourceObject.architecture,
         reason: layer
           ? "architecture-image-rendered-as-foreground-picture"
           : "architecture-image-rendered-as-artwork",
@@ -2500,6 +2514,7 @@ async function collectArchitectureObjects(wrapper, deck, blockIndex) {
     fallbacks.push({
       type: "architecture-icon",
       path: `architecture[${blockIndex}].${icon.sourcePath}`,
+      architecture: { id: icon.id, kind: "icon" },
       reason: layer
         ? "icon-rendered-as-foreground-picture"
         : "icon-rendered-as-artwork",
@@ -2793,6 +2808,26 @@ async function collectPptxSlide(slide, index, options = {}) {
   assignPptxPaintOrder(deck);
   const elements = [];
   const fallbacks = [];
+  const revealStepsByList = new Map();
+  const architectureStepsByBlock = new Map();
+  slide.revealSchedule?.schedule?.forEach((step, scheduleIndex) => {
+    const stepNumber = scheduleIndex + 1;
+    if (step.kind === "list") {
+      let itemSteps = revealStepsByList.get(step.listIndex);
+      if (!itemSteps) {
+        itemSteps = new Map();
+        revealStepsByList.set(step.listIndex, itemSteps);
+      }
+      for (const itemIndex of step.targets) itemSteps.set(itemIndex, stepNumber);
+    } else if (step.kind === "architecture") {
+      let targetSteps = architectureStepsByBlock.get(step.blockIndex);
+      if (!targetSteps) {
+        targetSteps = new Map();
+        architectureStepsByBlock.set(step.blockIndex, targetSteps);
+      }
+      for (const id of step.targets) targetSteps.set(id, stepNumber);
+    }
+  });
   const fallbackRoots = new Set();
   const fallbackByRoot = new Map();
   const removeFallback = (root) => {
@@ -3013,8 +3048,9 @@ async function collectPptxSlide(slide, index, options = {}) {
   const listRoots = [
     ...new Set(listItems.map(outermostListFor).filter(Boolean)),
   ];
+  const allLists = [...deck.querySelectorAll("ul, ol")];
   for (const list of listRoots) {
-    const textElement = nativeListTextElement(list, deck, eligibleListItems);
+    const textElement = nativeListTextElement(list, deck, eligibleListItems, allLists, revealStepsByList);
     if (textElement) elements.push(textElement);
   }
   for (const element of textCandidates.filter((candidate) => !candidate.matches("li"))) {
@@ -3333,14 +3369,39 @@ async function collectPptxSlide(slide, index, options = {}) {
   for (const [blockIndex, wrapper] of architectureWrappers.entries()) {
     if (insideFallback(wrapper)) continue;
     const architecture = await collectArchitectureObjects(wrapper, deck, blockIndex);
+    const targetSteps = architectureStepsByBlock.get(blockIndex);
+    if (targetSteps?.size) {
+      const represented = new Set([
+        ...architecture.elements.map((element) => element.architecture?.id).filter(Boolean),
+        ...architecture.fallbacks
+          .filter((fallback) => fallback.artwork !== false)
+          .map((fallback) => fallback.architecture?.id)
+          .filter(Boolean),
+      ]);
+      const missing = [...targetSteps.keys()].filter((id) => !represented.has(id));
+      if (missing.length || architecture.fallbacks.some((fallback) =>
+        fallback.type === "architecture" && fallback.artwork !== false && !fallback.architecture?.id)) {
+        throw new Error(
+          `PowerPoint cannot preserve Architecture reveal targets on slide ${index + 1}: ${missing.join(", ") || "diagram artwork combines independently scheduled targets"}.`,
+        );
+      }
+    }
     const zOrder = Number(wrapper.dataset.pptxZOrder);
     elements.push(
       ...architecture.elements.map((element, elementIndex) => ({
         ...element,
+        ...(targetSteps?.has(element.architecture?.id)
+          ? { revealStep: targetSteps.get(element.architecture.id) }
+          : {}),
         zOrder: zOrder + elementIndex / 1000,
       })),
     );
-    fallbacks.push(...architecture.fallbacks);
+    fallbacks.push(...architecture.fallbacks.map((fallback) => ({
+      ...fallback,
+      ...(targetSteps?.has(fallback.architecture?.id)
+        ? { revealStep: targetSteps.get(fallback.architecture.id) }
+        : {}),
+    })));
   }
 
   for (const [blockIndex, host] of [...deck.querySelectorAll(".archify-diagram")].entries()) {
@@ -3376,6 +3437,7 @@ async function collectPptxSlide(slide, index, options = {}) {
     ...(notes ? { notes } : {}),
     elements,
     fallbacks,
+    revealSchedule: slide.revealSchedule,
     ...(adaptiveCards.length ? { adaptiveCards } : {}),
   };
 }
@@ -4163,7 +4225,9 @@ async function openDetailedArchitectureEditor(index, block) {
 }
 
 async function fetchState() {
-  const stateUrl = previewOffset ? `./state?offset=${previewOffset}` : "./state";
+  const stateUrl = previewBuildNext
+    ? "./state?build=next"
+    : previewOffset ? `./state?offset=${previewOffset}` : "./state";
   const res = await fetch(stateUrl, { cache: "no-store" });
   if (!res.ok) return;
   const data = await res.json();
@@ -4276,22 +4340,27 @@ async function fetchState() {
 // --- navigation ------------------------------------------------------------
 // Server-authoritative: every nav action POSTs to /navigate, then immediately
 // re-fetches /state for an instant update (without waiting for the SSE nudge).
-async function navigate(payload) {
+let navigationQueue = Promise.resolve();
+function navigate(payload) {
   if (!navigationEnabled) return;
   if (surfaceMode) {
     window.frameElement?.dispatchEvent(new CustomEvent("slide-navigate", { detail: payload }));
     return;
   }
-  try {
-    const res = await fetch("./navigate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (res.ok) await fetchState();
-  } catch (_) {
-    /* ignore; the safety poll will resync */
-  }
+  const request = navigationQueue.catch(() => {}).then(async () => {
+    try {
+      const res = await fetch("./navigate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) await fetchState();
+    } catch (_) {
+      /* ignore; the safety poll will resync */
+    }
+  });
+  navigationQueue = request;
+  return request;
 }
 
 function goNext() {
@@ -4707,9 +4776,10 @@ function toggleFixedPreviewMode() {
   setFixedPreviewMode(!fixedPreviewMode);
 }
 
-function slideViewportState(markdown, index, interactive) {
+function slideViewportState(markdown, index, interactive, revealStep = 0, revealTotal = 0) {
   return {
     markdown, index, total: navTotal, theme: deckTheme, themeLocked: deckThemeLocked,
+    revealStep, revealTotal,
     customThemeCss, customThemeMeta, navigationEnabled: interactive, externalLinkAvailable,
   };
 }
@@ -4990,14 +5060,21 @@ function updateSlideViewports() {
     currentViewport ??= mountSlideViewport(
       document.getElementById("presenterCurrentViewport"), "presenterCurrent", "Current slide", true,
     );
-    currentViewport.setState(slideViewportState(lastMarkdown, navIndex, true));
-    const hasNext = navMode !== "deck" || navIndex < navTotal - 1;
+    currentViewport.setState(slideViewportState(lastMarkdown, navIndex, true, navRevealStep, navRevealTotal));
+    const hasReveal = navRevealStep < navRevealTotal;
+    const hasNext = hasReveal || navMode !== "deck" || navIndex < navTotal - 1;
     if (hasNext) {
-      const index = Math.min(navIndex + 1, navTotal - 1);
+      const index = hasReveal ? navIndex : Math.min(navIndex + 1, navTotal - 1);
+      const markdown = hasReveal ? lastMarkdown : deckSlides[index] || "";
+      const label = document.getElementById("presenterNextLabel");
+      if (label) label.textContent = hasReveal ? "Next reveal" : "Next slide";
       nextViewport ??= mountSlideViewport(
-        document.getElementById("presenterNextViewport"), "presenterNext", "Next slide", false,
+        document.getElementById("presenterNextViewport"), "presenterNext", hasReveal ? "Next reveal" : "Next slide", false,
       );
-      nextViewport.setState(slideViewportState(deckSlides[index] || "", index, false));
+      nextViewport.setState(slideViewportState(
+        markdown, index, false, hasReveal ? navRevealStep + 1 : 0,
+        hasReveal ? navRevealTotal : 0,
+      ));
     }
   } else {
     if (!outputViewport) {
@@ -5069,11 +5146,19 @@ function updateNav() {
     counter.textContent =
       navMode === "adhoc" ? "—" : navTotal ? `${navIndex + 1} / ${navTotal}` : "";
   }
+  const stepCounter = document.getElementById("navStepCounter");
+  if (stepCounter) {
+    stepCounter.textContent = navRevealTotal ? `Build ${navRevealStep} / ${navRevealTotal}` : "";
+  }
   const prev = document.getElementById("navPrev");
   const next = document.getElementById("navNext");
   // In ad-hoc mode the buttons stay enabled so the user can resume the deck.
-  if (prev) prev.disabled = navMode === "deck" && navIndex <= 0;
-  if (next) next.disabled = navMode === "deck" && navIndex >= navTotal - 1;
+  if (prev) prev.disabled = navMode === "deck" && navIndex <= 0 && navRevealStep <= 0;
+  if (next) next.disabled = navMode === "deck" && navIndex >= navTotal - 1 && navRevealStep >= navRevealTotal;
+  if (prev) prev.setAttribute("aria-label", navRevealStep ? "Rewind reveal" : "Previous slide");
+  if (next) next.setAttribute("aria-label", navRevealStep < navRevealTotal ? "Reveal next step" : "Next slide");
+  if (prev) prev.title = navRevealStep ? "Rewind reveal (←)" : "Previous (←)";
+  if (next) next.title = navRevealStep < navRevealTotal ? "Reveal next step (→)" : "Next (→)";
   highlightOverview();
   updateViewModeButton();
   updatePresenterView();
@@ -5109,13 +5194,17 @@ function updatePresenterView() {
   if (!presenterViewOpen) return;
   const counter = document.getElementById("presenterCounter");
   if (counter) counter.textContent = navTotal ? `${navIndex + 1} / ${navTotal}` : "";
+  const stepCounter = document.getElementById("presenterStepCounter");
+  if (stepCounter) stepCounter.textContent = navRevealTotal ? `Build ${navRevealStep} / ${navRevealTotal}` : "";
   const prev = document.getElementById("presenterPrevButton");
   const next = document.getElementById("presenterNextButton");
-  if (prev) prev.disabled = navMode === "deck" && navIndex <= 0;
-  if (next) next.disabled = navMode === "deck" && navIndex >= navTotal - 1;
-  const hasNext = navMode !== "deck" || navIndex < navTotal - 1;
+  if (prev) prev.disabled = navMode === "deck" && navIndex <= 0 && navRevealStep <= 0;
+  if (next) next.disabled = navMode === "deck" && navIndex >= navTotal - 1 && navRevealStep >= navRevealTotal;
+  const hasNext = navRevealStep < navRevealTotal || navMode !== "deck" || navIndex < navTotal - 1;
   const nextFrame = document.getElementById("presenterNextViewport");
   const nextEmpty = document.getElementById("presenterNextEmpty");
+  const nextLabel = document.getElementById("presenterNextLabel");
+  if (nextLabel) nextLabel.textContent = navRevealStep < navRevealTotal ? "Next reveal" : "Next slide";
   if (nextFrame) nextFrame.hidden = !hasNext;
   if (nextEmpty) nextEmpty.hidden = hasNext;
   const currentMarkdown =
@@ -5700,6 +5789,7 @@ function init() {
     previewMode = true;
     presenterMode = true;
     previewOffset = Math.max(-1, Math.min(1, Number(params.get("offset")) || 0));
+    previewBuildNext = params.get("build") === "next";
     navigationEnabled = params.get("navigate") === "1" && previewOffset === 0;
     document.body.classList.add("presenter-mode", "preview-mode");
   } else if (params.get("present") === "1") {

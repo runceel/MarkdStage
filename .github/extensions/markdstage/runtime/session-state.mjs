@@ -136,6 +136,9 @@ export function snapshotSession(session, { offset = 0 } = {}) {
     sourceName: session.sourceName, sourceMarkdown: session.sourceMarkdown,
     slides: session.slides.slice(), titles: session.slides.map(deriveTitle),
     notes: session.slides.map(extractSpeakerNotes),
+    revealTotals: session.slides.map((_, slideIndex) =>
+      session.revealSchedules[slideIndex]?.length || 0,
+    ),
     index, total: session.slides.length, markdown: session.slides[index] ?? "",
     revealStep: index === session.index ? session.revealStep || 0 : 0,
     revealTotal: session.revealSchedules[index]?.length || 0,

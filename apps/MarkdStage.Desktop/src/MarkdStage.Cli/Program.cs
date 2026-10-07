@@ -128,10 +128,13 @@ internal static class Program
         });
         if (file is not null)
             await scripts.InvokeAsync("load", new { path = Path.GetRelativePath(root, file).Replace('\\', '/') });
-        session.Navigate = async (index, delta) =>
+        session.Navigate = async (index, delta, action) =>
         {
             var previous = session.GetSnapshot().Version;
-            await scripts.InvokeAsync("navigate", new { body = index.HasValue ? (object)new { index = index.Value } : new { delta = delta!.Value } });
+            object body = action is "advance" or "rewind"
+                ? new { action }
+                : index.HasValue ? new { index = index.Value } : new { delta = delta!.Value };
+            await scripts.InvokeAsync("navigate", new { body });
             return previous != session.GetSnapshot().Version;
         };
         if (args.IsPresentation)

@@ -26,18 +26,26 @@ public sealed class PresentationSessionTests
         session.ApplySnapshot(snapshot);
         int? requestedIndex = null;
         int? requestedDelta = null;
-        session.Navigate = (index, delta) =>
+        string? requestedAction = null;
+        session.Navigate = (index, delta, action) =>
         {
             requestedIndex = index;
             requestedDelta = delta;
+            requestedAction = action;
             return Task.FromResult(true);
         };
         Assert.True(await session.NavigateByAsync(1));
         Assert.Null(requestedIndex);
         Assert.Equal(1, requestedDelta);
+        Assert.Null(requestedAction);
+        Assert.True(await session.AdvanceAsync(-1));
+        Assert.Null(requestedIndex);
+        Assert.Null(requestedDelta);
+        Assert.Equal("rewind", requestedAction);
         Assert.True(await session.NavigateToAsync(20));
         Assert.Equal(20, requestedIndex);
         Assert.Null(requestedDelta);
+        Assert.Null(requestedAction);
         Assert.Same(snapshot, session.GetSnapshot());
     }
 }

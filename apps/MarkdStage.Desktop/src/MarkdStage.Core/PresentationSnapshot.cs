@@ -17,6 +17,9 @@ public sealed record PresentationSnapshot(
 {
     public IReadOnlyList<string> Titles { get; init; } = [];
     public IReadOnlyList<string> Notes { get; init; } = [];
+    public IReadOnlyList<int> RevealTotals { get; init; } = [];
+    public int RevealStep { get; init; }
+    public int RevealTotal { get; init; }
     public int Total => Slides.Count;
 
     public string CurrentMarkdown =>
