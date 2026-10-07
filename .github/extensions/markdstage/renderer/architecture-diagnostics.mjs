@@ -67,9 +67,7 @@ export function unknownArchitectureField(value, key, allowed, path, type) {
     suggestions.push({
       action: "review",
       pointer,
-      message: type === "connector" && key === "id"
-        ? "Connectors have no id. Review why this identifier was supplied before removing it."
-        : "This field is not part of the contract. Review its intended meaning before removing or replacing it.",
+      message: "This field is not part of the contract. Review its intended meaning before removing or replacing it.",
       automatic: false,
     });
   }
@@ -86,7 +84,7 @@ export function claimArchitectureId(ids, id, path, report = throwArchitectureDia
     report(architectureDiagnostic(
       path,
       `duplicates '${id}'`,
-      "give every node, group, and image a unique id across the whole diagram",
+      "give every node, group, and image a unique id across the whole diagram; identified connectors also need unique ids",
       { code: "duplicate_id", category: "semantic" },
     ));
   } else {

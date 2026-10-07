@@ -102,3 +102,32 @@ do not substitute for opening the file in a presentation application.
 
 Record desktop, Web, and Impress results separately as pass, fail, or **not run**, with screenshots
 and discrepancy notes. The procedure is not evidence that a particular application has been tested.
+
+## Incremental reveal playback
+
+The package unit suite compares the complete timing tree against an independently
+PowerPoint-authored Appear reference. This guards the click gates, parallel-target
+hierarchy, and slide navigation conditions; it does not establish application playback.
+
+On Windows with installed PowerPoint desktop, export a dedicated copy of the root
+sample deck, then run the opt-in application regression:
+
+```powershell
+.\test\pptx\powerpoint-playback.ps1 -PresentationPath .\artifacts\sample.pptx -EvidenceDirectory .\artifacts\playback
+```
+
+The script opens only the named presentation, runs a windowed slideshow, compares
+PowerPoint's loaded effects/paragraph targets/click groups with the authored timing,
+advances every click without changing slides, and captures the dedicated slideshow
+window with DPI-correct `PrintWindow`. Each build must visibly change pixels.
+It restores every previous build and verifies identical visibility, saves a copy,
+and repeats after reopening. Screenshots and `playback.json` are retained as evidence.
+It closes its slideshow and presentations without quitting a potentially shared
+PowerPoint instance. Use a unique filename and do not run concurrent playback checks.
+
+Repeat with `slides-light.md`, `slides-microsoft.md`, and `slides-custom.md`, and with
+Mermaid **Editable shapes** and **Images**. Review initial and subsequent screenshots
+for missing, prematurely visible, or incorrectly grouped targets. Also check opening
+without repair warnings. PowerPoint desktop **16.0.20430.20092** passed these sample
+checks on Windows; PowerPoint for the web and LibreOffice playback are **not run**.
+Accessibility checks are separate.

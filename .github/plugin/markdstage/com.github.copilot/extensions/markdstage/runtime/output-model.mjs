@@ -209,6 +209,9 @@ export async function preparePptxPackageModel(inst, model, layoutArtworks, slide
         x: capture.x, y: capture.y, width: capture.width, height: capture.height,
         fit: "fill", opacity: 1,
         ...(Number.isFinite(fallback.zOrder) ? { zOrder: fallback.zOrder } : {}), assetId,
+        ...(Number.isInteger(fallback.revealStep) && fallback.revealStep > 0
+          ? { revealStep: fallback.revealStep }
+          : {}),
       });
     }
     const orderedElements = [...fallbackElements, ...elements]
@@ -220,6 +223,9 @@ export async function preparePptxPackageModel(inst, model, layoutArtworks, slide
       }).map(({ element }) => element);
     slides.push({
       layoutId: sourceSlide.layoutId, ...(sourceSlide.notes ? { notes: sourceSlide.notes } : {}),
+      ...(Number.isInteger(sourceSlide.revealSchedule?.schedule?.length)
+        ? { revealStepCount: sourceSlide.revealSchedule.schedule.length }
+        : {}),
       elements: orderedElements,
     });
   }

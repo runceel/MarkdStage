@@ -1091,6 +1091,11 @@ export const architectureContract = {
           "description": "Element type.",
           "const": "connector"
         },
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+          "description": "Optional stable identifier for referencing this connector in reveal schedules."
+        },
         "from": {
           "anyOf": [
             {
@@ -3930,6 +3935,11 @@ export const architectureContract = {
       "properties": {
         "type": {
           "const": "connector"
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+          "description": "Optional stable identifier for referencing this connector in reveal schedules."
         },
         "from": {
           "anyOf": [
@@ -9261,6 +9271,11 @@ export const architectureContract = {
               "type": {
                 "const": "connector"
               },
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+                "description": "Optional stable identifier for referencing this connector in reveal schedules."
+              },
               "from": {
                 "anyOf": [
                   {
@@ -10740,6 +10755,11 @@ export const architectureContract = {
               "type": {
                 "const": "connector"
               },
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+                "description": "Optional stable identifier for referencing this connector in reveal schedules."
+              },
               "from": {
                 "anyOf": [
                   {
@@ -12205,6 +12225,11 @@ export const architectureContract = {
             "properties": {
               "type": {
                 "const": "connector"
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+                "description": "Optional stable identifier for referencing this connector in reveal schedules."
               },
               "from": {
                 "anyOf": [
@@ -13685,6 +13710,11 @@ export const architectureContract = {
               "type": {
                 "const": "connector"
               },
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+                "description": "Optional stable identifier for referencing this connector in reveal schedules."
+              },
               "from": {
                 "anyOf": [
                   {
@@ -15150,6 +15180,11 @@ export const architectureContract = {
             "properties": {
               "type": {
                 "const": "connector"
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+                "description": "Optional stable identifier for referencing this connector in reveal schedules."
               },
               "from": {
                 "anyOf": [
@@ -16630,6 +16665,11 @@ export const architectureContract = {
               "type": {
                 "const": "connector"
               },
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+                "description": "Optional stable identifier for referencing this connector in reveal schedules."
+              },
               "from": {
                 "anyOf": [
                   {
@@ -18096,6 +18136,11 @@ export const architectureContract = {
               "type": {
                 "const": "connector"
               },
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+                "description": "Optional stable identifier for referencing this connector in reveal schedules."
+              },
               "from": {
                 "anyOf": [
                   {
@@ -19142,6 +19187,11 @@ export const architectureContract = {
               "type": {
                 "const": "connector"
               },
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+                "description": "Optional stable identifier for referencing this connector in reveal schedules."
+              },
               "from": {
                 "anyOf": [
                   {
@@ -20179,6 +20229,11 @@ export const architectureContract = {
             "properties": {
               "type": {
                 "const": "connector"
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+                "description": "Optional stable identifier for referencing this connector in reveal schedules."
               },
               "from": {
                 "anyOf": [

@@ -14,7 +14,7 @@ const INVALID = JSON.stringify({
       label: "unsupported", subtitle: "unsupported",
     },
     { type: "node", id: "b", x: 400, y: 40, width: 200, height: 120 },
-    { type: "connector", from: "a", to: "b", id: "unsupported", text: "unsupported" },
+    { type: "connector", from: "a", to: "b", direction: "unsupported", text: "unsupported" },
   ],
 });
 const markdown = (source) => `# Diagram\r\n\r\n\`\`\`architecture\r\n${source}\r\n\`\`\`\r\n`;

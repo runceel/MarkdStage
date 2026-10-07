@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { startHarness } from "../harness/server.mjs";
+import { BLOCK_REVEAL_SLIDES } from "../utils/reveal-deck.mjs";
 
 const SLIDES = [
   `---
@@ -130,6 +131,105 @@ async function openPptx(page, harness) {
   ).not.toBe("true");
   return page.evaluate(() => window.__presentationPptxModel);
 }
+
+test("exports ordinary and incremental lists with aligned paragraph reveal steps", async ({ page }) => {
+  const list = ["1. Plan", "   - Requirements", "   - Design", "2. Deliver", "   - Verify"].join("\n");
+  const harness = await startHarness({
+    slides: [
+      `## Ordinary list\n\n${list}`,
+      `## Together\n\n<!-- markdstage: reveal=list-items nested=together -->\n\n${list}`,
+      `## Separate\n\n<!-- markdstage: reveal=list-items nested=separate -->\n\n${list}`,
+    ],
+  });
+  try {
+    const model = await openPptx(page, harness);
+    const lists = model.slides.slice(0, 3).map((slide) => {
+      const elements = slide.elements.filter((element) =>
+        element.type === "text" && element.paragraphs?.some((paragraph) => paragraph.bullet));
+      expect(elements).toHaveLength(1);
+      return elements[0];
+    });
+    for (const listElement of lists) {
+      expect(listElement.paragraphs.map((paragraph) =>
+        paragraph.runs.map((run) => run.text).join("")))
+        .toEqual(["Plan", "Requirements", "Design", "Deliver", "Verify"]);
+      expect(listElement.paragraphs.map((paragraph) => paragraph.level))
+        .toEqual([0, 1, 1, 0, 1]);
+    }
+    expect(lists[0].paragraphRevealSteps).toBeUndefined();
+    expect(lists[1].paragraphRevealSteps).toEqual([1, 1, 1, 2, 2]);
+    expect(lists[2].paragraphRevealSteps).toEqual([1, 2, 3, 4, 5]);
+  } finally {
+    await harness.close();
+  }
+});
+
+test("exports whole blocks with native objects and artwork assigned to the same build", async ({ page }) => {
+  const harness = await startHarness({ slides: BLOCK_REVEAL_SLIDES });
+  try {
+    const model = await openPptx(page, harness);
+    expect(model.slides.slice(0, 6).map((slide) => slide.revealSchedule.schedule.length))
+      .toEqual([4, 1, 1, 1, 1, 1]);
+    const first = model.slides[0];
+    const list = first.elements.find((element) => element.paragraphRevealSteps);
+    expect(list.paragraphRevealSteps).toEqual([1, 2]);
+    expect(list.revealStep).toBeUndefined();
+    const paragraph = first.elements.find((element) =>
+      element.paragraphs?.some((paragraph) =>
+        paragraph.runs.some((run) => run.text.includes("This conclusion"))));
+    expect(paragraph.revealStep).toBe(3);
+    const diagramObjects = first.elements.filter((element) => element.architecture);
+    expect(diagramObjects.length).toBeGreaterThan(3);
+    expect(diagramObjects.every((element) => element.revealStep === 4)).toBe(true);
+    for (const fallback of first.fallbacks.filter((fallback) => fallback.architecture)) {
+      expect(fallback.revealStep).toBe(4);
+    }
+    const image = model.slides[1].elements.find((element) => element.type === "image");
+    expect(image.revealStep).toBe(1);
+    expect(model.slides[2].elements.find((element) => element.type === "table").revealStep).toBe(1);
+    const code = model.slides[3];
+    expect(code.elements.filter((element) => element.type === "shape").length).toBeGreaterThan(0);
+    expect(code.elements.filter((element) => element.type === "shape").every((element) =>
+      element.revealStep === 1)).toBe(true);
+    expect(code.fallbacks.filter((fallback) => fallback.type === "effect").every((fallback) =>
+      fallback.revealStep === 1)).toBe(true);
+    const mermaid = model.slides[4].elements.filter((element) => element.path?.startsWith("mermaid["));
+    expect(mermaid.length).toBeGreaterThan(2);
+    expect(mermaid.every((element) => element.revealStep === 1)).toBe(true);
+    expect(model.slides[4].fallbacks.filter((fallback) => fallback.type === "mermaid")
+      .every((fallback) => fallback.revealStep === 1)).toBe(true);
+    const entireList = model.slides[5].elements.find((element) =>
+      element.paragraphs?.some((paragraph) => paragraph.bullet));
+    expect(entireList.revealStep).toBe(1);
+    expect(entireList.paragraphRevealSteps).toBeUndefined();
+    expect(entireList.paragraphs).toHaveLength(3);
+  } finally {
+    await harness.close();
+  }
+});
+
+test("rejects fallback artwork that would merge different block builds", async ({ page }) => {
+  const harness = await startHarness({ slides: [BLOCK_REVEAL_SLIDES[0]] });
+  const errors = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  try {
+    await page.route("**/renderer/slides.css", async (route) => {
+      const response = await route.fetch();
+      await route.fulfill({
+        response,
+        body: `${await response.text()}\n.body { filter: blur(1px); }\n`,
+      });
+    });
+    await page.goto(`${harness.url}/?pptx=1&token=${encodeURIComponent(harness.printToken)}`, { waitUntil: "load" });
+    await expect(page.locator("html")).toHaveAttribute("data-pptx-error", "true");
+    expect(errors.some((message) => message.includes("combines independently scheduled content"))).toBe(true);
+    expect(await page.evaluate(() => window.__presentationPptxModel)).toBeUndefined();
+  } finally {
+    await harness.close();
+  }
+});
 
 test("preserves CSS corner radii for tall code blocks, accents, and images", async ({ page }) => {
   const harness = await startHarness({

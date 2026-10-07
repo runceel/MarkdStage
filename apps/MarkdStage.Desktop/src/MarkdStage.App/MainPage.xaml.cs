@@ -49,7 +49,7 @@ public sealed partial class MainPage : Page
         var session = _session = new PresentationSession();
         _presenterWindowService = new PresenterWindowService(delta =>
         {
-            session.NavigateBy(delta);
+            session.Advance(delta);
         });
         _server = new PresentationServer(
             session,

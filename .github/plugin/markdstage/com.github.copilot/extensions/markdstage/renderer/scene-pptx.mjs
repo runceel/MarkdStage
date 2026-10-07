@@ -146,6 +146,7 @@ function fallbackFor(node, index, options, reason) {
     type: options.fallbackType,
     path: nodePath(node, index, options.pathPrefix),
     sourcePath: nonEmptyStringOr(node.sourcePath, `nodes[${index}]`),
+    ...(node.meta?.architecture ? { architecture: node.meta.architecture } : {}),
     reason,
     x: bounds.x,
     y: bounds.y,

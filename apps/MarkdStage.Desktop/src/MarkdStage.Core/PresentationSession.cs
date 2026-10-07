@@ -16,7 +16,7 @@ public sealed class PresentationSession
         }
     }
 
-    public Func<int?, int?, Task<bool>>? Navigate { get; set; }
+    public Func<int?, int?, string?, Task<bool>>? Navigate { get; set; }
 
     public PresentationSnapshot ApplySnapshot(PresentationSnapshot snapshot)
     {
@@ -31,8 +31,11 @@ public sealed class PresentationSession
 
     public void NotifyChanged() => Changed?.Invoke(this, GetSnapshot());
 
-    public Task<bool> NavigateByAsync(int delta) => Navigate?.Invoke(null, delta) ?? Task.FromResult(false);
-    public Task<bool> NavigateToAsync(int index) => Navigate?.Invoke(index, null) ?? Task.FromResult(false);
+    public Task<bool> NavigateByAsync(int delta) => Navigate?.Invoke(null, delta, null) ?? Task.FromResult(false);
+    public Task<bool> AdvanceAsync(int direction) =>
+        Navigate?.Invoke(null, null, direction > 0 ? "advance" : "rewind") ?? Task.FromResult(false);
+    public Task<bool> NavigateToAsync(int index) => Navigate?.Invoke(index, null, null) ?? Task.FromResult(false);
     public void NavigateBy(int delta) => _ = NavigateByAsync(delta);
+    public void Advance(int direction) => _ = AdvanceAsync(direction);
     public void NavigateTo(int index) => _ = NavigateToAsync(index);
 }

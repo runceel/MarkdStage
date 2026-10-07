@@ -199,6 +199,11 @@ internal sealed class PresentationServer(
             var offset = int.TryParse(context.Request.Query["offset"], out var parsedOffset)
                 ? Math.Clamp(parsedOffset, -1, 1)
                 : 0;
+            var buildNext = context.Request.Query["build"] == "next";
+            if (buildNext && snapshot.RevealStep >= snapshot.RevealTotal && snapshot.HasNext)
+            {
+                offset = 1;
+            }
             var targetIndex = snapshot.Total == 0
                 ? 0
                 : Math.Clamp(snapshot.Index + offset, 0, snapshot.Total - 1);
@@ -214,6 +219,12 @@ internal sealed class PresentationServer(
                 markdown,
                 index = targetIndex,
                 total = snapshot.Total,
+                revealStep = targetIndex == snapshot.Index
+                    ? buildNext && snapshot.RevealStep < snapshot.RevealTotal
+                        ? snapshot.RevealStep + 1
+                        : snapshot.RevealStep
+                    : 0,
+                revealTotal = snapshot.RevealTotals.ElementAtOrDefault(targetIndex),
                 theme = snapshot.Theme.Name,
                 themeLocked = false,
                 customThemeCss = snapshot.Theme.Css,
@@ -357,12 +368,14 @@ internal sealed class PresentationServer(
         {
             var request = await context.Request.ReadFromJsonAsync<NavigationRequest>(
                 cancellationToken: context.RequestAborted);
-            if (request is null || (request.Index.HasValue == request.Delta.HasValue))
+            var hasAction = request?.Action is "advance" or "rewind";
+            if (request is null ||
+                new[] { request.Index.HasValue, request.Delta.HasValue, hasAction }.Count(value => value) != 1)
             {
                 return Results.BadRequest(new
                 {
                     ok = false,
-                    error = "exactly one of index or delta is required",
+                    error = "exactly one of index, delta, or a reveal action is required",
                 });
             }
 
@@ -374,7 +387,9 @@ internal sealed class PresentationServer(
 
             var changed = request.Index.HasValue
                 ? await session.NavigateToAsync(request.Index.Value)
-                : await session.NavigateByAsync(request.Delta!.Value);
+                : request.Delta.HasValue
+                    ? await session.NavigateByAsync(request.Delta.Value)
+                    : await session.AdvanceAsync(request.Action == "advance" ? 1 : -1);
             snapshot = session.GetSnapshot();
 
             return Results.Json(new
@@ -384,6 +399,8 @@ internal sealed class PresentationServer(
                 version = snapshot.Version,
                 index = snapshot.Index,
                 total = snapshot.Total,
+                revealStep = snapshot.RevealStep,
+                revealTotal = snapshot.RevealTotal,
                 mode = "deck",
             });
         });
@@ -921,7 +938,7 @@ internal sealed class PresentationServer(
             _ => "application/octet-stream",
         };
 
-    private sealed record NavigationRequest(int? Index, int? Delta);
+    private sealed record NavigationRequest(int? Index, int? Delta, string? Action);
     private sealed record ExternalLinkRequest(string? Url);
     private sealed record OpenExportRequest(string? Path);
     private sealed record ArchitectureOpenRequest(int? Index, int? Block);

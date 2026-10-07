@@ -1,6 +1,7 @@
 import { splitFrontMatter } from "./slide-title.mjs";
 import { splitSpeakerNotes } from "./speaker-notes.mjs";
 import { extractAlerts } from "./markdown-alerts.mjs";
+import { parseRevealSchedule } from "./reveal-schedule.mjs";
 
 const FENCE_OPEN = /^([ \t]{0,3})(`{3,}|~{3,})[ \t]*([^\s`~]*)[ \t]*$/;
 
@@ -27,9 +28,18 @@ export function findFencedBlocks(markdown, language) {
 export function parseSlideMarkdown(markdown, markedApi) {
   const { meta, body: rawBody } = splitFrontMatter(markdown);
   const directive = rawBody.match(/^\s*<!--\s*slide-size\s*:\s*(auto|compact|normal|large|xlarge)\s*-->\s*/i);
+  const revealSchedule = parseRevealSchedule(rawBody, markedApi);
   const notes = splitSpeakerNotes(directive ? rawBody.slice(directive[0].length) : rawBody);
   const body = notes.markdown.replace(/\r\n?/g, "\n");
   const tokens = markedApi.lexer(body, { gfm: true, breaks: false });
+  const blockTokens = tokens.filter((token) => token.type !== "space" && token.type !== "html");
+  const revealBlocks = revealSchedule.blocks.map((block) => {
+    const token = blockTokens[block.blockIndex];
+    if (!token || token.type !== block.blockType) {
+      throw new Error(`The Markdown block bound to reveal directive ${block.blockIndex + 1} could not be parsed.`);
+    }
+    return { ...block, token };
+  });
   const cards = [];
   const walk = (entries, path, offset = null) => {
     for (const [index, token] of entries.entries()) {
@@ -55,5 +65,8 @@ export function parseSlideMarkdown(markdown, markedApi) {
   walk(tokens, "tokens", 0);
   // After the card walk so card diagnostics keep the original Marked token paths.
   const alerts = extractAlerts(tokens);
-  return { meta, body, notes: notes.notes, size: directive?.[1].toLowerCase() || "", tokens, cards, alerts };
+  return {
+    meta, body, notes: notes.notes, size: directive?.[1].toLowerCase() || "",
+    tokens, cards, alerts, revealSchedule, revealBlocks,
+  };
 }

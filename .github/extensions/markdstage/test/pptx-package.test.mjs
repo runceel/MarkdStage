@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 
 import {
   buildPptxPackage as buildPptxBytes,
@@ -53,6 +54,20 @@ function xml(files, name) {
   return value.toString("utf8");
 }
 
+test("matches PowerPoint-authored click gating, parallel effects, and slideshow navigation", () => {
+  const elements = [1, 1, 2].map((revealStep, index) => ({
+    type: "text", x: 100, y: (index + 1) * 100, width: 300, height: 80,
+    paragraphs: [{ runs: [{ text: `Item ${index + 1}` }] }], revealStep,
+  }));
+  const slide = xml(readStoredZip(buildPptxPackage({
+    slides: [{ revealStepCount: 2, elements }],
+  })), "ppt/slides/slide1.xml");
+  const reference = readFileSync(new URL("./fixtures/powerpoint-appear-timing.xml", import.meta.url), "utf8");
+  const tree = value => value.match(/<p:tnLst(?: xmlns:p="[^"]+")?>[\s\S]*?<\/p:tnLst>/)[0]
+    .replace(/ xmlns:p="[^"]+"/, "").replace(/>\s+</g, "><");
+  assert.equal(tree(slide), tree(reference));
+});
+
 test("writes explicit flat, round and square caps for native strokes and rejects unknown caps", () => {
   for (const [lineCap, cap] of [["butt", "flat"], ["round", "rnd"], ["square", "sq"]]) {
     const elements = [
@@ -64,6 +79,91 @@ test("writes explicit flat, round and square caps for native strokes and rejects
     elements[0].lineCap = "unknown";
     assert.throws(() => buildPptxPackage({ slides: [{ elements }] }), /lineCap/);
   }
+});
+
+test("writes click-driven appear timing for text paragraphs and every connector segment", () => {
+  const slide = xml(readStoredZip(buildPptxPackage({
+    slides: [{
+      revealStepCount: 2,
+      elements: [
+        {
+          type: "text",
+          x: 10,
+          y: 10,
+          width: 100,
+          height: 40,
+          paragraphs: [
+            { runs: [{ text: "First" }] },
+            { runs: [{ text: "Second" }] },
+          ],
+          paragraphRevealSteps: [1, 2],
+        },
+        {
+          type: "polyline",
+          points: [{ x: 0, y: 0 }, { x: 20, y: 20 }, { x: 40, y: 20 }],
+          stroke: "#123456",
+          revealStep: 2,
+        },
+      ],
+    }],
+  })), "ppt/slides/slide1.xml");
+  assert.equal((slide.match(/nodeType="clickEffect"/g) || []).length, 2);
+  assert.equal((slide.match(/nodeType="withEffect"/g) || []).length, 2);
+  assert.equal((slide.match(/presetClass="entr"/g) || []).length, 4);
+  assert.match(slide, /<p:spTgt spid="2"><p:txEl><p:pRg st="0" end="0"\/><\/p:txEl><\/p:spTgt>/);
+  assert.match(slide, /<p:spTgt spid="2"><p:txEl><p:pRg st="1" end="1"\/><\/p:txEl><\/p:spTgt>/);
+  assert.match(slide, /<p:spTgt spid="3"\/>/);
+  assert.match(slide, /<p:spTgt spid="4"\/>/);
+  assert.match(slide, /<p:bldP spid="2" grpId="0" build="p"\/>/);
+  const timingIds = [...slide.matchAll(/<p:cTn id="(\d+)"/g)].map((match) => match[1]);
+  assert.equal(new Set(timingIds).size, timingIds.length);
+  assert.match(slide, /<p:timing><p:tnLst>/);
+});
+
+test("does not add timing to static slides and rejects reveal schedules with unmapped steps", () => {
+  const staticSlide = xml(readStoredZip(buildPptxPackage({
+    slides: [{ elements: [] }],
+  })), "ppt/slides/slide1.xml");
+  assert.doesNotMatch(staticSlide, /<p:timing>/);
+  assert.throws(
+    () => buildPptxPackage({
+      slides: [{
+        revealStepCount: 1,
+        elements: [{ type: "shape", shape: "rect", x: 0, y: 0, width: 10, height: 10 }],
+      }],
+    }),
+    /reveal step 1 has no emitted PowerPoint objects/,
+  );
+});
+
+test("groups mixed paragraph and whole-shape targets by step without building static paragraphs", () => {
+  const textElement = (paragraphRevealSteps) => ({
+    type: "text", x: 10, y: 10, width: 100, height: 80,
+    paragraphs: paragraphRevealSteps.map((_, index) => ({
+      runs: [{ text: `Paragraph ${index}` }],
+    })),
+    paragraphRevealSteps,
+  });
+  const slide = xml(readStoredZip(buildPptxPackage({
+    slides: [{
+      revealStepCount: 2,
+      elements: [
+        textElement([0, 2, 1, 2]),
+        textElement([2, 0, 1]),
+        { type: "shape", shape: "rect", x: 0, y: 0, width: 10, height: 10, revealStep: 2 },
+        textElement([0, 0]),
+      ],
+    }],
+  })), "ppt/slides/slide1.xml");
+  const timing = slide.match(/<p:timing>[\s\S]*?<\/p:timing>/)[0];
+  const targets = [...timing.matchAll(/<p:spTgt spid="(\d+)"(?:\/>|><p:txEl><p:pRg st="(\d+)")/g)]
+    .map((match) => [Number(match[1]), match[2] === undefined ? null : Number(match[2])]);
+  assert.deepEqual(targets, [[2, 2], [3, 2], [2, 1], [2, 3], [3, 0], [4, null]]);
+  assert.deepEqual(
+    [...timing.matchAll(/nodeType="(clickEffect|withEffect)"/g)].map((match) => match[1]),
+    ["clickEffect", "withEffect", "clickEffect", "withEffect", "withEffect", "withEffect"],
+  );
+  assert.match(timing, /<p:bldLst><p:bldP spid="2" grpId="0" build="p"\/><p:bldP spid="3" grpId="0" build="p"\/><\/p:bldLst>/);
 });
 
 test("rejects inherited names and non-string line caps for connectors and shapes", () => {

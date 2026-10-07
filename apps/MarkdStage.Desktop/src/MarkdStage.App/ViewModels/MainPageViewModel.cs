@@ -64,6 +64,9 @@ public sealed partial class MainPageViewModel : ObservableObject, IAsyncDisposab
     public partial string PageCounter { get; set; } = "0 / 0";
 
     [ObservableProperty]
+    public partial string BuildCounter { get; set; } = string.Empty;
+
+    [ObservableProperty]
     public partial string CurrentSpeakerNotes { get; set; } = "No speaker notes";
 
     [ObservableProperty]
@@ -102,7 +105,7 @@ public sealed partial class MainPageViewModel : ObservableObject, IAsyncDisposab
         {
             await _server.StartAsync();
             CurrentPreviewUri = BuildPreviewUri(offset: 0);
-            NextPreviewUri = BuildPreviewUri(offset: 1);
+            NextPreviewUri = BuildPreviewUri(offset: 0, nextBuild: true);
         }
         catch (Exception error) when (
             error is InvalidOperationException or IOException or InvalidDataException)
@@ -122,10 +125,10 @@ public sealed partial class MainPageViewModel : ObservableObject, IAsyncDisposab
     }
 
     [RelayCommand(CanExecute = nameof(CanGoPrevious))]
-    private void Previous() => _session.NavigateBy(-1);
+    private void Previous() => _session.Advance(-1);
 
     [RelayCommand(CanExecute = nameof(CanGoNext))]
-    private void Next() => _session.NavigateBy(1);
+    private void Next() => _session.Advance(1);
 
     [RelayCommand(CanExecute = nameof(CanTogglePresentation))]
     private async Task TogglePresentationAsync()
@@ -292,21 +295,24 @@ public sealed partial class MainPageViewModel : ObservableObject, IAsyncDisposab
     }
 
     private bool CanGoPrevious() =>
-        IsDeckLoaded && _session.GetSnapshot().Index > 0;
+        IsDeckLoaded && (_session.GetSnapshot().Index > 0 || _session.GetSnapshot().RevealStep > 0);
 
     private bool CanGoNext() =>
-        IsDeckLoaded && _session.GetSnapshot().HasNext;
+        IsDeckLoaded && (_session.GetSnapshot().HasNext ||
+            _session.GetSnapshot().RevealStep < _session.GetSnapshot().RevealTotal);
 
     private bool CanTogglePresentation() =>
         IsDeckLoaded && _server.BaseUri is not null;
 
-    private Uri BuildPreviewUri(int offset)
+    private Uri BuildPreviewUri(int offset, bool nextBuild = false)
     {
         var baseUri = _server.BaseUri
             ?? throw new InvalidOperationException("The presentation server is not ready.");
         return new UriBuilder(baseUri)
         {
-            Query = offset == 0
+            Query = nextBuild
+                ? "preview=1&build=next"
+                : offset == 0
                 ? "preview=1&offset=0&navigate=1"
                 : $"preview=1&offset={offset}",
         }.Uri;
@@ -340,9 +346,14 @@ public sealed partial class MainPageViewModel : ObservableObject, IAsyncDisposab
         IsDeckLoaded = snapshot.Total > 0;
         CurrentSlideIndex = snapshot.Total > 0 ? snapshot.Index : -1;
         HasNextSlide = snapshot.HasNext;
+        CurrentPreviewUri = BuildPreviewUri(offset: 0);
+        NextPreviewUri = BuildPreviewUri(offset: 0, nextBuild: true);
         PageCounter = snapshot.Total == 0
             ? "0 / 0"
             : $"{snapshot.Index + 1} / {snapshot.Total}";
+        BuildCounter = snapshot.RevealTotal > 0
+            ? $"Build {snapshot.RevealStep} / {snapshot.RevealTotal}"
+            : string.Empty;
         var notes = snapshot.Notes.ElementAtOrDefault(snapshot.Index);
         CurrentSpeakerNotes = string.IsNullOrWhiteSpace(notes)
             ? "No speaker notes"

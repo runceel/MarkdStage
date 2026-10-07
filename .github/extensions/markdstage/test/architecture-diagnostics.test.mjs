@@ -17,7 +17,7 @@ const source = (elements, extra = {}) => JSON.stringify({ elements, ...extra });
 const fourMistakes = () => source([
   node("client", { label: "Client", subtitle: "Browser" }),
   node("api", { x: 300 }),
-  { type: "connector", id: "request", from: "client", to: "api", text: "HTTPS" },
+  { type: "connector", from: "client", to: "api", direction: "right", text: "HTTPS" },
 ]);
 const errors = (report) => report.diagnostics.filter((item) => item.severity === "error");
 const own = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
@@ -75,7 +75,7 @@ test("reports four independent unknown fields without changing the input", () =>
   assert.deepEqual(errors(report).map(({ code, pointer }) => ({ code, pointer })), [
     { code: "unknown_field", pointer: "/elements/0/label" },
     { code: "unknown_field", pointer: "/elements/0/subtitle" },
-    { code: "unknown_field", pointer: "/elements/2/id" },
+    { code: "unknown_field", pointer: "/elements/2/direction" },
     { code: "unknown_field", pointer: "/elements/2/text" },
   ]);
   assert.equal(input, fourMistakes());
@@ -106,7 +106,7 @@ test("suggestions detect existing values and never silently merge or delete data
   const report = validateArchitecture(source([
     node("client", { text: "Keep this", label: "Do not overwrite", subtitle: "Not the same layout" }),
     node("api"),
-    { type: "connector", id: "request", from: "client", to: "api", label: "Keep", text: "Different" },
+    { type: "connector", from: "client", to: "api", label: "Keep", direction: "right", text: "Different" },
   ]));
   for (const diagnostic of errors(report)) {
     assert.ok(diagnostic.suggestions.length);
@@ -118,8 +118,8 @@ test("suggestions detect existing values and never silently merge or delete data
   assert.equal(label.to, "/elements/0/text");
   const subtitle = errors(report).find((item) => item.pointer === "/elements/0/subtitle").suggestions[0];
   assert.equal(subtitle.action, "review");
-  const id = errors(report).find((item) => item.pointer === "/elements/2/id").suggestions[0];
-  assert.match(id.message, /why this identifier was supplied/);
+  const direction = errors(report).find((item) => item.pointer === "/elements/2/direction").suggestions[0];
+  assert.match(direction.message, /not part of the contract/);
 });
 
 test("collects independent scalar, style, required-field and conditional violations", () => {

@@ -1045,6 +1045,61 @@ function baseShapeTree() {
   return '<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>';
 }
 
+const REVEAL_START_NOW_XML = '<p:stCondLst><p:cond delay="0"/></p:stCondLst>';
+
+function revealTargetXml({ shapeId, paragraphIndex }) {
+  return paragraphIndex === null
+    ? `<p:spTgt spid="${shapeId}"/>`
+    : `<p:spTgt spid="${shapeId}"><p:txEl><p:pRg st="${paragraphIndex}" end="${paragraphIndex}"/></p:txEl></p:spTgt>`;
+}
+
+function revealAppearEffectXml(target, targetIndex, nextTimingId) {
+  const effectId = nextTimingId();
+  const visibilityId = nextTimingId();
+  const nodeType = targetIndex === 0 ? "clickEffect" : "withEffect";
+  const visibility = `<p:set><p:cBhvr><p:cTn id="${visibilityId}" dur="1" fill="hold">${REVEAL_START_NOW_XML}</p:cTn><p:tgtEl>${revealTargetXml(target)}</p:tgtEl><p:attrNameLst><p:attrName>style.visibility</p:attrName></p:attrNameLst></p:cBhvr><p:to><p:strVal val="visible"/></p:to></p:set>`;
+  return `<p:par><p:cTn id="${effectId}" presetID="1" presetClass="entr" presetSubtype="0" fill="hold" grpId="0" nodeType="${nodeType}">${REVEAL_START_NOW_XML}<p:childTnLst>${visibility}</p:childTnLst></p:cTn></p:par>`;
+}
+
+function revealClickGroupXml(targets, nextTimingId) {
+  const clickGateId = nextTimingId();
+  const parallelGroupId = nextTimingId();
+  const effects = targets.map((target, index) =>
+    revealAppearEffectXml(target, index, nextTimingId)
+  ).join("");
+  // PowerPoint requires an indefinite outer click gate, then a zero-delay
+  // parallel group containing a distinct entrance effect for each target.
+  return `<p:par><p:cTn id="${clickGateId}" fill="hold"><p:stCondLst><p:cond delay="indefinite"/></p:stCondLst><p:childTnLst><p:par><p:cTn id="${parallelGroupId}" fill="hold">${REVEAL_START_NOW_XML}<p:childTnLst>${effects}</p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn></p:par>`;
+}
+
+function revealNavigationXml(direction) {
+  return `<p:${direction}CondLst><p:cond evt="on${direction === "prev" ? "Prev" : "Next"}" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:${direction}CondLst>`;
+}
+
+function revealParagraphBuildsXml(targets) {
+  const paragraphShapes = [...new Set(targets
+    .filter((target) => target.paragraphIndex !== null)
+    .map((target) => target.shapeId))];
+  return paragraphShapes.length
+    ? `<p:bldLst>${paragraphShapes.map((shapeId) => `<p:bldP spid="${shapeId}" grpId="0" build="p"/>`).join("")}</p:bldLst>`
+    : "";
+}
+
+function revealTimingXml(targets, stepCount) {
+  if (!stepCount) return "";
+  let timingId = 1;
+  const nextTimingId = () => timingId++;
+  const rootId = nextTimingId();
+  const sequenceId = nextTimingId();
+  const steps = Array.from({ length: stepCount }, (_, index) => {
+    const step = index + 1;
+    const stepTargets = targets.filter((target) => target.step === step);
+    if (!stepTargets.length) fail(`reveal step ${step} has no emitted PowerPoint objects`);
+    return revealClickGroupXml(stepTargets, nextTimingId);
+  }).join("");
+  return `<p:timing><p:tnLst><p:par><p:cTn id="${rootId}" dur="indefinite" restart="never" nodeType="tmRoot"><p:childTnLst><p:seq concurrent="1" nextAc="seek"><p:cTn id="${sequenceId}" dur="indefinite" nodeType="mainSeq"><p:childTnLst>${steps}</p:childTnLst></p:cTn>${revealNavigationXml("prev")}${revealNavigationXml("next")}</p:seq></p:childTnLst></p:cTn></p:par></p:tnLst>${revealParagraphBuildsXml(targets)}</p:timing>`;
+}
+
 function buildSlide(
   slide,
   slideIndex,
@@ -1061,6 +1116,32 @@ function buildSlide(
   let shapeId = 2;
   const nextId = () => shapeId++;
   const shapes = [];
+  const revealTargets = [];
+  const revealStepCount = slide.revealStepCount ?? 0;
+  if (!Number.isInteger(revealStepCount) || revealStepCount < 0) {
+    fail(`${path}.revealStepCount must be a non-negative integer`);
+  }
+  const registerRevealTargets = (element, id, elementPath) => {
+    if (element.revealStep !== undefined) {
+      if (!Number.isInteger(element.revealStep) || element.revealStep < 1 ||
+          element.revealStep > revealStepCount) {
+        fail(`${elementPath}.revealStep must identify an existing reveal step`);
+      }
+      revealTargets.push({ step: element.revealStep, shapeId: id, paragraphIndex: null });
+    }
+    if (element.paragraphRevealSteps !== undefined) {
+      if (element.type !== "text" || !Array.isArray(element.paragraphRevealSteps) ||
+          element.paragraphRevealSteps.length !== element.paragraphs?.length) {
+        fail(`${elementPath}.paragraphRevealSteps must match a text element's paragraph count`);
+      }
+      element.paragraphRevealSteps.forEach((step, paragraphIndex) => {
+        if (!Number.isInteger(step) || step < 0 || step > revealStepCount) {
+          fail(`${elementPath}.paragraphRevealSteps[${paragraphIndex}] must be zero or an existing reveal step`);
+        }
+        if (step > 0) revealTargets.push({ step, shapeId: id, paragraphIndex });
+      });
+    }
+  };
   const artworkAssetId = slide.artworkAssetId ?? slide.backgroundAssetId;
   if (artworkAssetId !== undefined) {
     const asset = requireAsset(
@@ -1096,16 +1177,21 @@ function buildSlide(
       fail(`${elementPath} must be an object`);
     }
     if (element.type === "text") {
-      shapes.push(textShapeXml(element, elementPath, nextId(), relationships));
+      const id = nextId();
+      shapes.push(textShapeXml(element, elementPath, id, relationships));
+      registerRevealTargets(element, id, elementPath);
     } else if (element.type === "table") {
-      shapes.push(tableXml(element, elementPath, nextId(), relationships));
+      const id = nextId();
+      shapes.push(tableXml(element, elementPath, id, relationships));
+      registerRevealTargets(element, id, elementPath);
     } else if (element.type === "image") {
       const asset = requireAsset(assets, element.assetId, `${elementPath}.assetId`);
+      const id = nextId();
       shapes.push(
         pictureXml(
           asset,
           boundsOf(element, elementPath),
-          nextId(),
+          id,
           relationships.image(asset),
           element.name || element.alt || undefined,
           false,
@@ -1114,16 +1200,32 @@ function buildSlide(
           elementPath,
         ),
       );
+      registerRevealTargets(element, id, elementPath);
     } else if (element.type === "shape") {
-      shapes.push(nativeShapeXml(element, elementPath, nextId(), relationships));
+      const id = nextId();
+      shapes.push(nativeShapeXml(element, elementPath, id, relationships));
+      registerRevealTargets(element, id, elementPath);
     } else if (element.type === "connector" || element.type === "polyline") {
-      shapes.push(connectorXml(element, elementPath, nextId, relationships));
+      const step = element.revealStep;
+      if (step !== undefined &&
+          (!Number.isInteger(step) || step < 1 || step > revealStepCount)) {
+        fail(`${elementPath}.revealStep must identify an existing reveal step`);
+      }
+      shapes.push(connectorXml(element, elementPath, () => {
+        const id = nextId();
+        if (step !== undefined) revealTargets.push({ step, shapeId: id, paragraphIndex: null });
+        return id;
+      }, relationships));
     } else {
       fail(`${elementPath}.type is not supported`);
     }
   }
+  if (revealTargets.length && !revealStepCount) {
+    fail(`${path}.revealStepCount is required when elements have reveal targets`);
+  }
+  const timing = revealTimingXml(revealTargets, revealStepCount);
   return {
-    xml: `${XML}<p:sld xmlns:a="${NS_A}" xmlns:r="${NS_R}" xmlns:p="${NS_P}"><p:cSld><p:spTree>${baseShapeTree()}${shapes.join("")}</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>`,
+    xml: `${XML}<p:sld xmlns:a="${NS_A}" xmlns:r="${NS_R}" xmlns:p="${NS_P}"><p:cSld><p:spTree>${baseShapeTree()}${shapes.join("")}</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>${timing}</p:sld>`,
     rels: relationships.xml(),
   };
 }

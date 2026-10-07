@@ -293,7 +293,7 @@ test("legacy errors stay one per invalid block while feedback includes all canon
         label: "unsupported", subtitle: "unsupported",
       },
       { type: "node", id: "b", x: 400, y: 20, width: 200, height: 120 },
-      { type: "connector", from: "a", to: "b", id: "unsupported", text: "unsupported" },
+      { type: "connector", from: "a", to: "b", direction: "unsupported", text: "unsupported" },
     ],
   });
   const slides = [`---\nlayout: center\n---\n\`\`\`architecture\n${source}\n\`\`\``];
@@ -307,7 +307,7 @@ test("legacy errors stay one per invalid block while feedback includes all canon
   assert.equal(errors[0].message, validation.diagnostics[0].message);
   const feedback = deckValidationFeedback(slides, { validation });
   for (const pointer of [
-    "/elements/0/label", "/elements/0/subtitle", "/elements/2/id", "/elements/2/text",
+    "/elements/0/label", "/elements/0/subtitle", "/elements/2/direction", "/elements/2/text",
   ]) assert.ok(feedback.includes(pointer));
 });
 

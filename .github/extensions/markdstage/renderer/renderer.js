@@ -110,10 +110,12 @@ let architectureDetailedEditTargetOverride = "";
 let presenterMode = false;
 let previewMode = false;
 let previewOffset = 0;
+let previewBuildNext = false;
 let navigationEnabled = true;
 let externalLinkAvailable = false;
 let fixedPreviewMode = false;
 let surfaceMode = false;
+let surfaceRevealEnabled = false;
 let outputViewport = null;
 let currentViewport = null;
 let nextViewport = null;
@@ -959,6 +961,79 @@ function moveLeadingSlideTitle(header, bodyEl, specialLayout) {
   return title;
 }
 
+function presentationRevealActive() {
+  return surfaceMode ? surfaceRevealEnabled : presenterMode;
+}
+
+function setRevealVisibility(element, step) {
+  element.dataset.revealStep = String(step);
+  const hidden = presentationRevealActive() && step > navRevealStep;
+  element.classList.toggle("markdstage-reveal-hidden", hidden);
+  if (hidden) {
+    element.setAttribute("aria-hidden", "true");
+    element.setAttribute("inert", "");
+  } else {
+    element.removeAttribute("aria-hidden");
+    element.removeAttribute("inert");
+  }
+}
+
+function blockRevealMetadata(element) {
+  for (let current = element; current; current = current.parentElement) {
+    if (Number.isInteger(current.__presentationBlockRevealStep)) {
+      return { revealStep: current.__presentationBlockRevealStep };
+    }
+  }
+  return {};
+}
+
+function transferBlockReveal(source, target) {
+  if (!Number.isInteger(source.__presentationBlockRevealStep)) return;
+  target.__presentationBlockRevealStep = source.__presentationBlockRevealStep;
+  target.dataset.markdstageRevealBlock = source.dataset.markdstageRevealBlock;
+  setRevealVisibility(target, target.__presentationBlockRevealStep);
+}
+
+function applyListRevealSchedule(body, revealSchedule) {
+  const lists = [...body.querySelectorAll("ul, ol")];
+  const stepsByList = new Map();
+  revealSchedule.schedule.forEach((step, index) => {
+    if (step.kind !== "list") return;
+    let itemSteps = stepsByList.get(step.listIndex);
+    if (!itemSteps) {
+      itemSteps = new Map();
+      stepsByList.set(step.listIndex, itemSteps);
+    }
+    for (const itemIndex of step.targets) itemSteps.set(itemIndex, index + 1);
+  });
+  for (const [listIndex, itemSteps] of stepsByList) {
+    const list = lists[listIndex];
+    if (!list) throw new Error(`The Markdown list bound to reveal directive ${listIndex + 1} could not be rendered.`);
+    const items = [...list.querySelectorAll("li")];
+    for (const [itemIndex, step] of itemSteps) {
+      const item = items[itemIndex];
+      if (!item) throw new Error(`A list reveal target in list ${listIndex + 1} could not be rendered.`);
+      setRevealVisibility(item, step);
+    }
+  }
+}
+
+function applyArchitectureReveal(wrapper, blockIndex, revealSchedule) {
+  const stepsByTarget = new Map();
+  revealSchedule.schedule.forEach((step, index) => {
+    if (step.kind !== "architecture" || step.blockIndex !== blockIndex) return;
+    for (const id of step.targets) stepsByTarget.set(id, index + 1);
+  });
+  for (const [id, step] of stepsByTarget) {
+    const targets = [...wrapper.querySelectorAll("[data-architecture-id]")]
+      .filter((element) => element.getAttribute("data-architecture-id") === id);
+    if (!targets.length) {
+      throw new Error(`Architecture reveal target "${id}" in diagram ${blockIndex + 1} could not be rendered.`);
+    }
+    targets.forEach((target) => setRevealVisibility(target, step));
+  }
+}
+
 function createSlide(
   markdown,
   fallbackTheme,
@@ -1066,7 +1141,36 @@ function createSlide(
       text: `<div data-markdstage-alert="${marker}"></div>\n`,
     });
   }
+  const blockMarkers = new Map();
+  for (const block of parsed.revealBlocks) {
+    const marker = crypto.randomUUID();
+    const tokenIndex = parsed.tokens.indexOf(block.token);
+    const step = parsed.revealSchedule.schedule.findIndex((entry) =>
+      entry.kind === "block" && entry.blockIndex === block.blockIndex) + 1;
+    if (tokenIndex < 0 || step < 1) throw new Error("The Markdown reveal block token is missing.");
+    blockMarkers.set(marker, { block, step });
+    const markerToken = (edge) => ({
+      type: "html", block: true, raw: "",
+      text: `<span hidden data-markdstage-block-${edge}="${marker}"></span>\n`,
+    });
+    parsed.tokens.splice(tokenIndex, 1, markerToken("start"), block.token, markerToken("end"));
+  }
   bodyEl.innerHTML = window.DOMPurify.sanitize(window.marked.parser(parsed.tokens));
+  for (const [marker, { block, step }] of blockMarkers) {
+    const start = bodyEl.querySelector(`[data-markdstage-block-start="${marker}"]`);
+    const end = bodyEl.querySelector(`[data-markdstage-block-end="${marker}"]`);
+    const target = start?.nextElementSibling;
+    const selector = { paragraph: "p", list: "ul, ol", table: "table", code: "pre" }[block.blockType];
+    if (!start || !end || !target || target !== end.previousElementSibling || !target.matches(selector)) {
+      throw new Error(`The Markdown block bound to reveal directive ${block.blockIndex + 1} could not be rendered as one block.`);
+    }
+    target.__presentationBlockRevealStep = step;
+    target.dataset.markdstageRevealBlock = String(block.blockIndex);
+    setRevealVisibility(target, step);
+    start.remove();
+    end.remove();
+  }
+  applyListRevealSchedule(bodyEl, parsed.revealSchedule);
   bodyEl.querySelectorAll('img[src^="/assets/"]').forEach((image) => {
     image.setAttribute("src", localAssetUrl(image.getAttribute("src")));
   });
@@ -1107,6 +1211,7 @@ function createSlide(
     const graph = document.createElement("pre");
     graph.className = "mermaid";
     graph.textContent = code.textContent;
+    transferBlockReveal(target, graph);
     target.replaceWith(graph);
   });
   // Architecture fences contain a constrained JSON DSL. The renderer builds its
@@ -1118,8 +1223,10 @@ function createSlide(
     if (!architectureEditMode) {
       const wrapper = renderArchitectureBlock(source, document);
       wrapper.dataset.architectureBlock = String(blockIndex);
+      applyArchitectureReveal(wrapper, blockIndex, parsed.revealSchedule);
       const title = wrapper.__presentationPptxSnapshot?.title;
       if (title) wrapper.dataset.architectureTitle = title;
+      transferBlockReveal(target, wrapper);
       target.replaceWith(wrapper);
       return;
     }
@@ -1128,6 +1235,7 @@ function createSlide(
     const host = document.createElement("div");
     host.className = "architecture-edit-host";
     host.setAttribute("data-architecture-block", String(blockIndex));
+    transferBlockReveal(target, host);
     target.replaceWith(host);
     const editorRenderToken = renderToken;
     const editor = attachArchitectureEditor(host, {
@@ -1141,7 +1249,9 @@ function createSlide(
     });
     if (!editor) {
       // Do not edit invalid DSL; fall back to the standard error display.
-      host.replaceWith(renderArchitectureBlock(source, document));
+      const wrapper = renderArchitectureBlock(source, document);
+      transferBlockReveal(host, wrapper);
+      host.replaceWith(wrapper);
       return;
     }
     architectureEditors.push(editor);
@@ -1211,6 +1321,7 @@ function createSlide(
     centerSlide,
     backcoverSlide,
     speakerNotes: parsed.notes,
+    revealSchedule: parsed.revealSchedule,
     title: meta.title || meta.deck || "Slide",
   };
 }
@@ -1761,8 +1872,9 @@ function trimListItemRuns(runs) {
   return trimmed.filter((run) => run.text);
 }
 
-function nativeListTextElement(list, deck, eligibleItems) {
-  const items = [...list.querySelectorAll("li")].filter((item) =>
+function nativeListTextElement(list, deck, eligibleItems, allLists, revealStepsByList) {
+  const allItems = [...list.querySelectorAll("li")];
+  const items = allItems.filter((item) =>
     eligibleItems.has(item),
   );
   if (items.length === 0) return null;
@@ -1813,6 +1925,15 @@ function nativeListTextElement(list, deck, eligibleItems) {
       spaceAfter,
     };
   });
+  const paragraphRevealSteps = entries.map(({ item }) => {
+    for (const candidate of allLists) {
+      if (!candidate.contains(item)) continue;
+      const step = revealStepsByList.get(allLists.indexOf(candidate))
+        ?.get([...candidate.querySelectorAll("li")].indexOf(item));
+      if (step) return step;
+    }
+    return 0;
+  });
   for (const { item } of entries) item.setAttribute("data-pptx-native", "text");
   list.setAttribute("data-pptx-native", "text");
   return {
@@ -1827,6 +1948,8 @@ function nativeListTextElement(list, deck, eligibleItems) {
       ...items.map((item) => Number(item.dataset.pptxZOrder) || 0),
     ),
     paragraphs,
+    ...blockRevealMetadata(list),
+    ...(paragraphRevealSteps.some((step) => step > 0) ? { paragraphRevealSteps } : {}),
     opacity: Number(getComputedStyle(list).opacity) || 1,
   };
 }
@@ -2038,6 +2161,12 @@ function fallbackBounds(element, deck, padding = 0, includeDescendants = false) 
 }
 
 function pptxFallback(type, element, deck, reason, options = {}) {
+  const reveal = blockRevealMetadata(element);
+  if (reveal.revealStep === undefined &&
+      [...element.querySelectorAll("[data-markdstage-reveal-block]")].some((target) =>
+        Number.isInteger(target.__presentationBlockRevealStep))) {
+    throw new Error("PowerPoint cannot preserve block reveals in artwork that combines independently scheduled content.");
+  }
   const bounds = fallbackBounds(
     element,
     deck,
@@ -2066,6 +2195,7 @@ function pptxFallback(type, element, deck, reason, options = {}) {
     type,
     path: elementPath(element, deck),
     reason,
+    ...reveal,
     ...bounds,
     ...(captureId ? { captureId } : {}),
     ...(zOrder !== undefined ? { zOrder } : {}),
@@ -2401,6 +2531,7 @@ async function collectArchitectureObjects(wrapper, deck, blockIndex) {
       fallbacks.push({
         type: "architecture-image",
         path: `architecture[${blockIndex}].${sourceObject.architecture.sourcePath}`,
+        architecture: sourceObject.architecture,
         reason: layer
           ? "architecture-image-rendered-as-foreground-picture"
           : "architecture-image-rendered-as-artwork",
@@ -2441,6 +2572,7 @@ async function collectArchitectureObjects(wrapper, deck, blockIndex) {
     fallbacks.push({
       type: "architecture-icon",
       path: `architecture[${blockIndex}].${icon.sourcePath}`,
+      architecture: { id: icon.id, kind: "icon" },
       reason: layer
         ? "icon-rendered-as-foreground-picture"
         : "icon-rendered-as-artwork",
@@ -2726,7 +2858,10 @@ function collectMermaidObjects(element, deck, blockIndex) {
       ...(fallback.artwork === false ? { artwork: false } : {}),
     };
   });
-  return { elements: mapped.elements, fallbacks };
+  return {
+    elements: mapped.elements.map((entry) => ({ ...entry, ...blockRevealMetadata(element) })),
+    fallbacks: fallbacks.map((entry) => ({ ...entry, ...blockRevealMetadata(element) })),
+  };
 }
 
 async function collectPptxSlide(slide, index, options = {}) {
@@ -2734,6 +2869,26 @@ async function collectPptxSlide(slide, index, options = {}) {
   assignPptxPaintOrder(deck);
   const elements = [];
   const fallbacks = [];
+  const revealStepsByList = new Map();
+  const architectureStepsByBlock = new Map();
+  slide.revealSchedule?.schedule?.forEach((step, scheduleIndex) => {
+    const stepNumber = scheduleIndex + 1;
+    if (step.kind === "list") {
+      let itemSteps = revealStepsByList.get(step.listIndex);
+      if (!itemSteps) {
+        itemSteps = new Map();
+        revealStepsByList.set(step.listIndex, itemSteps);
+      }
+      for (const itemIndex of step.targets) itemSteps.set(itemIndex, stepNumber);
+    } else if (step.kind === "architecture") {
+      let targetSteps = architectureStepsByBlock.get(step.blockIndex);
+      if (!targetSteps) {
+        targetSteps = new Map();
+        architectureStepsByBlock.set(step.blockIndex, targetSteps);
+      }
+      for (const id of step.targets) targetSteps.set(id, stepNumber);
+    }
+  });
   const fallbackRoots = new Set();
   const fallbackByRoot = new Map();
   const removeFallback = (root) => {
@@ -2954,8 +3109,9 @@ async function collectPptxSlide(slide, index, options = {}) {
   const listRoots = [
     ...new Set(listItems.map(outermostListFor).filter(Boolean)),
   ];
+  const allLists = [...deck.querySelectorAll("ul, ol")];
   for (const list of listRoots) {
-    const textElement = nativeListTextElement(list, deck, eligibleListItems);
+    const textElement = nativeListTextElement(list, deck, eligibleListItems, allLists, revealStepsByList);
     if (textElement) elements.push(textElement);
   }
   for (const element of textCandidates.filter((candidate) => !candidate.matches("li"))) {
@@ -2988,6 +3144,7 @@ async function collectPptxSlide(slide, index, options = {}) {
       ...bounds,
       zOrder: Number(element.dataset.pptxZOrder),
       paragraphs: [paragraph],
+      ...blockRevealMetadata(element),
       opacity: Number(getComputedStyle(element).opacity) || 1,
       ...(fittedTextInsets ? { textInsets: fittedTextInsets } : {}),
       ...(disableTextWrap ? { textWrap: "none" } : {}),
@@ -3076,6 +3233,7 @@ async function collectPptxSlide(slide, index, options = {}) {
       strokeWidth: borderWidth || 1,
       opacity: Number(style.opacity) || 1,
       paragraphs: codeParagraphsFor(code),
+      ...blockRevealMetadata(pre),
       verticalAlignment: "top",
       ...(textInsets ? { textInsets } : {}),
       textWrap: "none",
@@ -3095,6 +3253,7 @@ async function collectPptxSlide(slide, index, options = {}) {
         height: bounds.height - accentInset * 2,
         fill: accentColor,
         stroke: null,
+        ...blockRevealMetadata(pre),
         zOrder: Number(pre.dataset.pptxZOrder) + 0.01,
       });
     }
@@ -3182,6 +3341,7 @@ async function collectPptxSlide(slide, index, options = {}) {
       zOrder: Number(table.dataset.pptxZOrder),
       columnWidths: tableColumnWidths(table, rows, columnCount),
       rows,
+      ...blockRevealMetadata(table),
     });
     if (effects.length) {
       const decoration = effects.includes("box-shadow") ? preserveBoxShadow(table, deck) : null;
@@ -3250,6 +3410,7 @@ async function collectPptxSlide(slide, index, options = {}) {
       ...(borderRadius > 0 ? { cornerRadius: borderRadius } : {}),
       naturalWidth: image.naturalWidth,
       naturalHeight: image.naturalHeight,
+      ...blockRevealMetadata(image),
     });
     image.setAttribute("data-pptx-native", "image");
     if (effects.length) {
@@ -3274,14 +3435,41 @@ async function collectPptxSlide(slide, index, options = {}) {
   for (const [blockIndex, wrapper] of architectureWrappers.entries()) {
     if (insideFallback(wrapper)) continue;
     const architecture = await collectArchitectureObjects(wrapper, deck, blockIndex);
+    const targetSteps = architectureStepsByBlock.get(blockIndex);
+    if (targetSteps?.size) {
+      const represented = new Set([
+        ...architecture.elements.map((element) => element.architecture?.id).filter(Boolean),
+        ...architecture.fallbacks
+          .filter((fallback) => fallback.artwork !== false)
+          .map((fallback) => fallback.architecture?.id)
+          .filter(Boolean),
+      ]);
+      const missing = [...targetSteps.keys()].filter((id) => !represented.has(id));
+      if (missing.length || architecture.fallbacks.some((fallback) =>
+        fallback.type === "architecture" && fallback.artwork !== false && !fallback.architecture?.id)) {
+        throw new Error(
+          `PowerPoint cannot preserve Architecture reveal targets on slide ${index + 1}: ${missing.join(", ") || "diagram artwork combines independently scheduled targets"}.`,
+        );
+      }
+    }
     const zOrder = Number(wrapper.dataset.pptxZOrder);
     elements.push(
       ...architecture.elements.map((element, elementIndex) => ({
         ...element,
+        ...blockRevealMetadata(wrapper),
+        ...(targetSteps?.has(element.architecture?.id)
+          ? { revealStep: targetSteps.get(element.architecture.id) }
+          : {}),
         zOrder: zOrder + elementIndex / 1000,
       })),
     );
-    fallbacks.push(...architecture.fallbacks);
+    fallbacks.push(...architecture.fallbacks.map((fallback) => ({
+      ...fallback,
+      ...blockRevealMetadata(wrapper),
+      ...(targetSteps?.has(fallback.architecture?.id)
+        ? { revealStep: targetSteps.get(fallback.architecture.id) }
+        : {}),
+    })));
   }
 
   for (const [blockIndex, host] of [...deck.querySelectorAll(".archify-diagram")].entries()) {
@@ -3317,6 +3505,7 @@ async function collectPptxSlide(slide, index, options = {}) {
     ...(notes ? { notes } : {}),
     elements,
     fallbacks,
+    revealSchedule: slide.revealSchedule,
     ...(adaptiveCards.length ? { adaptiveCards } : {}),
   };
 }
@@ -3677,6 +3866,8 @@ let deckTitles = [];
 let deckLayouts = [];
 let navIndex = 0;
 let navTotal = 0;
+let navRevealStep = 0;
+let navRevealTotal = 0;
 let navMode = "deck";
 let overviewOpen = false;
 let importOpen = false;
@@ -4102,7 +4293,9 @@ async function openDetailedArchitectureEditor(index, block) {
 }
 
 async function fetchState() {
-  const stateUrl = previewOffset ? `./state?offset=${previewOffset}` : "./state";
+  const stateUrl = previewBuildNext
+    ? "./state?build=next"
+    : previewOffset ? `./state?offset=${previewOffset}` : "./state";
   const res = await fetch(stateUrl, { cache: "no-store" });
   if (!res.ok) return;
   const data = await res.json();
@@ -4201,6 +4394,8 @@ async function fetchState() {
   currentVersion = typeof data.version === "number" ? data.version : currentVersion;
   if (typeof data.index === "number") navIndex = data.index;
   if (typeof data.total === "number") navTotal = data.total;
+  if (typeof data.revealStep === "number") navRevealStep = data.revealStep;
+  if (typeof data.revealTotal === "number") navRevealTotal = data.revealTotal;
   navMode = data.mode === "adhoc" ? "adhoc" : "deck";
   renderSlide(typeof data.markdown === "string" ? data.markdown : "");
   updateNav();
@@ -4213,29 +4408,34 @@ async function fetchState() {
 // --- navigation ------------------------------------------------------------
 // Server-authoritative: every nav action POSTs to /navigate, then immediately
 // re-fetches /state for an instant update (without waiting for the SSE nudge).
-async function navigate(payload) {
+let navigationQueue = Promise.resolve();
+function navigate(payload) {
   if (!navigationEnabled) return;
   if (surfaceMode) {
     window.frameElement?.dispatchEvent(new CustomEvent("slide-navigate", { detail: payload }));
     return;
   }
-  try {
-    const res = await fetch("./navigate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (res.ok) await fetchState();
-  } catch (_) {
-    /* ignore; the safety poll will resync */
-  }
+  const request = navigationQueue.catch(() => {}).then(async () => {
+    try {
+      const res = await fetch("./navigate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) await fetchState();
+    } catch (_) {
+      /* ignore; the safety poll will resync */
+    }
+  });
+  navigationQueue = request;
+  return request;
 }
 
 function goNext() {
-  navigate({ delta: 1 });
+  navigate({ action: "advance" });
 }
 function goPrev() {
-  navigate({ delta: -1 });
+  navigate({ action: "rewind" });
 }
 function goToIndex(i) {
   navigate({ index: i });
@@ -4644,9 +4844,11 @@ function toggleFixedPreviewMode() {
   setFixedPreviewMode(!fixedPreviewMode);
 }
 
-function slideViewportState(markdown, index, interactive) {
+function slideViewportState(markdown, index, interactive, revealStep = 0, revealTotal = 0) {
   return {
     markdown, index, total: navTotal, theme: deckTheme, themeLocked: deckThemeLocked,
+    revealStep, revealTotal,
+    revealEnabled: presenterMode || presenterViewOpen,
     customThemeCss, customThemeMeta, navigationEnabled: interactive, externalLinkAvailable,
   };
 }
@@ -4927,14 +5129,21 @@ function updateSlideViewports() {
     currentViewport ??= mountSlideViewport(
       document.getElementById("presenterCurrentViewport"), "presenterCurrent", "Current slide", true,
     );
-    currentViewport.setState(slideViewportState(lastMarkdown, navIndex, true));
-    const hasNext = navMode !== "deck" || navIndex < navTotal - 1;
+    currentViewport.setState(slideViewportState(lastMarkdown, navIndex, true, navRevealStep, navRevealTotal));
+    const hasReveal = navRevealStep < navRevealTotal;
+    const hasNext = hasReveal || navMode !== "deck" || navIndex < navTotal - 1;
     if (hasNext) {
-      const index = Math.min(navIndex + 1, navTotal - 1);
+      const index = hasReveal ? navIndex : Math.min(navIndex + 1, navTotal - 1);
+      const markdown = hasReveal ? lastMarkdown : deckSlides[index] || "";
+      const label = document.getElementById("presenterNextLabel");
+      if (label) label.textContent = hasReveal ? "Next reveal" : "Next slide";
       nextViewport ??= mountSlideViewport(
-        document.getElementById("presenterNextViewport"), "presenterNext", "Next slide", false,
+        document.getElementById("presenterNextViewport"), "presenterNext", hasReveal ? "Next reveal" : "Next slide", false,
       );
-      nextViewport.setState(slideViewportState(deckSlides[index] || "", index, false));
+      nextViewport.setState(slideViewportState(
+        markdown, index, false, hasReveal ? navRevealStep + 1 : 0,
+        hasReveal ? navRevealTotal : 0,
+      ));
     }
   } else {
     if (!outputViewport) {
@@ -4942,7 +5151,7 @@ function updateSlideViewports() {
       stage.classList.add("slide-viewport");
       outputViewport = mountSlideViewport(stage, "outputFrame", "Slide", navigationEnabled);
     }
-    outputViewport.setState(slideViewportState(lastMarkdown, navIndex, navigationEnabled));
+    outputViewport.setState(slideViewportState(lastMarkdown, navIndex, navigationEnabled, navRevealStep, navRevealTotal));
   }
 }
 
@@ -4965,6 +5174,9 @@ function initSlideSurface() {
       customThemeMeta = state.customThemeMeta;
       navIndex = state.index;
       navTotal = state.total;
+      navRevealStep = Number(state.revealStep) || 0;
+      navRevealTotal = Number(state.revealTotal) || 0;
+      surfaceRevealEnabled = state.revealEnabled === true;
       navigationEnabled = state.navigationEnabled;
       pointerNavigationEnabled = state.pointerNavigation !== false;
       externalLinkAvailable = state.externalLinkAvailable === true;
@@ -5004,11 +5216,19 @@ function updateNav() {
     counter.textContent =
       navMode === "adhoc" ? "—" : navTotal ? `${navIndex + 1} / ${navTotal}` : "";
   }
+  const stepCounter = document.getElementById("navStepCounter");
+  if (stepCounter) {
+    stepCounter.textContent = navRevealTotal ? `Build ${navRevealStep} / ${navRevealTotal}` : "";
+  }
   const prev = document.getElementById("navPrev");
   const next = document.getElementById("navNext");
   // In ad-hoc mode the buttons stay enabled so the user can resume the deck.
-  if (prev) prev.disabled = navMode === "deck" && navIndex <= 0;
-  if (next) next.disabled = navMode === "deck" && navIndex >= navTotal - 1;
+  if (prev) prev.disabled = navMode === "deck" && navIndex <= 0 && navRevealStep <= 0;
+  if (next) next.disabled = navMode === "deck" && navIndex >= navTotal - 1 && navRevealStep >= navRevealTotal;
+  if (prev) prev.setAttribute("aria-label", navRevealStep ? "Rewind reveal" : "Previous slide");
+  if (next) next.setAttribute("aria-label", navRevealStep < navRevealTotal ? "Reveal next step" : "Next slide");
+  if (prev) prev.title = navRevealStep ? "Rewind reveal (←)" : "Previous (←)";
+  if (next) next.title = navRevealStep < navRevealTotal ? "Reveal next step (→)" : "Next (→)";
   highlightOverview();
   updateViewModeButton();
   updatePresenterView();
@@ -5044,13 +5264,17 @@ function updatePresenterView() {
   if (!presenterViewOpen) return;
   const counter = document.getElementById("presenterCounter");
   if (counter) counter.textContent = navTotal ? `${navIndex + 1} / ${navTotal}` : "";
+  const stepCounter = document.getElementById("presenterStepCounter");
+  if (stepCounter) stepCounter.textContent = navRevealTotal ? `Build ${navRevealStep} / ${navRevealTotal}` : "";
   const prev = document.getElementById("presenterPrevButton");
   const next = document.getElementById("presenterNextButton");
-  if (prev) prev.disabled = navMode === "deck" && navIndex <= 0;
-  if (next) next.disabled = navMode === "deck" && navIndex >= navTotal - 1;
-  const hasNext = navMode !== "deck" || navIndex < navTotal - 1;
+  if (prev) prev.disabled = navMode === "deck" && navIndex <= 0 && navRevealStep <= 0;
+  if (next) next.disabled = navMode === "deck" && navIndex >= navTotal - 1 && navRevealStep >= navRevealTotal;
+  const hasNext = navRevealStep < navRevealTotal || navMode !== "deck" || navIndex < navTotal - 1;
   const nextFrame = document.getElementById("presenterNextViewport");
   const nextEmpty = document.getElementById("presenterNextEmpty");
+  const nextLabel = document.getElementById("presenterNextLabel");
+  if (nextLabel) nextLabel.textContent = navRevealStep < navRevealTotal ? "Next reveal" : "Next slide";
   if (nextFrame) nextFrame.hidden = !hasNext;
   if (nextEmpty) nextEmpty.hidden = hasNext;
   const currentMarkdown =
@@ -5635,6 +5859,7 @@ function init() {
     previewMode = true;
     presenterMode = true;
     previewOffset = Math.max(-1, Math.min(1, Number(params.get("offset")) || 0));
+    previewBuildNext = params.get("build") === "next";
     navigationEnabled = params.get("navigate") === "1" && previewOffset === 0;
     document.body.classList.add("presenter-mode", "preview-mode");
   } else if (params.get("present") === "1") {

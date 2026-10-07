@@ -111,12 +111,14 @@ internal sealed class NativeRuntimeHost(
             serialize: false);
     }
 
-    private async Task<bool> NavigateAsync(int? index, int? delta)
+    private async Task<bool> NavigateAsync(int? index, int? delta, string? action)
     {
         try
         {
             var previous = session.GetSnapshot().Version;
-            var options = index.HasValue ? (object)new { index = index.Value } : new { delta = delta!.Value };
+            object options = action is "advance" or "rewind"
+                ? new { action }
+                : index.HasValue ? new { index = index.Value } : new { delta = delta!.Value };
             Apply(await CallAsync("navigate", options, CancellationToken.None));
             return session.GetSnapshot().Version != previous;
         }
@@ -131,8 +133,10 @@ internal sealed class NativeRuntimeHost(
         var snapshot = value.Deserialize<PresentationSnapshot>(options)
             ?? throw new IOException("The shared runtime did not return a snapshot.");
         if (snapshot.Slides is null || snapshot.Theme is null || snapshot.Titles is null || snapshot.Notes is null ||
+            snapshot.RevealTotals is null ||
             snapshot.Slides.Count == 0 || snapshot.Index < 0 || snapshot.Index >= snapshot.Slides.Count ||
             snapshot.Titles.Count != snapshot.Slides.Count || snapshot.Notes.Count != snapshot.Slides.Count ||
+            snapshot.RevealTotals.Count != snapshot.Slides.Count ||
             string.IsNullOrEmpty(snapshot.SourcePath))
             throw new IOException("The shared runtime returned an incomplete snapshot.");
         var sourcePath = WorkspaceResolver.ResolveRelative(io.Root, snapshot.SourcePath);

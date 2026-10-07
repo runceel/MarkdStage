@@ -11,7 +11,7 @@ layout: title
 This deck introduces canvas controls and slide authoring.
 
 <!--
-**Speaker notes 1 / 21**
+**Speaker notes 1 / 29**
 
 Use this title slide to explain that Markdown supports the entire workflow from authoring to presenting.
 -->
@@ -28,7 +28,7 @@ Use this title slide to explain that Markdown supports the entire workflow from 
 Navigation happens in the canvas. You can also request "Go to slide 3" in chat.
 
 <!--
-**Speaker notes 2 / 21**
+**Speaker notes 2 / 29**
 
 Try both the bottom control bar and keyboard navigation.
 -->
@@ -56,7 +56,7 @@ This is the first slide.
 The `---` inside a code block is not treated as a slide separator.
 
 <!--
-**Speaker notes 3 / 21**
+**Speaker notes 3 / 29**
 
 Emphasize that the separator in the code example does not create another slide.
 -->
@@ -85,7 +85,7 @@ total: 6
 - Add `layout: title` to the first slide to make it a title slide
 
 <!--
-**Speaker notes 4 / 21**
+**Speaker notes 4 / 29**
 
 Front matter controls only appearance and metadata; the body remains standard Markdown.
 -->
@@ -106,7 +106,7 @@ Combine headings, lists, emphasis, links, and tables.
 Keep slides readable by avoiding dense prose and presenting one topic per slide.
 
 <!--
-**Speaker notes 5 / 21**
+**Speaker notes 5 / 29**
 
 Confirm that tables, emphasis, and inline code use consistent theme styling.
 -->
@@ -131,7 +131,7 @@ flowchart LR
 ```
 
 <!--
-**Speaker notes 6 / 21**
+**Speaker notes 6 / 29**
 
 Demonstrate code syntax highlighting, then Mermaid rendering.
 -->
@@ -147,7 +147,7 @@ Write JSON in an `architecture` code fence to render a diagram with fixed placem
 - Routes: `straight` / `orthogonal` / `polyline`
 
 <!--
-**Speaker notes 7 / 21**
+**Speaker notes 7 / 29**
 
 Introduce the Architecture DSL examples that follow.
 -->
@@ -217,7 +217,7 @@ size: normal
 ```
 
 <!--
-**Speaker notes 8 / 21**
+**Speaker notes 8 / 29**
 
 Point out that the group layout alone aligns the child elements.
 -->
@@ -295,7 +295,7 @@ kicker: Architecture DSL / Visual language
 ```
 
 <!--
-**Speaker notes 9 / 21**
+**Speaker notes 9 / 29**
 
 Read the diagram left to right: choose a shape, add visual emphasis, then define how the flow connects. The same JSON stays editable and presentation-ready.
 -->
@@ -333,7 +333,7 @@ size: normal
 ```
 
 <!--
-**Speaker notes 10 / 21**
+**Speaker notes 10 / 29**
 
 Explain that dense connections route automatically without manual waypoints.
 -->
@@ -390,7 +390,7 @@ size: normal
 ```
 
 <!--
-**Speaker notes 11 / 21**
+**Speaker notes 11 / 29**
 
 The standalone image and node icon share the same local asset.
 -->
@@ -458,7 +458,7 @@ Use a fully resolved JSON payload in an `adaptive-card` fence.
 ```
 
 <!--
-**Speaker notes 12 / 21**
+**Speaker notes 12 / 29**
 
 The fence renders a card rather than a JSON code sample. The payload uses the pinned schema 1.5.
 Point out the styled container, weighted columns, rich text and FactSet.
@@ -536,7 +536,7 @@ Approved local images and supported tables remain separate, editable objects.
 Supported parts stay editable; unsupported details become bounded images.
 
 <!--
-**Speaker notes 13 / 21**
+**Speaker notes 13 / 29**
 
 Export this deck to PowerPoint and select the text, picture and table cells separately.
 The image uses an existing workspace asset, not a remote URL.
@@ -585,7 +585,7 @@ kicker: Semantic colors / Architecture DSL
 ```
 
 <!--
-**Speaker notes 14 / 21**
+**Speaker notes 14 / 29**
 
 Compare node surfaces, borders, connector lines, arrowheads, labels, and the light/dark neutral roles. Export this slide to PDF and PowerPoint and verify parity.
 -->
@@ -613,7 +613,7 @@ kicker: Semantic colors / Adaptive Cards
 ```
 
 <!--
-**Speaker notes 15 / 21**
+**Speaker notes 15 / 29**
 
 Built-in themes should show four distinct surfaces and borders. Good, Accent, Warning, and Attention should use success, primary, warning, and danger. The legacy custom theme intentionally exercises fallback.
 -->
@@ -647,7 +647,7 @@ gantt
 - Other Mermaid diagram palettes and authored `style` / `classDef` colors remain unchanged.
 
 <!--
-**Speaker notes 16 / 21**
+**Speaker notes 16 / 29**
 
 Compare the Gantt states across all four theme files. The custom theme omits semantic properties, so its previous accent-derived fallback is the expected result.
 -->
@@ -666,7 +666,7 @@ Use standard Markdown syntax for external links:
 Give images descriptive alternative text that remains meaningful when an image cannot be displayed.
 
 <!--
-**Speaker notes 17 / 21**
+**Speaker notes 17 / 29**
 
 Confirm that image alternative text and links use standard Markdown syntax.
 -->
@@ -692,7 +692,7 @@ theme-file: ./themes/brand/theme.css
 ```
 
 <!--
-**Speaker notes 18 / 21**
+**Speaker notes 18 / 29**
 
 This deck uses the default dark theme while introducing the available theme options.
 -->
@@ -710,7 +710,7 @@ Add a directive at the start of the body for slides that need extra emphasis.
 ```
 
 <!--
-**Speaker notes 19 / 21**
+**Speaker notes 19 / 29**
 
 The `slide-size` comment is a display directive, so it does not appear in speaker notes.
 -->
@@ -734,9 +734,257 @@ The `slide-size` comment is a display directive, so it does not appear in speake
 **Write → review in the canvas → navigate and present.** That is all you need to get started.
 
 <!--
-**Speaker notes 20 / 21**
+**Speaker notes 20 / 29**
 
 Explain that a title and key points are enough for a minimal deck.
+-->
+
+---
+
+## Reveal list items together
+
+Advance to reveal one parent and its children at a time.
+
+<!-- markdstage: reveal=list-items nested=together -->
+
+- Plan
+  - Gather requirements
+  - Review the design
+- Deliver
+  - Implement
+  - Verify
+
+<!-- markdstage: reveal=block -->
+
+Each parent and its children appear together. **Rewind** hides the last build.
+
+<!--
+**Speaker notes 21 / 29**
+
+Jump here using the slide list to reset the build. In presentation mode the list starts hidden.
+The first advance shows Plan and both children; the second shows Deliver and both children.
+A third advance shows the closing explanation; a fourth enters the next slide.
+Rewind from that slide's initial state returns here with all content visible.
+Static reading, output preview, PDF and PNG show the completed list.
+-->
+
+---
+
+## Reveal nested items separately
+
+Advance to reveal each numbered item and nested bullet separately.
+
+<!-- markdstage: reveal=list-items nested=separate -->
+
+1. Plan
+   - Gather requirements
+   - Review the design
+2. Deliver
+   - Verify
+
+<!-- markdstage: reveal=block -->
+
+Numbering and indentation stay fixed as items appear and disappear.
+
+<!--
+**Speaker notes 22 / 29**
+
+Expected order: Plan, Gather requirements, Review the design, Deliver, Verify.
+The sixth advance shows the closing explanation.
+Rewind hides the explanation first, then the items in reverse order without changing numbering or layout.
+Jump away and back using the slide list to confirm that the initial hidden state is restored.
+Export to PowerPoint to review native click-triggered Appear builds; PDF remains complete.
+-->
+
+---
+
+---
+size: normal
+kicker: Incremental reveals / Architecture DSL
+---
+
+## Build an Architecture diagram
+
+Advance three times: clients, API and request, then database and query.
+
+<!-- markdstage:
+{
+  "steps": [
+    ["reveal-clients"],
+    ["reveal-api", "reveal-request"],
+    ["reveal-data"]
+  ]
+}
+-->
+```architecture
+{
+  "version": 1,
+  "title": "Incremental request flow",
+  "canvas": { "width": 1600, "height": 640 },
+  "elements": [
+    {
+      "type": "group",
+      "id": "reveal-clients",
+      "title": "Clients",
+      "x": 60,
+      "y": 130,
+      "width": 380,
+      "height": 340,
+      "children": [
+        { "type": "node", "id": "reveal-browser", "x": 60, "y": 110, "width": 260, "height": 120, "text": "Browser", "icon": "browser" }
+      ]
+    },
+    { "type": "node", "id": "reveal-api", "x": 650, "y": 240, "width": 280, "height": 120, "text": "API", "icon": "api" },
+    { "type": "node", "id": "reveal-data", "x": 1190, "y": 240, "width": 280, "height": 120, "text": "Database", "icon": "database" },
+    { "type": "connector", "id": "reveal-request", "from": "reveal-browser", "to": "reveal-api", "label": "request", "arrow": true },
+    { "type": "connector", "id": "reveal-query", "from": "reveal-api", "to": "reveal-data", "label": "query", "arrow": true }
+  ]
+}
+```
+
+<!--
+**Speaker notes 23 / 29**
+
+The first build reveals the Clients frame and its Browser child together.
+The second reveals API and the explicitly scheduled request connector simultaneously.
+The third reveals Database; the unscheduled query connector appears automatically when both endpoints are visible.
+Rewind hides each build and its connectors in reverse order. The next-build preview should match.
+Static preview and PDF show the completed diagram. Review exported PowerPoint builds by clicking in the target application.
+-->
+
+---
+
+---
+size: normal
+kicker: Incremental reveals / Narrative
+---
+
+## Explain, then reveal the diagram
+
+Initially, only this introduction and the heading are visible.
+
+<!-- markdstage: reveal=list-items nested=together -->
+
+- Send a request from the browser
+- Process it in the API
+
+<!-- markdstage: reveal=block -->
+
+The conclusion appears next, followed by the complete diagram.
+
+<!-- markdstage: reveal=block -->
+
+```architecture
+{
+  "version": 1,
+  "title": "Whole-diagram reveal",
+  "canvas": { "width": 1600, "height": 300 },
+  "elements": [
+    { "type": "node", "id": "block-browser", "x": 100, "y": 80, "width": 400, "height": 140, "text": "Browser", "icon": "browser", "style": { "fontSize": 48 } },
+    { "type": "node", "id": "block-api", "x": 1100, "y": 80, "width": 400, "height": 140, "text": "API", "icon": "api", "style": { "fontSize": 48 } },
+    { "type": "connector", "id": "block-request", "from": "block-browser", "to": "block-api", "label": "request", "arrow": true, "style": { "fontSize": 36 } }
+  ]
+}
+```
+
+<!--
+**Speaker notes 24 / 29**
+
+Use presenter view or the audience window. The first two clicks show the list items.
+The third shows the conclusion. The fourth shows the whole Architecture diagram, including both nodes, icons and the connector.
+Rewind reverses those builds. The layout does not move, and the next-build preview should match each action.
+-->
+
+---
+
+## Reveal an image
+
+Advance once to show the complete image.
+
+<!-- markdstage: reveal=block -->
+
+![Architecture DSL sample image](/assets/architecture-image-sample.svg)
+
+<!--
+**Speaker notes 25 / 29**
+
+The image starts hidden and appears as a single block. Rewind hides it again.
+Verify the same click-triggered build in exported PowerPoint; normal preview, PDF and PNG always contain the image.
+-->
+
+---
+
+## Reveal a table, then code
+
+The first click shows the table; the second shows the complete code block.
+
+<!-- markdstage: reveal=block -->
+
+| Stage | Result |
+| --- | --- |
+| Parse | Shared reveal schedule |
+| Export | Editable PowerPoint builds |
+
+<!-- markdstage: reveal=block -->
+
+```javascript
+const stages = ["parse", "present", "export"];
+console.log(stages.join(" -> "));
+```
+
+<!--
+**Speaker notes 26 / 29**
+
+The table is one build, not a sequence of rows or cells.
+The code text, background, accent and shadow appear together in the second build.
+Rewind twice and confirm that neither decoration remains visible.
+-->
+
+---
+
+## Reveal a complete Mermaid diagram
+
+Advance once: the entire diagram appears together, not node by node.
+
+<!-- markdstage: reveal=block -->
+
+```mermaid
+flowchart LR
+    A[Write Markdown] --> B[Review]
+    B --> C[Present]
+```
+
+<!--
+**Speaker notes 27 / 29**
+
+All nodes, text, arrows and any fallback artwork share one build.
+Export to PowerPoint using both Editable shapes and Images; both should reveal the entire diagram in one click.
+Rewind hides the complete diagram. Static views remain complete.
+-->
+
+---
+
+## Reveal an entire list at once
+
+Use reveal=block when the list is one explanation rather than separate points.
+
+<!-- markdstage: reveal=block -->
+
+1. Author
+   - Write the Markdown
+   - Choose the theme
+2. Present
+   - Advance and rewind
+
+<!-- markdstage: reveal=block -->
+
+One click shows the whole list. The next shows this closing sentence.
+
+<!--
+**Speaker notes 28 / 29**
+
+Compare this with the earlier list-items examples: the numbering, parents and children all appear simultaneously.
+The closing sentence is a separate paragraph build. Direct slide jumps reset both builds.
 -->
 
 ---
@@ -752,7 +1000,7 @@ Explain that a title and key points are enough for a minimal deck.
 Copy this file and replace its title and key points with your own.
 
 <!--
-**Speaker notes 21 / 21**
+**Speaker notes 29 / 29**
 
 Finally, open presenter view and confirm that the notes change on each slide.
 -->

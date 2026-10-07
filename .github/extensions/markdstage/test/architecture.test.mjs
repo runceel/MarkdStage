@@ -1932,7 +1932,7 @@ test("diagnostics pair every problem with remediation guidance", () => {
           { type: "node", id: "dup", x: 0, y: 0, width: 10, height: 10 },
         ],
       },
-      /duplicates 'dup'; give every node, group, and image a unique id/,
+      /duplicates 'dup'; give every node, group, and image a unique id across the whole diagram; identified connectors also need unique ids/,
     ],
     [
       { elements: [{ type: "node", id: "n", x: 0, y: 0, width: 100, height: 100, icon: "remote" }] },
@@ -1990,6 +1990,48 @@ test("semantic snapshot contains deterministic geometry and text layout", () => 
         textLayout: architectureTextLayout(model.elements.find((element) => element.id === "b")) },
     ],
   });
+});
+
+test("connectors retain optional stable ids for reveal target provenance", () => {
+  const diagram = {
+    elements: [
+      { type: "node", id: "client", x: 0, y: 0, width: 160, height: 100 },
+      { type: "node", id: "service", x: 500, y: 0, width: 160, height: 100 },
+      { type: "connector", id: "request", from: "client", to: "service", label: "HTTP" },
+    ],
+  };
+  const model = parseArchitecture(JSON.stringify(diagram));
+  const connector = model.elements.find((element) => element.type === "connector");
+  const snapshot = architectureSemanticSnapshot(model);
+  const rendered = descendants(renderArchitectureDiagram(model, new FakeDocument()));
+  const powerPoint = architecturePowerPointSnapshot(model, new FakeDocument());
+
+  assert.equal(connector.id, "request");
+  assert.equal(
+    snapshot.elements.find((element) => element.type === "connector").id,
+    "request",
+  );
+  assert.equal(
+    rendered.find((element) => element.attributes.get("data-architecture-type") === "connector")
+      .attributes.get("data-architecture-id"),
+    "request",
+  );
+  assert.deepEqual(
+    powerPoint.objects
+      .filter((object) => object.architecture?.id === "request")
+      .map((object) => object.architecture.kind),
+    ["connector", "connector-label"],
+  );
+
+  assert.throws(
+    () => parseArchitecture(JSON.stringify({
+      elements: [
+        ...diagram.elements.slice(0, 1),
+        { type: "connector", id: "client", from: "client", to: "service" },
+      ],
+    })),
+    /elements\[1\]\.id: duplicates 'client'/,
+  );
 });
 
 test("automatic lanes reserve explicit lanes and resolve equivalent auto ports", () => {

@@ -324,6 +324,94 @@ To have MarkdStage read and split a workspace Markdown file from chat, pass
 `sourcePath` to `open_canvas`. Users can also use **More controls > Open
 Markdown** in the canvas.
 
+#### Click-driven incremental reveals
+
+An HTML comment opts in only the immediately following supported block;
+without one, content is visible from the start. The Markdown content remains complete
+and readable when the comment is ignored.
+
+Use `reveal=block` to show one entire top-level paragraph (including an image),
+list, Markdown table, code block, Architecture diagram, or Mermaid diagram in
+one click. All blocks and list/diagram steps share source order:
+
+```md
+This introduction is visible initially.
+
+<!-- markdstage: reveal=list-items -->
+
+- First point
+- Second point
+
+<!-- markdstage: reveal=block -->
+
+This conclusion appears after both points.
+
+<!-- markdstage: reveal=block -->
+
+![Then show the image](assets/sample.svg)
+```
+
+Each block directive targets only the next block; paragraphs separated by blank
+lines are separate blocks. An entire list includes its nested items, and an
+entire diagram includes all text, nodes, connectors, icons and decorations.
+Mermaid supports whole-diagram builds, not individual node builds. Native
+PowerPoint output keeps all objects and any fallback pictures for a block on
+the same Appear step, including Mermaid's editable-shapes and image modes.
+Do not combine a whole-block directive with list-item or Architecture-element
+directives on the same block. Nested block directives, headings, blockquotes,
+raw HTML blocks, Adaptive Cards and Archify are not supported targets and produce
+explicit errors; split content into supported top-level blocks instead.
+
+Use `reveal=list-items` for separate logical list-item builds:
+
+```md
+<!-- markdstage: reveal=list-items nested=separate -->
+
+- Plan
+  - Requirements
+    - Interviews
+- Deliver
+```
+
+`nested` accepts `together` (the default) or `separate`. Together reveals each
+top-level item with its entire descendant subtree. Separate reveals logical
+items depth-first, parent before child, including at three or more nesting
+levels. Ordered, unordered, and mixed lists retain their authored numbering and
+formatting. A list may contain multiple paragraphs per item; empty items and
+items containing images are rejected with an actionable error.
+
+Architecture fences use block-local authored IDs:
+
+```md
+<!-- markdstage:
+{
+  "steps": [
+    ["frontend"],
+    ["backend", "request"]
+  ]
+}
+-->
+```architecture
+{"version":1,"elements":[{"type":"node","id":"frontend","x":40,"y":80,"width":200,"height":100,"text":"Frontend"},{"type":"node","id":"backend","x":480,"y":80,"width":200,"height":100,"text":"Backend"},{"type":"connector","id":"request","from":"frontend","to":"backend"}]}
+```
+
+Each inner array is one click step. A group target includes its frame and
+descendants. An untargeted connector appears with its last endpoint; an
+explicitly targeted connector cannot precede its endpoints. Unknown or
+conflicting targets and unsupported merged artwork are errors, not silently
+discarded steps. Reserved directives are not speaker notes; fenced examples
+remain literal.
+
+In presentation mode, advance reveals the next step and rewind hides the most
+recent step. After the final step, advance enters the next slide; rewinding from
+the first step of a slide returns to the previous slide completed. Direct slide
+jumps begin at the initial reveal state. Static reading, editing, inspection,
+PDF, and PNG output always show the complete slide. Editable PowerPoint export
+uses native click-triggered Appear builds for supported editable paragraphs and
+diagram objects; if a requested target cannot be kept separate, export reports
+an error instead of flattening it. PowerPoint playback should be checked in the
+intended PowerPoint application; LibreOffice behavior is not guaranteed.
+
 ### Canvas API file and `slides` inputs
 
 For canvas `open`, prefer `{ sourcePath: "slides.md" }` so MarkdStage reads a
