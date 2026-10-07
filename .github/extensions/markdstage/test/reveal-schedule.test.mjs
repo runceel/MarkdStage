@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { markedLexer } from "../renderer/marked-lexer.mjs";
 import { parseRevealSchedule } from "../renderer/reveal-schedule.mjs";
+import { parseSlideMarkdown } from "../renderer/fenced-blocks.mjs";
 
 const listDirective = (nested = "") =>
   `<!-- markdstage: reveal=list-items${nested ? ` nested=${nested}` : ""} -->`;
@@ -134,4 +135,112 @@ test("nested list directives cannot overlap a scheduled ancestor list", () => {
     ),
     /overlaps a previously scheduled ancestor list/,
   );
+});
+
+test("whole blocks and list items share source-ordered steps and retain token bindings", () => {
+  const markdown = [
+    "## Flow",
+    "",
+    "Initially visible.",
+    "",
+    "<!-- Presenter note. -->",
+    listDirective(),
+    "",
+    "- First",
+    "- Second",
+    "",
+    "<!-- markdstage: reveal=block -->",
+    "",
+    "Conclusion.",
+    "",
+    "<!-- markdstage: reveal=block -->",
+    "",
+    "```architecture",
+    '{"elements":[{"type":"node","id":"api","x":0,"y":0,"width":100,"height":100}]}',
+    "```",
+  ].join("\n");
+  const parsed = parseSlideMarkdown(markdown, markedLexer);
+  assert.deepEqual(parsed.revealSchedule.schedule, [
+    { kind: "list", listIndex: 0, targets: [0] },
+    { kind: "list", listIndex: 0, targets: [1] },
+    { kind: "block", blockIndex: 3, blockType: "paragraph" },
+    { kind: "block", blockIndex: 4, blockType: "code" },
+  ]);
+  assert.equal(parsed.revealBlocks[0].token.text, "Conclusion.");
+  assert.equal(parsed.revealBlocks[1].token.lang, "architecture");
+  assert.equal(parsed.notes, "Presenter note.");
+  const withMeta = `---\ntitle: Flow\ntheme: dark\n---\n\n${markdown}`;
+  assert.deepEqual(parseRevealSchedule(withMeta, markedLexer).schedule, parsed.revealSchedule.schedule);
+  assert.deepEqual(parseSlideMarkdown(withMeta, markedLexer).revealSchedule.schedule, parsed.revealSchedule.schedule);
+});
+
+test("block reveals accept images, tables, code, Mermaid and entire nested lists", () => {
+  for (const [source, type] of [
+    ["![Image](assets/sample.svg)", "paragraph"],
+    ["| Name | Value |\n| --- | --- |\n| A | B |", "table"],
+    ["```js\nconst answer = 42;\n```", "code"],
+    ["```mermaid\nflowchart LR\nA --> B\n```", "code"],
+    ["1. Parent\n   - Child\n2. Next", "list"],
+  ]) {
+    const parsed = parseSlideMarkdown(`<!-- markdstage: reveal=block -->\n\n${source}`, markedLexer);
+    assert.deepEqual(parsed.revealSchedule.schedule, [{ kind: "block", blockIndex: 0, blockType: type }]);
+    assert.equal(parsed.revealBlocks[0].token.type, type);
+  }
+});
+
+test("whole-block reveals reject unsupported blocks, dangling directives and overlapping schedules", () => {
+  for (const source of [
+    "# Heading",
+    "> Quote",
+    "<div>HTML</div>",
+    "```adaptive-card\n{}\n```",
+    "```archify\n{}\n```",
+  ]) {
+    assert.throws(
+      () => parseRevealSchedule(`<!-- markdstage: reveal=block -->\n\n${source}`, markedLexer),
+      /must be followed by a top-level/,
+    );
+  }
+  assert.throws(
+    () => parseRevealSchedule("<!-- markdstage: reveal=block -->", markedLexer),
+    /no following target/,
+  );
+  assert.throws(
+    () => parseRevealSchedule(`<!-- markdstage: reveal=block -->\n${listDirective()}\n- Item`, markedLexer),
+    /Unexpected second/,
+  );
+  assert.throws(
+    () => parseRevealSchedule('<!-- markdstage: reveal=block -->\n<!-- markdstage: {"steps":[["api"]]} -->\n```architecture\n{}\n```', markedLexer),
+    /Unexpected second/,
+  );
+  assert.throws(
+    () => parseRevealSchedule(`<!-- markdstage: reveal=block -->\n- Parent\n  ${listDirective()}\n  - Child`, markedLexer),
+    /overlaps/,
+  );
+  assert.throws(
+    () => parseRevealSchedule("- Parent\n  <!-- markdstage: reveal=block -->\n  - Child", markedLexer),
+    /top-level/,
+  );
+});
+
+test("fenced block directive examples stay static and abrupt-close comments retain binding", () => {
+  assert.deepEqual(parseRevealSchedule("```md\n<!-- markdstage: reveal=block -->\n```", markedLexer).schedule, []);
+  const parsed = parseSlideMarkdown("<!-- markdstage: reveal=block --!>\n\nA paragraph.", markedLexer);
+  assert.equal(parsed.revealBlocks[0].token.text, "A paragraph.");
+});
+
+test("Architecture element schedules count preceding unscheduled and whole-block diagrams", () => {
+  const diagram = '{"elements":[{"type":"node","id":"api","x":0,"y":0,"width":100,"height":100}]}';
+  const markdown = [
+    "```architecture", diagram, "```",
+    "<!-- markdstage: reveal=block -->",
+    "```architecture", diagram, "```",
+    '<!-- markdstage: {"steps":[["api"]]} -->',
+    "```architecture", diagram, "```",
+  ].join("\n\n");
+  const parsed = parseSlideMarkdown(markdown, markedLexer);
+  assert.deepEqual(parsed.revealSchedule.schedule, [
+    { kind: "block", blockIndex: 1, blockType: "code" },
+    { kind: "architecture", blockIndex: 2, targets: ["api"] },
+  ]);
 });

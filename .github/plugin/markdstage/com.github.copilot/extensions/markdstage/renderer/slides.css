@@ -244,7 +244,7 @@ h3{font-size:var(--slide-h3-size);margin:.25em 0 .3em;font-weight:600;color:var(
 .body ul,.body ol{margin:.2em 0;padding-left:1.35em;}
 .body li{margin:.4em 0;}
 .body li::marker{color:var(--accent);}
-.markdstage-reveal-hidden{visibility:hidden!important;}
+.markdstage-reveal-hidden,.markdstage-reveal-hidden *{visibility:hidden!important;}
 strong{color:var(--fg);font-weight:700;}
 em{color:var(--accent-strong);font-style:normal;font-weight:600;}
 a{color:var(--accent);text-underline-offset:3px;}

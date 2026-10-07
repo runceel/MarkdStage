@@ -32,6 +32,14 @@ export function parseSlideMarkdown(markdown, markedApi) {
   const notes = splitSpeakerNotes(directive ? rawBody.slice(directive[0].length) : rawBody);
   const body = notes.markdown.replace(/\r\n?/g, "\n");
   const tokens = markedApi.lexer(body, { gfm: true, breaks: false });
+  const blockTokens = tokens.filter((token) => token.type !== "space" && token.type !== "html");
+  const revealBlocks = revealSchedule.blocks.map((block) => {
+    const token = blockTokens[block.blockIndex];
+    if (!token || token.type !== block.blockType) {
+      throw new Error(`The Markdown block bound to reveal directive ${block.blockIndex + 1} could not be parsed.`);
+    }
+    return { ...block, token };
+  });
   const cards = [];
   const walk = (entries, path, offset = null) => {
     for (const [index, token] of entries.entries()) {
@@ -59,6 +67,6 @@ export function parseSlideMarkdown(markdown, markedApi) {
   const alerts = extractAlerts(tokens);
   return {
     meta, body, notes: notes.notes, size: directive?.[1].toLowerCase() || "",
-    tokens, cards, alerts, revealSchedule,
+    tokens, cards, alerts, revealSchedule, revealBlocks,
   };
 }

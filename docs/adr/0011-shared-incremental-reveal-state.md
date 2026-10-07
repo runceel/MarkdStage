@@ -24,6 +24,10 @@ behavior.
 - Reserved, block-bound Markdown comments compile into one ordered, slide-local
   reveal schedule. Lists target logical items according to their selected nested
   policy; Architecture steps target IDs scoped to the following diagram.
+  Whole-block targets bind to the next top-level paragraph (including images),
+  list, table, code, Architecture or Mermaid block and occupy one step in the
+  same source-ordered schedule. Mermaid reveals the complete diagram, never
+  individual nodes. Overlapping whole-block and item/element targets are errors.
 - The shared session owns both slide index and reveal position. Advance and
   rewind are build actions; direct slide navigation is a separate action and
   resets the destination to its initial state. Source reload preserves the
@@ -34,11 +38,18 @@ behavior.
   slide.
 - PPTX output retains semantic provenance through native object and paragraph
   generation. Every object emitted for one semantic target shares its authored
-  step. If a fallback combines objects from different steps, the requested
+  step, including backgrounds, decorations and diagram fallback artwork.
+  Whole-block Mermaid builds are identical in editable and image modes.
+  If a fallback combines objects from different steps, the requested
   animation is rejected instead of flattened or silently collapsed.
 - The initial native effect is click-triggered Appear. Browser behavior does not
   establish PowerPoint accessibility or application compatibility; supported
   PowerPoint playback and accessibility require separate verification.
+  Native timing uses the PowerPoint-authored main-sequence hierarchy with
+  slide-targeted previous/next conditions and indefinite click gates. Each
+  target has its own entrance effect; the first uses `clickEffect`, and the
+  remaining simultaneous targets use `withEffect`. This preserves paragraph
+  builds and multi-object blocks when PowerPoint loads and saves the package.
 
 ## Alternatives considered
 

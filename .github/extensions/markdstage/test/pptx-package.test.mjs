@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 
 import {
   buildPptxPackage as buildPptxBytes,
@@ -53,6 +54,20 @@ function xml(files, name) {
   return value.toString("utf8");
 }
 
+test("matches PowerPoint-authored click gating, parallel effects, and slideshow navigation", () => {
+  const elements = [1, 1, 2].map((revealStep, index) => ({
+    type: "text", x: 100, y: (index + 1) * 100, width: 300, height: 80,
+    paragraphs: [{ runs: [{ text: `Item ${index + 1}` }] }], revealStep,
+  }));
+  const slide = xml(readStoredZip(buildPptxPackage({
+    slides: [{ revealStepCount: 2, elements }],
+  })), "ppt/slides/slide1.xml");
+  const reference = readFileSync(new URL("./fixtures/powerpoint-appear-timing.xml", import.meta.url), "utf8");
+  const tree = value => value.match(/<p:tnLst(?: xmlns:p="[^"]+")?>[\s\S]*?<\/p:tnLst>/)[0]
+    .replace(/ xmlns:p="[^"]+"/, "").replace(/>\s+</g, "><");
+  assert.equal(tree(slide), tree(reference));
+});
+
 test("writes explicit flat, round and square caps for native strokes and rejects unknown caps", () => {
   for (const [lineCap, cap] of [["butt", "flat"], ["round", "rnd"], ["square", "sq"]]) {
     const elements = [
@@ -93,6 +108,8 @@ test("writes click-driven appear timing for text paragraphs and every connector 
     }],
   })), "ppt/slides/slide1.xml");
   assert.equal((slide.match(/nodeType="clickEffect"/g) || []).length, 2);
+  assert.equal((slide.match(/nodeType="withEffect"/g) || []).length, 2);
+  assert.equal((slide.match(/presetClass="entr"/g) || []).length, 4);
   assert.match(slide, /<p:spTgt spid="2"><p:txEl><p:pRg st="0" end="0"\/><\/p:txEl><\/p:spTgt>/);
   assert.match(slide, /<p:spTgt spid="2"><p:txEl><p:pRg st="1" end="1"\/><\/p:txEl><\/p:spTgt>/);
   assert.match(slide, /<p:spTgt spid="3"\/>/);

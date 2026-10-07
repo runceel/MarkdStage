@@ -102,7 +102,7 @@ test("portable session parses once, owns navigation, detaches snapshots and seri
   await assert.rejects(runtime.navigate("2"), { code: "invalid_input" });
 });
 
-test("incremental navigation advances and rewinds build steps before crossing slide boundaries", async () => {
+test("mixed list and block navigation advances and rewinds before crossing slide boundaries", async () => {
   const source = [
     "# Plan",
     "",
@@ -112,6 +112,10 @@ test("incremental navigation advances and rewinds build steps before crossing sl
     "  - Research",
     "- Deliver",
     "",
+    "<!-- markdstage: reveal=block -->",
+    "",
+    "Conclusion.",
+    "",
     "---",
     "",
     "# Next",
@@ -119,20 +123,21 @@ test("incremental navigation advances and rewinds build steps before crossing sl
   const { io } = memoryIO({ "slides.md": source });
   const runtime = await createPortableRuntime({ io });
   const loaded = await runtime.loadDeck("slides.md");
-  assert.equal(loaded.revealTotal, 2);
+  assert.equal(loaded.revealTotal, 3);
 
   assert.deepEqual(
     (({ index, revealStep }) => ({ index, revealStep }))(await runtime.navigate({ action: "advance" })),
     { index: 0, revealStep: 1 },
   );
   assert.equal((await runtime.navigate({ action: "advance" })).revealStep, 2);
+  assert.equal((await runtime.navigate({ action: "advance" })).revealStep, 3);
   assert.deepEqual(
     (({ index, revealStep }) => ({ index, revealStep }))(await runtime.navigate({ action: "advance" })),
     { index: 1, revealStep: 0 },
   );
   assert.deepEqual(
     (({ index, revealStep }) => ({ index, revealStep }))(await runtime.navigate({ action: "rewind" })),
-    { index: 0, revealStep: 2 },
+    { index: 0, revealStep: 3 },
   );
   assert.equal((await runtime.navigate({ index: 1 })).revealStep, 0);
 });

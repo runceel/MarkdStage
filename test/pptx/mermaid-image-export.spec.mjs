@@ -116,6 +116,7 @@ test("UI image selection produces a whole-diagram PNG in a real PowerPoint packa
   const file = join(dir, "slides.md");
   await writeFile(file, [
     "## Export diagram",
+    "<!-- markdstage: reveal=block -->",
     "```mermaid\nflowchart LR\n  A[Browser<br/>Client] -->|request| B[API]\n  style A stroke-width:5px\n```",
     "---",
     "## Later slide with two diagrams",
@@ -177,6 +178,8 @@ test("UI image selection produces a whole-diagram PNG in a real PowerPoint packa
         const slide = rendered.model.slides[0];
         const nativeMermaid = slide.elements.filter((element) => element.path?.startsWith("mermaid["));
         const mermaidFallbacks = slide.fallbacks.filter((element) => element.type === "mermaid");
+        expect(slide.revealSchedule.schedule).toHaveLength(1);
+        expect([...nativeMermaid, ...mermaidFallbacks].every((element) => element.revealStep === 1)).toBe(true);
         if (images) {
           expect(nativeMermaid).toHaveLength(0);
           expect(mermaidFallbacks).toHaveLength(1);
@@ -194,6 +197,7 @@ test("UI image selection produces a whole-diagram PNG in a real PowerPoint packa
         const summary = inspectPptxPackage(packageData);
         expect(summary.valid).toBe(true);
         expect(summary.slideCount).toBe(rendered.model.slides.length);
+        expect(packageData.toString("utf8").match(/<p:timing>/g)).toHaveLength(1);
         if (images) {
           expect(references.map(images => images.length)).toEqual([1, 2, 0]);
           for (const [slideIndex, referenceImages] of references.entries()) {

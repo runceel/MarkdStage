@@ -67,8 +67,42 @@ fullscreen. Navigation from the presenter and audience surfaces remains synchron
 
 ## Reveal slide content progressively
 
-Add one reserved comment immediately before a list or Architecture DSL fence to
-opt that block into click-driven builds:
+Add one reserved comment immediately before a supported block to opt it into
+click-driven builds. Unmarked content is visible from the start.
+
+Use `reveal=block` for one complete top-level paragraph, image paragraph, list,
+Markdown table, code block, Architecture diagram, or Mermaid diagram:
+
+```md
+Initially, only this introduction is visible.
+
+<!-- markdstage: reveal=list-items -->
+
+- First point
+- Second point
+
+<!-- markdstage: reveal=block -->
+
+This conclusion appears on the third click.
+
+<!-- markdstage: reveal=block -->
+
+![This image appears on the fourth click](assets/sample.svg)
+```
+
+The directive binds only the next block; blank-line-separated paragraphs are
+separate targets. Blocks, list items, and Architecture element steps share the
+same source-ordered schedule. For tables, code and diagrams, all content and
+decorations appear together. Mermaid is whole-diagram only, in both editable
+shapes and image PowerPoint export modes. Whole-block lists include all nested
+items in one step.
+
+Do not combine `reveal=block` with item/element directives on the same block.
+Nested block directives and unsupported targets (headings, blockquotes, raw
+HTML blocks, Adaptive Cards and Archify) produce explicit errors rather than
+being ignored. Split content into supported top-level blocks instead.
+
+For individual list items or Architecture elements, use the following forms:
 
 ```md
 <!-- markdstage: reveal=list-items nested=together -->
@@ -116,11 +150,13 @@ the complete slide and measure its completed geometry.
 
 Editable PowerPoint export keeps the logical slide count and targets editable
 list paragraphs and all supported diagram objects with native Appear builds.
-Unsupported target conversions fail explicitly. The timing output has not yet
-been verified by click-by-click playback in PowerPoint desktop or PowerPoint for
-the web; LibreOffice compatibility is also unverified. Treat application
-playback review as a required delivery check rather than inferring it from XML
-or package validation.
+Unsupported target conversions fail explicitly. Click-by-click slideshow playback
+was verified on Windows in PowerPoint desktop **16.0.20430.20092** using the sample
+reveal slides in all four themes and both Mermaid export modes, including initial
+hidden state, simultaneous groups, earlier-build restoration, and saved/reopened
+presentations. PowerPoint for the web and LibreOffice compatibility remain
+unverified. Repeat [application playback checks](../../test/fixtures/README.md#incremental-reveal-playback)
+for the delivery environment; XML or package validation alone is not playback evidence.
 
 ## Check fixed 16:9 output
 

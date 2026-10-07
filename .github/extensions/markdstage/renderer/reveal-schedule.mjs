@@ -1,3 +1,5 @@
+import { splitFrontMatter } from "./slide-title.mjs";
+
 const FENCE_OPEN = /^([ \t]{0,3})(`{3,}|~{3,})[ \t]*([^\s`~]*)[ \t]*$/;
 
 function sourceLine(source, offset) {
@@ -63,6 +65,7 @@ function revealComment(token, comment = commentBody(token)) {
   if (comment === null) return null;
   if (!/^markdstage\s*:/i.test(comment)) return null;
   const value = comment.replace(/^markdstage\s*:\s*/i, "").trim();
+  if (/^reveal\s*=\s*block\s*$/i.test(value)) return { kind: "block" };
   const list = /^reveal\s*=\s*list-items(?:\s+nested\s*=\s*([^\s]+))?\s*$/i.exec(value);
   if (list) {
     const nested = (list[1] || "together").toLowerCase();
@@ -76,7 +79,7 @@ function revealComment(token, comment = commentBody(token)) {
   try {
     data = JSON.parse(json);
   } catch {
-    throw new Error(`Malformed MarkdStage reveal metadata at line ${token.__line}; expected a list-items directive or JSON steps object.`);
+    throw new Error(`Malformed MarkdStage reveal metadata at line ${token.__line}; expected a block or list-items directive or JSON steps object.`);
   }
   if (!data || typeof data !== "object" || Array.isArray(data) ||
       Object.keys(data).some((key) => key !== "steps") ||
@@ -189,16 +192,20 @@ export function parseRevealSchedule(markdown, markedApi) {
   if (!markedApi || typeof markedApi.lexer !== "function") {
     throw new TypeError("A Marked lexer is required to parse reveal directives.");
   }
-  const source = String(markdown ?? "").replace(/\r\n?/g, "\n");
+  const source = splitFrontMatter(String(markdown ?? "")).body.replace(/\r\n?/g, "\n");
   const tokens = markedApi.lexer(normalizeHtmlCommentClosers(source), { gfm: true, breaks: false });
   const lists = [];
   const listOrder = [];
   const listParents = [];
   const architectures = [];
+  const blocks = [];
+  const blockLists = new Set();
   const schedule = [];
   let cursor = 0;
+  let blockCount = 0;
+  let architectureCount = 0;
 
-  const walk = (entries, parentListIndex = null) => {
+  const walk = (entries, parentListIndex = null, topLevel = true) => {
     let pending = null;
     for (const token of entries) {
       const bindsList = pending?.kind === "list" && token.type === "list";
@@ -220,11 +227,23 @@ export function parseRevealSchedule(markdown, markedApi) {
         throw new Error(`Malformed MarkdStage directive at line ${token.__line}.`);
       }
       if (token.type === "space") continue;
+      const blockIndex = topLevel && token.type !== "html" ? blockCount++ : null;
+      const language = token.type === "code" ? token.lang?.trim().split(/\s+/)[0].toLowerCase() : "";
+      const architectureIndex = language === "architecture" ? architectureCount++ : null;
       if (pending) {
-        if (pending.kind === "list" && token.type === "list") {
+        if (pending.kind === "block") {
+          if (!topLevel || !["paragraph", "list", "table", "code"].includes(token.type) ||
+              language === "adaptive-card" || language === "archify") {
+            throw new Error(`MarkdStage block reveal at line ${pending.line} must be followed by a top-level paragraph, list, table, code, Mermaid, or Architecture block.`);
+          }
+          const reveal = { kind: "block", blockIndex, blockType: token.type };
+          blocks.push(reveal);
+          schedule.push(reveal);
+          if (token.type === "list") blockLists.add(listOrder.length);
+        } else if (pending.kind === "list" && token.type === "list") {
           const listIndex = listOrder.length;
           for (let parent = parentListIndex; parent !== null; parent = listParents[parent] ?? null) {
-            if (lists.some((entry) => entry.listIndex === parent)) {
+            if (blockLists.has(parent) || lists.some((entry) => entry.listIndex === parent)) {
               throw new Error(`Nested list reveal at line ${pending.line} overlaps a previously scheduled ancestor list.`);
             }
           }
@@ -240,7 +259,7 @@ export function parseRevealSchedule(markdown, markedApi) {
           groups.forEach((targets) => schedule.push({ kind: "list", listIndex, targets }));
         } else if (pending.kind === "architecture" && token.type === "code" &&
             token.lang?.trim().split(/\s+/)[0].toLowerCase() === "architecture") {
-          const blockIndex = architectures.length;
+          const blockIndex = architectureIndex;
           const steps = validateDiagramTargets(token, pending, pending.line);
           const reveal = { kind: "architecture", blockIndex, steps };
           architectures.push(reveal);
@@ -258,16 +277,16 @@ export function parseRevealSchedule(markdown, markedApi) {
           listOrder.push(null);
           listParents[listIndex] = parentListIndex;
         }
-        for (const item of token.items || []) walk(item.tokens || [], listIndex);
+        for (const item of token.items || []) walk(item.tokens || [], listIndex, false);
       } else if (Array.isArray(token.tokens)) {
-        walk(token.tokens);
+        walk(token.tokens, parentListIndex, false);
       }
     }
     if (pending) throw new Error(`MarkdStage reveal at line ${pending.line} has no following target.`);
   };
 
   walk(tokens);
-  return { lists, listCount: listOrder.length, architectures, schedule };
+  return { lists, listCount: listOrder.length, architectures, blocks, schedule };
 }
 
 export function revealCommentLines(markdown) {

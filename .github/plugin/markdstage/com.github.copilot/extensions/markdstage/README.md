@@ -326,9 +326,43 @@ Markdown** in the canvas.
 
 #### Click-driven incremental reveals
 
-An HTML comment opts in only the immediately following list or Architecture
-fence; without one, content is unchanged. The Markdown content remains complete
+An HTML comment opts in only the immediately following supported block;
+without one, content is visible from the start. The Markdown content remains complete
 and readable when the comment is ignored.
+
+Use `reveal=block` to show one entire top-level paragraph (including an image),
+list, Markdown table, code block, Architecture diagram, or Mermaid diagram in
+one click. All blocks and list/diagram steps share source order:
+
+```md
+This introduction is visible initially.
+
+<!-- markdstage: reveal=list-items -->
+
+- First point
+- Second point
+
+<!-- markdstage: reveal=block -->
+
+This conclusion appears after both points.
+
+<!-- markdstage: reveal=block -->
+
+![Then show the image](assets/sample.svg)
+```
+
+Each block directive targets only the next block; paragraphs separated by blank
+lines are separate blocks. An entire list includes its nested items, and an
+entire diagram includes all text, nodes, connectors, icons and decorations.
+Mermaid supports whole-diagram builds, not individual node builds. Native
+PowerPoint output keeps all objects and any fallback pictures for a block on
+the same Appear step, including Mermaid's editable-shapes and image modes.
+Do not combine a whole-block directive with list-item or Architecture-element
+directives on the same block. Nested block directives, headings, blockquotes,
+raw HTML blocks, Adaptive Cards and Archify are not supported targets and produce
+explicit errors; split content into supported top-level blocks instead.
+
+Use `reveal=list-items` for separate logical list-item builds:
 
 ```md
 <!-- markdstage: reveal=list-items nested=separate -->

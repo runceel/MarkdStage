@@ -115,6 +115,7 @@ let navigationEnabled = true;
 let externalLinkAvailable = false;
 let fixedPreviewMode = false;
 let surfaceMode = false;
+let surfaceRevealEnabled = false;
 let outputViewport = null;
 let currentViewport = null;
 let nextViewport = null;
@@ -961,7 +962,7 @@ function moveLeadingSlideTitle(header, bodyEl, specialLayout) {
 }
 
 function presentationRevealActive() {
-  return presenterMode || surfaceMode;
+  return surfaceMode ? surfaceRevealEnabled : presenterMode;
 }
 
 function setRevealVisibility(element, step) {
@@ -975,6 +976,22 @@ function setRevealVisibility(element, step) {
     element.removeAttribute("aria-hidden");
     element.removeAttribute("inert");
   }
+}
+
+function blockRevealMetadata(element) {
+  for (let current = element; current; current = current.parentElement) {
+    if (Number.isInteger(current.__presentationBlockRevealStep)) {
+      return { revealStep: current.__presentationBlockRevealStep };
+    }
+  }
+  return {};
+}
+
+function transferBlockReveal(source, target) {
+  if (!Number.isInteger(source.__presentationBlockRevealStep)) return;
+  target.__presentationBlockRevealStep = source.__presentationBlockRevealStep;
+  target.dataset.markdstageRevealBlock = source.dataset.markdstageRevealBlock;
+  setRevealVisibility(target, target.__presentationBlockRevealStep);
 }
 
 function applyListRevealSchedule(body, revealSchedule) {
@@ -1124,7 +1141,35 @@ function createSlide(
       text: `<div data-markdstage-alert="${marker}"></div>\n`,
     });
   }
+  const blockMarkers = new Map();
+  for (const block of parsed.revealBlocks) {
+    const marker = crypto.randomUUID();
+    const tokenIndex = parsed.tokens.indexOf(block.token);
+    const step = parsed.revealSchedule.schedule.findIndex((entry) =>
+      entry.kind === "block" && entry.blockIndex === block.blockIndex) + 1;
+    if (tokenIndex < 0 || step < 1) throw new Error("The Markdown reveal block token is missing.");
+    blockMarkers.set(marker, { block, step });
+    const markerToken = (edge) => ({
+      type: "html", block: true, raw: "",
+      text: `<span hidden data-markdstage-block-${edge}="${marker}"></span>\n`,
+    });
+    parsed.tokens.splice(tokenIndex, 1, markerToken("start"), block.token, markerToken("end"));
+  }
   bodyEl.innerHTML = window.DOMPurify.sanitize(window.marked.parser(parsed.tokens));
+  for (const [marker, { block, step }] of blockMarkers) {
+    const start = bodyEl.querySelector(`[data-markdstage-block-start="${marker}"]`);
+    const end = bodyEl.querySelector(`[data-markdstage-block-end="${marker}"]`);
+    const target = start?.nextElementSibling;
+    const selector = { paragraph: "p", list: "ul, ol", table: "table", code: "pre" }[block.blockType];
+    if (!start || !end || !target || target !== end.previousElementSibling || !target.matches(selector)) {
+      throw new Error(`The Markdown block bound to reveal directive ${block.blockIndex + 1} could not be rendered as one block.`);
+    }
+    target.__presentationBlockRevealStep = step;
+    target.dataset.markdstageRevealBlock = String(block.blockIndex);
+    setRevealVisibility(target, step);
+    start.remove();
+    end.remove();
+  }
   applyListRevealSchedule(bodyEl, parsed.revealSchedule);
   bodyEl.querySelectorAll('img[src^="/assets/"]').forEach((image) => {
     image.setAttribute("src", localAssetUrl(image.getAttribute("src")));
@@ -1166,6 +1211,7 @@ function createSlide(
     const graph = document.createElement("pre");
     graph.className = "mermaid";
     graph.textContent = code.textContent;
+    transferBlockReveal(target, graph);
     target.replaceWith(graph);
   });
   // Architecture fences contain a constrained JSON DSL. The renderer builds its
@@ -1180,6 +1226,7 @@ function createSlide(
       applyArchitectureReveal(wrapper, blockIndex, parsed.revealSchedule);
       const title = wrapper.__presentationPptxSnapshot?.title;
       if (title) wrapper.dataset.architectureTitle = title;
+      transferBlockReveal(target, wrapper);
       target.replaceWith(wrapper);
       return;
     }
@@ -1188,6 +1235,7 @@ function createSlide(
     const host = document.createElement("div");
     host.className = "architecture-edit-host";
     host.setAttribute("data-architecture-block", String(blockIndex));
+    transferBlockReveal(target, host);
     target.replaceWith(host);
     const editorRenderToken = renderToken;
     const editor = attachArchitectureEditor(host, {
@@ -1201,7 +1249,9 @@ function createSlide(
     });
     if (!editor) {
       // Do not edit invalid DSL; fall back to the standard error display.
-      host.replaceWith(renderArchitectureBlock(source, document));
+      const wrapper = renderArchitectureBlock(source, document);
+      transferBlockReveal(host, wrapper);
+      host.replaceWith(wrapper);
       return;
     }
     architectureEditors.push(editor);
@@ -1867,15 +1917,6 @@ function nativeListTextElement(list, deck, eligibleItems, allLists, revealStepsB
     const spaceAfter = roundedMetric(
       Math.max(0, nextBounds ? nextBounds.y - (bounds.y + bounds.height) : 0),
     );
-    const paragraphRevealSteps = entries.map(({ item }) => {
-      for (const candidate of allLists) {
-        if (!candidate.contains(item)) continue;
-        const step = revealStepsByList.get(allLists.indexOf(candidate))
-          ?.get([...candidate.querySelectorAll("li")].indexOf(item));
-        if (step) return step;
-      }
-      return 0;
-    });
     return {
       ...paragraph,
       ...(lineSpacing > 0 ? { lineSpacing } : {}),
@@ -1883,6 +1924,15 @@ function nativeListTextElement(list, deck, eligibleItems, allLists, revealStepsB
       spaceBefore: 0,
       spaceAfter,
     };
+  });
+  const paragraphRevealSteps = entries.map(({ item }) => {
+    for (const candidate of allLists) {
+      if (!candidate.contains(item)) continue;
+      const step = revealStepsByList.get(allLists.indexOf(candidate))
+        ?.get([...candidate.querySelectorAll("li")].indexOf(item));
+      if (step) return step;
+    }
+    return 0;
   });
   for (const { item } of entries) item.setAttribute("data-pptx-native", "text");
   list.setAttribute("data-pptx-native", "text");
@@ -1898,6 +1948,7 @@ function nativeListTextElement(list, deck, eligibleItems, allLists, revealStepsB
       ...items.map((item) => Number(item.dataset.pptxZOrder) || 0),
     ),
     paragraphs,
+    ...blockRevealMetadata(list),
     ...(paragraphRevealSteps.some((step) => step > 0) ? { paragraphRevealSteps } : {}),
     opacity: Number(getComputedStyle(list).opacity) || 1,
   };
@@ -2110,6 +2161,12 @@ function fallbackBounds(element, deck, padding = 0, includeDescendants = false) 
 }
 
 function pptxFallback(type, element, deck, reason, options = {}) {
+  const reveal = blockRevealMetadata(element);
+  if (reveal.revealStep === undefined &&
+      [...element.querySelectorAll("[data-markdstage-reveal-block]")].some((target) =>
+        Number.isInteger(target.__presentationBlockRevealStep))) {
+    throw new Error("PowerPoint cannot preserve block reveals in artwork that combines independently scheduled content.");
+  }
   const bounds = fallbackBounds(
     element,
     deck,
@@ -2138,6 +2195,7 @@ function pptxFallback(type, element, deck, reason, options = {}) {
     type,
     path: elementPath(element, deck),
     reason,
+    ...reveal,
     ...bounds,
     ...(captureId ? { captureId } : {}),
     ...(zOrder !== undefined ? { zOrder } : {}),
@@ -2800,7 +2858,10 @@ function collectMermaidObjects(element, deck, blockIndex) {
       ...(fallback.artwork === false ? { artwork: false } : {}),
     };
   });
-  return { elements: mapped.elements, fallbacks };
+  return {
+    elements: mapped.elements.map((entry) => ({ ...entry, ...blockRevealMetadata(element) })),
+    fallbacks: fallbacks.map((entry) => ({ ...entry, ...blockRevealMetadata(element) })),
+  };
 }
 
 async function collectPptxSlide(slide, index, options = {}) {
@@ -3083,6 +3144,7 @@ async function collectPptxSlide(slide, index, options = {}) {
       ...bounds,
       zOrder: Number(element.dataset.pptxZOrder),
       paragraphs: [paragraph],
+      ...blockRevealMetadata(element),
       opacity: Number(getComputedStyle(element).opacity) || 1,
       ...(fittedTextInsets ? { textInsets: fittedTextInsets } : {}),
       ...(disableTextWrap ? { textWrap: "none" } : {}),
@@ -3171,6 +3233,7 @@ async function collectPptxSlide(slide, index, options = {}) {
       strokeWidth: borderWidth || 1,
       opacity: Number(style.opacity) || 1,
       paragraphs: codeParagraphsFor(code),
+      ...blockRevealMetadata(pre),
       verticalAlignment: "top",
       ...(textInsets ? { textInsets } : {}),
       textWrap: "none",
@@ -3190,6 +3253,7 @@ async function collectPptxSlide(slide, index, options = {}) {
         height: bounds.height - accentInset * 2,
         fill: accentColor,
         stroke: null,
+        ...blockRevealMetadata(pre),
         zOrder: Number(pre.dataset.pptxZOrder) + 0.01,
       });
     }
@@ -3277,6 +3341,7 @@ async function collectPptxSlide(slide, index, options = {}) {
       zOrder: Number(table.dataset.pptxZOrder),
       columnWidths: tableColumnWidths(table, rows, columnCount),
       rows,
+      ...blockRevealMetadata(table),
     });
     if (effects.length) {
       const decoration = effects.includes("box-shadow") ? preserveBoxShadow(table, deck) : null;
@@ -3345,6 +3410,7 @@ async function collectPptxSlide(slide, index, options = {}) {
       ...(borderRadius > 0 ? { cornerRadius: borderRadius } : {}),
       naturalWidth: image.naturalWidth,
       naturalHeight: image.naturalHeight,
+      ...blockRevealMetadata(image),
     });
     image.setAttribute("data-pptx-native", "image");
     if (effects.length) {
@@ -3390,6 +3456,7 @@ async function collectPptxSlide(slide, index, options = {}) {
     elements.push(
       ...architecture.elements.map((element, elementIndex) => ({
         ...element,
+        ...blockRevealMetadata(wrapper),
         ...(targetSteps?.has(element.architecture?.id)
           ? { revealStep: targetSteps.get(element.architecture.id) }
           : {}),
@@ -3398,6 +3465,7 @@ async function collectPptxSlide(slide, index, options = {}) {
     );
     fallbacks.push(...architecture.fallbacks.map((fallback) => ({
       ...fallback,
+      ...blockRevealMetadata(wrapper),
       ...(targetSteps?.has(fallback.architecture?.id)
         ? { revealStep: targetSteps.get(fallback.architecture.id) }
         : {}),
@@ -4780,6 +4848,7 @@ function slideViewportState(markdown, index, interactive, revealStep = 0, reveal
   return {
     markdown, index, total: navTotal, theme: deckTheme, themeLocked: deckThemeLocked,
     revealStep, revealTotal,
+    revealEnabled: presenterMode || presenterViewOpen,
     customThemeCss, customThemeMeta, navigationEnabled: interactive, externalLinkAvailable,
   };
 }
@@ -5082,7 +5151,7 @@ function updateSlideViewports() {
       stage.classList.add("slide-viewport");
       outputViewport = mountSlideViewport(stage, "outputFrame", "Slide", navigationEnabled);
     }
-    outputViewport.setState(slideViewportState(lastMarkdown, navIndex, navigationEnabled));
+    outputViewport.setState(slideViewportState(lastMarkdown, navIndex, navigationEnabled, navRevealStep, navRevealTotal));
   }
 }
 
@@ -5107,6 +5176,7 @@ function initSlideSurface() {
       navTotal = state.total;
       navRevealStep = Number(state.revealStep) || 0;
       navRevealTotal = Number(state.revealTotal) || 0;
+      surfaceRevealEnabled = state.revealEnabled === true;
       navigationEnabled = state.navigationEnabled;
       pointerNavigationEnabled = state.pointerNavigation !== false;
       externalLinkAvailable = state.externalLinkAvailable === true;

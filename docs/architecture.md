@@ -131,7 +131,19 @@ position. Advance/rewind actions are shared host commands; direct slide jumps
 remain distinct and begin at the destination's initial state. Static views and
 exports use the completed slide, while presentation rendering applies the same
 slide-local schedule used by editable PowerPoint output. [ADR 0011](adr/0011-shared-incremental-reveal-state.md)
-records this ownership and the required semantic-target provenance.
+records this ownership and the required semantic-target provenance. Whole-block
+paragraph, list, image, table, code, Architecture and Mermaid targets bind through
+Markdown token identities, not visual lines or layout-dependent DOM positions.
+Every native object and fallback decoration emitted for a block shares its step.
+Static output-preview surfaces explicitly disable reveals; presenter and audience
+surfaces receive the current build position.
+The PPTX main sequence follows PowerPoint-authored timing: slide-targeted
+`onPrev`/`onNext` navigation conditions, indefinite click gates, and one entrance
+effect per object/paragraph. Parallel targets use `withEffect` under the same
+click gate. Omitting the sequence navigation conditions causes PowerPoint desktop
+to discard the entire effect sequence; a zero-delay gate produces an automatic
+build instead of an authored click. Application playback is checked separately
+from the package/PowerPoint-authored XML regression tests.
 
 Desktop owns recent workspaces, native windows, audience-window lifecycle, and
 its private user preferences. A canonical workspace root identifies a Desktop

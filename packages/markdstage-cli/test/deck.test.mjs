@@ -476,6 +476,10 @@ test("presentation actions advance and rewind reveal steps without changing slid
       "- First",
       "- Second",
       "",
+      "<!-- markdstage: reveal=block -->",
+      "",
+      "Conclusion.",
+      "",
       "---",
       "",
       "# Next",
@@ -487,14 +491,14 @@ test("presentation actions advance and rewind reveal steps without changing slid
       assert.equal(initial.total, session.slides.length);
       assert.equal(initial.index, 0);
       assert.equal(initial.revealStep, 0);
-      assert.equal(initial.revealTotal, 2);
+      assert.equal(initial.revealTotal, 3);
 
       const preview = await fetch(new URL("state?build=next", server.url)).then((response) => response.json());
       assert.equal(preview.index, 0);
       assert.equal(preview.revealStep, 1);
       assert.equal(session.revealStep, 0);
 
-      for (const expectedStep of [1, 2]) {
+      for (const expectedStep of [1, 2, 3]) {
         const response = await post(server.url, "navigate", { action: "advance" });
         assert.equal(response.status, 200);
         const state = await response.json();
@@ -508,7 +512,7 @@ test("presentation actions advance and rewind reveal steps without changing slid
 
       const previous = await post(server.url, "navigate", { action: "rewind" }).then((response) => response.json());
       assert.equal(previous.index, 0);
-      assert.equal(previous.revealStep, 2);
+      assert.equal(previous.revealStep, 3);
 
       const jump = await post(server.url, "navigate", { index: 1 }).then((response) => response.json());
       assert.equal(jump.index, 1);
