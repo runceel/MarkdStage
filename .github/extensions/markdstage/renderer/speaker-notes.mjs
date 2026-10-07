@@ -69,6 +69,13 @@ function htmlEntityDecoder(documentRef) {
   };
 }
 
+function htmlCommentEnd(value, start) {
+  const standard = value.indexOf("-->", start);
+  const abrupt = value.indexOf("--!>", start);
+  if (abrupt >= 0 && (standard < 0 || abrupt < standard)) return { index: abrupt, length: 4 };
+  return standard < 0 ? { index: -1, length: 0 } : { index: standard, length: 3 };
+}
+
 function htmlTagEnd(value, start) {
   let quote = "";
   for (let index = start + 1; index < value.length; index += 1) {
@@ -80,6 +87,7 @@ function htmlTagEnd(value, start) {
     } else if (character === ">") {
       return index;
     }
+
   }
   return -1;
 }
@@ -113,8 +121,8 @@ function htmlTokenText(value, decodeHtml) {
     }
     output += value.slice(cursor, start);
     if (value.startsWith("<!--", start)) {
-      const end = value.indexOf("-->", start + 4);
-      cursor = end < 0 ? value.length : end + 3;
+      const { index, length } = htmlCommentEnd(value, start + 4);
+      cursor = index < 0 ? value.length : index + length;
       continue;
     }
     const end = htmlTagEnd(value, start);
@@ -317,7 +325,7 @@ function parseSpeakerNotes(markdown) {
         cursor = start + 4;
       }
 
-      const end = line.indexOf("-->", cursor);
+      const { index: end, length } = htmlCommentEnd(line, cursor);
       if (end < 0) {
         comment.push(line.slice(cursor), "\n");
         break;
@@ -327,7 +335,7 @@ function parseSpeakerNotes(markdown) {
       const note = normalizeNote(comment.join(""));
       if (note && !SLIDE_SIZE_DIRECTIVE.test(note) && !MARKDSTAGE_DIRECTIVE.test(note)) notes.push(note);
       comment = null;
-      cursor = end + 3;
+      cursor = end + length;
     }
     output.push(visible);
   }

@@ -59,6 +59,18 @@ test("reserved reveal directives are removed from source comments without becomi
   );
 });
 
+test("HTML abrupt-close comments remain reserved and can contain notes", () => {
+  const markdown = [
+    "<!-- markdstage: reveal=list-items --!>",
+    "",
+    "- One",
+    "",
+    "<!-- Presenter reminder --!>",
+  ].join("\n");
+  assert.equal(extractSpeakerNotes(markdown), "Presenter reminder");
+  assert.equal(stripSpeakerNotes(markdown), ["", "", "- One", "", ""].join("\n"));
+});
+
 test("keeps fenced code written inside a speaker note", () => {
   const notes = extractSpeakerNotes(
     [

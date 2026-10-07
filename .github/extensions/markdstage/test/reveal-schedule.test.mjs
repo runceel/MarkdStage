@@ -89,6 +89,14 @@ test("fenced comment examples do not become reveal directives", () => {
   assert.deepEqual(parseRevealSchedule(markdown, markedLexer).schedule, []);
 });
 
+test("HTML abrupt-close comments retain their reveal binding", () => {
+  const schedule = parseRevealSchedule(
+    ["<!-- markdstage: reveal=list-items --!>", "", "- First", "- Second"].join("\n"),
+    markedLexer,
+  );
+  assert.deepEqual(schedule.lists[0].steps, [[0], [1]]);
+});
+
 test("invalid nested policies, malformed JSON, and unknown Architecture ids are actionable", () => {
   assert.throws(
     () => parseRevealSchedule(`${listDirective("invalid")}\n\n- Item`, markedLexer),

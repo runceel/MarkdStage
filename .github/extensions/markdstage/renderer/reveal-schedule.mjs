@@ -4,11 +4,63 @@ function sourceLine(source, offset) {
   return source.slice(0, offset).split("\n").length;
 }
 
-function revealComment(token) {
-  if (token?.type !== "html" || !/^\s*<!--[\s\S]*?-->\s*$/.test(token.raw || "")) {
-    return null;
-  }
-  const comment = token.raw.trim().slice(4, -3).trim();
+function commentBody(token) {
+  if (token?.type !== "html") return null;
+  const raw = (token.raw || "").trim();
+  const endLength = raw.endsWith("--!>") ? 4 : raw.endsWith("-->") ? 3 : 0;
+  return raw.startsWith("<!--") && endLength ? raw.slice(4, -endLength).trim() : null;
+}
+
+function normalizeHtmlCommentClosers(markdown) {
+  let inFence = "";
+  let inComment = false;
+  return markdown.split("\n").map((line) => {
+    if (inFence) {
+      const close = /^([ \t]{0,3})(`{3,}|~{3,})[ \t]*$/.exec(line);
+      if (close && close[2][0] === inFence[0] && close[2].length >= inFence.length) inFence = "";
+      return line;
+    }
+    if (!inComment) {
+      const open = FENCE_OPEN.exec(line);
+      if (open) {
+        inFence = open[2];
+        return line;
+      }
+    }
+    let output = "";
+    let cursor = 0;
+    while (cursor < line.length) {
+      if (!inComment) {
+        const start = line.indexOf("<!--", cursor);
+        if (start < 0) {
+          output += line.slice(cursor);
+          break;
+        }
+        output += line.slice(cursor, start + 4);
+        cursor = start + 4;
+        inComment = true;
+      }
+      const regularEnd = line.indexOf("-->", cursor);
+      const abruptEnd = line.indexOf("--!>", cursor);
+      if (abruptEnd >= 0 && (regularEnd < 0 || abruptEnd < regularEnd)) {
+        output += `${line.slice(cursor, abruptEnd)}--> `;
+        cursor = abruptEnd + 4;
+        inComment = false;
+      } else if (regularEnd >= 0) {
+        output += line.slice(cursor, regularEnd + 3);
+        cursor = regularEnd + 3;
+        inComment = false;
+      } else {
+        output += line.slice(cursor);
+        break;
+      }
+    }
+    return output;
+  }).join("\n");
+}
+
+function revealComment(token, comment = commentBody(token)) {
+  if (comment === null) return null;
   if (!/^markdstage\s*:/i.test(comment)) return null;
   const value = comment.replace(/^markdstage\s*:\s*/i, "").trim();
   const list = /^reveal\s*=\s*list-items(?:\s+nested\s*=\s*([^\s]+))?\s*$/i.exec(value);
@@ -138,7 +190,7 @@ export function parseRevealSchedule(markdown, markedApi) {
     throw new TypeError("A Marked lexer is required to parse reveal directives.");
   }
   const source = String(markdown ?? "").replace(/\r\n?/g, "\n");
-  const tokens = markedApi.lexer(source, { gfm: true, breaks: false });
+  const tokens = markedApi.lexer(normalizeHtmlCommentClosers(source), { gfm: true, breaks: false });
   const lists = [];
   const listOrder = [];
   const listParents = [];
@@ -154,7 +206,7 @@ export function parseRevealSchedule(markdown, markedApi) {
       const offset = start < 0 ? cursor : start;
       token.__line = sourceLine(source, offset);
       cursor = Math.max(cursor, offset) + (token.raw || "").length;
-      if (token.type === "html" && /^\s*<!--[\s\S]*?-->\s*$/.test(token.raw || "")) {
+      if (token.type === "html" && commentBody(token) !== null) {
         const directive = revealComment(token);
         if (directive) {
           if (pending) throw new Error(`Unexpected second MarkdStage reveal directive at line ${token.__line}.`);
@@ -163,6 +215,9 @@ export function parseRevealSchedule(markdown, markedApi) {
           throw new Error(`Malformed MarkdStage directive at line ${token.__line}.`);
         }
         continue;
+      }
+      if (token.type === "html" && /<!--\s*markdstage\b/i.test(token.raw || "")) {
+        throw new Error(`Malformed MarkdStage directive at line ${token.__line}.`);
       }
       if (token.type === "space") continue;
       if (pending) {
@@ -234,7 +289,7 @@ export function revealCommentLines(markdown) {
     if (!/^[ \t]{0,3}<!--\s*markdstage\b/i.test(line)) continue;
     for (let end = index; end < lines.length; end += 1) {
       reserved.add(end);
-      if (lines[end].includes("-->")) {
+      if (lines[end].includes("-->") || lines[end].includes("--!>")) {
         index = end;
         break;
       }
