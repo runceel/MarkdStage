@@ -44,6 +44,7 @@ file layouts, local UI behaviour — does not belong here.
 | [0008](0008-vscode-architecture-editing-through-canonical-editor.md) | Expose Architecture DSL editing through the canonical editor | Accepted | Use the existing CLI-backed Architecture Editor and source-save path instead of duplicating shape editing in a VS Code webview. |
 | [0009](0009-vscode-host-mediated-architecture-editor-tabs.md) | VS Code mediates Architecture Editor tabs | Accepted | Let the CLI own editor sessions and notify the extension through the versioned loopback event stream; let VS Code project each editor in a separate tab. |
 | [0010](0010-vscode-host-owned-export-opening.md) | VS Code owns opening completed exports | Accepted | Report completed exports as versioned JSON-lines events and let the extension validate them and offer open/reveal through a VS Code notification. |
+| [0011](0011-shared-incremental-reveal-state.md) | Incremental reveals use shared semantic schedules | Accepted | One authored schedule drives shared presentation state and PPTX object/paragraph builds; static modes remain complete. |
 
 ## Writing a new record
 

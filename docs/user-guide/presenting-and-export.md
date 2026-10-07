@@ -43,7 +43,8 @@ native viewing, but not for export.
 Select **More controls > Presenter view** in Desktop, Canvas, or the CLI application. Confirm:
 
 - The current slide is correct.
-- The next slide preview is useful.
+- The next build preview identifies whether the next action reveals content or
+  moves to another slide.
 - Speaker notes contain only presenter guidance.
 - The slide list has clear titles.
 
@@ -63,6 +64,63 @@ Select **More controls > Presenter view** in Desktop, Canvas, or the CLI applica
 
 Move the new window to the audience display. Press `F11` for fullscreen and `Esc` to leave
 fullscreen. Navigation from the presenter and audience surfaces remains synchronized.
+
+## Reveal slide content progressively
+
+Add one reserved comment immediately before a list or Architecture DSL fence to
+opt that block into click-driven builds:
+
+```md
+<!-- markdstage: reveal=list-items nested=together -->
+
+- Design
+  - Architecture
+- Implement
+
+<!-- markdstage:
+{
+  "steps": [
+    ["frontend"],
+    ["backend", "request"]
+  ]
+}
+-->
+```architecture
+{"version":1,"elements":[{"type":"node","id":"frontend","x":40,"y":80,"width":200,"height":100,"text":"Frontend"},{"type":"node","id":"backend","x":480,"y":80,"width":200,"height":100,"text":"Backend"},{"type":"connector","id":"request","from":"frontend","to":"backend"}]}
+```
+
+For lists, `nested=together` is the default: each top-level item and its full
+descendant subtree appear in one step. Use `nested=separate` to reveal logical
+items in depth-first source order, with each parent visible before its children.
+This applies to ordered, unordered, and mixed nesting at any supported depth;
+list numbering and nesting are retained. Wrapped visual lines do not create
+extra steps. Each list directive binds only the next list. Empty items and items
+containing images are rejected because their presentation/export mapping is not
+supported.
+
+Architecture steps refer to stable `id` values from only the following diagram.
+Each array of IDs is one simultaneous step. A group target includes its frame
+and descendants. Untargeted connectors appear once both endpoints are visible;
+an explicitly scheduled connector cannot appear before either endpoint.
+Repeated or parent/child-conflicting targets and unknown IDs produce errors.
+Unsupported merged fallback artwork cannot be animated independently and is
+reported rather than silently flattened.
+
+In presenter and audience views, **Advance** reveals the next step and **Rewind**
+hides the last one. Advance after the final step enters the next slide at its
+initial state; rewind from the initial state enters the previous slide complete.
+Direct slide-list navigation starts the destination slide at its initial state.
+The preview marks the next build separately from the next slide. Static reading,
+editing, overview, output preview, inspection, PDF, and PNG capture always show
+the complete slide and measure its completed geometry.
+
+Editable PowerPoint export keeps the logical slide count and targets editable
+list paragraphs and all supported diagram objects with native Appear builds.
+Unsupported target conversions fail explicitly. The timing output has not yet
+been verified by click-by-click playback in PowerPoint desktop or PowerPoint for
+the web; LibreOffice compatibility is also unverified. Treat application
+playback review as a required delivery check rather than inferring it from XML
+or package validation.
 
 ## Check fixed 16:9 output
 

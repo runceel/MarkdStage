@@ -38,6 +38,8 @@ import {
   listMarkdownFiles,
 } from "../../.github/extensions/markdstage/scripts/markdown-files.mjs";
 import { buildDeckSlides } from "../../.github/extensions/markdstage/markdown-deck.mjs";
+import { markedLexer } from "../../.github/extensions/markdstage/renderer/marked-lexer.mjs";
+import { parseRevealSchedule } from "../../.github/extensions/markdstage/renderer/reveal-schedule.mjs";
 import { createMarkdownWatcher } from "../../.github/extensions/markdstage/scripts/markdown-watcher.mjs";
 import { resolveAssetFile } from "../../.github/extensions/markdstage/scripts/asset-paths.mjs";
 
@@ -162,6 +164,8 @@ export async function startHarness({
     deckVersion: 1,
     slides: slides.slice(),
     index: slides.length ? Math.min(Math.max(index, 0), slides.length - 1) : 0,
+    revealSchedules: slides.map((slide) => parseRevealSchedule(slide, markedLexer).schedule),
+    revealStep: 0,
     theme,
     customThemeCss,
     customThemeMeta,
@@ -217,8 +221,17 @@ export async function startHarness({
           const imported = buildDeckSlides(markdown);
           if (!imported.length) throw new Error("empty_markdown");
           if (markdown !== state.sourceWritebackSnapshot) {
+            const previousIndex = state.index;
+            const previousSlide = state.slides[previousIndex];
+            const previousSchedule = JSON.stringify(state.revealSchedules[previousIndex] || []);
+            const previousStep = state.revealStep;
             state.slides = imported;
             state.index = Math.min(state.index, state.slides.length - 1);
+            state.revealSchedules = imported.map((slide) => parseRevealSchedule(slide, markedLexer).schedule);
+            state.revealStep = previousSlide === state.slides[state.index] &&
+              previousSchedule === JSON.stringify(state.revealSchedules[state.index] || [])
+              ? Math.min(previousStep, state.revealSchedules[state.index]?.length || 0)
+              : 0;
             state.sourceWritebackSnapshot = markdown;
             state.deckVersion += 1;
             state.version += 1;
@@ -304,15 +317,30 @@ export async function startHarness({
         -1,
         Math.min(1, Number.parseInt(requestUrl.searchParams.get("offset") || "0", 10) || 0),
       );
-      const targetIndex = state.slides.length
+      let targetIndex = state.slides.length
         ? Math.min(Math.max(state.index + offset, 0), state.slides.length - 1)
         : 0;
+      let revealStep = targetIndex === state.index ? state.revealStep : 0;
+      let revealTotal = state.revealSchedules[targetIndex]?.length || 0;
+      if (requestUrl.searchParams.get("build") === "next") {
+        targetIndex = state.index;
+        revealTotal = state.revealSchedules[targetIndex]?.length || 0;
+        if (revealStep < revealTotal) revealStep += 1;
+        else if (state.index < state.slides.length - 1) {
+          targetIndex = state.index + 1;
+          revealStep = 0;
+          revealTotal = state.revealSchedules[targetIndex]?.length || 0;
+        }
+      }
       sendJson(res, 200, {
         version: state.version,
         deckVersion: state.deckVersion,
         markdown: state.slides[targetIndex] ?? "",
         index: targetIndex,
         total: state.slides.length,
+        revealStep,
+        revealTotal,
+        revealTotals: state.revealSchedules.map((schedule) => schedule.length),
         theme: state.theme,
         customThemeCss: state.customThemeCss,
         customThemeMeta: state.customThemeMeta,
@@ -413,15 +441,39 @@ export async function startHarness({
       }
       const hasIndex = typeof body.index === "number" && Number.isFinite(body.index);
       const hasDelta = typeof body.delta === "number" && Number.isFinite(body.delta);
-      if (hasIndex === hasDelta) {
-        sendJson(res, 400, { ok: false, error: "exactly one of index or delta is required" });
+      const hasAction = body.action === "advance" || body.action === "rewind";
+      if ([hasIndex, hasDelta, hasAction].filter(Boolean).length !== 1) {
+        sendJson(res, 400, { ok: false, error: "exactly one of index, delta, or action is required" });
         return;
       }
-      const target = hasIndex ? body.index : state.index + body.delta;
-      const clamped = Math.min(Math.max(target, 0), state.slides.length - 1);
-      const changed = clamped !== state.index;
-      if (changed) {
+      let changed = false;
+      if (hasAction && body.action === "advance") {
+        const total = state.revealSchedules[state.index]?.length || 0;
+        if (state.revealStep < total) {
+          state.revealStep += 1;
+          changed = true;
+        } else if (state.index < state.slides.length - 1) {
+          state.index += 1;
+          state.revealStep = 0;
+          changed = true;
+        }
+      } else if (hasAction && body.action === "rewind") {
+        if (state.revealStep > 0) {
+          state.revealStep -= 1;
+          changed = true;
+        } else if (state.index > 0) {
+          state.index -= 1;
+          state.revealStep = state.revealSchedules[state.index]?.length || 0;
+          changed = true;
+        }
+      } else {
+        const target = hasIndex ? body.index : state.index + body.delta;
+        const clamped = Math.min(Math.max(target, 0), state.slides.length - 1);
+        changed = clamped !== state.index || state.revealStep !== 0;
         state.index = clamped;
+        state.revealStep = 0;
+      }
+      if (changed) {
         state.version += 1;
         broadcast();
       }
@@ -431,6 +483,8 @@ export async function startHarness({
         version: state.version,
         index: state.index,
         total: state.slides.length,
+        revealStep: state.revealStep,
+        revealTotal: state.revealSchedules[state.index]?.length || 0,
         mode: "deck",
       });
       return;
@@ -647,6 +701,8 @@ export async function startHarness({
       }
       state.slides = imported;
       state.index = 0;
+      state.revealSchedules = imported.map((slide) => parseRevealSchedule(slide, markedLexer).schedule);
+      state.revealStep = 0;
       state.sourceName = rel;
       state.sourceWriteback = true;
       state.sourceWritebackSnapshot = text;

@@ -126,6 +126,13 @@ The shared runtime owns deck parsing, slide identity, navigation state, theme
 state, validation, and the source-backed reload model. Native hosts retain only
 the state needed to integrate that snapshot with platform windows and services.
 
+Presentation position includes both the logical slide index and its reveal-step
+position. Advance/rewind actions are shared host commands; direct slide jumps
+remain distinct and begin at the destination's initial state. Static views and
+exports use the completed slide, while presentation rendering applies the same
+slide-local schedule used by editable PowerPoint output. [ADR 0011](adr/0011-shared-incremental-reveal-state.md)
+records this ownership and the required semantic-target provenance.
+
 Desktop owns recent workspaces, native windows, audience-window lifecycle, and
 its private user preferences. A canonical workspace root identifies a Desktop
 workspace window; repeated activation reuses that window rather than creating a
