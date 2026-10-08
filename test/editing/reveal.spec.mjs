@@ -224,7 +224,10 @@ test("presenter next-build preview includes the next block and return-to-slide s
     await expect(next.locator(".architecture-diagram")).toHaveCSS("visibility", "visible");
     await expect(page.locator("#presenterNextLabel")).toHaveText("Next reveal");
     await page.getByRole("button", { name: "Return to slide view" }).click();
-    const slide = await getSlideFrame(page);
+    const returned = page.locator('.scroll-item[data-index="0"]');
+    await expect(returned).toHaveAttribute("data-current", "true");
+    await expect(returned.locator("iframe")).toBeAttached();
+    const slide = await waitForSlideReady(page);
     await expect(slide.locator(".architecture-diagram")).toHaveCSS("visibility", "visible");
   } finally {
     await harness.close();
