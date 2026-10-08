@@ -214,11 +214,11 @@ test("native no-open server exports beside the source and owns one audience wind
     const state = async () => (await fetch(new URL("state", ready.url))).json();
 
     const pdf = await post("export");
-    assert.equal(pdf.ok, true);
+    assert.equal(pdf.ok, true, JSON.stringify(pdf));
     assert.equal(pdf.path, "deck.pdf");
     assert.equal(readFileSync(join(workspace, "deck.pdf")).subarray(0, 5).toString("latin1"), "%PDF-");
     const pptx = await post("export-pptx", { mermaidImageFallback: false });
-    assert.equal(pptx.ok, true);
+    assert.equal(pptx.ok, true, JSON.stringify(pptx));
     assert.equal(pptx.path, "deck.pptx");
     assert.equal(readFileSync(join(workspace, "deck.pptx")).subarray(0, 2).toString("latin1"), "PK");
     for (const path of ["../outside.pdf", "missing.pdf", "deck.md"]) {
