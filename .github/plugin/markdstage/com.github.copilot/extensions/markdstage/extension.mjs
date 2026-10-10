@@ -74,7 +74,10 @@ import {
   THEME_ASSET_MAX_BYTES,
   themeMetadataAssetPaths,
 } from "./renderer/theme.mjs";
+import { markedLexer } from "./renderer/marked-lexer.mjs";
+import { parseRevealSchedule } from "./renderer/reveal-schedule.mjs";
 import { MarkdStageError } from "./runtime/errors.mjs";
+import { advanceSession, navigateSession } from "./runtime/session-state.mjs";
 import {
   findChromiumBrowser,
   isProcessRunning,
@@ -404,7 +407,7 @@ function queuePenAction(label, run) {
 function queuePenNavigation(delta) {
   queuePenAction("navigation", async (inst) => {
     if (!inst.slides.length) return;
-    await applyNavigation(inst, inst.index + delta);
+    applyRevealNavigation(inst, delta);
   });
 }
 
@@ -588,6 +591,7 @@ async function persistNow(inst) {
         markdown: inst.markdown,
         slides: inst.slides,
         index: inst.index,
+        revealStep: inst.revealStep,
         viewMode: inst.viewMode,
         theme: inst.theme,
         themeLocked: inst.themeLocked,
@@ -650,10 +654,15 @@ function setViewMode(inst, mode) {
 
 async function applyDeckSlide(inst) {
   inst.markdown = inst.slides.length ? inst.slides[inst.index] : "";
+  inst.revealStep = 0;
   inst.mode = "deck";
   inst.version += 1;
   broadcast(inst);
   schedulePersist(inst);
+}
+
+function compileRevealSchedules(slides) {
+  return slides.map((slide) => parseRevealSchedule(slide, markedLexer).schedule);
 }
 
 // Replace the whole deck (slides + start position + theme) and show the target
@@ -732,6 +741,7 @@ async function applyDeckNow(
     inst.sourceWatchError = "";
   }
   inst.slides = ensureBackCover(slides.slice());
+  inst.revealSchedules = compileRevealSchedules(inst.slides);
   inst.index = clampIndex(preserveCurrentIndex ? inst.index : index ?? 0, inst.slides.length);
   inst.deckVersion += 1;
   await applyDeckSlide(inst);
@@ -753,9 +763,24 @@ async function applyDeck(inst, options) {
 // index while in ad-hoc mode does re-render (it resumes the deck).
 async function applyNavigation(inst, targetIndex) {
   const next = clampIndex(targetIndex, inst.slides.length);
-  if (next === inst.index && inst.mode === "deck") return false;
-  inst.index = next;
-  await applyDeckSlide(inst);
+  if (next === inst.index && inst.mode === "deck" && inst.revealStep === 0) return false;
+  const changed = navigateSession(inst, next);
+  if (!changed) {
+    inst.markdown = inst.slides[next] ?? "";
+    inst.version += 1;
+  }
+  inst.mode = "deck";
+  broadcast(inst);
+  schedulePersist(inst);
+  return true;
+}
+
+function applyRevealNavigation(inst, direction) {
+  const changed = advanceSession(inst, direction);
+  if (!changed) return false;
+  inst.mode = "deck";
+  broadcast(inst);
+  schedulePersist(inst);
   return true;
 }
 
@@ -1051,6 +1076,7 @@ async function applyArchitectureEdit(inst, { index, block, source, deckVersion }
 
     activateInstance(inst);
     inst.slides[index] = next;
+    inst.revealSchedules[index] = parseRevealSchedule(next, markedLexer).schedule;
     inst.deckVersion += 1;
     await applyDeckSlide(inst);
     return {
@@ -1112,6 +1138,7 @@ async function synchronizeImportedPresentations({ workspaceRoot, sourcePath, mar
         await loadSlideBackgrounds(inst.workspaceRoot, inst.sourceName, slides);
         inst.sourceWritebackSnapshot = markdown;
         inst.slides = ensureBackCover(slides);
+        inst.revealSchedules = compileRevealSchedules(inst.slides);
         inst.index = clampIndex(inst.index, inst.slides.length);
         inst.deckVersion += 1;
         await applyDeckSlide(inst);
@@ -1189,7 +1216,17 @@ async function startServer(inst) {
         -1,
         Math.min(1, Number.parseInt(requestUrl.searchParams.get("offset") || "0", 10) || 0),
       );
-      const targetIndex = clampIndex(inst.index + offset, inst.slides.length);
+      const buildNext = requestUrl.searchParams.get("build") === "next";
+      let targetIndex = clampIndex(inst.index + (buildNext ? 0 : offset), inst.slides.length);
+      let revealStep = targetIndex === inst.index ? inst.revealStep : 0;
+      if (buildNext) {
+        const revealTotal = inst.revealSchedules[inst.index]?.length || 0;
+        if (inst.revealStep < revealTotal) revealStep = inst.revealStep + 1;
+        else if (inst.index < inst.slides.length - 1) {
+          targetIndex = inst.index + 1;
+          revealStep = 0;
+        }
+      }
       res.statusCode = 200;
       res.setHeader("Content-Type", "application/json; charset=utf-8");
       res.setHeader("Cache-Control", "no-store");
@@ -1197,9 +1234,14 @@ async function startServer(inst) {
         JSON.stringify({
           version: inst.version,
           deckVersion: inst.deckVersion,
-          markdown: offset && inst.slides.length ? inst.slides[targetIndex] : inst.markdown,
-          index: offset ? targetIndex : inst.index,
+          markdown:
+            (offset || buildNext) && inst.slides.length
+              ? inst.slides[targetIndex]
+              : inst.markdown,
+          index: offset || buildNext ? targetIndex : inst.index,
           total: inst.slides.length,
+          revealStep,
+          revealTotal: inst.revealSchedules[targetIndex]?.length || 0,
           theme: inst.theme,
           themeLocked: inst.themeLocked,
           customThemeFile: inst.customThemeFile,
@@ -1430,9 +1472,9 @@ async function startServer(inst) {
       res.end();
       return;
     }
-    // In-canvas navigation: the renderer POSTs an absolute { index } or a
-    // relative { delta }; the server stays authoritative so every connected
-    // client converges via the SSE nudge.
+    // In-canvas navigation: the renderer POSTs an absolute { index }, a
+    // relative { delta }, or a reveal-aware { action }. The server stays
+    // authoritative so every connected client converges via the SSE nudge.
     if (pathname === "/navigate") {
       if (req.method !== "POST") {
         res.statusCode = 405;
@@ -1456,11 +1498,15 @@ async function startServer(inst) {
       }
       const hasIndex = typeof body.index === "number" && Number.isFinite(body.index);
       const hasDelta = typeof body.delta === "number" && Number.isFinite(body.delta);
-      if (hasIndex === hasDelta) {
+      const hasAction = body.action === "advance" || body.action === "rewind";
+      if ([hasIndex, hasDelta, hasAction].filter(Boolean).length !== 1) {
         res.statusCode = 400;
         res.setHeader("Content-Type", "application/json; charset=utf-8");
         res.end(
-          JSON.stringify({ ok: false, error: "exactly one of index or delta is required" }),
+          JSON.stringify({
+            ok: false,
+            error: "exactly one of index, delta, or a reveal action is required",
+          }),
         );
         return;
       }
@@ -1471,8 +1517,9 @@ async function startServer(inst) {
         return;
       }
       activateInstance(inst);
-      const target = hasIndex ? body.index : inst.index + body.delta;
-      const changed = await applyNavigation(inst, target);
+      const changed = hasAction
+        ? applyRevealNavigation(inst, body.action === "advance" ? 1 : -1)
+        : await applyNavigation(inst, hasIndex ? body.index : inst.index + body.delta);
       res.statusCode = 200;
       res.setHeader("Content-Type", "application/json; charset=utf-8");
       res.end(
@@ -1482,6 +1529,8 @@ async function startServer(inst) {
           version: inst.version,
           index: inst.index,
           total: inst.slides.length,
+          revealStep: inst.revealStep,
+          revealTotal: inst.revealSchedules[inst.index]?.length || 0,
           mode: inst.mode,
         }),
       );
@@ -2040,6 +2089,8 @@ async function ensureInstance(ctx) {
       markdown: "",
       slides: [],
       index: 0,
+      revealStep: 0,
+      revealSchedules: [],
       mode: "deck",
       viewMode: DEFAULT_VIEW_MODE,
       sourceName: "",
@@ -2083,8 +2134,15 @@ async function ensureInstance(ctx) {
       if (typeof saved.deckVersion === "number") inst.deckVersion = saved.deckVersion;
       if (Array.isArray(saved.slides) && saved.slides.every((s) => typeof s === "string")) {
         inst.slides = saved.slides;
+        inst.revealSchedules = compileRevealSchedules(inst.slides);
       }
       if (typeof saved.index === "number") inst.index = clampIndex(saved.index, inst.slides.length);
+      if (typeof saved.revealStep === "number") {
+        inst.revealStep = Math.max(
+          0,
+          Math.min(Math.trunc(saved.revealStep), inst.revealSchedules[inst.index]?.length || 0),
+        );
+      }
       if (typeof saved.theme === "string") inst.theme = normalizeTheme(saved.theme);
       if (typeof saved.themeLocked === "boolean") inst.themeLocked = saved.themeLocked;
       if (typeof saved.customThemeFile === "string") inst.customThemeFile = saved.customThemeFile;
@@ -2782,6 +2840,8 @@ const session = await joinSession({
               inst.markdown = "";
               inst.slides = [];
               inst.index = 0;
+              inst.revealStep = 0;
+              inst.revealSchedules = [];
               inst.theme = DEFAULT_THEME;
               inst.themeLocked = false;
               inst.customThemeFile = "";
