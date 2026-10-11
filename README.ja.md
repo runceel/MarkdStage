@@ -101,7 +101,7 @@ MarkdStage がこれらのランタイムをダウンロードすることはあ
 [Windows 操作チュートリアル](./docs/user-guide/ja/windows-walkthrough.md)を参照してください。
 ポータブル ZIP と署名済みサイドローディングパッケージについては、
 [インストールガイド](./docs/user-guide/ja/installation.md)と
-[v4.6.1 リリース](https://github.com/runceel/markdstage/releases/tag/v4.6.1)で説明しています。
+[v4.6.3 リリース](https://github.com/runceel/markdstage/releases/tag/v4.6.3)で説明しています。
 
 <a id="canvas-extension"></a>
 
@@ -113,7 +113,7 @@ GitHub Copilot に依頼します。
 
 > 次の GitHub リポジトリフォルダーから MarkdStage をユーザースコープへインストールしてください。
 >
-> `https://github.com/runceel/markdstage/tree/main/.github/markdstage-dist`
+> `https://github.com/runceel/markdstage/tree/v4.6.3/.github/markdstage-dist`
 
 製品配布版ではテストを除外し、大きなベンダー資産を整合性検証付きの gzip チャンクで保存します。
 Extension は利用者の環境でローカルのコードを実行します。インストール前にソースを確認してください。
