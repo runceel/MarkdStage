@@ -101,7 +101,7 @@ MarkdStage がこれらのランタイムをダウンロードすることはあ
 [Windows 操作チュートリアル](./docs/user-guide/ja/windows-walkthrough.md)を参照してください。
 ポータブル ZIP と署名済みサイドローディングパッケージについては、
 [インストールガイド](./docs/user-guide/ja/installation.md)と
-[v4.6.1 リリース](https://github.com/runceel/markdstage/releases/tag/v4.6.1)で説明しています。
+[v4.6.2 リリース](https://github.com/runceel/markdstage/releases/tag/v4.6.2)で説明しています。
 
 <a id="canvas-extension"></a>
 

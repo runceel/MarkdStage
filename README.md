@@ -98,7 +98,7 @@ installation. The [Windows walkthrough](./docs/user-guide/windows-walkthrough.md
 fictional sample, screenshots, and example AI requests covering diagram editing through export.
 For portable ZIPs and signed sideloading packages, see
 [installation](./docs/user-guide/installation.md) and the
-[v4.6.1 release](https://github.com/runceel/markdstage/releases/tag/v4.6.1).
+[v4.6.2 release](https://github.com/runceel/markdstage/releases/tag/v4.6.2).
 
 ## Use the canvas Extension
 
