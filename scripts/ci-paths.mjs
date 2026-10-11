@@ -40,12 +40,13 @@ function isPublishedDocumentation(path) {
   );
 }
 
-// The published plugin tree is generated from the canonical Extension, so anything that feeds the
-// generated output or the manifest version must be re-verified against the committed tree.
+// The published plugin tree is generated from the production distribution, so inputs to either
+// generated tree or its manifest version must be re-verified.
 function isAwesomePluginInput(path) {
   return (
     path.startsWith(".github/plugin/markdstage/") ||
     path.startsWith(".github/extensions/markdstage/") ||
+    path.startsWith(".github/markdstage-dist/") ||
     path === "packages/markdstage-cli/package.json" ||
     path === ".github/store/screenshots/01-architecture.png"
   );

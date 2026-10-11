@@ -70,7 +70,7 @@ jobs:
               echo "$readme must link to the current release $GITHUB_REF_NAME."
               exit 1
             }
-            grep -F "tree/${GITHUB_REF_NAME}/.github/extensions/markdstage" "$readme"
+            grep -F "tree/${GITHUB_REF_NAME}/.github/markdstage-dist" "$readme"
           done
           notes=".github/release-notes/${GITHUB_REF_NAME}.md"
           test -f "$notes" || {
@@ -133,7 +133,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p release-assets extension-stage
-          cp -a .github/extensions/markdstage extension-stage/markdstage
+          cp -a .github/extensions/markdstage-dist extension-stage/markdstage
           rm -rf \
             extension-stage/markdstage/test \
             extension-stage/markdstage/test-results \
@@ -158,7 +158,7 @@ jobs:
             markdstage/extension.mjs \
             markdstage/scripts/vendor-assets.mjs \
             markdstage/schema/architecture-v1.schema.json \
-            markdstage/vendor/mermaid.min.js.part-0001; do
+            markdstage/vendor/mermaid.min.js.gz.part-0001; do
             grep -qx "$required" release-assets/extension-contents.txt || {
               echo "Missing from Extension ZIP: $required"
               exit 1
@@ -534,7 +534,7 @@ jobs:
 
           Install the version-pinned Extension from:
 
-          \`https://github.com/${GITHUB_REPOSITORY}/tree/${GITHUB_REF_NAME}/.github/extensions/markdstage\`
+          \`https://github.com/${GITHUB_REPOSITORY}/tree/${GITHUB_REF_NAME}/.github/markdstage-dist\`
 
           ## Assets and SHA-256
 
@@ -629,7 +629,7 @@ jobs:
             }
           done
           curl -fsSIL \
-            "https://github.com/${GITHUB_REPOSITORY}/tree/${GITHUB_REF_NAME}/.github/extensions/markdstage" \
+            "https://github.com/${GITHUB_REPOSITORY}/tree/${GITHUB_REF_NAME}/.github/markdstage-dist" \
             >/dev/null
 
   marketplace:

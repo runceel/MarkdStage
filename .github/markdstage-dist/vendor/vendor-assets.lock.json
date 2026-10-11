@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "chunkSize": 524288,
+  "assets": {
+    "mermaid.min.js": {
+      "source": "mermaid.min.js",
+      "size": 3312967,
+      "sha256": "70137e77bb273bb2ef972b86e8b0400cca8be53cb25bfc45911a186dc98665de",
+      "upstream": {
+        "name": "mermaid",
+        "version": "11.15.0",
+        "source": "https://www.npmjs.com/package/mermaid"
+      },
+      "chunks": [
+        {
+          "index": 1,
+          "file": "mermaid.min.js.gz.part-0001",
+          "size": 524288,
+          "sha256": "372b1aa2522011843fcc35fa3985f729457d054fd5427050a3f53298d893875b"
+        },
+        {
+          "index": 2,
+          "file": "mermaid.min.js.gz.part-0002",
+          "size": 387177,
+          "sha256": "bcf1a270893d93774dcdf51f5f3d275e5382af78e7511b9644e44476dc7044e8"
+        }
+      ],
+      "encoding": "gzip",
+      "storedSize": 911465,
+      "storedSha256": "7ac8608532ba659a7a96b31b58109eaf49b0c3a48494cb5b99af170b1fcaaabd"
+    },
+    "adaptivecards.min.js": {
+      "source": "adaptivecards.min.js",
+      "size": 334964,
+      "sha256": "5e7c13f3300ae7b89b34703501e08d709fbb6635f1c6755b92495577a77344f2",
+      "upstream": {
+        "name": "adaptivecards",
+        "version": "3.0.6",
+        "source": "https://www.npmjs.com/package/adaptivecards"
+      },
+      "chunks": [
+        {
+          "index": 1,
+          "file": "adaptivecards.min.js.gz.part-0001",
+          "size": 83019,
+          "sha256": "5682c900673941297e60b3daed526dc1e54131e92a8e10b410866ccef0f30e41"
+        }
+      ],
+      "encoding": "gzip",
+      "storedSize": 83019,
+      "storedSha256": "5682c900673941297e60b3daed526dc1e54131e92a8e10b410866ccef0f30e41"
+    }
+  }
+}

@@ -17,7 +17,7 @@ export function renderPage({ copy: c, product, sources, siteUrl }) {
   const asset = (name) => `${prefix}assets/${name}`;
   const pageUrl = new URL(c.lang === "en" ? "en/" : "./", siteUrl).href;
   const docs = `${product.repository}/blob/main/docs/user-guide/${c.lang === "ja" ? "ja/" : ""}`;
-  const installUrl = `${product.repository}/tree/${product.releaseTag}/.github/extensions/markdstage`;
+  const installUrl = `${product.repository}/tree/main/.github/markdstage-dist`;
   const prompt = `${c.canvasPrompt}\n\n${installUrl}`;
   const heading = (text) => e(text).replaceAll("\n", "<br>");
   const link = (url, text, className = "text-link") =>

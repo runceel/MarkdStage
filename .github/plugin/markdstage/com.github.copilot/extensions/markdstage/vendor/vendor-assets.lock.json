@@ -14,47 +14,20 @@
       "chunks": [
         {
           "index": 1,
-          "file": "mermaid.min.js.part-0001",
+          "file": "mermaid.min.js.gz.part-0001",
           "size": 524288,
-          "sha256": "edc857bf8ad368bf97ff5848dd0439461f2460ac53b58b1f6cc4d8493449aac5"
+          "sha256": "372b1aa2522011843fcc35fa3985f729457d054fd5427050a3f53298d893875b"
         },
         {
           "index": 2,
-          "file": "mermaid.min.js.part-0002",
-          "size": 524288,
-          "sha256": "8c7a9e27ba496d04d25c1c9716185aaf9d5ae3ef6d093a5783a6306ac8c8d03f"
-        },
-        {
-          "index": 3,
-          "file": "mermaid.min.js.part-0003",
-          "size": 524288,
-          "sha256": "ef79bb7da99d7a3ce848e29df40de09ee6cca03e3b15101dd6d93080655a33cd"
-        },
-        {
-          "index": 4,
-          "file": "mermaid.min.js.part-0004",
-          "size": 524288,
-          "sha256": "10919790fa99d83917114b343a310d3faee9e4e6c2614c97a5c0c454f3419471"
-        },
-        {
-          "index": 5,
-          "file": "mermaid.min.js.part-0005",
-          "size": 524288,
-          "sha256": "98354d583d9d126593f79154e6f318c8e43ae8644b21bbef9290c91469874ae5"
-        },
-        {
-          "index": 6,
-          "file": "mermaid.min.js.part-0006",
-          "size": 524288,
-          "sha256": "a90f197efc189debeb94d59c848f6317c785183f0473ddad14d2fe5657979612"
-        },
-        {
-          "index": 7,
-          "file": "mermaid.min.js.part-0007",
-          "size": 167239,
-          "sha256": "a5f4e5d4bc208e7258bbc408dfcd9cb48599da8c34e46866b4655d4c1512907f"
+          "file": "mermaid.min.js.gz.part-0002",
+          "size": 387177,
+          "sha256": "bcf1a270893d93774dcdf51f5f3d275e5382af78e7511b9644e44476dc7044e8"
         }
-      ]
+      ],
+      "encoding": "gzip",
+      "storedSize": 911465,
+      "storedSha256": "7ac8608532ba659a7a96b31b58109eaf49b0c3a48494cb5b99af170b1fcaaabd"
     },
     "adaptivecards.min.js": {
       "source": "adaptivecards.min.js",
@@ -68,11 +41,14 @@
       "chunks": [
         {
           "index": 1,
-          "file": "adaptivecards.min.js.part-0001",
-          "size": 334964,
-          "sha256": "5e7c13f3300ae7b89b34703501e08d709fbb6635f1c6755b92495577a77344f2"
+          "file": "adaptivecards.min.js.gz.part-0001",
+          "size": 83019,
+          "sha256": "5682c900673941297e60b3daed526dc1e54131e92a8e10b410866ccef0f30e41"
         }
-      ]
+      ],
+      "encoding": "gzip",
+      "storedSize": 83019,
+      "storedSha256": "5682c900673941297e60b3daed526dc1e54131e92a8e10b410866ccef0f30e41"
     }
   }
 }

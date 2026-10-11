@@ -81,14 +81,16 @@ Store からのインストールでは、この手動の証明書登録は不�
 プロジェクトスコープで読み込まれます。
 
 別のリポジトリへユーザースコープでインストールする場合は、信頼できるリリースタグを選び、
-GitHub Copilot に次のように依頼します。
+生成済みの製品配布フォルダーをインストールするよう GitHub Copilot に依頼します。
 
 > 次の GitHub リポジトリフォルダーから MarkdStage をユーザースコープへインストールしてください。
 >
-> `https://github.com/runceel/markdstage/tree/<release-tag>/.github/extensions/markdstage`
+> `https://github.com/runceel/markdstage/tree/<release-tag>/.github/markdstage-dist`
 
-インストールする前にローカルの Extension コードを確認してください。リリースタグかコミット SHA を
-指定すれば、毎回同じ内容をインストールできます。
+製品配布フォルダーではテストを除外し、大きなベンダー資産を整合性検証付きの gzip チャンクで
+保存します。`.github/extensions/markdstage/` のソースから生成され、オフラインで動作します。
+インストール前にソース Extension を確認してください。リリースタグかコミット SHA を指定すれば、
+毎回同じ内容をインストールできます。
 
 ## Visual Studio Code 拡張機能
 

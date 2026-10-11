@@ -170,7 +170,7 @@ test("both pages provide shared examples and equivalent platform-specific guides
       "presenting-and-export.md", "ai-assisted-authoring.md", "copilot-hands-on.md", "canvas-extension.md"]) {
       assert.ok(html.includes(`${product.repository}/blob/main/docs/user-guide/${copy.lang === "ja" ? "ja/" : ""}${guide}`));
     }
-    assert.ok(html.includes(`${product.repository}/tree/${product.releaseTag}/.github/extensions/markdstage`));
+    assert.ok(html.includes(`${product.repository}/tree/main/.github/markdstage-dist`));
     assert.ok(html.includes(`href="${product.storeUrl}"`));
     assert.ok(html.includes('id="examples"'));
     assert.ok(html.includes('id="get-started"'));

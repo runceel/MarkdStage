@@ -4,8 +4,8 @@
 
 ## The Canvas Extension is unavailable
 
-- Confirm the repository contains `.github/extensions/markdstage/`, or install the extension at
-  user scope from a trusted release tag.
+- Confirm the repository contains `.github/extensions/markdstage/`, or install the generated
+  `.github/markdstage-dist/` distribution at user scope from a trusted release tag.
 - Reopen the project after installation.
 - Use canvas ID `MarkdStage` if you are opening it through a direct canvas workflow.
 

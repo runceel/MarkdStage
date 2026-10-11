@@ -108,16 +108,16 @@ MarkdStage がこれらのランタイムをダウンロードすることはあ
 ## Canvas Extension を使う
 
 このリポジトリをプロジェクトとして開くと、`.github/extensions/markdstage/` がプロジェクトスコープで
-読み込まれます。別のリポジトリへユーザースコープでインストールする場合は、現在の
-**[v4.6.1 リリース](https://github.com/runceel/markdstage/releases/tag/v4.6.1)** を指定して
+読み込まれます。別のリポジトリへユーザースコープでインストールする場合は、最新の製品配布版を指定して
 GitHub Copilot に依頼します。
 
 > 次の GitHub リポジトリフォルダーから MarkdStage をユーザースコープへインストールしてください。
 >
-> `https://github.com/runceel/markdstage/tree/v4.6.1/.github/extensions/markdstage`
+> `https://github.com/runceel/markdstage/tree/main/.github/markdstage-dist`
 
-Extension は利用者の環境でローカルのコードを実行します。インストールする前に中身を確認し、
-同じ状態を再現できるよう、信頼できるリリースタグかコミット SHA を指定してください。
+製品配布版ではテストを除外し、大きなベンダー資産を整合性検証付きの gzip チャンクで保存します。
+Extension は利用者の環境でローカルのコードを実行します。インストール前にソースを確認してください。
+再現性のあるインストールには、この配布フォルダーを含む信頼できるリリースタグかコミット SHA を指定します。
 `main` ブランチは開発中の最新版です。
 
 ### 最小ワークフロー

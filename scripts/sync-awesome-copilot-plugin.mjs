@@ -4,7 +4,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const source = join(root, ".github", "extensions", "markdstage");
+const source = join(root, ".github", "markdstage-dist");
 const pluginRoot = join(root, ".github", "plugin", "markdstage");
 const extensionRelative = join("com.github.copilot", "extensions", "markdstage");
 // The marketplace preview represents the Canvas Extension, so it uses a Canvas screenshot rather
@@ -13,7 +13,7 @@ const previewSource = join(root, "docs", "user-guide", "images", "canvas-archite
 const previewRelative = join("assets", "preview.png");
 const generatedFromRelative = "GENERATED-FROM.txt";
 const generatedFrom =
-  "Generated from .github/extensions/markdstage by scripts/sync-awesome-copilot-plugin.mjs.\n";
+  "Generated from .github/markdstage-dist by scripts/sync-awesome-copilot-plugin.mjs.\n";
 
 const excludedDirectories = new Set(["test"]);
 const excludedFiles = new Set(["copilot-extension.json"]);
@@ -107,7 +107,7 @@ async function main() {
     if (problems.length > 0) {
       console.error(
         `The generated plugin tree in ${relative(root, pluginRoot)} does not match ` +
-          ".github/extensions/markdstage:",
+          ".github/markdstage-dist:",
       );
       for (const problem of problems) console.error(`  ${problem}`);
       console.error("Run: npm run awesome:sync");
