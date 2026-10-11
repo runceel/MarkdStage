@@ -179,7 +179,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          ref: ${{ needs.validate.outputs.release_tag }}
+          ref: ${{ needs.validate.outputs.release_sha }}
 
       - name: Create Extension ZIP
         shell: bash
@@ -246,7 +246,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          ref: ${{ needs.validate.outputs.release_tag }}
+          ref: ${{ needs.validate.outputs.release_sha }}
 
       - name: .NET SDK
         uses: actions/setup-dotnet@v5
@@ -386,7 +386,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          ref: ${{ needs.validate.outputs.release_tag }}
+          ref: ${{ needs.validate.outputs.release_sha }}
 
       - name: Node.js
         uses: actions/setup-node@v5
@@ -447,7 +447,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          ref: ${{ needs.validate.outputs.release_tag }}
+          ref: ${{ needs.validate.outputs.release_sha }}
 
       - name: Node.js
         uses: actions/setup-node@v5
@@ -571,7 +571,8 @@ jobs:
           }
           const statement = JSON.parse(
             Buffer.from(provenance.bundle.dsseEnvelope.payload, "base64").toString("utf8"));
-          const expectedDigest = integrity.slice("sha512-".length);
+          const expectedDigest = Buffer.from(
+            integrity.slice("sha512-".length), "base64").toString("hex");
           if (statement.predicateType !== "https://slsa.dev/provenance/v1" ||
               !statement.subject?.some((subject) => subject.digest?.sha512 === expectedDigest)) {
             throw new Error("The SLSA provenance subject does not match the published tarball.");
@@ -607,7 +608,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          ref: ${{ needs.validate.outputs.release_tag }}
+          ref: ${{ needs.validate.outputs.release_sha }}
 
       - name: Download release artifacts
         uses: actions/download-artifact@v5
@@ -796,7 +797,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          ref: ${{ needs.validate.outputs.release_tag }}
+          ref: ${{ needs.validate.outputs.release_sha }}
 
       - name: Node.js
         uses: actions/setup-node@v5
