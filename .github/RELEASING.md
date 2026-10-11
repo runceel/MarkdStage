@@ -299,6 +299,17 @@ republished, and existing GitHub Release assets are replaced with the newly veri
 The complete JavaScript, browser, CLI, Desktop, accessibility, performance, PDF, and PowerPoint
 test suites run once in `ci.yml`; the release workflow does not repeat them.
 
+### Recovering a partially published release
+
+If a tag-triggered run publishes npm but fails before the GitHub Release or Marketplace steps,
+do not move or recreate the product tag. Merge a recovery-workflow fix to `main`, then create
+`<product-tag>-recovery` at that merged commit. From the helper tag, dispatch this workflow with
+the immutable product tag as `product_tag`. The recovery run checks out and validates the product
+tag for every package, verifies the existing npm tarball and its provenance without republishing,
+and replaces/creates the GitHub Release assets before publishing or verifying the Marketplace
+version. The helper tag is excluded from normal push-triggered releases; the recovery dispatch
+uses the helper ref for environment protection while publishing only the specified product tag.
+
 ## GitHub Release
 
 The workflow creates the GitHub Release and includes:

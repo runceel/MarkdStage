@@ -4,6 +4,19 @@ on:
   push:
     tags:
       - "v*"
+      - "!v*-recovery"
+  workflow_dispatch:
+    inputs:
+      product_tag:
+        description: Immutable product release tag to publish
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      product_tag:
+        description: Immutable product release tag to publish
+        required: true
+        type: string
 
 permissions: {}
 
@@ -15,6 +28,9 @@ jobs:
   validate:
     name: Validate release
     runs-on: ubuntu-24.04
+    outputs:
+      release_tag: ${{ steps.release.outputs.tag }}
+      release_sha: ${{ steps.release.outputs.sha }}
     container:
       image: mcr.microsoft.com/playwright:v1.62.1-noble
       options: --init --ipc=host
@@ -26,6 +42,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
+          ref: ${{ inputs.product_tag || github.ref_name }}
           fetch-depth: 0
 
       - name: Node.js
@@ -34,7 +51,10 @@ jobs:
           node-version: 24.x
 
       - name: Verify version, tag, and release links
+        id: release
         shell: bash
+        env:
+          PRODUCT_TAG: ${{ inputs.product_tag || github.ref_name }}
         run: |
           set -euo pipefail
           version=$(node -p "require('./packages/markdstage-cli/package.json').version")
@@ -53,37 +73,65 @@ jobs:
             echo "This source implements the v4 Desktop package set; do not publish it as a pre-v4 release."
             exit 1
           fi
-          if [ "$GITHUB_REF_NAME" != "$expected" ]; then
-            echo "Tag $GITHUB_REF_NAME does not match the unified product version $version."
+          if [ "$PRODUCT_TAG" != "$expected" ]; then
+            echo "Tag $PRODUCT_TAG does not match the unified product version $version."
             echo "Expected tag: $expected"
             exit 1
           fi
+          case "$GITHUB_EVENT_NAME" in
+            push)
+              if [ "$GITHUB_REF_TYPE" != "tag" ] || [ "$GITHUB_REF_NAME" != "$PRODUCT_TAG" ]; then
+                echo "A push release must run directly from its product tag."
+                exit 1
+              fi
+              ;;
+            workflow_dispatch|workflow_call)
+              if [ "$GITHUB_REF_TYPE" != "tag" ] ||
+                [ "$GITHUB_REF_NAME" != "${PRODUCT_TAG}-recovery" ]; then
+                echo "Recovery runs must execute from the matching ${PRODUCT_TAG}-recovery tag."
+                exit 1
+              fi
+              ;;
+            *)
+              echo "Unsupported release event: $GITHUB_EVENT_NAME"
+              exit 1
+              ;;
+          esac
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          git fetch origin main
-          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || {
-            echo "The tagged commit must be reachable from origin/main."
+          git fetch origin main --tags
+          product_sha=$(git rev-parse "refs/tags/${PRODUCT_TAG}^{commit}")
+          checked_out_sha=$(git rev-parse HEAD)
+          if [ "$checked_out_sha" != "$product_sha" ]; then
+            echo "Checkout $checked_out_sha does not match $PRODUCT_TAG ($product_sha)."
+            exit 1
+          fi
+          git merge-base --is-ancestor "$product_sha" origin/main || {
+            echo "The product-tag commit must be reachable from origin/main."
             exit 1
           }
           for readme in README.md README.ja.md; do
-            release_link_count=$(grep -Fc "releases/tag/${GITHUB_REF_NAME}" "$readme")
+            release_link_count=$(grep -Fc "releases/tag/${PRODUCT_TAG}" "$readme")
             test "$release_link_count" -ge 1 || {
-              echo "$readme must link to the current release $GITHUB_REF_NAME."
+              echo "$readme must link to the current release $PRODUCT_TAG."
               exit 1
             }
-            grep -F "tree/${GITHUB_REF_NAME}/.github/markdstage-dist" "$readme"
+            grep -F "tree/${PRODUCT_TAG}/.github/markdstage-dist" "$readme"
           done
-          notes=".github/release-notes/${GITHUB_REF_NAME}.md"
+          notes=".github/release-notes/${PRODUCT_TAG}.md"
           test -f "$notes" || {
             echo "Missing release notes: $notes"
             exit 1
           }
           grep -qx '## Overview' "$notes"
           grep -qx '## Compatibility and migration' "$notes"
+          echo "tag=$PRODUCT_TAG" >> "$GITHUB_OUTPUT"
+          echo "sha=$product_sha" >> "$GITHUB_OUTPUT"
 
       - name: Verify successful CI for release commit
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          PRODUCT_SHA: ${{ steps.release.outputs.sha }}
         run: |
           set -euo pipefail
           successful_runs=$(
@@ -91,12 +139,12 @@ jobs:
               -H "Authorization: Bearer ${GH_TOKEN}" \
               -H "Accept: application/vnd.github+json" \
               -H "X-GitHub-Api-Version: 2022-11-28" \
-              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${GITHUB_SHA}&status=success&event=push&branch=main&per_page=1" |
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${PRODUCT_SHA}&status=success&event=push&branch=main&per_page=1" |
               node -e "let data=''; process.stdin.on('data', chunk => data += chunk); process.stdin.on('end', () => console.log(JSON.parse(data).total_count));"
           )
           if [ "$successful_runs" -lt 1 ]; then
-            echo "The tagged commit must have a successful main-branch CI run before release."
-            echo "Commit: $GITHUB_SHA"
+            echo "The product-tag commit must have a successful main-branch CI run before release."
+            echo "Commit: $PRODUCT_SHA"
             exit 1
           fi
 
@@ -121,19 +169,24 @@ jobs:
     name: Package Extension
     needs: validate
     runs-on: ubuntu-24.04
+    env:
+      RELEASE_TAG: ${{ needs.validate.outputs.release_tag }}
+      PRODUCT_SHA: ${{ needs.validate.outputs.release_sha }}
     permissions:
       contents: read
 
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.validate.outputs.release_tag }}
 
       - name: Create Extension ZIP
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p release-assets extension-stage
-          cp -a .github/extensions/markdstage-dist extension-stage/markdstage
+          cp -a .github/markdstage-dist extension-stage/markdstage
           rm -rf \
             extension-stage/markdstage/test \
             extension-stage/markdstage/test-results \
@@ -144,14 +197,14 @@ jobs:
             extension-stage/markdstage/package-lock.json
           (
             cd extension-stage
-            zip -q -r "../release-assets/markdstage-${GITHUB_REF_NAME}.zip" markdstage
+            zip -q -r "../release-assets/markdstage-${RELEASE_TAG}.zip" markdstage
           )
           (
             cd release-assets
-            sha256sum "markdstage-${GITHUB_REF_NAME}.zip" \
-              > "markdstage-${GITHUB_REF_NAME}.zip.sha256"
+            sha256sum "markdstage-${RELEASE_TAG}.zip" \
+              > "markdstage-${RELEASE_TAG}.zip.sha256"
           )
-          unzip -Z1 "release-assets/markdstage-${GITHUB_REF_NAME}.zip" \
+          unzip -Z1 "release-assets/markdstage-${RELEASE_TAG}.zip" \
             > release-assets/extension-contents.txt
           for required in \
             markdstage/copilot-extension.json \
@@ -183,12 +236,17 @@ jobs:
     name: Package Desktop
     needs: validate
     runs-on: windows-latest
+    env:
+      RELEASE_TAG: ${{ needs.validate.outputs.release_tag }}
+      PRODUCT_SHA: ${{ needs.validate.outputs.release_sha }}
     permissions:
       contents: read
 
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.validate.outputs.release_tag }}
 
       - name: .NET SDK
         uses: actions/setup-dotnet@v5
@@ -267,13 +325,13 @@ jobs:
         shell: pwsh
         env:
           CERTIFICATE_PASSWORD: ${{ secrets.MARKDSTAGE_SIGNING_CERTIFICATE_PASSWORD }}
-        run: apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture x64 -CertificatePath $env:MARKDSTAGE_CERTIFICATE_PATH -CertificatePassword $env:CERTIFICATE_PASSWORD -PackageName $env:MARKDSTAGE_PACKAGE_NAME -Publisher $env:MARKDSTAGE_PACKAGE_PUBLISHER -Version "$($env:GITHUB_REF_NAME.TrimStart('v')).0"
+        run: apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture x64 -CertificatePath $env:MARKDSTAGE_CERTIFICATE_PATH -CertificatePassword $env:CERTIFICATE_PASSWORD -PackageName $env:MARKDSTAGE_PACKAGE_NAME -Publisher $env:MARKDSTAGE_PACKAGE_PUBLISHER -Version "$($env:RELEASE_TAG.TrimStart('v')).0"
 
       - name: ARM64 signed release package
         shell: pwsh
         env:
           CERTIFICATE_PASSWORD: ${{ secrets.MARKDSTAGE_SIGNING_CERTIFICATE_PASSWORD }}
-        run: apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture arm64 -CertificatePath $env:MARKDSTAGE_CERTIFICATE_PATH -CertificatePassword $env:CERTIFICATE_PASSWORD -PackageName $env:MARKDSTAGE_PACKAGE_NAME -Publisher $env:MARKDSTAGE_PACKAGE_PUBLISHER -Version "$($env:GITHUB_REF_NAME.TrimStart('v')).0"
+        run: apps\MarkdStage.Desktop\scripts\Publish.ps1 -Architecture arm64 -CertificatePath $env:MARKDSTAGE_CERTIFICATE_PATH -CertificatePassword $env:CERTIFICATE_PASSWORD -PackageName $env:MARKDSTAGE_PACKAGE_NAME -Publisher $env:MARKDSTAGE_PACKAGE_PUBLISHER -Version "$($env:RELEASE_TAG.TrimStart('v')).0"
 
       - name: Verify release package signatures
         shell: pwsh
@@ -318,12 +376,17 @@ jobs:
     name: Package VS Code extension
     needs: validate
     runs-on: ubuntu-24.04
+    env:
+      RELEASE_TAG: ${{ needs.validate.outputs.release_tag }}
+      PRODUCT_SHA: ${{ needs.validate.outputs.release_sha }}
     permissions:
       contents: read
 
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.validate.outputs.release_tag }}
 
       - name: Node.js
         uses: actions/setup-node@v5
@@ -373,6 +436,9 @@ jobs:
     name: Publish npm package
     needs: [validate, desktop, vscode]
     runs-on: ubuntu-24.04
+    env:
+      RELEASE_TAG: ${{ needs.validate.outputs.release_tag }}
+      PRODUCT_SHA: ${{ needs.validate.outputs.release_sha }}
     permissions:
       contents: read
       id-token: write
@@ -380,6 +446,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.validate.outputs.release_tag }}
 
       - name: Node.js
         uses: actions/setup-node@v5
@@ -420,6 +488,10 @@ jobs:
         run: |
           set -euo pipefail
           version=$(node -p "require('./package.json').version")
+          if [ "$GITHUB_EVENT_NAME" != "push" ]; then
+            echo "Recovery runs verify the existing npm publication and never republish it."
+            exit 0
+          fi
           if npm view "@markdstage/markdstage@${version}" version \
             --registry=https://registry.npmjs.org/ >/dev/null 2>&1; then
             echo "@markdstage/markdstage@$version is already published."
@@ -432,18 +504,89 @@ jobs:
         run: |
           set -euo pipefail
           version=$(node -p "require('./packages/markdstage-cli/package.json').version")
-          for attempt in {1..12}; do
-            if published=$(npm view "@markdstage/markdstage@${version}" version \
-              --registry=https://registry.npmjs.org/ 2>/dev/null) &&
-              [ "$published" = "$version" ]; then
-              echo "Verified @markdstage/markdstage@$version."
+          metadata_file="$RUNNER_TEMP/markdstage-npm-metadata.json"
+          metadata_url="https://registry.npmjs.org/@markdstage%2fmarkdstage/${version}"
+          for attempt in {1..60}; do
+            if curl -fsSL "$metadata_url" -o "$metadata_file" &&
+              node -e '
+                const fs = require("node:fs");
+                const metadata = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+                if (metadata.version !== process.argv[2] ||
+                    metadata.gitHead !== process.argv[3] ||
+                    !metadata.dist?.integrity?.startsWith("sha512-") ||
+                    !metadata.dist?.tarball ||
+                    !metadata.dist?.attestations?.url) {
+                  process.exit(1);
+                }
+              ' "$metadata_file" "$version" "$PRODUCT_SHA"; then
+              echo "Verified @markdstage/markdstage@$version metadata for $PRODUCT_SHA."
               exit 0
             fi
-            echo "Waiting for npm registry propagation ($attempt/12)..."
-            sleep 5
+            echo "Waiting for npm registry propagation ($attempt/60)..."
+            sleep 10
           done
-          echo "Published version $version was not visible after 60 seconds."
+          echo "Published version $version was not visible after 10 minutes."
           exit 1
+
+      - name: Verify published npm bytes and provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./packages/markdstage-cli/package.json').version")
+          metadata_file="$RUNNER_TEMP/markdstage-npm-metadata.json"
+          tarball="release-assets/markdstage-markdstage-${version}.tgz"
+          test -f "$tarball"
+          mapfile -t metadata < <(node -e '
+            const fs = require("node:fs");
+            const data = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+            console.log(data.dist.integrity);
+            console.log(data.dist.tarball);
+            console.log(data.dist.attestations.url);
+          ' "$metadata_file")
+          integrity=${metadata[0]}
+          registry_tarball=${metadata[1]}
+          attestations_url=${metadata[2]}
+          local_integrity="sha512-$(openssl dgst -sha512 -binary "$tarball" | base64 -w0)"
+          if [ "$local_integrity" != "$integrity" ]; then
+            echo "The packaged npm tarball does not match the published registry integrity."
+            exit 1
+          fi
+          curl -fsSL "$registry_tarball" -o "$RUNNER_TEMP/markdstage-published.tgz"
+          published_integrity="sha512-$(openssl dgst -sha512 -binary "$RUNNER_TEMP/markdstage-published.tgz" | base64 -w0)"
+          if [ "$published_integrity" != "$integrity" ]; then
+            echo "The downloaded npm tarball does not match registry integrity."
+            exit 1
+          fi
+          curl -fsSL "$attestations_url" -o "$RUNNER_TEMP/markdstage-attestations.json"
+          node - "$RUNNER_TEMP/markdstage-attestations.json" "$integrity" \
+            "$PRODUCT_SHA" "$RELEASE_TAG" "$GITHUB_REPOSITORY" <<'NODE'
+          const fs = require("node:fs");
+          const [attestationsPath, integrity, productSha, releaseTag, repository] =
+            process.argv.slice(2);
+          const response = JSON.parse(fs.readFileSync(attestationsPath, "utf8"));
+          const provenance = response.attestations?.find(
+            (entry) => entry.predicateType === "https://slsa.dev/provenance/v1");
+          if (!provenance?.bundle?.dsseEnvelope?.payload) {
+            throw new Error("The published npm version has no SLSA provenance statement.");
+          }
+          const statement = JSON.parse(
+            Buffer.from(provenance.bundle.dsseEnvelope.payload, "base64").toString("utf8"));
+          const expectedDigest = integrity.slice("sha512-".length);
+          if (statement.predicateType !== "https://slsa.dev/provenance/v1" ||
+              !statement.subject?.some((subject) => subject.digest?.sha512 === expectedDigest)) {
+            throw new Error("The SLSA provenance subject does not match the published tarball.");
+          }
+          const definition = statement.predicate?.buildDefinition;
+          const workflow = definition?.externalParameters?.workflow;
+          if (workflow?.ref !== `refs/tags/${releaseTag}` ||
+              workflow?.repository !== `https://github.com/${repository}` ||
+              workflow?.path !== ".github/workflows/npm-publish.yml" ||
+              !definition?.resolvedDependencies?.some(
+                (dependency) => dependency.digest?.gitCommit === productSha)) {
+            throw new Error("The SLSA provenance does not identify the expected release workflow and commit.");
+          }
+          console.log(`Verified npm tarball integrity and SLSA provenance for ${releaseTag}.`);
+          NODE
 
   release:
     name: Publish GitHub Release
@@ -454,12 +597,17 @@ jobs:
       - vscode
       - npm
     runs-on: ubuntu-24.04
+    env:
+      RELEASE_TAG: ${{ needs.validate.outputs.release_tag }}
+      PRODUCT_SHA: ${{ needs.validate.outputs.release_sha }}
     permissions:
       contents: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.validate.outputs.release_tag }}
 
       - name: Download release artifacts
         uses: actions/download-artifact@v5
@@ -477,7 +625,7 @@ jobs:
           sed -i 's/\r$//' MarkdStage.cer.sha256
           sed -i 's/\r$//' markdstage-markdstage-*.tgz.sha256
           sed -i 's/\r$//' markdstage-vscode-*.vsix.sha256
-          sha256sum -c "markdstage-${GITHUB_REF_NAME}.zip.sha256"
+          sha256sum -c "markdstage-${RELEASE_TAG}.zip.sha256"
           sha256sum -c markdstage-markdstage-*.tgz.sha256
           sha256sum -c markdstage-vscode-*.vsix.sha256
           sha256sum -c MarkdStage-win-x64.zip.sha256
@@ -492,8 +640,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          version="${GITHUB_REF_NAME#v}"
-          extension_sha=$(awk '{print $1}' "release-assets/markdstage-${GITHUB_REF_NAME}.zip.sha256")
+          version="${RELEASE_TAG#v}"
+          extension_sha=$(awk '{print $1}' "release-assets/markdstage-${RELEASE_TAG}.zip.sha256")
           cli_sha=$(awk '{print $1}' release-assets/markdstage-markdstage-*.tgz.sha256)
           vscode_sha=$(awk '{print $1}' release-assets/markdstage-vscode-*.vsix.sha256)
           x64_zip_sha=$(awk '{print $1}' release-assets/MarkdStage-win-x64.zip.sha256)
@@ -502,17 +650,17 @@ jobs:
           arm64_sha=$(awk '{print $1}' release-assets/MarkdStage-win-arm64.msix.sha256)
           certificate_sha=$(awk '{print $1}' release-assets/MarkdStage.cer.sha256)
           gh api --method POST "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
-            -f tag_name="$GITHUB_REF_NAME" --jq .body > generated-notes.md
-          cp ".github/release-notes/${GITHUB_REF_NAME}.md" release-notes.md
+            -f tag_name="$RELEASE_TAG" --jq .body > generated-notes.md
+          cp ".github/release-notes/${RELEASE_TAG}.md" release-notes.md
           printf '\n' >> release-notes.md
           cat >> release-notes.md <<EOF
 
           ## Version targets
 
-          - MarkdStage Canvas Extension: ${GITHUB_REF_NAME}
-          - MarkdStage Skill: ${GITHUB_REF_NAME}
-          - MarkdStage Desktop: ${GITHUB_REF_NAME}
-          - MarkdStage VS Code extension: ${GITHUB_REF_NAME}
+          - MarkdStage Canvas Extension: ${RELEASE_TAG}
+          - MarkdStage Skill: ${RELEASE_TAG}
+          - MarkdStage Desktop: ${RELEASE_TAG}
+          - MarkdStage VS Code extension: ${RELEASE_TAG}
           - npm CLI: \`@markdstage/markdstage@${version}\`
 
           ## Requirements
@@ -534,13 +682,13 @@ jobs:
 
           Install the version-pinned Extension from:
 
-          \`https://github.com/${GITHUB_REPOSITORY}/tree/${GITHUB_REF_NAME}/.github/markdstage-dist\`
+          \`https://github.com/${GITHUB_REPOSITORY}/tree/${RELEASE_TAG}/.github/markdstage-dist\`
 
           ## Assets and SHA-256
 
           | File | SHA-256 |
           | --- | --- |
-          | \`markdstage-${GITHUB_REF_NAME}.zip\` | \`${extension_sha}\` |
+          | \`markdstage-${RELEASE_TAG}.zip\` | \`${extension_sha}\` |
           | \`markdstage-markdstage-${version}.tgz\` | \`${cli_sha}\` |
           | \`markdstage-vscode-${version}.vsix\` | \`${vscode_sha}\` |
           | \`MarkdStage-win-x64.zip\` | \`${x64_zip_sha}\` |
@@ -549,7 +697,7 @@ jobs:
           | \`MarkdStage-win-arm64.msix\` | \`${arm64_sha}\` |
           | \`MarkdStage.cer\` | \`${certificate_sha}\` |
 
-          Verified commit: \`${GITHUB_SHA}\`
+          Verified commit: \`${PRODUCT_SHA}\`
 
           ## Changes
 
@@ -563,8 +711,8 @@ jobs:
         run: |
           set -euo pipefail
           assets=(
-            "release-assets/markdstage-${GITHUB_REF_NAME}.zip"
-            "release-assets/markdstage-${GITHUB_REF_NAME}.zip.sha256"
+            "release-assets/markdstage-${RELEASE_TAG}.zip"
+            "release-assets/markdstage-${RELEASE_TAG}.zip.sha256"
             release-assets/markdstage-markdstage-*.tgz
             release-assets/markdstage-markdstage-*.tgz.sha256
             release-assets/markdstage-vscode-*.vsix
@@ -580,19 +728,19 @@ jobs:
             "release-assets/MarkdStage.cer"
             "release-assets/MarkdStage.cer.sha256"
           )
-          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release edit "$GITHUB_REF_NAME" \
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" \
               --repo "$GITHUB_REPOSITORY" \
-              --title "MarkdStage $GITHUB_REF_NAME" \
+              --title "MarkdStage $RELEASE_TAG" \
               --notes-file release-notes.md
-            gh release upload "$GITHUB_REF_NAME" "${assets[@]}" \
+            gh release upload "$RELEASE_TAG" "${assets[@]}" \
               --repo "$GITHUB_REPOSITORY" \
               --clobber
           else
-            gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
+            gh release create "$RELEASE_TAG" "${assets[@]}" \
               --repo "$GITHUB_REPOSITORY" \
               --verify-tag \
-              --title "MarkdStage $GITHUB_REF_NAME" \
+              --title "MarkdStage $RELEASE_TAG" \
               --notes-file release-notes.md
           fi
 
@@ -602,13 +750,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          assets=$(gh release view "$GITHUB_REF_NAME" \
+          assets=$(gh release view "$RELEASE_TAG" \
             --repo "$GITHUB_REPOSITORY" \
             --json assets --jq '.assets[].name')
           version=$(node -p "require('./packages/markdstage-cli/package.json').version")
           for required in \
-            "markdstage-${GITHUB_REF_NAME}.zip" \
-            "markdstage-${GITHUB_REF_NAME}.zip.sha256" \
+            "markdstage-${RELEASE_TAG}.zip" \
+            "markdstage-${RELEASE_TAG}.zip.sha256" \
             "markdstage-markdstage-${version}.tgz" \
             "markdstage-markdstage-${version}.tgz.sha256" \
             "markdstage-vscode-${version}.vsix" \
@@ -629,7 +777,7 @@ jobs:
             }
           done
           curl -fsSIL \
-            "https://github.com/${GITHUB_REPOSITORY}/tree/${GITHUB_REF_NAME}/.github/markdstage-dist" \
+            "https://github.com/${GITHUB_REPOSITORY}/tree/${RELEASE_TAG}/.github/markdstage-dist" \
             >/dev/null
 
   marketplace:
@@ -637,6 +785,9 @@ jobs:
     needs: [validate, vscode, release]
     runs-on: ubuntu-24.04
     environment: vscode-marketplace
+    env:
+      RELEASE_TAG: ${{ needs.validate.outputs.release_tag }}
+      PRODUCT_SHA: ${{ needs.validate.outputs.release_sha }}
     permissions:
       contents: read
       id-token: write
@@ -644,6 +795,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.validate.outputs.release_tag }}
 
       - name: Node.js
         uses: actions/setup-node@v5
