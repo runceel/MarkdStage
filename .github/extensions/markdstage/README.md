@@ -1453,7 +1453,7 @@ when the user explicitly asks for an unsaved/in-memory display.
     purify.min.js           # DOMPurify HTML sanitizer
     highlight.min.js        # Code syntax highlighting
     highlight.LICENSE       # highlight.js MIT license
-    mermaid.min.js.part-*   # Split Mermaid bundle for the 1 MB file limit
+    mermaid.min.js.part-*   # Source chunks; the install distribution gzip-compresses them
 ```
 
 ## Third-party licenses
@@ -1471,9 +1471,11 @@ and license notices.
 - **Mermaid** — MIT License © 2014-2024 Knut Sveidqvist and contributors —
   https://github.com/mermaid-js/mermaid
 
-`mermaid.min.js` is approximately 3 MB and is split into
-`mermaid.min.js.part-*` to satisfy installer single-file limits. The extension
-reassembles the parts in order when serving HTTP, so Gist and repository
-installs retain Mermaid support. Source/chunk SHA-256 values are tracked in
-`vendor/vendor-assets.lock.json`; regenerate and verify them with
-`scripts/vendor-assets.mjs`.
+The canonical source stores vendor assets in ordered chunks. The generated
+`.github/markdstage-dist/` folder used for user-scope installs stores
+those assets as gzip chunks to fit the Copilot folder-size limit. The runtime
+checks the stored chunk and gzip-stream SHA-256 values, decompresses them locally,
+and verifies the original asset bytes before serving HTTP; no network service is
+required. Source asset/chunk hashes are tracked in `vendor/vendor-assets.lock.json`.
+Regenerate the production distribution with `npm run extension:sync` and verify
+it with `npm run extension:check`.

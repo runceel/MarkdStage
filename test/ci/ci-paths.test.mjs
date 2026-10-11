@@ -135,6 +135,13 @@ test("canonical documentation is not treated as a sample deck", () => {
   );
 });
 
+test("the generated install distribution selects its reproducibility check", () => {
+  assert.deepEqual(
+    classifyCiPaths([".github/markdstage-dist/vendor/vendor-assets.lock.json"]),
+    expected({ awesome: true }),
+  );
+});
+
 test("shared corpus and sample deck keep their executable checks", () => {
   assert.deepEqual(
     classifyCiPaths(["test/fixtures/markdown-deck-corpus.json"]),
@@ -278,7 +285,10 @@ test("the Awesome Copilot plugin verification never writes during CI or release"
   const scripts = JSON.parse(
     await readFile(new URL("../../package.json", import.meta.url), "utf8"),
   ).scripts;
-  assert.equal(scripts["awesome:sync"], "node scripts/sync-awesome-copilot-plugin.mjs");
+  assert.match(scripts["awesome:sync"], /extension:sync/);
+  assert.match(scripts["awesome:sync"], /sync-awesome-copilot-plugin\.mjs$/);
+  assert.equal(scripts["extension:check"], "node scripts/build-extension-distribution.mjs --check");
+  assert.match(scripts["awesome:check"], /extension:check/);
   assert.match(scripts["awesome:check"], /sync-awesome-copilot-plugin\.mjs --check/);
   assert.doesNotMatch(scripts["awesome:check"], /awesome:sync/);
 

@@ -79,13 +79,15 @@ When this repository is opened as a project, the extension under
 `.github/extensions/markdstage/` loads at project scope.
 
 To install it at user scope in another repository, choose a trusted release tag and ask GitHub
-Copilot:
+Copilot to install the generated production distribution:
 
 > Install MarkdStage at user scope from the following GitHub repository folder.
 >
-> `https://github.com/runceel/markdstage/tree/<release-tag>/.github/extensions/markdstage`
+> `https://github.com/runceel/markdstage/tree/<release-tag>/.github/markdstage-dist`
 
-Review local extension code before installing it. A release tag or commit SHA provides a
+The production distribution omits tests and stores the large vendor assets as integrity-checked
+gzip chunks; it is generated from `.github/extensions/markdstage/` and remains offline-capable.
+Review the source Extension before installing it. A release tag or commit SHA provides a
 reproducible installation.
 
 ## Visual Studio Code extension

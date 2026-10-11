@@ -333,7 +333,7 @@ for (const lang of ["ja", "en"]) {
         ["cli-check", site.product.cliCheckCommand],
         ["cli-command", site.product.cliCommand],
         ["cli-export", site.product.cliExportCommand],
-        ["canvas-prompt", `${site[lang].canvasPrompt}\n\n${site.product.repository}/tree/${site.product.releaseTag}/.github/extensions/markdstage`],
+        ["canvas-prompt", `${site[lang].canvasPrompt}\n\n${site.product.repository}/tree/main/.github/markdstage-dist`],
         ["canvas-author-prompt", site[lang].canvasAuthorPrompt],
         ["canvas-inspect-prompt", site[lang].inspectPrompt],
         ["canvas-export-prompt", site[lang].canvasExportPrompt],

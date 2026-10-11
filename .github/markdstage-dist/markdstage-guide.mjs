@@ -1,0 +1,153 @@
+import { readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { architectureSchemaReference } from "./architecture-reference.mjs";
+import { validateArchitectureInput } from "./architecture-validation.mjs";
+import {
+  architectureValidationErrors,
+  architectureValidationReport,
+  hasFrontMatter,
+  adaptiveCardValidationReport,
+} from "./runtime/deck-validation.mjs";
+
+export {
+  architectureValidationErrors,
+  architectureValidationReport,
+  hasFrontMatter,
+};
+
+const EXT_DIR = dirname(fileURLToPath(import.meta.url));
+const README_PATH = join(EXT_DIR, "README.md");
+const THEME_GUIDE_PATH = join(EXT_DIR, "docs", "custom-theme-authoring.md");
+const THEME_SCHEMA_PATH = join(EXT_DIR, "schema", "theme-v1.json");
+
+function section(markdown, heading) {
+  const lines = markdown.split(/\r?\n/);
+  const start = lines.findIndex((line) => line.trim() === heading);
+  if (start < 0) throw new Error(`guide section not found: ${heading}`);
+  const level = heading.match(/^#+/)?.[0].length ?? 1;
+  let end = lines.length;
+  let fence = null;
+  for (let index = start + 1; index < lines.length; index += 1) {
+    const fenceMatch = lines[index].match(/^\s*(`{3,}|~{3,})/);
+    if (fenceMatch) {
+      const marker = fenceMatch[1][0];
+      if (!fence) fence = marker;
+      else if (fence === marker) fence = null;
+      continue;
+    }
+    if (fence) continue;
+    const match = lines[index].match(/^(#+)\s/);
+    if (match && match[1].length <= level) {
+      end = index;
+      break;
+    }
+  }
+  return lines.slice(start, end).join("\n").trim();
+}
+
+function themeSchemaSummary(schema) {
+  return [
+    "# Custom presentation theme v1 schema",
+    "",
+    "Custom properties available for theme authoring, extracted from the bundled `schema/theme-v1.json`.",
+    "",
+    "```json",
+    JSON.stringify(
+      {
+        format: schema["x-theme-file-format"],
+        allowedValueSyntax: schema["x-value-syntax"],
+        metadata: schema["x-theme-metadata"],
+        properties: Object.fromEntries(
+          Object.entries(schema.properties.variables.properties).map(([name, definition]) => [
+            name,
+            definition.description,
+          ]),
+        ),
+      },
+      null,
+      2,
+    ),
+    "```",
+  ].join("\n");
+}
+
+export async function readGuide(topic = "overview") {
+  if (topic === "architecture-schema") return architectureSchemaReference();
+  const readme = await readFile(README_PATH, "utf8");
+  switch (topic) {
+    case "overview":
+      return [
+        section(readme, "## How it works"),
+        "",
+        "Prefer `open_canvas` with `sourcePath` for workspace Markdown so MarkdStage opens the file in live mode, refreshes automatically, and enables the detailed Architecture designer. Use `slides` only when the user explicitly asks for an unsaved/in-memory display. Users can also load workspace Markdown directly with **More controls > Open Markdown** (deterministic splitting without AI; natural-language summarization remains the AI's responsibility). The workspace root is the Git repository root when available, otherwise the folder opened for the current session.",
+        "For a source-backed deck, **More controls > Shape editing** opens the detailed Architecture designer directly; changes affect Markdown only after explicit **Save**. In the npm CLI, `markdstage preview slides.md --watch` starts in viewing mode; `--watch` controls initial automatic refresh, not editing permission. Native Windows watching is always enabled. In-memory Canvas decks without a source association use lightweight placement editing instead.",
+        "Before drafting Architecture DSL, request `architecture-schema` for the generated authoring contract. Before displaying a diagram, call `markdstage_validate` with explicit `format: \"dsl\"` and `source`, or `format: \"slides\"` and one-slide `slides` fragments. Slide fragments are also checked for `adaptive-card` errors, reported under `adaptiveCards`. This read-only preflight needs no open canvas and does not read or change files.",
+        "",
+        "For details, request `slide-format`, `themes`, `custom-themes`, `theme-schema`, `architecture-dsl`, `architecture-schema`, or `adaptive-cards`.",
+      ].join("\n");
+    case "slide-format":
+      return [
+        section(readme, "### Markdown file syntax"),
+        "",
+        section(readme, "### Canvas API file and `slides` inputs"),
+        "",
+        section(readme, "### `sourceName` role"),
+        "",
+        "Use `adaptive-card` fences for fully resolved schema-1.5 JSON. Read the `adaptive-cards` guide for non-interactive input/action/media projection, editable static PowerPoint objects, bounded unsupported-subtree PNG fallback, approved images and precise content diagnostics.",
+      ].join("\n");
+    case "themes":
+      return section(readme, "### Choosing a theme");
+    case "custom-themes":
+    case "custom-ehemes":
+      return readFile(THEME_GUIDE_PATH, "utf8");
+    case "theme-schema": {
+      const schema = JSON.parse(await readFile(THEME_SCHEMA_PATH, "utf8"));
+      return themeSchemaSummary(schema);
+    }
+    case "architecture-dsl":
+      return section(readme, "## Architecture DSL v1");
+    case "adaptive-cards":
+      return readFile(join(EXT_DIR, "docs", "adaptive-cards.md"), "utf8");
+    default:
+      throw new Error(`unknown MarkdStage guide topic: ${topic}`);
+  }
+}
+
+export function deckValidationFeedback(slides, { validation } = {}) {
+  if (Array.isArray(slides) && slides.length === 0 && !validation) return undefined;
+  const warnings = [];
+  const cardSlides = [];
+  slides.forEach((slide, slideIndex) => {
+    cardSlides.push(slide);
+    if (!hasFrontMatter(slide)) {
+      warnings.push(
+        `slide ${slideIndex + 1}: front matter is missing. Add the required deck/layout/page/total/size fields to the leading --- block.`,
+      );
+    }
+  });
+  const report = validation ?? architectureValidationReport(slides);
+  for (const error of report.diagnostics) {
+    if (error.code === "unclosed_architecture_fence") {
+      warnings.push(
+        `slide ${error.page}: ${error.message}`,
+      );
+      continue;
+    }
+    warnings.push(
+      `${error.page ? `slide ${error.page}` : "Architecture validation"}${error.architecture ? `, architecture ${error.architecture}` : ""}: ${error.message} [${error.code}${error.pointer ? ` at ${error.pointer}` : ""}]. Review architecture-dsl and architecture-schema in markdstage_guide.`,
+    );
+  }
+  if (!report.complete) {
+    warnings.push(
+      report.truncated
+        ? `Architecture validation is incomplete: inspection limits were reached (${report.budget.limitsReached.join(", ")}). Validate smaller inputs; unchecked blocks are not valid.`
+        : "Architecture validation is incomplete: later stages were skipped after earlier errors. Fix the reported issues and validate again.",
+    );
+  }
+  const cards = adaptiveCardValidationReport(cardSlides);
+  for (const diagnostic of cards.diagnostics) warnings.push(
+    `${diagnostic.page ? `slide ${diagnostic.page}, ` : ""}${diagnostic.sourcePath || "Adaptive Card"}: ${diagnostic.message} [${diagnostic.code}; content impact]. Review adaptive-cards in markdstage_guide.`,
+  );
+  return warnings.length ? `Slide validation feedback:\n- ${warnings.join("\n- ")}` : undefined;
+}

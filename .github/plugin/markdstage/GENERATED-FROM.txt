@@ -1,1 +1,1 @@
-Generated from .github/extensions/markdstage by scripts/sync-awesome-copilot-plugin.mjs.
+Generated from .github/markdstage-dist by scripts/sync-awesome-copilot-plugin.mjs.

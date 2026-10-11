@@ -39,9 +39,9 @@ on which it depends.
 ### Awesome Copilot external plugin
 
 The awesome-copilot submission layout is generated under `.github/plugin/markdstage/` from the
-canonical Extension source. Keep normal development in `.github/extensions/markdstage/`; do not
-maintain a second hand-edited implementation. After changing the Extension, regenerate the
-committed tree:
+size-budgeted production distribution. Keep normal development in
+`.github/extensions/markdstage/`; do not maintain hand-edited copies. After changing the Extension,
+regenerate the committed distribution and plugin trees:
 
 ```powershell
 npm run awesome:sync
@@ -53,8 +53,9 @@ Verification is separate and never writes:
 npm run awesome:check
 ```
 
-This compares the committed tree byte-for-byte against freshly generated output and verifies the
-Agent Plugins manifest, the `canvas` keyword, `assets/preview.png`, the
+This first checks the production distribution against a fresh build, including its 4,500,000-byte
+aggregate and 1,000,000-byte per-file budgets, then compares the committed plugin tree byte-for-byte
+against freshly generated output. It also verifies the Agent Plugins manifest, the `canvas` keyword, `assets/preview.png`, the
 `com.github.copilot/extensions/markdstage/extension.mjs` entry point, the absence of the
 Extension test tree and of npm dependencies, the vendor manifest, and product-version alignment
 with the CLI package. CI runs it through the `Awesome Copilot plugin` job, and the release
@@ -66,23 +67,23 @@ or updated by a maintainer, use the new product tag and its full commit SHA as i
 locators. Small changes may remain on `main` and be grouped into the next publication; security,
 installation, startup, or data-integrity fixes should be prioritized for the next update.
 
-Distribute the Extension through a folder URL or a ZIP for manual installation.
+Distribute the generated production Extension through a folder URL or a ZIP for manual installation.
+The folder omits tests and stores vendor JavaScript in gzip chunks. The runtime verifies the stored
+chunk and compressed-stream hashes, decompresses offline, then verifies the original asset hash.
 
 ```text
-https://github.com/runceel/markdstage/tree/<tag>/.github/extensions/markdstage
+https://github.com/runceel/markdstage/tree/<tag>/.github/markdstage-dist
 ```
 
-Keep the Extension folder free of runtime npm dependencies. Exclude the following development
-assets from the distribution ZIP:
+Keep the generated distribution free of runtime npm dependencies. The reproducible build excludes:
 
-- Root `package.json` and `package-lock.json`
-- `node_modules/`
-- `playwright.config.mjs`
-- `.github/workflows/`
 - `test/`, `test-results/`, and `playwright-report/`
+- `package.json` and `package-lock.json`
+- `node_modules/`
 
-Include `scripts/` because it handles Markdown persistence, and `schema/` because it contains
-user-facing JSON Schemas. Also include the split Mermaid assets and their manifest.
+Include runtime `scripts/`, user-facing schemas and guides, licenses and third-party notices.
+`npm run extension:check` verifies the complete output, integrity metadata, generated-artifact
+freshness, and actual folder size before a release.
 
 ## Visual Studio Code extension
 

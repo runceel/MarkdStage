@@ -6,6 +6,7 @@ import {
 } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { gunzipSync } from "node:zlib";
 
 export const DEFAULT_CHUNK_SIZE = 512 * 1024;
 export const MANIFEST_NAME = "vendor-assets.lock.json";
@@ -33,6 +34,10 @@ export async function reconstructAsset(vendorDir, assetName, manifestPath) {
   if (!asset || !Array.isArray(asset.chunks) || asset.chunks.length === 0) {
     throw new Error(`Missing manifest entry for vendor asset: ${assetName}`);
   }
+  const encoding = asset.encoding ?? "identity";
+  if (encoding !== "identity" && encoding !== "gzip") {
+    throw new Error(`Unsupported encoding for vendor asset: ${assetName}`);
+  }
   const chunks = [];
   let total = 0;
   for (const [index, entry] of asset.chunks.entries()) {
@@ -49,8 +54,21 @@ export async function reconstructAsset(vendorDir, assetName, manifestPath) {
     chunks.push(data);
     total += data.length;
   }
-  const result = Buffer.concat(chunks);
-  if (total !== asset.size || result.length !== asset.size || sha256(result) !== asset.sha256) {
+  const stored = Buffer.concat(chunks);
+  if (
+    encoding === "gzip" &&
+    (total !== asset.storedSize || stored.length !== asset.storedSize ||
+      sha256(stored) !== asset.storedSha256)
+  ) {
+    throw new Error(`Integrity check failed for stored ${assetName}`);
+  }
+  let result;
+  try {
+    result = encoding === "gzip" ? gunzipSync(stored) : stored;
+  } catch (error) {
+    throw new Error(`Unable to decompress vendor asset ${assetName}: ${error.message}`, { cause: error });
+  }
+  if (result.length !== asset.size || sha256(result) !== asset.sha256) {
     throw new Error(`Integrity check failed for reconstructed ${assetName}`);
   }
   return result;

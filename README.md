@@ -103,16 +103,18 @@ For portable ZIPs and signed sideloading packages, see
 ## Use the canvas Extension
 
 When you open this repository as a project, `.github/extensions/markdstage/` loads at project
-scope. To Install the current **[v4.6.1 release](https://github.com/runceel/markdstage/releases/tag/v4.6.1)**
-at user scope in another repository, ask GitHub Copilot:
+scope. To install the latest production distribution at user scope in another repository, ask
+GitHub Copilot:
 
 > Install MarkdStage at user scope from the following GitHub repository folder.
 >
-> `https://github.com/runceel/markdstage/tree/v4.6.1/.github/extensions/markdstage`
+> `https://github.com/runceel/markdstage/tree/main/.github/markdstage-dist`
 
-The Extension runs local code in the user's environment. Review its contents before installation,
-and use a trusted release tag or commit SHA for a reproducible install. The `main` branch tracks
-the latest development version.
+The production distribution omits tests and stores large vendor assets as integrity-checked gzip
+chunks. It is generated from the canonical source and remains offline-capable. The Extension runs
+local code in the user's environment. Review its source before installation. For a reproducible
+install, use a trusted release tag containing this distribution or a commit SHA; `main` tracks the
+latest development version.
 
 ### Minimal workflow
 
@@ -147,8 +149,8 @@ canvasId: MarkdStage
 
 This repository also contains the generated external-plugin layout used for an
 awesome-copilot submission at `.github/plugin/markdstage/`. It is regenerated from the
-canonical `.github/extensions/markdstage/` source with `npm run awesome:sync` and verified
-without writing by:
+production distribution (itself built from the canonical `.github/extensions/markdstage/` source)
+with `npm run awesome:sync` and verified without writing by:
 
 ```console
 npm run awesome:check
@@ -421,6 +423,7 @@ PowerPoint notes pane. They remain absent from regular slides, the audience wind
 | Path | Contents |
 | --- | --- |
 | `.github/extensions/markdstage/` | Canvas Extension, renderer, bundled open-source software, and schemas |
+| `.github/markdstage-dist/` | Generated, size-budgeted user-scope Canvas Extension distribution |
 | `packages/markdstage-cli/` | `@markdstage/markdstage` CLI package and the Agent Skill generator used by CLI and Desktop installers |
 | `apps/MarkdStage.Desktop/` | WinUI 3 desktop app |
 | `assets/brand/` | MarkdStage logo, lockup, and README banner |

@@ -187,8 +187,10 @@ Generated artifacts are not independent sources of truth:
 
 - `packages/markdstage-cli/shared/` mirrors portable files from the canonical
   Extension before testing and packaging.
-- `.github/plugin/markdstage/` is generated from the canonical Extension for
-  Awesome Copilot distribution.
+- `.github/plugin/markdstage/` is generated from the production distribution for
+  Awesome Copilot.
+- `.github/markdstage-dist/` is generated from the canonical Extension
+  as the size-budgeted folder used for user-scope installation and the release ZIP.
 - Agent Skills are generated from the canonical guide topics by
   `packages/markdstage-cli/src/skills.mjs`.
 
