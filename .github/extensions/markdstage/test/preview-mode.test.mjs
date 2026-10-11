@@ -25,7 +25,11 @@ test("preview state resolves the requested slide offset", async () => {
   const source = await readFile(join(extensionRoot, "extension.mjs"), "utf8");
 
   assert.match(source, /requestUrl\.searchParams\.get\("offset"\)/);
-  assert.match(source, /targetIndex = clampIndex\(inst\.index \+ offset, inst\.slides\.length\)/);
+  assert.match(
+    source,
+    /targetIndex = clampIndex\(inst\.index \+ \(buildNext \? 0 : offset\), inst\.slides\.length\)/,
+  );
+  assert.match(source, /requestUrl\.searchParams\.get\("build"\) === "next"/);
   assert.match(source, /inst\.slides\[targetIndex\]/);
 });
 
