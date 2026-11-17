@@ -376,6 +376,8 @@ internal sealed class NativeRuntimeHost(
                     slides: snapshot.slides, titles: snapshot.titles,
                     notes: snapshot.notes ?? snapshot.slides.map(extractSpeakerNotes),
                     index: snapshot.index, version: snapshot.version, deckVersion: snapshot.deckVersion,
+                    revealTotals: snapshot.revealTotals,
+                    revealStep: snapshot.revealStep, revealTotal: snapshot.revealTotal,
                     sourcePath: snapshot.sourceName,
                     theme: { name: snapshot.theme, css: snapshot.customThemeCss,
                       metadataJson: snapshot.customThemeMeta ? JSON.stringify(snapshot.customThemeMeta) : "",
