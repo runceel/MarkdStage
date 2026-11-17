@@ -79,6 +79,9 @@ dotnet test tests\MarkdStage.Core.Tests\MarkdStage.Core.Tests.csproj
 npm run test:unit
 ```
 
+The repository-root `npm run test:ci` also exercises the Desktop runtime bridge
+with Markdown loading and incremental reveal navigation.
+
 The Windows-only CLI tests exercise the native message layout, STA message pump,
 WebView2 event delivery after forced garbage collection, and the production
 packaged script host. They verify the generated validation/scanner-module closure,
